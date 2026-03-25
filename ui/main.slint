@@ -357,9 +357,9 @@ export component MainWindow inherits Window {
     in property <bool> scroll-vertical: false;
     in property <int> active-drag-index: -1;
 
-    // Read by Rust to know real scroll offset
-    out property <float> viewport-x: flickable.viewport-x / 1px;
-    out property <float> viewport-y: flickable.viewport-y / 1px;
+    // Shared with Rust and custom input handlers to keep scroll offsets in sync.
+    in-out property <float> viewport-x: 0;
+    in-out property <float> viewport-y: 0;
 
     // Track mouse presence for scrollbar visibility
     in-out property <bool> mouse-inside: false;
@@ -389,16 +389,58 @@ export component MainWindow inherits Window {
         }
 
         // Content area
-        Rectangle {
+        content-frame := Rectangle {
             clip: true;
+            property <float> max-scroll-x: max(root.content-width - self.width / 1px, 0);
+            property <float> max-scroll-y: max(root.content-height - self.height / 1px, 0);
 
             // Detect mouse enter/leave
             outer-touch := TouchArea {
-                moved => { root.mouse-inside = true; }
+                property <bool> middle-pan-active: false;
+                property <float> last-pan-x: 0;
+                property <float> last-pan-y: 0;
+
                 pointer-event(event) => {
                     if event.kind == PointerEventKind.move {
                         root.mouse-inside = true;
                     }
+
+                    if event.kind == PointerEventKind.down && event.button == PointerEventButton.middle {
+                        self.middle-pan-active = root.scroll-horizontal || root.scroll-vertical;
+                        self.last-pan-x = self.mouse-x / 1px;
+                        self.last-pan-y = self.mouse-y / 1px;
+                    }
+
+                    if event.kind == PointerEventKind.up && event.button == PointerEventButton.middle {
+                        self.middle-pan-active = false;
+                    }
+                }
+
+                moved => {
+                    root.mouse-inside = true;
+                    if self.middle-pan-active {
+                        if root.scroll-horizontal {
+                            root.viewport-x = min(0, max(-content-frame.max-scroll-x, root.viewport-x + (self.mouse-x / 1px - self.last-pan-x)));
+                        }
+                        if root.scroll-vertical {
+                            root.viewport-y = min(0, max(-content-frame.max-scroll-y, root.viewport-y + (self.mouse-y / 1px - self.last-pan-y)));
+                        }
+                        self.last-pan-x = self.mouse-x / 1px;
+                        self.last-pan-y = self.mouse-y / 1px;
+                    }
+                }
+
+                scroll-event(event) => {
+                    root.mouse-inside = true;
+                    if root.scroll-horizontal {
+                        root.viewport-x = min(0, max(-content-frame.max-scroll-x, root.viewport-x + (event.delta_x == 0px ? event.delta_y / 1px : event.delta_x / 1px)));
+                        return accept;
+                    }
+                    if root.scroll-vertical {
+                        root.viewport-y = min(0, max(-content-frame.max-scroll-y, root.viewport-y + event.delta_y / 1px));
+                        return accept;
+                    }
+                    reject
                 }
             }
 
@@ -407,7 +449,9 @@ export component MainWindow inherits Window {
             flickable := Flickable {
                 viewport-width: root.scroll-horizontal ? root.content-width * 1px : parent.width;
                 viewport-height: root.scroll-vertical ? root.content-height * 1px : parent.height;
-                interactive: root.scroll-horizontal || root.scroll-vertical;
+                viewport-x: root.viewport-x * 1px;
+                viewport-y: root.viewport-y * 1px;
+                interactive: false;
 
                 for thumb[i] in root.thumbnails: ThumbnailCard {
                     x: thumb.x * 1px;
@@ -447,7 +491,7 @@ export component MainWindow inherits Window {
                 y: 4px;
                 width: 6px;
                 height: parent.height - 8px;
-                viewport-offset: flickable.viewport-y / 1px;
+                viewport-offset: root.viewport-y;
                 content-extent: root.content-height;
                 visible-size: parent.height / 1px;
                 horizontal: false;
@@ -460,7 +504,7 @@ export component MainWindow inherits Window {
                 y: parent.height - 14px;
                 width: parent.width - 8px;
                 height: 6px;
-                viewport-offset: flickable.viewport-x / 1px;
+                viewport-offset: root.viewport-x;
                 content-extent: root.content-width;
                 visible-size: parent.width / 1px;
                 horizontal: true;
