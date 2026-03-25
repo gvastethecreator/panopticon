@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{PanopticonError, Result};
-use crate::layout::LayoutType;
+use crate::layout::{LayoutCustomization, LayoutType};
 
 const DEFAULT_REFRESH_INTERVAL_MS: u32 = 2_000;
 const REFRESH_INTERVALS_MS: [u32; 4] = [1_000, 2_000, 5_000, 10_000];
@@ -136,6 +136,9 @@ pub struct AppSettings {
     pub show_toolbar: bool,
     /// Show per-window title/app information below thumbnails.
     pub show_window_info: bool,
+    /// Per-layout custom resize ratios (column/row proportions).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub layout_customizations: BTreeMap<String, LayoutCustomization>,
 }
 
 impl Default for AppSettings {
@@ -162,11 +165,35 @@ impl Default for AppSettings {
             use_system_backdrop: true,
             show_toolbar: true,
             show_window_info: true,
+            layout_customizations: BTreeMap::new(),
         }
     }
 }
 
 impl AppSettings {
+    /// Return the custom layout override for the given layout type, if any.
+    #[must_use]
+    pub fn layout_custom(&self, layout: LayoutType) -> Option<&LayoutCustomization> {
+        self.layout_customizations
+            .get(layout.label())
+            .filter(|c| !c.is_empty())
+    }
+
+    /// Store (or clear) a layout customization for the given layout type.
+    pub fn set_layout_custom(&mut self, layout: LayoutType, custom: LayoutCustomization) {
+        if custom.is_empty() {
+            self.layout_customizations.remove(layout.label());
+        } else {
+            self.layout_customizations
+                .insert(layout.label().to_owned(), custom);
+        }
+    }
+
+    /// Clear all custom layout ratios for the given layout type.
+    pub fn clear_layout_custom(&mut self, layout: LayoutType) {
+        self.layout_customizations.remove(layout.label());
+    }
+
     /// Resolve the on-disk settings path for a given instance profile.
     #[must_use]
     pub fn path_for(profile: Option<&str>) -> PathBuf {
@@ -573,6 +600,7 @@ impl AppSettings {
             use_system_backdrop: self.use_system_backdrop,
             show_toolbar: self.show_toolbar,
             show_window_info: self.show_window_info,
+            layout_customizations: self.layout_customizations.clone(),
         }
     }
 
@@ -683,6 +711,7 @@ mod tests {
             use_system_backdrop: true,
             show_toolbar: false,
             show_window_info: false,
+            layout_customizations: std::collections::BTreeMap::default(),
         };
 
         let encoded = toml::to_string_pretty(&settings).expect("serialize settings");
@@ -715,6 +744,7 @@ mod tests {
             use_system_backdrop: false,
             show_toolbar: true,
             show_window_info: true,
+            layout_customizations: std::collections::BTreeMap::default(),
         };
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);

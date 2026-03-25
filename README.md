@@ -1,19 +1,13 @@
 # Panopticon
 
-<p align="center">
-  <img src="docs/assets/panopticon-icon.svg" alt="Panopticon icon" width="144" height="144">
-</p>
+![Panopticon icon](docs/assets/panopticon-icon.svg)
 
-<p align="center">
-  <strong>Visor nativo para Windows con miniaturas DWM en tiempo real, filtros por monitor y grupos por tags o aplicación.</strong>
-</p>
+**Visor nativo para Windows con miniaturas DWM en tiempo real, filtros por monitor y grupos por tags o aplicación.**
 
-<p align="center">
-  <a href="https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-2ea043"></a>
-  <a href="https://www.rust-lang.org/"><img alt="Rust" src="https://img.shields.io/badge/Rust-2021-%23CE422B?logo=rust"></a>
-  <a href="https://learn.microsoft.com/windows/"><img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4?logo=windows"></a>
-</p>
+[![CI](https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml/badge.svg)](https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-2021-%23CE422B?logo=rust)](https://www.rust-lang.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4?logo=windows)](https://learn.microsoft.com/windows/)
 
 Panopticon es una aplicación de escritorio escrita en Rust que enumera ventanas de Windows y renderiza miniaturas vivas mediante la API de Desktop Window Manager (DWM). Está pensada para ofrecer una vista global del escritorio con layouts matemáticos, reglas persistentes por aplicación y comportamiento estilo utility/tray app.
 
@@ -69,6 +63,7 @@ cargo run --release
 | `I` | Mostrar / ocultar información bajo thumbnails |
 | `P` | Alternar siempre visible |
 | `O` | Abrir la ventana de configuración |
+| `0` | Resetear el ajuste manual del layout actual |
 | Click izquierdo sobre miniatura | Activar la ventana |
 | Click derecho sobre miniatura | Abrir opciones por aplicación |
 | Click izquierdo en icono del tray | Mostrar / ocultar Panopticon |

@@ -12,11 +12,15 @@
 
 mod app;
 
+use app::options::{open_tag_dialog, TagCreateSubmit, WM_TAG_CREATED};
 use app::tray::{handle_tray_message, AppIcons, TrayAction, TrayIcon, TrayMenuState, WM_TRAYICON};
 use panopticon::constants::{
     ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TOOLBAR_HEIGHT,
 };
-use panopticon::layout::{compute_layout, AspectHint, LayoutType, ScrollDirection};
+use panopticon::layout::{
+    apply_separator_drag, compute_layout_custom, default_ratios, AspectHint, LayoutType,
+    Separator, ScrollDirection,
+};
 use panopticon::settings::{AppSelectionEntry, AppSettings, DockEdge};
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
@@ -83,10 +87,18 @@ thread_local! {
 
 enum PendingAction {
     Tray(TrayAction),
+    TagCreated(TagCreationRequest),
     Reposition,
     HideToTray,
     Refresh,
     Exit,
+}
+
+struct TagCreationRequest {
+    app_id: String,
+    display_name: String,
+    tag_name: String,
+    color_hex: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +108,19 @@ enum WindowMenuAction {
     ToggleHideOnSelect,
     CreateTagFromApp,
     ToggleTag(String),
+}
+
+/// Tracks an in-progress separator drag.
+#[derive(Debug, Clone)]
+struct DragState {
+    /// Separator index (maps to the handle `index` field in Slint).
+    separator_index: usize,
+    /// Whether the separator is horizontal (drag vertically).
+    horizontal: bool,
+    /// Ratio-array index of the separator.
+    ratio_index: usize,
+    /// Total extent of the axis at drag start (width or height of content area).
+    axis_extent: f64,
 }
 
 /// A window tracked by Panopticon, including its DWM thumbnail handle.
@@ -123,10 +148,15 @@ struct AppState {
     mouse_inside: bool,
     profile_name: Option<String>,
     last_size: (i32, i32),
+    /// Cached separators from the last layout computation.
+    separators: Vec<Separator>,
+    /// Active drag state: separator index being dragged.
+    drag_separator: Option<DragState>,
 }
 
 // ───────────────────────── Entry Point ─────────────────────────
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     let _log_guard = panopticon::logging::init().ok();
     let profile = parse_profile_from_args();
@@ -167,6 +197,8 @@ fn main() {
         mouse_inside: false,
         profile_name: profile,
         last_size: (0, 0),
+        separators: Vec::new(),
+        drag_separator: None,
     }));
 
     // Show the window so the native HWND exists on next event-loop iteration.
@@ -356,6 +388,10 @@ fn forward_to_original(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> 
     unsafe { CallWindowProcW(mem::transmute(original), hwnd, msg, wparam, lparam) }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "El dispatcher Win32 se mantiene lineal para auditar mensajes y efectos colaterales en un solo lugar"
+)]
 unsafe extern "system" fn subclass_proc(
     hwnd: HWND,
     msg: u32,
@@ -399,6 +435,21 @@ unsafe extern "system" fn subclass_proc(
                         PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Tray(action)));
                     }
                 }
+            }
+            LRESULT(0)
+        }
+        tag_created if tag_created == WM_TAG_CREATED => {
+            let payload = lparam.0 as *mut TagCreateSubmit;
+            if !payload.is_null() {
+                let payload = Box::from_raw(payload);
+                PENDING_ACTIONS.with(|q| {
+                    q.borrow_mut().push(PendingAction::TagCreated(TagCreationRequest {
+                        app_id: payload.app_id.clone(),
+                        display_name: payload.display_name.clone(),
+                        tag_name: payload.tag_name.clone(),
+                        color_hex: payload.color_hex.clone(),
+                    }));
+                });
             }
             LRESULT(0)
         }
@@ -472,8 +523,9 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
 
     main_window.on_thumbnail_right_clicked({
         let state = state.clone();
+        let weak = main_window.as_weak();
         move |index, _x, _y| {
-            handle_thumbnail_right_click(&state, index as usize);
+            handle_thumbnail_right_click(&state, &weak, index as usize);
         }
     });
 
@@ -502,6 +554,30 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
             if let Some(win) = weak.upgrade() {
                 recompute_and_update_ui(&state, &win);
             }
+        }
+    });
+
+    main_window.on_resize_drag_started({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move |index, x, y| {
+            handle_resize_drag_start(&state, &weak, index as usize, x as f64, y as f64);
+        }
+    });
+
+    main_window.on_resize_drag_moved({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move |index, x, y| {
+            handle_resize_drag_move(&state, &weak, index as usize, x as f64, y as f64);
+        }
+    });
+
+    main_window.on_resize_drag_ended({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move |_index| {
+            handle_resize_drag_end(&state, &weak);
         }
     });
 
@@ -648,7 +724,16 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         })
         .collect();
 
-    let rects = compute_layout(s.current_layout, content_area, s.windows.len(), &aspects);
+    let custom = s.settings.layout_custom(s.current_layout).cloned();
+    let result = compute_layout_custom(
+        s.current_layout,
+        content_area,
+        s.windows.len(),
+        &aspects,
+        custom.as_ref(),
+    );
+    let rects = result.rects;
+    s.separators = result.separators;
 
     // Content extent for scrolling.
     let scroll_dir = s.current_layout.scroll_direction();
@@ -737,12 +822,48 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         })
         .collect();
 
+    // Build resize handle data from cached separators.
+    let handle_thickness: f32 = 10.0;
+    let handles: Vec<ResizeHandleData> = s
+        .separators
+        .iter()
+        .enumerate()
+        .map(|(idx, sep)| {
+            if sep.horizontal {
+                ResizeHandleData {
+                    x: sep.extent_start as f32,
+                    y: sep.position as f32 - handle_thickness / 2.0,
+                    width: (sep.extent_end - sep.extent_start) as f32,
+                    height: handle_thickness,
+                    horizontal: true,
+                    index: idx as i32,
+                }
+            } else {
+                ResizeHandleData {
+                    x: sep.position as f32 - handle_thickness / 2.0,
+                    y: sep.extent_start as f32,
+                    width: handle_thickness,
+                    height: (sep.extent_end - sep.extent_start) as f32,
+                    horizontal: false,
+                    index: idx as i32,
+                }
+            }
+        })
+        .collect();
+
+    let active_drag = s
+        .drag_separator
+        .as_ref()
+        .map_or(-1, |d| d.separator_index as i32);
+
     win.set_layout_label(SharedString::from(s.current_layout.label()));
     win.set_window_count(s.windows.len() as i32);
     win.set_hidden_count(s.settings.hidden_app_entries().len() as i32);
 
     drop(s);
     win.set_thumbnails(ModelRc::new(VecModel::from(data)));
+    win.set_resize_handles(ModelRc::new(VecModel::from(handles)));
+    win.set_active_drag_index(active_drag);
 }
 
 fn update_hover_in_model(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
@@ -907,7 +1028,11 @@ fn handle_thumbnail_click(
     }
 }
 
-fn handle_thumbnail_right_click(state: &Rc<RefCell<AppState>>, index: usize) {
+fn handle_thumbnail_right_click(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    index: usize,
+) {
     let s = state.borrow();
     if s.hwnd.0.is_null() {
         return;
@@ -922,7 +1047,7 @@ fn handle_thumbnail_right_click(state: &Rc<RefCell<AppState>>, index: usize) {
     drop(s);
 
     if let Some(action) = show_window_context_menu(state, hwnd, &info, preserve, hide_on) {
-        handle_window_menu_action(state, &info, action);
+        handle_window_menu_action(state, weak, &info, action);
     }
 }
 
@@ -1040,19 +1165,26 @@ fn show_window_context_menu(
 
 fn handle_window_menu_action(
     state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
     info: &WindowInfo,
     action: WindowMenuAction,
 ) {
+    let mut needs_window_refresh = false;
+    let mut needs_ui_refresh = false;
+
     match action {
         WindowMenuAction::HideApp => {
             update_settings(state, |s| {
                 let _ = s.toggle_hidden(&info.app_id, &info.app_label());
             });
+            needs_window_refresh = true;
+            needs_ui_refresh = true;
         }
         WindowMenuAction::ToggleAspectRatio => {
             update_settings(state, |s| {
                 let _ = s.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label());
             });
+            needs_ui_refresh = true;
         }
         WindowMenuAction::ToggleHideOnSelect => {
             update_settings(state, |s| {
@@ -1060,15 +1192,76 @@ fn handle_window_menu_action(
             });
         }
         WindowMenuAction::CreateTagFromApp => {
-            // Tag creation via Slint dialog is deferred for a future iteration.
-            tracing::info!(app_id = %info.app_id, "tag creation requested");
+            open_create_tag_dialog(state, info);
         }
         WindowMenuAction::ToggleTag(tag) => {
             update_settings(state, |s| {
                 let _ = s.toggle_app_tag(&info.app_id, &info.app_label(), &tag);
             });
+            needs_window_refresh = true;
+            needs_ui_refresh = true;
         }
     }
+
+    if needs_window_refresh {
+        let _ = refresh_windows(state);
+    }
+
+    if needs_ui_refresh {
+        refresh_ui(state, weak);
+    }
+}
+
+fn open_create_tag_dialog(state: &Rc<RefCell<AppState>>, info: &WindowInfo) {
+    let hwnd = state.borrow().hwnd;
+    if hwnd.0.is_null() {
+        return;
+    }
+
+    let suggested_name = suggested_tag_name(&info.app_label());
+    let suggested_color = state.borrow().settings.tag_color_hex(&suggested_name);
+
+    if let Err(error) = open_tag_dialog(
+        hwnd,
+        &info.app_id,
+        &info.app_label(),
+        &suggested_name,
+        &suggested_color,
+    ) {
+        tracing::error!(%error, app_id = %info.app_id, "failed to open tag dialog");
+    }
+}
+
+fn suggested_tag_name(label: &str) -> String {
+    let lowered = label
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>();
+
+    lowered.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn apply_tag_creation(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    request: &TagCreationRequest,
+) {
+    update_settings(state, |settings| {
+        let _ = settings.assign_tag_with_color(
+            &request.app_id,
+            &request.display_name,
+            &request.tag_name,
+            &request.color_hex,
+        );
+    });
+    let _ = refresh_windows(state);
+    refresh_ui(state, weak);
 }
 
 // ───────────────────────── Keyboard ─────────────────────────
@@ -1101,6 +1294,12 @@ fn handle_key(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, key
         }
         "7" => {
             set_layout(state, weak, LayoutType::Column);
+            true
+        }
+        "0" => {
+            // Reset custom layout ratios for current layout
+            reset_layout_custom(state);
+            refresh_ui(state, weak);
             true
         }
         "a" | "A" => {
@@ -1155,6 +1354,184 @@ fn handle_key(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, key
             true
         }
         _ => false,
+    }
+}
+
+// ───────────────────────── Resize Drag ─────────────────────────
+
+fn handle_resize_drag_start(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    separator_index: usize,
+    _x: f64,
+    _y: f64,
+) {
+    let mut s = state.borrow_mut();
+    let Some(sep) = s.separators.get(separator_index).copied() else {
+        return;
+    };
+
+    let phys = weak.upgrade().map(|w| w.window().size());
+    let scale = weak.upgrade().map_or(1.0, |w| w.window().scale_factor());
+    let toolbar_h = if s.settings.show_toolbar {
+        TOOLBAR_HEIGHT
+    } else {
+        0
+    };
+    let logical_w = phys.map_or(1280, |p| (p.width as f32 / scale).round() as i32);
+    let logical_h = phys.map_or(720, |p| (p.height as f32 / scale).round() as i32) - toolbar_h;
+
+    let axis_extent = if sep.horizontal {
+        logical_h as f64
+    } else {
+        logical_w as f64
+    };
+
+    s.drag_separator = Some(DragState {
+        separator_index,
+        horizontal: sep.horizontal,
+        ratio_index: sep.ratio_index,
+        axis_extent,
+    });
+}
+
+fn handle_resize_drag_move(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    separator_index: usize,
+    x: f64,
+    y: f64,
+) {
+    let drag = {
+        let s = state.borrow();
+        match s.drag_separator.as_ref() {
+            Some(d) if d.separator_index == separator_index => d.clone(),
+            _ => return,
+        }
+    };
+
+    // The mouse position is relative to the resize handle element.
+    // Calculate delta from the center of the handle.
+    let handle_center = 5.0; // half of handle_thickness
+    let mouse_offset = if drag.horizontal {
+        y - handle_center
+    } else {
+        x - handle_center
+    };
+
+    if drag.axis_extent <= 0.0 {
+        return;
+    }
+    let delta_frac = mouse_offset / drag.axis_extent;
+
+    // Ensure we have custom ratios for the current layout.
+    let mut s = state.borrow_mut();
+    let layout = s.current_layout;
+    ensure_custom_ratios(&mut s, layout);
+
+    let min_frac = 0.05;
+    if let Some(custom) = s.settings.layout_customizations.get_mut(layout.label()) {
+        let ratios = if drag.horizontal {
+            &mut custom.row_ratios
+        } else {
+            &mut custom.col_ratios
+        };
+        if drag.ratio_index + 1 < ratios.len() {
+            apply_separator_drag(ratios, drag.ratio_index, delta_frac, min_frac);
+        }
+    }
+
+    // Save and recompute
+    s.settings = s.settings.normalized();
+    let _ = s.settings.save(s.profile_name.as_deref());
+    drop(s);
+
+    if let Some(win) = weak.upgrade() {
+        recompute_and_update_ui(state, &win);
+    }
+}
+
+fn handle_resize_drag_end(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+) {
+    let mut s = state.borrow_mut();
+    s.drag_separator = None;
+    let _ = s.settings.save(s.profile_name.as_deref());
+    drop(s);
+
+    if let Some(win) = weak.upgrade() {
+        sync_model_to_slint(state, &win);
+    }
+}
+
+fn reset_layout_custom(state: &Rc<RefCell<AppState>>) {
+    let mut s = state.borrow_mut();
+    let layout = s.current_layout;
+    s.settings.clear_layout_custom(layout);
+    s.settings = s.settings.normalized();
+    let _ = s.settings.save(s.profile_name.as_deref());
+}
+
+/// Ensure that custom ratios exist for the current layout; if absent,
+/// seed them from the default equal distribution so dragging has a
+/// starting point.
+fn ensure_custom_ratios(s: &mut AppState, layout: LayoutType) {
+    let count = s.windows.len();
+    if count == 0 {
+        return;
+    }
+
+    let entry = s
+        .settings
+        .layout_customizations
+        .entry(layout.label().to_owned())
+        .or_default();
+
+    match layout {
+        LayoutType::Grid => {
+            let cols = (count as f64).sqrt().ceil() as usize;
+            let rows = count.div_ceil(cols);
+            if entry.col_ratios.len() != cols {
+                entry.col_ratios = default_ratios(cols);
+            }
+            if entry.row_ratios.len() != rows {
+                entry.row_ratios = default_ratios(rows);
+            }
+        }
+        LayoutType::Mosaic => {
+            let cols = (count as f64).sqrt().ceil() as usize;
+            let rows_count = count.div_ceil(cols);
+            if entry.row_ratios.len() != rows_count {
+                entry.row_ratios = default_ratios(rows_count);
+            }
+        }
+        LayoutType::Bento => {
+            if entry.col_ratios.is_empty() {
+                entry.col_ratios = vec![0.6];
+            }
+            let side_count = count.saturating_sub(1);
+            if side_count > 0 && entry.row_ratios.len() != side_count {
+                entry.row_ratios = default_ratios(side_count);
+            }
+        }
+        LayoutType::Columns => {
+            let num_cols = ((count as f64).sqrt().ceil() as usize).clamp(2, 5);
+            if entry.col_ratios.len() != num_cols {
+                entry.col_ratios = default_ratios(num_cols);
+            }
+        }
+        LayoutType::Row => {
+            if entry.col_ratios.len() != count {
+                entry.col_ratios = default_ratios(count);
+            }
+        }
+        LayoutType::Column => {
+            if entry.row_ratios.len() != count {
+                entry.row_ratios = default_ratios(count);
+            }
+        }
+        LayoutType::Fibonacci => {}
     }
 }
 
@@ -1317,6 +1694,7 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
     let weak = win.as_weak();
     match action {
         PendingAction::Tray(ta) => handle_tray_action(state, &weak, ta),
+        PendingAction::TagCreated(request) => apply_tag_creation(state, &weak, &request),
         PendingAction::Reposition => {
             if let Ok(mut s) = state.try_borrow_mut() {
                 if s.is_appbar {
@@ -1434,6 +1812,7 @@ fn cycle_layout(state: &Rc<RefCell<AppState>>) {
     let mut s = state.borrow_mut();
     s.current_layout = s.current_layout.next();
     s.settings.initial_layout = s.current_layout;
+    s.drag_separator = None;
     let _ = s.settings.save(s.profile_name.as_deref());
 }
 
@@ -1445,6 +1824,7 @@ fn set_layout(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, lay
         }
         s.current_layout = layout;
         s.settings.initial_layout = layout;
+        s.drag_separator = None;
         let _ = s.settings.save(s.profile_name.as_deref());
     }
     refresh_ui(state, weak);
