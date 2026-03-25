@@ -25,8 +25,9 @@ use app::tray::{
     WM_TRAYICON,
 };
 use panopticon::constants::{
-    BG_COLOR, BORDER_COLOR, FALLBACK_TEXT_COLOR, HOVER_BORDER_COLOR, LABEL_COLOR, MAX_TITLE_CHARS,
-    MUTED_TEXT_COLOR, PANEL_BG_COLOR, TB_COLOR, TEXT_COLOR, THUMBNAIL_FOOTER_HEIGHT, TIMER_REFRESH,
+    ACCENT_SOFT_COLOR, ANIMATION_DURATION_MS, BG_COLOR, BORDER_COLOR, FALLBACK_TEXT_COLOR,
+    HOVER_BORDER_COLOR, LABEL_COLOR, MAX_TITLE_CHARS, MUTED_TEXT_COLOR, PANEL_BG_COLOR, TB_COLOR,
+    TEXT_COLOR, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TIMER_ANIMATION, TIMER_REFRESH,
     TITLE_TRUNCATE_AT, TOOLBAR_HEIGHT, VK_ESCAPE, VK_R, VK_TAB,
 };
 use panopticon::layout::{compute_layout, AspectHint, LayoutType};
@@ -34,12 +35,14 @@ use panopticon::settings::AppSettings;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 use std::mem;
 use std::ptr::NonNull;
+use std::time::Instant;
 
-use windows::core::w;
-use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, RECT, SIZE, WPARAM};
+use windows::core::{w, PCWSTR};
+use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows::Win32::Graphics::Dwm::DwmQueryThumbnailSourceSize;
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect, FrameRect,
@@ -51,6 +54,15 @@ use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
 use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::Win32::UI::WindowsAndMessaging::{
+    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, SetWindowPos, TrackPopupMenu,
+    HWND_NOTOPMOST, HWND_TOPMOST, MF_CHECKED, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
+};
+
+const CMD_WINDOW_HIDE_APP: u16 = 1;
+const CMD_WINDOW_TOGGLE_ASPECT_RATIO: u16 = 2;
+const CMD_WINDOW_TOGGLE_HIDE_ON_SELECT: u16 = 3;
 
 // ───────────────────────── Application State ─────────────────────────
 
@@ -59,6 +71,8 @@ struct ManagedWindow {
     info: WindowInfo,
     thumbnail: Option<Thumbnail>,
     target_rect: RECT,
+    display_rect: RECT,
+    animation_from_rect: RECT,
     source_size: SIZE,
 }
 
@@ -71,6 +85,21 @@ struct AppState {
     tray_icon: Option<TrayIcon>,
     icons: AppIcons,
     settings: AppSettings,
+    animation_started_at: Option<Instant>,
+}
+
+struct ToolbarStatus<'a> {
+    hidden_count: usize,
+    refresh_label: &'a str,
+    always_on_top: bool,
+    animate_transitions: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WindowMenuAction {
+    HideApp,
+    ToggleAspectRatio,
+    ToggleHideOnSelect,
 }
 
 /// Obtain a mutable reference to the application state stored on the window.
@@ -113,6 +142,7 @@ fn main() {
         tray_icon: None,
         icons,
         settings,
+        animation_started_at: None,
     });
 
     let state_ptr = Box::into_raw(state);
@@ -121,6 +151,7 @@ fn main() {
     // SAFETY: state pointer was stored in `GWLP_USERDATA` during `WM_NCCREATE`.
     unsafe {
         if let Some(state) = app_from_hwnd(hwnd) {
+            apply_topmost_mode(state.hwnd, state.settings.always_on_top);
             match TrayIcon::add(hwnd, state.icons.small) {
                 Ok(tray_icon) => state.tray_icon = Some(tray_icon),
                 Err(error) => tracing::error!(%error, "failed to initialise tray icon"),
@@ -128,7 +159,7 @@ fn main() {
         }
     }
 
-    refresh_windows(hwnd);
+    let _ = refresh_windows(hwnd);
     recompute_layout(hwnd);
 
     reset_refresh_timer(hwnd);
@@ -204,6 +235,7 @@ fn create_main_window(state_ptr: *mut AppState) -> HWND {
 ///
 /// Called by the OS on the message-loop thread. `hwnd` is a valid window
 /// handle for the lifetime of the call.
+#[allow(clippy::too_many_lines)]
 unsafe extern "system" fn wnd_proc(
     hwnd: HWND,
     msg: u32,
@@ -242,16 +274,24 @@ unsafe extern "system" fn wnd_proc(
         }
         WM_TIMER => {
             if wparam.0 == TIMER_REFRESH {
-                refresh_windows(hwnd);
-                recompute_layout(hwnd);
-                let _ = InvalidateRect(hwnd, None, true);
+                if refresh_windows(hwnd) {
+                    recompute_layout(hwnd);
+                    let _ = InvalidateRect(hwnd, None, true);
+                }
+            } else if wparam.0 == TIMER_ANIMATION {
+                advance_animation(hwnd);
             }
             LRESULT(0)
         }
         WM_SHOWWINDOW => {
             if wparam.0 != 0 {
+                let _ = refresh_windows(hwnd);
                 recompute_layout(hwnd);
+                reset_refresh_timer(hwnd);
                 let _ = InvalidateRect(hwnd, None, true);
+            } else {
+                release_all_thumbnails(hwnd);
+                reset_refresh_timer(hwnd);
             }
             LRESULT(0)
         }
@@ -261,6 +301,10 @@ unsafe extern "system" fn wnd_proc(
         }
         WM_LBUTTONDOWN => {
             handle_click(hwnd, lparam_x(lparam), lparam_y(lparam));
+            LRESULT(0)
+        }
+        WM_RBUTTONUP => {
+            handle_right_click(hwnd, lparam_x(lparam), lparam_y(lparam));
             LRESULT(0)
         }
         WM_KEYDOWN => {
@@ -276,7 +320,8 @@ unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         tray_message if tray_message == WM_TRAYICON => {
-            if let Some(action) = handle_tray_message(hwnd, lparam, tray_menu_state(hwnd)) {
+            let tray_state = tray_menu_state(hwnd);
+            if let Some(action) = handle_tray_message(hwnd, lparam, &tray_state) {
                 handle_tray_action(hwnd, action);
             }
             LRESULT(0)
@@ -288,6 +333,7 @@ unsafe extern "system" fn wnd_proc(
                     tray_icon.remove();
                 }
             }
+            let _ = KillTimer(hwnd, TIMER_ANIMATION);
             let _ = KillTimer(hwnd, TIMER_REFRESH);
             PostQuitMessage(0);
             LRESULT(0)
@@ -344,7 +390,7 @@ fn handle_tray_action(hwnd: HWND, action: TrayAction) {
     match action {
         TrayAction::Toggle => toggle_window_visibility(hwnd),
         TrayAction::Refresh => {
-            refresh_windows(hwnd);
+            let _ = refresh_windows(hwnd);
             recompute_layout(hwnd);
             unsafe {
                 let _ = InvalidateRect(hwnd, None, true);
@@ -370,6 +416,56 @@ fn handle_tray_action(hwnd: HWND, action: TrayAction) {
                 let _ = InvalidateRect(hwnd, None, true);
             }
         }
+        TrayAction::ToggleAnimateTransitions => {
+            update_settings(hwnd, |settings| {
+                settings.animate_transitions = !settings.animate_transitions;
+            });
+        }
+        TrayAction::ToggleDefaultAspectRatio => {
+            update_settings(hwnd, |settings| {
+                settings.preserve_aspect_ratio = !settings.preserve_aspect_ratio;
+            });
+            recompute_layout(hwnd);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, true);
+            }
+        }
+        TrayAction::ToggleDefaultHideOnSelect => {
+            update_settings(hwnd, |settings| {
+                settings.hide_on_select = !settings.hide_on_select;
+            });
+        }
+        TrayAction::ToggleAlwaysOnTop => {
+            update_settings(hwnd, |settings| {
+                settings.always_on_top = !settings.always_on_top;
+            });
+            // SAFETY: state lives on the current UI thread.
+            unsafe {
+                if let Some(state) = app_from_hwnd(hwnd) {
+                    apply_topmost_mode(hwnd, state.settings.always_on_top);
+                }
+            }
+        }
+        TrayAction::RestoreHidden(app_id) => {
+            update_settings(hwnd, |settings| {
+                let _ = settings.restore_hidden_app(&app_id);
+            });
+            let _ = refresh_windows(hwnd);
+            recompute_layout(hwnd);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, true);
+            }
+        }
+        TrayAction::RestoreAllHidden => {
+            update_settings(hwnd, |settings| {
+                let _ = settings.restore_all_hidden_apps();
+            });
+            let _ = refresh_windows(hwnd);
+            recompute_layout(hwnd);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, true);
+            }
+        }
         TrayAction::Exit => request_exit(hwnd),
     }
 }
@@ -383,6 +479,11 @@ fn tray_menu_state(hwnd: HWND) -> TrayMenuState {
             minimize_to_tray: state.settings.minimize_to_tray,
             close_to_tray: state.settings.close_to_tray,
             refresh_interval_ms: state.settings.refresh_interval_ms,
+            animate_transitions: state.settings.animate_transitions,
+            preserve_aspect_ratio: state.settings.preserve_aspect_ratio,
+            hide_on_select: state.settings.hide_on_select,
+            always_on_top: state.settings.always_on_top,
+            hidden_apps: state.settings.hidden_app_entries(),
         }
     } else {
         TrayMenuState {
@@ -390,6 +491,11 @@ fn tray_menu_state(hwnd: HWND) -> TrayMenuState {
             minimize_to_tray: true,
             close_to_tray: true,
             refresh_interval_ms: 2_000,
+            animate_transitions: true,
+            preserve_aspect_ratio: false,
+            hide_on_select: true,
+            always_on_top: false,
+            hidden_apps: Vec::new(),
         }
     }
 }
@@ -435,8 +541,7 @@ fn reset_refresh_timer(hwnd: HWND) {
     // SAFETY: valid HWND for the main window; replacing the same timer ID is supported.
     unsafe {
         let _ = KillTimer(hwnd, TIMER_REFRESH);
-        let interval =
-            app_from_hwnd(hwnd).map_or(2_000, |state| state.settings.refresh_interval_ms);
+        let interval = effective_refresh_interval(hwnd);
         SetTimer(hwnd, TIMER_REFRESH, interval, None);
     }
 }
@@ -453,10 +558,12 @@ fn toggle_window_visibility(hwnd: HWND) {
 }
 
 fn hide_to_tray(hwnd: HWND) {
+    release_all_thumbnails(hwnd);
     // SAFETY: `hwnd` is our main window; hiding it keeps the message loop alive.
     unsafe {
         let _ = ShowWindow(hwnd, SW_HIDE);
     }
+    reset_refresh_timer(hwnd);
 }
 
 fn restore_from_tray(hwnd: HWND) {
@@ -467,7 +574,9 @@ fn restore_from_tray(hwnd: HWND) {
         let _ = SetForegroundWindow(hwnd);
         let _ = InvalidateRect(hwnd, None, true);
     }
+    let _ = refresh_windows(hwnd);
     recompute_layout(hwnd);
+    reset_refresh_timer(hwnd);
 }
 
 fn request_exit(hwnd: HWND) {
@@ -506,6 +615,7 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
         let border_brush = CreateSolidBrush(COLORREF(BORDER_COLOR));
         let footer_brush = CreateSolidBrush(COLORREF(TB_COLOR));
         let hover_brush = CreateSolidBrush(COLORREF(HOVER_BORDER_COLOR));
+        let accent_brush = CreateSolidBrush(COLORREF(ACCENT_SOFT_COLOR));
 
         FillRect(hdc, &client_rect, bg_brush);
 
@@ -530,7 +640,12 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
             toolbar_rect,
             state.current_layout,
             state.windows.len(),
-            &state.settings.refresh_interval_label(),
+            &ToolbarStatus {
+                hidden_count: state.settings.hidden_app_entries().len(),
+                refresh_label: &state.settings.refresh_interval_label(),
+                always_on_top: state.settings.always_on_top,
+                animate_transitions: state.settings.animate_transitions,
+            },
         );
 
         if state.windows.is_empty() {
@@ -542,6 +657,7 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
                 border_brush,
                 footer_brush,
                 hover_brush,
+                accent_brush,
                 panel_brush,
             );
         }
@@ -552,6 +668,7 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
         let _ = DeleteObject(border_brush);
         let _ = DeleteObject(footer_brush);
         let _ = DeleteObject(hover_brush);
+        let _ = DeleteObject(accent_brush);
         let _ = EndPaint(hwnd, &ps);
     }
 }
@@ -562,33 +679,46 @@ fn paint_windows(
     border_brush: HBRUSH,
     footer_brush: HBRUSH,
     hover_brush: HBRUSH,
+    accent_brush: HBRUSH,
     panel_brush: HBRUSH,
 ) {
     for (index, managed_window) in state.windows.iter().enumerate() {
+        let outer_rect = managed_window.display_rect;
         // SAFETY: `hdc` and brushes are valid for the active paint pass.
         unsafe {
-            FrameRect(hdc, &managed_window.target_rect, border_brush);
+            FrameRect(hdc, &outer_rect, border_brush);
+        }
+
+        let accent_rect = RECT {
+            left: outer_rect.left,
+            top: outer_rect.top,
+            right: outer_rect.right,
+            bottom: outer_rect.top + THUMBNAIL_ACCENT_HEIGHT,
+        };
+        // SAFETY: `hdc` and brushes are valid for the active paint pass.
+        unsafe {
+            FillRect(hdc, &accent_rect, accent_brush);
         }
 
         if state.hover_index == Some(index) {
             let inner = RECT {
-                left: managed_window.target_rect.left + 1,
-                top: managed_window.target_rect.top + 1,
-                right: managed_window.target_rect.right - 1,
-                bottom: managed_window.target_rect.bottom - 1,
+                left: outer_rect.left + 1,
+                top: outer_rect.top + 1,
+                right: outer_rect.right - 1,
+                bottom: outer_rect.bottom - 1,
             };
             // SAFETY: `hdc` and brushes are valid for the active paint pass.
             unsafe {
-                FrameRect(hdc, &managed_window.target_rect, hover_brush);
+                FrameRect(hdc, &outer_rect, hover_brush);
                 FrameRect(hdc, &inner, hover_brush);
             }
         }
 
         let footer_rect = RECT {
-            left: managed_window.target_rect.left,
-            top: managed_window.target_rect.bottom - THUMBNAIL_FOOTER_HEIGHT,
-            right: managed_window.target_rect.right,
-            bottom: managed_window.target_rect.bottom,
+            left: outer_rect.left,
+            top: outer_rect.bottom - THUMBNAIL_FOOTER_HEIGHT,
+            right: outer_rect.right,
+            bottom: outer_rect.bottom,
         };
         // SAFETY: `hdc` and brushes are valid for the active paint pass.
         unsafe {
@@ -599,18 +729,31 @@ fn paint_windows(
             paint_thumbnail_placeholder(hdc, managed_window, footer_rect, panel_brush);
         }
 
-        let title_rect = RECT {
+        let process_rect = RECT {
             left: footer_rect.left + 10,
             top: footer_rect.top,
-            right: footer_rect.right - 10,
+            right: footer_rect.right - 120,
             bottom: footer_rect.bottom,
         };
         draw_text_line(
             hdc,
             &truncate_title(&managed_window.info.title),
-            title_rect,
+            process_rect,
             LABEL_COLOR,
             DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS,
+        );
+
+        draw_text_line(
+            hdc,
+            &truncate_title(&managed_window.info.app_label()),
+            RECT {
+                left: footer_rect.left + 120,
+                top: footer_rect.top,
+                right: footer_rect.right - 10,
+                bottom: footer_rect.bottom,
+            },
+            MUTED_TEXT_COLOR,
+            DT_RIGHT | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS,
         );
     }
 }
@@ -618,15 +761,10 @@ fn paint_windows(
 fn paint_thumbnail_placeholder(
     hdc: HDC,
     managed_window: &ManagedWindow,
-    footer_rect: RECT,
+    _footer_rect: RECT,
     panel_brush: HBRUSH,
 ) {
-    let placeholder_rect = RECT {
-        left: managed_window.target_rect.left + 1,
-        top: managed_window.target_rect.top + 1,
-        right: managed_window.target_rect.right - 1,
-        bottom: footer_rect.top,
-    };
+    let placeholder_rect = preview_area_for_card(managed_window.display_rect);
     // SAFETY: `hdc` and brushes are valid for the active paint pass.
     unsafe {
         FillRect(hdc, &placeholder_rect, panel_brush);
@@ -653,7 +791,7 @@ fn paint_toolbar(
     toolbar_rect: RECT,
     layout: LayoutType,
     window_count: usize,
-    refresh_label: &str,
+    status: &ToolbarStatus<'_>,
 ) {
     draw_text_line(
         hdc,
@@ -668,15 +806,16 @@ fn paint_toolbar(
         DT_LEFT | DT_SINGLELINE | DT_VCENTER,
     );
 
-    let status = format!(
-        "{}  ·  {} windows  ·  {} refresh",
+    let status_text = format!(
+        "{}  ·  {} visibles  ·  {} ocultas  ·  {} refresh",
         layout.label(),
         window_count,
-        refresh_label
+        status.hidden_count,
+        status.refresh_label
     );
     draw_text_line(
         hdc,
-        &status,
+        &status_text,
         RECT {
             left: toolbar_rect.left + 180,
             top: toolbar_rect.top,
@@ -689,7 +828,19 @@ fn paint_toolbar(
 
     draw_text_line(
         hdc,
-        "Tab layout  ·  R refresh  ·  tray menu  ·  Esc exit",
+        &format!(
+            "{}  ·  {}  ·  click der.: opciones por app  ·  Esc salir",
+            if status.always_on_top {
+                "siempre visible"
+            } else {
+                "ventana normal"
+            },
+            if status.animate_transitions {
+                "animaciones on"
+            } else {
+                "animaciones off"
+            }
+        ),
         RECT {
             left: toolbar_rect.left + 240,
             top: toolbar_rect.top,
@@ -797,59 +948,101 @@ fn truncate_title(title: &str) -> String {
 // ───────────────────────── Window Refresh ─────────────────────────
 
 /// Synchronise the internal window list with the current desktop state.
-fn refresh_windows(hwnd: HWND) {
+fn refresh_windows(hwnd: HWND) -> bool {
     // SAFETY: state lives on the current window thread.
     let Some(state) = (unsafe { app_from_hwnd(hwnd) }) else {
-        return;
+        return false;
     };
 
-    let discovered: Vec<WindowInfo> = enumerate_windows()
+    let host_visible = unsafe { IsWindowVisible(state.hwnd).as_bool() };
+    let discovered_all: Vec<WindowInfo> = enumerate_windows()
         .into_iter()
         .filter(|window| window.hwnd != state.hwnd)
         .collect();
 
-    let discovered_hwnds: Vec<HWND> = discovered.iter().map(|window| window.hwnd).collect();
-    state
-        .windows
-        .retain(|managed_window| discovered_hwnds.contains(&managed_window.info.hwnd));
-
-    for info in &discovered {
-        if !state
-            .windows
-            .iter()
-            .any(|managed_window| managed_window.info.hwnd == info.hwnd)
-        {
-            let thumbnail = Thumbnail::register(state.hwnd, info.hwnd).ok();
-            let source_size = thumbnail
-                .as_ref()
-                .map_or(SIZE { cx: 800, cy: 600 }, |thumb| {
-                    query_source_size(thumb.handle())
-                });
-            state.windows.push(ManagedWindow {
-                info: info.clone(),
-                thumbnail,
-                target_rect: RECT::default(),
-                source_size,
-            });
-        }
+    for window in &discovered_all {
+        state
+            .settings
+            .refresh_app_label(&window.app_id, &window.app_label());
     }
 
+    let discovered: Vec<WindowInfo> = discovered_all
+        .into_iter()
+        .filter(|window| !state.settings.is_hidden(&window.app_id))
+        .collect();
+
+    let discovered_map: HashMap<isize, WindowInfo> = discovered
+        .iter()
+        .cloned()
+        .map(|window| (window.hwnd.0 as isize, window))
+        .collect();
+    let discovered_hwnds: HashSet<isize> = discovered_map.keys().copied().collect();
+
+    let previous_len = state.windows.len();
+    state
+        .windows
+        .retain(|managed_window| discovered_hwnds.contains(&(managed_window.info.hwnd.0 as isize)));
+    let mut changed = state.windows.len() != previous_len;
+
     for managed_window in &mut state.windows {
-        if let Some(fresh) = discovered
-            .iter()
-            .find(|window| window.hwnd == managed_window.info.hwnd)
-        {
-            managed_window.info.title.clone_from(&fresh.title);
+        let Some(fresh) = discovered_map.get(&(managed_window.info.hwnd.0 as isize)) else {
+            continue;
+        };
+
+        let metadata_changed = fresh.title != managed_window.info.title
+            || fresh.app_id != managed_window.info.app_id
+            || fresh.process_name != managed_window.info.process_name
+            || fresh.class_name != managed_window.info.class_name;
+        if metadata_changed {
+            managed_window.info = fresh.clone();
+            changed = true;
         }
-        if let Some(thumbnail) = managed_window.thumbnail.as_ref() {
-            let fresh_size = query_source_size(thumbnail.handle());
-            if fresh_size.cx != managed_window.source_size.cx
-                || fresh_size.cy != managed_window.source_size.cy
-            {
-                managed_window.source_size = fresh_size;
+
+        if host_visible {
+            let thumbnail_created = ensure_thumbnail(state.hwnd, managed_window);
+            if thumbnail_created {
+                changed = true;
+            }
+
+            if let Some(thumbnail) = managed_window.thumbnail.as_ref() {
+                let fresh_size = query_source_size(thumbnail.handle());
+                if fresh_size.cx != managed_window.source_size.cx
+                    || fresh_size.cy != managed_window.source_size.cy
+                {
+                    managed_window.source_size = fresh_size;
+                    changed = true;
+                }
             }
         }
     }
+
+    let existing_hwnds: HashSet<isize> = state
+        .windows
+        .iter()
+        .map(|managed_window| managed_window.info.hwnd.0 as isize)
+        .collect();
+
+    for info in discovered {
+        if existing_hwnds.contains(&(info.hwnd.0 as isize)) {
+            continue;
+        }
+
+        let mut managed_window = ManagedWindow {
+            info,
+            thumbnail: None,
+            target_rect: RECT::default(),
+            display_rect: RECT::default(),
+            animation_from_rect: RECT::default(),
+            source_size: SIZE { cx: 800, cy: 600 },
+        };
+        if host_visible {
+            let _ = ensure_thumbnail(state.hwnd, &mut managed_window);
+        }
+        state.windows.push(managed_window);
+        changed = true;
+    }
+
+    changed
 }
 
 /// Query the native pixel size of a DWM thumbnail source.
@@ -875,6 +1068,10 @@ fn recompute_layout(hwnd: HWND) {
     };
 
     if state.windows.is_empty() {
+        state.animation_started_at = None;
+        unsafe {
+            let _ = KillTimer(hwnd, TIMER_ANIMATION);
+        }
         return;
     }
 
@@ -907,17 +1104,48 @@ fn recompute_layout(hwnd: HWND) {
         &aspects,
     );
 
+    let can_animate = state.settings.animate_transitions
+        && unsafe { IsWindowVisible(state.hwnd).as_bool() }
+        && state
+            .windows
+            .iter()
+            .any(|managed_window| rect_has_area(managed_window.display_rect));
+    let mut animation_needed = false;
+
     for (index, managed_window) in state.windows.iter_mut().enumerate() {
         if let Some(&rect) = rects.get(index) {
+            let previous_rect = if rect_has_area(managed_window.display_rect) {
+                managed_window.display_rect
+            } else {
+                rect
+            };
+
+            managed_window.animation_from_rect = previous_rect;
             managed_window.target_rect = rect;
-            if let Some(thumbnail) = managed_window.thumbnail.as_ref() {
-                if thumbnail.update(rect, true).is_err() {
-                    tracing::warn!(title = %managed_window.info.title, "thumbnail update failed — dropping");
-                    managed_window.thumbnail = None;
-                }
+            if can_animate && previous_rect != rect {
+                animation_needed = true;
+            } else {
+                managed_window.display_rect = rect;
             }
         }
     }
+
+    if animation_needed {
+        state.animation_started_at = Some(Instant::now());
+        unsafe {
+            SetTimer(hwnd, TIMER_ANIMATION, 16, None);
+        }
+    } else {
+        state.animation_started_at = None;
+        unsafe {
+            let _ = KillTimer(hwnd, TIMER_ANIMATION);
+        }
+        for managed_window in &mut state.windows {
+            managed_window.display_rect = managed_window.target_rect;
+        }
+    }
+
+    update_window_previews(state);
 }
 
 // ───────────────────────── Click to Activate ─────────────────────────
@@ -938,15 +1166,60 @@ fn handle_click(hwnd: HWND, x: i32, y: i32) {
         return;
     };
 
-    let hit = state.windows.iter().find(|managed_window| {
-        let rect = &managed_window.target_rect;
-        x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
-    });
+    let hit = state
+        .windows
+        .iter()
+        .find(|managed_window| point_in_rect(managed_window.display_rect, x, y))
+        .map(|managed_window| {
+            (
+                managed_window.info.clone(),
+                state
+                    .settings
+                    .hide_on_select_for(&managed_window.info.app_id),
+            )
+        });
 
-    if let Some(managed_window) = hit {
-        tracing::info!(title = %managed_window.info.title, "activating window");
-        activate_window(managed_window.info.hwnd);
-        hide_to_tray(hwnd);
+    if let Some((info, hide_on_select)) = hit {
+        tracing::info!(title = %info.title, app_id = %info.app_id, "activating window");
+        activate_window(info.hwnd);
+        if hide_on_select {
+            hide_to_tray(hwnd);
+        }
+    }
+}
+
+fn handle_right_click(hwnd: HWND, x: i32, y: i32) {
+    if y < TOOLBAR_HEIGHT {
+        return;
+    }
+
+    // SAFETY: state lives on the current window thread.
+    let Some(state) = (unsafe { app_from_hwnd(hwnd) }) else {
+        return;
+    };
+
+    let hit = state
+        .windows
+        .iter()
+        .find(|managed_window| point_in_rect(managed_window.display_rect, x, y))
+        .map(|managed_window| {
+            (
+                managed_window.info.clone(),
+                state
+                    .settings
+                    .preserve_aspect_ratio_for(&managed_window.info.app_id),
+                state
+                    .settings
+                    .hide_on_select_for(&managed_window.info.app_id),
+            )
+        });
+
+    if let Some((info, preserve_aspect_ratio, hide_on_select)) = hit {
+        if let Some(action) =
+            show_window_context_menu(hwnd, &info, preserve_aspect_ratio, hide_on_select)
+        {
+            handle_window_menu_action(hwnd, &info, action);
+        }
     }
 }
 
@@ -971,10 +1244,10 @@ fn handle_hover(hwnd: HWND, x: i32, y: i32) {
     };
 
     let new_hover = if y >= TOOLBAR_HEIGHT {
-        state.windows.iter().position(|managed_window| {
-            let rect = &managed_window.target_rect;
-            x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
-        })
+        state
+            .windows
+            .iter()
+            .position(|managed_window| point_in_rect(managed_window.display_rect, x, y))
     } else {
         None
     };
@@ -986,4 +1259,282 @@ fn handle_hover(hwnd: HWND, x: i32, y: i32) {
             let _ = InvalidateRect(hwnd, None, false);
         }
     }
+}
+
+fn handle_window_menu_action(hwnd: HWND, info: &WindowInfo, action: WindowMenuAction) {
+    match action {
+        WindowMenuAction::HideApp => {
+            update_settings(hwnd, |settings| {
+                let _ = settings.toggle_hidden(&info.app_id, &info.app_label());
+            });
+            let _ = refresh_windows(hwnd);
+            recompute_layout(hwnd);
+        }
+        WindowMenuAction::ToggleAspectRatio => {
+            update_settings(hwnd, |settings| {
+                let _ = settings.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label());
+            });
+            recompute_layout(hwnd);
+        }
+        WindowMenuAction::ToggleHideOnSelect => {
+            update_settings(hwnd, |settings| {
+                let _ = settings.toggle_app_hide_on_select(&info.app_id, &info.app_label());
+            });
+        }
+    }
+
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, true);
+    }
+}
+
+fn show_window_context_menu(
+    hwnd: HWND,
+    info: &WindowInfo,
+    preserve_aspect_ratio: bool,
+    hide_on_select: bool,
+) -> Option<WindowMenuAction> {
+    // SAFETY: menu is created and destroyed on the UI thread.
+    unsafe {
+        let menu = CreatePopupMenu().ok()?;
+        let hide_label = wide("Hide from layout");
+        let aspect_label = wide("Respect aspect ratio");
+        let hide_after_open_label = wide("Hide Panopticon after opening this app");
+
+        let _ = info;
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            CMD_WINDOW_HIDE_APP as usize,
+            PCWSTR(hide_label.as_ptr()),
+        );
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_menu_flag(preserve_aspect_ratio),
+            CMD_WINDOW_TOGGLE_ASPECT_RATIO as usize,
+            PCWSTR(aspect_label.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_menu_flag(hide_on_select),
+            CMD_WINDOW_TOGGLE_HIDE_ON_SELECT as usize,
+            PCWSTR(hide_after_open_label.as_ptr()),
+        );
+
+        let mut cursor = POINT::default();
+        let _ = GetCursorPos(&mut cursor);
+        let _ = SetForegroundWindow(hwnd);
+        let command = TrackPopupMenu(
+            menu,
+            TPM_RETURNCMD | TPM_NONOTIFY | TPM_LEFTALIGN | TPM_BOTTOMALIGN,
+            cursor.x,
+            cursor.y,
+            0,
+            hwnd,
+            None,
+        );
+        let _ = DestroyMenu(menu);
+
+        match command.0 as u16 {
+            CMD_WINDOW_HIDE_APP => Some(WindowMenuAction::HideApp),
+            CMD_WINDOW_TOGGLE_ASPECT_RATIO => Some(WindowMenuAction::ToggleAspectRatio),
+            CMD_WINDOW_TOGGLE_HIDE_ON_SELECT => Some(WindowMenuAction::ToggleHideOnSelect),
+            _ => None,
+        }
+    }
+}
+
+fn advance_animation(hwnd: HWND) {
+    // SAFETY: state lives on the current UI thread.
+    let Some(state) = (unsafe { app_from_hwnd(hwnd) }) else {
+        return;
+    };
+
+    let Some(started_at) = state.animation_started_at else {
+        unsafe {
+            let _ = KillTimer(hwnd, TIMER_ANIMATION);
+        }
+        return;
+    };
+
+    if !unsafe { IsWindowVisible(hwnd).as_bool() } {
+        state.animation_started_at = None;
+        unsafe {
+            let _ = KillTimer(hwnd, TIMER_ANIMATION);
+        }
+        return;
+    }
+
+    let elapsed_ms = started_at.elapsed().as_millis() as u32;
+    let progress = (elapsed_ms as f32 / ANIMATION_DURATION_MS as f32).clamp(0.0, 1.0);
+    let eased = 1.0 - (1.0 - progress).powi(3);
+
+    for managed_window in &mut state.windows {
+        managed_window.display_rect = lerp_rect(
+            managed_window.animation_from_rect,
+            managed_window.target_rect,
+            eased,
+        );
+    }
+
+    update_window_previews(state);
+
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, false);
+    }
+
+    if progress >= 1.0 {
+        state.animation_started_at = None;
+        unsafe {
+            let _ = KillTimer(hwnd, TIMER_ANIMATION);
+        }
+    }
+}
+
+fn update_window_previews(state: &mut AppState) {
+    if !unsafe { IsWindowVisible(state.hwnd).as_bool() } {
+        return;
+    }
+
+    let settings = &state.settings;
+    let owner_hwnd = state.hwnd;
+    for managed_window in &mut state.windows {
+        let preserve_aspect_ratio = settings.preserve_aspect_ratio_for(&managed_window.info.app_id);
+        let _ = ensure_thumbnail(owner_hwnd, managed_window);
+        if let Some(thumbnail) = managed_window.thumbnail.as_ref() {
+            let destination = preview_destination_rect(
+                managed_window.display_rect,
+                managed_window.source_size,
+                preserve_aspect_ratio,
+            );
+            if thumbnail.update(destination, true).is_err() {
+                tracing::warn!(title = %managed_window.info.title, "thumbnail update failed — dropping");
+                managed_window.thumbnail = None;
+            }
+        }
+    }
+}
+
+fn ensure_thumbnail(owner_hwnd: HWND, managed_window: &mut ManagedWindow) -> bool {
+    if managed_window.thumbnail.is_some() {
+        return false;
+    }
+
+    if let Ok(thumbnail) = Thumbnail::register(owner_hwnd, managed_window.info.hwnd) {
+        managed_window.source_size = query_source_size(thumbnail.handle());
+        managed_window.thumbnail = Some(thumbnail);
+        true
+    } else {
+        false
+    }
+}
+
+fn release_all_thumbnails(hwnd: HWND) {
+    // SAFETY: state lives on the current UI thread.
+    if let Some(state) = unsafe { app_from_hwnd(hwnd) } {
+        for managed_window in &mut state.windows {
+            managed_window.thumbnail = None;
+        }
+    }
+}
+
+fn preview_destination_rect(
+    card_rect: RECT,
+    source_size: SIZE,
+    preserve_aspect_ratio: bool,
+) -> RECT {
+    let preview_area = preview_area_for_card(card_rect);
+    if !preserve_aspect_ratio || source_size.cx <= 0 || source_size.cy <= 0 {
+        return preview_area;
+    }
+
+    let area_width = (preview_area.right - preview_area.left).max(1);
+    let area_height = (preview_area.bottom - preview_area.top).max(1);
+    let width_ratio = area_width as f32 / source_size.cx as f32;
+    let height_ratio = area_height as f32 / source_size.cy as f32;
+    let scale = width_ratio.min(height_ratio);
+    let render_width = (source_size.cx as f32 * scale).round() as i32;
+    let render_height = (source_size.cy as f32 * scale).round() as i32;
+
+    RECT {
+        left: preview_area.left + ((area_width - render_width) / 2),
+        top: preview_area.top + ((area_height - render_height) / 2),
+        right: preview_area.left + ((area_width - render_width) / 2) + render_width,
+        bottom: preview_area.top + ((area_height - render_height) / 2) + render_height,
+    }
+}
+
+fn preview_area_for_card(card_rect: RECT) -> RECT {
+    RECT {
+        left: card_rect.left + 1,
+        top: card_rect.top + THUMBNAIL_ACCENT_HEIGHT,
+        right: card_rect.right - 1,
+        bottom: card_rect.bottom - THUMBNAIL_FOOTER_HEIGHT,
+    }
+}
+
+fn effective_refresh_interval(hwnd: HWND) -> u32 {
+    // SAFETY: state lives on the current UI thread.
+    unsafe {
+        app_from_hwnd(hwnd).map_or(2_000, |state| {
+            if IsWindowVisible(hwnd).as_bool() {
+                state.settings.refresh_interval_ms
+            } else {
+                state.settings.refresh_interval_ms.max(10_000)
+            }
+        })
+    }
+}
+
+fn apply_topmost_mode(hwnd: HWND, always_on_top: bool) {
+    // SAFETY: `hwnd` is the main application window; z-order changes are local to it.
+    unsafe {
+        let _ = SetWindowPos(
+            hwnd,
+            if always_on_top {
+                HWND_TOPMOST
+            } else {
+                HWND_NOTOPMOST
+            },
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+        );
+    }
+}
+
+fn point_in_rect(rect: RECT, x: i32, y: i32) -> bool {
+    x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+}
+
+fn rect_has_area(rect: RECT) -> bool {
+    rect.right > rect.left && rect.bottom > rect.top
+}
+
+fn lerp_rect(from: RECT, to: RECT, progress: f32) -> RECT {
+    RECT {
+        left: lerp_i32(from.left, to.left, progress),
+        top: lerp_i32(from.top, to.top, progress),
+        right: lerp_i32(from.right, to.right, progress),
+        bottom: lerp_i32(from.bottom, to.bottom, progress),
+    }
+}
+
+fn lerp_i32(from: i32, to: i32, progress: f32) -> i32 {
+    (from as f32 + (to - from) as f32 * progress).round() as i32
+}
+
+fn checked_menu_flag(enabled: bool) -> MENU_ITEM_FLAGS {
+    if enabled {
+        MF_CHECKED
+    } else {
+        MF_UNCHECKED
+    }
+}
+
+fn wide(value: &str) -> Vec<u16> {
+    value.encode_utf16().chain(std::iter::once(0)).collect()
 }

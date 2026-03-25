@@ -49,6 +49,24 @@ por qué la operación es válida.
 **Después:** Arquitectura lib + bin. Módulos separados para constants, error, logging.
 Tests de integración posibles gracias al lib crate.
 
+### 9. Preferencias No Persistentes por App (Severidad: Media)
+
+**Antes:** El comportamiento era global; no se podían recordar reglas por aplicación.
+**Después:** Se añade identidad estable por app (`app_id`), reglas persistentes en TOML y
+restauración individual/global desde el tray.
+
+### 10. Cambios de Layout Bruscos (Severidad: Baja)
+
+**Antes:** Las miniaturas saltan instantáneamente entre rectángulos destino.
+**Después:** Timer de animación + interpolación entre `animation_from_rect` y `target_rect`.
+
+### 11. Refresco Poco Eficiente en Background (Severidad: Media)
+
+**Antes:** El ciclo de refresh mantenía el mismo ritmo y retenía thumbnails aunque la ventana
+estuviera escondida en el tray.
+**Después:** Se liberan thumbnails al ocultar la UI y se aumenta el intervalo efectivo cuando
+Panopticon está en segundo plano.
+
 ---
 
 ## Deuda Técnica Pendiente (Futura)
@@ -62,9 +80,10 @@ registrar el tray icon automáticamente.
 ### P2. Menú contextual avanzado / Preferencias
 
 El tray ya soporta show/hide, refresh, next layout, hide-on-minimize,
-hide-on-close, cycle refresh interval y exit. A futuro conviene añadir más
-preferencias persistentes (always-on-top, layout favorites, filtros por app,
-autostart, etc.).
+hide-on-close, cycle refresh interval, animaciones, defaults por app,
+always-on-top, restauración de apps ocultas y exit. A futuro conviene añadir
+preferencias como layout favorites, autostart, perfiles por monitor o reglas
+más finas por proceso/clase.
 
 ### P3. Cobertura en CI
 

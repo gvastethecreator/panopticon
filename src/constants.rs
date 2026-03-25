@@ -9,15 +9,24 @@
 pub const TOOLBAR_HEIGHT: i32 = 48;
 
 /// Height of the title/footer strip drawn over each thumbnail.
-pub const THUMBNAIL_FOOTER_HEIGHT: i32 = 24;
+pub const THUMBNAIL_FOOTER_HEIGHT: i32 = 34;
+
+/// Accent-strip height used for thumbnail cards.
+pub const THUMBNAIL_ACCENT_HEIGHT: i32 = 3;
 
 // ── Timers ───────────────────────────────────────────────────
 
 /// Timer ID for periodic window-list refresh.
 pub const TIMER_REFRESH: usize = 1;
 
+/// Timer ID for lightweight layout animations.
+pub const TIMER_ANIMATION: usize = 2;
+
 /// Interval between automatic window refreshes, in milliseconds.
 pub const REFRESH_INTERVAL_MS: u32 = 2000;
+
+/// Duration of layout transition animations, in milliseconds.
+pub const ANIMATION_DURATION_MS: u32 = 180;
 
 // ── Colours (BGR) ────────────────────────────────────────────
 
@@ -35,6 +44,9 @@ pub const BORDER_COLOR: u32 = 0x0038_312E;
 
 /// Accent colour used for highlights and the brand icon.
 pub const ACCENT_COLOR: u32 = 0x00D2_9A5C;
+
+/// Softer accent used for pills, tags and subtle UI highlights.
+pub const ACCENT_SOFT_COLOR: u32 = 0x005C_4A38;
 
 /// Primary text colour (light grey).
 pub const TEXT_COLOR: u32 = 0x00E6_E2DE;

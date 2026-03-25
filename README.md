@@ -12,11 +12,15 @@ Panopticon renders hardware-accelerated live previews of every open window, orga
 - **🖼️ Real-time thumbnails** — GPU-composited via DWM; zero bitmap capture, zero CPU rendering.
 - **📐 5 layout modes** — Grid, Mosaic, Bento, Fibonacci, Columns.
 - **🖱️ Click-to-activate** — Click any thumbnail to bring that window to the foreground.
+- **🫥 Hidden apps on demand** — Right-click any thumbnail to hide that application from the layout and restore it later from the tray.
+- **🧠 Per-app memory** — Panopticon remembers per-application visibility, aspect-ratio and hide-on-select rules.
+- **📽️ Smooth transitions** — Layout changes animate softly instead of jumping abruptly.
+- **📏 Optional aspect-ratio fit** — Preserve source proportions globally or per application.
 - **🧭 Tray icon + quick menu** — Minimise to tray, restore with one click, or right-click for actions.
-- **⚙️ Persistent preferences** — Remember layout, refresh interval, and tray behavior across launches.
+- **⚙️ Persistent preferences** — Remember layout, refresh interval, tray behavior, always-on-top and per-app rules across launches.
 - **📏 Per-Monitor DPI Aware** — Correct rendering on mixed-DPI multi-monitor setups.
 - **📝 Structured logging** — Logs written to `%TEMP%/panopticon/logs/` via `tracing`.
-- **⚡ Low footprint** — < 1 % CPU idle, < 50 MB RAM.
+- **⚡ Adaptive refresh** — Releases thumbnails while hidden and backs off refresh work in the tray.
 
 ## Requirements
 
@@ -56,6 +60,7 @@ cargo run --release
 | **Tab** | Cycle to the next layout mode |
 | **R** | Refresh the window list manually |
 | **Click** on thumbnail | Activate (bring to front) the selected window |
+| **Right-click** on thumbnail | Hide app / toggle per-app aspect ratio / toggle hide-after-open |
 | **Click** on toolbar | Switch layout mode |
 | **Minimize / Close** | Hide to tray instead of terminating the app |
 | **Left-click** tray icon | Restore / hide Panopticon |
@@ -69,12 +74,27 @@ The tray menu now lets you configure runtime behavior without editing files:
 - **Hide on minimize** — when enabled, minimizing sends the app to the tray.
 - **Hide on close** — when enabled, pressing the close button sends the app to the tray.
 - **Cycle refresh interval** — rotates between `1s`, `2s`, `5s`, and `10s`.
+- **Animate transitions** — enables soft interpolation when the layout changes.
+- **Default: preserve aspect ratio** — newly customized apps preserve their source proportions.
+- **Default: hide after activation** — newly customized apps hide Panopticon after focus transfer.
+- **Keep Panopticon on top** — keeps the dashboard visible above other windows.
+- **Restore hidden apps** — restore all hidden applications or one by one from a submenu.
 
 These preferences are persisted to:
 
 ```text
 %APPDATA%\Panopticon\settings.toml
 ```
+
+### Per-Application Options
+
+Every thumbnail now exposes a right-click context menu with remembered rules:
+
+- **Hide from layout** — removes that application from the visible dashboard without closing it.
+- **Respect aspect ratio** — letterboxes the live preview to avoid stretching the source window.
+- **Hide Panopticon after opening this app** — decides whether selecting that app should also hide the viewer.
+
+Those settings are stored per application using a stable identifier derived from the executable path when available.
 
 ### Layout Modes
 
@@ -85,6 +105,15 @@ These preferences are persisted to:
 | **Bento** | Primary window (60 %) + sidebar stack |
 | **Fibonacci** | Golden-ratio spiral subdivision |
 | **Columns** | Masonry-style shortest-column-first |
+
+### Resource Usage Notes
+
+Panopticon now reduces background cost in two practical ways:
+
+- when the main window is hidden to the tray, live thumbnails are released;
+- while hidden, the refresh loop automatically backs off to at least `10s`.
+
+This keeps the app fluid when visible without wasting compositor work while it is tucked away in the tray.
 
 ## Development
 
