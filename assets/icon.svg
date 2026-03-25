@@ -1,15 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="108" fill="#181513"/>
-  <!-- 2×2 grid of window thumbnail cards -->
-  <rect x="64" y="64" width="176" height="136" rx="12" fill="#2A2522" stroke="#3A3530" stroke-width="2"/>
-  <rect x="64" y="64" width="176" height="4" rx="2" fill="#D29A5C"/>
-  <rect x="272" y="64" width="176" height="136" rx="12" fill="#2A2522" stroke="#3A3530" stroke-width="2"/>
-  <rect x="272" y="64" width="176" height="4" rx="2" fill="#5CA9FF"/>
-  <rect x="64" y="232" width="176" height="136" rx="12" fill="#2A2522" stroke="#3A3530" stroke-width="2"/>
-  <rect x="64" y="232" width="176" height="4" rx="2" fill="#3CCF91"/>
-  <rect x="272" y="232" width="176" height="136" rx="12" fill="#2A2522" stroke="#3A3530" stroke-width="2"/>
-  <rect x="272" y="232" width="176" height="4" rx="2" fill="#FF6B8A"/>
-  <!-- Panopticon eye accent -->
-  <circle cx="256" cy="420" r="22" fill="#D29A5C" opacity="0.9"/>
-  <circle cx="256" cy="420" r="9" fill="#181513"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Capa_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 512 512">
+  <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #ff6b8a;
+      }
+
+      .st1 {
+        fill: #2a2522;
+        stroke: #3a3530;
+        stroke-width: 2px;
+      }
+
+      .st2 {
+        fill: #3ccf91;
+      }
+
+      .st3 {
+        fill: #181513;
+      }
+
+      .st4 {
+        fill: #d29a5c;
+        isolation: isolate;
+        opacity: .9;
+      }
+    </style>
+  </defs>
+  <rect class="st3" y="0" width="512" height="512" rx="108" ry="108"/>
+  <g>
+    <rect class="st1" x="34" y="218" width="176" height="136" rx="12" ry="12"/>
+    <path class="st2" d="M36,218h172c1.1,0,2,.9,2,2h0c0,1.1-.9,2-2,2H36c-1.1,0-2-.9-2-2h0c0-1.1.9-2,2-2Z"/>
+    <rect class="st1" x="242" y="218" width="176" height="136" rx="12" ry="12"/>
+    <path class="st0" d="M244,218h172c1.1,0,2,.9,2,2h0c0,1.1-.9,2-2,2h-172c-1.1,0-2-.9-2-2h0c0-1.1.9-2,2-2Z"/>
+  </g>
+  <circle class="st4" cx="226" cy="406" r="22"/>
+  <circle class="st3" cx="226" cy="406" r="9"/>
 </svg>

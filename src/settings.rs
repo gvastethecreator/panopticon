@@ -45,6 +45,10 @@ pub struct AppRule {
     pub preserve_aspect_ratio: bool,
     /// Whether activating this app should hide Panopticon afterwards.
     pub hide_on_select: bool,
+    /// Explicit per-app override for `hide_on_select`; `None` means inherit
+    /// the current global default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hide_on_select_override: Option<bool>,
     /// Manual tags used to build custom groups and filters.
     pub tags: Vec<String>,
 }
@@ -56,6 +60,7 @@ impl Default for AppRule {
             hidden: false,
             preserve_aspect_ratio: false,
             hide_on_select: true,
+            hide_on_select_override: None,
             tags: Vec::new(),
         }
     }
@@ -289,7 +294,8 @@ impl AppSettings {
     pub fn hide_on_select_for(&self, app_id: &str) -> bool {
         self.app_rules
             .get(app_id)
-            .map_or(self.hide_on_select, |rule| rule.hide_on_select)
+            .and_then(|rule| rule.hide_on_select_override)
+            .unwrap_or(self.hide_on_select)
     }
 
     /// Returns `true` when `app_id` belongs to `tag`.
@@ -431,9 +437,12 @@ impl AppSettings {
 
     /// Toggle hide-on-select for a specific application.
     pub fn toggle_app_hide_on_select(&mut self, app_id: &str, display_name: &str) -> bool {
+        let default_hide_on_select = self.hide_on_select;
+        let next = !self.hide_on_select_for(app_id);
         let rule = self.ensure_app_rule(app_id, display_name);
-        rule.hide_on_select = !rule.hide_on_select;
-        rule.hide_on_select
+        rule.hide_on_select = next;
+        rule.hide_on_select_override = (next != default_hide_on_select).then_some(next);
+        next
     }
 
     /// Toggle a manual tag for a specific application.
@@ -529,6 +538,10 @@ impl AppSettings {
         app_rules.retain(|app_id, _| !app_id.trim().is_empty());
         for rule in app_rules.values_mut() {
             rule.display_name = rule.display_name.trim().to_owned();
+            rule.hide_on_select_override = rule.hide_on_select_override.or_else(|| {
+                (rule.hide_on_select != self.hide_on_select).then_some(rule.hide_on_select)
+            });
+            rule.hide_on_select = rule.hide_on_select_override.unwrap_or(self.hide_on_select);
             rule.tags = rule
                 .tags
                 .iter()
@@ -617,6 +630,7 @@ impl AppSettings {
                 hidden: false,
                 preserve_aspect_ratio,
                 hide_on_select,
+                hide_on_select_override: None,
                 tags: Vec::new(),
             });
 
@@ -679,7 +693,7 @@ fn derive_tag_from_label(label: &str) -> Option<String> {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{AppSettings, HiddenAppEntry, TagStyle};
+    use super::{AppRule, AppSettings, HiddenAppEntry, TagStyle};
     use crate::layout::LayoutType;
 
     #[test]
@@ -885,5 +899,56 @@ mod tests {
         assert!(normalized.tag_styles.contains_key("focus"));
         assert!(!normalized.tag_styles.contains_key("unused"));
         assert_eq!(normalized.tag_color_hex("focus"), "FF8844");
+    }
+
+    #[test]
+    fn hide_on_select_defaults_continue_to_follow_global_setting() {
+        let mut settings = AppSettings::default();
+        settings.app_rules.insert(
+            "app:legacy".to_owned(),
+            AppRule {
+                display_name: "Legacy".to_owned(),
+                hidden: false,
+                preserve_aspect_ratio: false,
+                hide_on_select: true,
+                hide_on_select_override: None,
+                tags: Vec::new(),
+            },
+        );
+
+        assert!(settings.hide_on_select_for("app:legacy"));
+        settings.hide_on_select = false;
+
+        assert!(!settings.hide_on_select_for("app:legacy"));
+    }
+
+    #[test]
+    fn normalized_legacy_hide_on_select_difference_becomes_override() {
+        let mut settings = AppSettings {
+            hide_on_select: false,
+            ..AppSettings::default()
+        };
+        settings.app_rules.insert(
+            "app:explicit".to_owned(),
+            AppRule {
+                display_name: "Explicit".to_owned(),
+                hidden: false,
+                preserve_aspect_ratio: false,
+                hide_on_select: true,
+                hide_on_select_override: None,
+                tags: Vec::new(),
+            },
+        );
+
+        let normalized = settings.normalized();
+
+        assert!(normalized.hide_on_select_for("app:explicit"));
+        assert_eq!(
+            normalized
+                .app_rules
+                .get("app:explicit")
+                .and_then(|rule| rule.hide_on_select_override),
+            Some(true)
+        );
     }
 }
