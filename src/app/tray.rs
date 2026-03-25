@@ -206,7 +206,7 @@ impl TrayIcon {
 
         // SAFETY: valid window handle, fixed icon ID, and fully initialised
         // NOTIFYICONDATAW structure.
-        let added = unsafe { Shell_NotifyIconW(NIM_ADD, &nid).as_bool() };
+        let added = unsafe { Shell_NotifyIconW(NIM_ADD, &raw const nid).as_bool() };
         if !added {
             return Err(anyhow!("failed to add tray icon"));
         }
@@ -218,7 +218,7 @@ impl TrayIcon {
     pub fn readd(&mut self, icon: HICON) {
         let nid = notify_data(self.hwnd, icon);
         // SAFETY: valid window handle, fixed icon ID.
-        let added = unsafe { Shell_NotifyIconW(NIM_ADD, &nid).as_bool() };
+        let added = unsafe { Shell_NotifyIconW(NIM_ADD, &raw const nid).as_bool() };
         if added {
             self.active = true;
         } else {
@@ -232,7 +232,7 @@ impl TrayIcon {
             let nid = notify_data(self.hwnd, HICON::default());
             // SAFETY: same window / icon ID pair used for registration.
             unsafe {
-                let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
+                let _ = Shell_NotifyIconW(NIM_DELETE, &raw const nid);
             }
             self.active = false;
         }
@@ -260,6 +260,7 @@ pub fn handle_tray_message(
 }
 
 /// Draw a window icon inside `rect`, centered and scaled.
+#[allow(dead_code)]
 pub fn draw_window_icon(
     hdc: windows::Win32::Graphics::Gdi::HDC,
     hwnd: HWND,
@@ -279,6 +280,7 @@ pub fn draw_window_icon(
 }
 
 /// Resolve the best available icon for a source window.
+#[allow(dead_code)]
 #[must_use]
 pub fn resolve_window_icon(hwnd: HWND) -> Option<HICON> {
     // SAFETY: message send / class queries are read-only operations on a live
@@ -651,7 +653,7 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
         );
 
         let mut cursor = POINT::default();
-        let _ = GetCursorPos(&mut cursor);
+        let _ = GetCursorPos(&raw mut cursor);
         let _ = SetForegroundWindow(hwnd);
 
         let command = TrackPopupMenu(
