@@ -13,7 +13,10 @@
 mod app;
 
 use app::settings_ui::{apply_settings_window_changes, populate_settings_window};
-use app::tray::{handle_tray_message, AppIcons, TrayAction, TrayIcon, TrayMenuState, WM_TRAYICON};
+use app::tray::{
+    handle_tray_message, resolve_window_icon, AppIcons, TrayAction, TrayIcon, TrayMenuState,
+    WM_TRAYICON,
+};
 use app::window_menu::{show_window_context_menu, WindowMenuAction};
 use panopticon::constants::{
     ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TOOLBAR_HEIGHT,
@@ -99,6 +102,8 @@ struct DragState {
     ratio_index: usize,
     /// Total extent of the axis at drag start (width or height of content area).
     axis_extent: f64,
+    /// Last pointer offset inside the handle, used for incremental movement.
+    last_pointer_offset: f64,
 }
 
 /// A window tracked by Panopticon, including its DWM thumbnail handle.
@@ -330,7 +335,7 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
     // System tray.
     {
         let mut s = state.borrow_mut();
-        match TrayIcon::add(hwnd, s.icons.small) {
+                match TrayIcon::add(hwnd, preferred_tray_icon(hwnd, s.icons.small)) {
             Ok(tray) => {
                 tracing::info!("tray icon registered");
                 s.tray_icon = Some(tray);
@@ -403,7 +408,7 @@ unsafe extern "system" fn subclass_proc(
                 if let Ok(mut st) = rc.try_borrow_mut() {
                     let small = st.icons.small;
                     if let Some(tray) = st.tray_icon.as_mut() {
-                        tray.readd(small);
+                        tray.readd(preferred_tray_icon(hwnd, small));
                     }
                 }
             }
@@ -728,6 +733,7 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let can_animate = s.settings.animate_transitions
         && !s.hwnd.0.is_null()
         && unsafe { IsWindowVisible(s.hwnd).as_bool() }
+        && s.drag_separator.is_none()
         && s.windows.iter().any(|mw| rect_has_area(mw.display_rect));
     let mut animation_needed = false;
 
@@ -805,7 +811,7 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         .collect();
 
     // Build resize handle data from cached separators.
-    let handle_thickness: f32 = 10.0;
+    let handle_thickness: f32 = 14.0;
     let handles: Vec<ResizeHandleData> = s
         .separators
         .iter()
@@ -1103,6 +1109,7 @@ fn handle_window_menu_action(
             update_settings(state, |settings| {
                 let _ = settings.toggle_app_hide_on_select(&info.app_id, &info.app_label());
             });
+            needs_ui_refresh = true;
         }
         WindowMenuAction::CreateTagFromApp => {
             open_create_tag_dialog(state, weak, info);
@@ -1386,6 +1393,7 @@ fn handle_resize_drag_start(
         horizontal: sep.horizontal,
         ratio_index: sep.ratio_index,
         axis_extent,
+        last_pointer_offset: 0.0,
     });
 }
 
@@ -1396,48 +1404,53 @@ fn handle_resize_drag_move(
     x: f64,
     y: f64,
 ) {
-    let drag = {
+    let (horizontal, ratio_index, axis_extent, last_pointer_offset) = {
         let s = state.borrow();
-        match s.drag_separator.as_ref() {
-            Some(d) if d.separator_index == separator_index => d.clone(),
-            _ => return,
+        let Some(drag) = s.drag_separator.as_ref() else {
+            return;
+        };
+        if drag.separator_index != separator_index || drag.axis_extent <= 0.0 {
+            return;
         }
+        (
+            drag.horizontal,
+            drag.ratio_index,
+            drag.axis_extent,
+            drag.last_pointer_offset,
+        )
     };
 
-    // The mouse position is relative to the resize handle element.
-    // Calculate delta from the center of the handle.
-    let handle_center = 5.0; // half of handle_thickness
-    let mouse_offset = if drag.horizontal {
+    let handle_center = 7.0; // half of handle_thickness
+    let pointer_offset = if horizontal {
         y - handle_center
     } else {
         x - handle_center
     };
+    let delta_frac = (pointer_offset - last_pointer_offset) / axis_extent;
 
-    if drag.axis_extent <= 0.0 {
-        return;
-    }
-    let delta_frac = mouse_offset / drag.axis_extent;
-
-    // Ensure we have custom ratios for the current layout.
     let mut s = state.borrow_mut();
     let layout = s.current_layout;
     ensure_custom_ratios(&mut s, layout);
 
-    let min_frac = 0.05;
+    let min_frac = 0.03;
     if let Some(custom) = s.settings.layout_customizations.get_mut(layout.label()) {
-        let ratios = if drag.horizontal {
+        let ratios = if horizontal {
             &mut custom.row_ratios
         } else {
             &mut custom.col_ratios
         };
-        if drag.ratio_index + 1 < ratios.len() {
-            apply_separator_drag(ratios, drag.ratio_index, delta_frac, min_frac);
+        if ratio_index + 1 < ratios.len() {
+            apply_separator_drag(ratios, ratio_index, delta_frac, min_frac);
         }
     }
 
-    // Save and recompute
+    if let Some(drag) = s.drag_separator.as_mut() {
+        if drag.separator_index == separator_index {
+            drag.last_pointer_offset = pointer_offset;
+        }
+    }
+
     s.settings = s.settings.normalized();
-    let _ = s.settings.save(s.profile_name.as_deref());
     drop(s);
 
     if let Some(win) = weak.upgrade() {
@@ -1595,6 +1608,7 @@ fn handle_tray_action(
             update_settings(state, |s| {
                 s.animate_transitions = !s.animate_transitions;
             });
+            refresh_ui(state, weak);
         }
         TrayAction::ToggleDefaultAspectRatio => {
             update_settings(state, |s| {
@@ -1606,6 +1620,7 @@ fn handle_tray_action(
             update_settings(state, |s| {
                 s.hide_on_select = !s.hide_on_select;
             });
+            refresh_ui(state, weak);
         }
         TrayAction::ToggleAlwaysOnTop => {
             update_settings(state, |s| {
@@ -1613,6 +1628,8 @@ fn handle_tray_action(
             });
             let s = state.borrow();
             apply_topmost_mode(s.hwnd, s.settings.always_on_top);
+            drop(s);
+            refresh_ui(state, weak);
         }
         TrayAction::SetMonitorFilter(filter) => {
             update_settings(state, |s| {
@@ -1712,7 +1729,7 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
 
 // ───────────────────────── Settings Window ─────────────────────────
 
-fn open_settings_window(state: &Rc<RefCell<AppState>>, _main_weak: &slint::Weak<MainWindow>) {
+fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<MainWindow>) {
     let already_open = SETTINGS_WIN.with(|h| h.borrow().is_some());
     if already_open {
         return;
@@ -1730,6 +1747,7 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, _main_weak: &slint::Weak<
 
     sw.on_apply({
         let state = state.clone();
+        let main_weak = main_weak.clone();
         move || {
             SETTINGS_WIN.with(|h| {
                 let guard = h.borrow();
@@ -1741,10 +1759,18 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, _main_weak: &slint::Weak<
                 let _ = s.settings.save(s.profile_name.as_deref());
                 let hwnd = s.hwnd;
                 let always_on_top = s.settings.always_on_top;
+                let should_reposition_appbar = s.is_appbar;
                 let settings_clone = s.settings.clone();
                 drop(s);
                 apply_window_appearance(hwnd, &settings_clone);
                 apply_topmost_mode(hwnd, always_on_top);
+                if should_reposition_appbar {
+                    let mut s = state.borrow_mut();
+                    reposition_appbar(&mut s);
+                }
+                if let Some(main) = main_weak.upgrade() {
+                    recompute_and_update_ui(&state, &main);
+                }
             });
         }
     });
@@ -1800,6 +1826,16 @@ fn update_settings(state: &Rc<RefCell<AppState>>, mutate: impl FnOnce(&mut AppSe
 fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
     if let Some(win) = weak.upgrade() {
         recompute_and_update_ui(state, &win);
+    }
+}
+
+fn preferred_tray_icon(hwnd: HWND, fallback: HICON) -> HICON {
+    if let Some(icon) = resolve_window_icon(hwnd) {
+        tracing::info!("using main window icon for tray");
+        icon
+    } else {
+        tracing::warn!("main window icon unavailable; using fallback icon for tray");
+        fallback
     }
 }
 

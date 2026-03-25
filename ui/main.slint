@@ -146,8 +146,8 @@ component ResizeHandle inherits Rectangle {
     callback drag-moved(/* index */ int, /* x */ float, /* y */ float);
     callback drag-ended(/* index */ int);
 
-    background: touch.has-hover || root.is-dragging ? Theme.accent.with-alpha(0.5) : transparent;
-    border-radius: 2px;
+    background: touch.has-hover || root.is-dragging ? Theme.accent.with-alpha(root.is-dragging ? 0.72 : 0.42) : transparent;
+    border-radius: 3px;
 
     touch := TouchArea {
         mouse-cursor: root.horizontal ? MouseCursor.row-resize : MouseCursor.col-resize;
@@ -240,57 +240,55 @@ component EmptyState inherits Rectangle {
     in property <string> message: "No windows available to preview";
     in property <string> helper: "Open or restore any desktop window.\nPanopticon will keep watching from the tray.";
 
+    width: 100%;
+    height: 100%;
     background: transparent;
 
-    VerticalLayout {
-        alignment: center;
-        spacing: 12px;
-        padding: 40px;
+    Rectangle {
+        width: min(parent.width - 40px, 380px);
+        height: 180px;
+        x: max((parent.width - self.width) / 2, 0px);
+        y: max((parent.height - self.height) / 2, 0px);
+        background: Theme.panel-bg;
+        border-width: 1px;
+        border-color: Theme.border;
+        border-radius: 12px;
 
-        Rectangle {
-            width: 380px;
-            height: 180px;
-            background: Theme.panel-bg;
-            border-width: 1px;
-            border-color: Theme.border;
-            border-radius: 12px;
+        VerticalLayout {
+            alignment: center;
+            spacing: 10px;
+            padding: 24px;
 
-            VerticalLayout {
-                alignment: center;
-                spacing: 10px;
-                padding: 24px;
-
-                // Icon placeholder
-                Rectangle {
-                    width: 48px;
-                    height: 48px;
-                    border-radius: 24px;
-                    background: Theme.accent-soft;
-
-                    Text {
-                        width: 100%;
-                        height: 100%;
-                        text: "👁";
-                        font-size: 24px;
-                        vertical-alignment: center;
-                        horizontal-alignment: center;
-                    }
-                }
+            // Icon placeholder
+            Rectangle {
+                width: 48px;
+                height: 48px;
+                border-radius: 24px;
+                background: Theme.accent-soft;
 
                 Text {
-                    text: root.message;
-                    color: Theme.text;
-                    font-size: 14px;
+                    width: 100%;
+                    height: 100%;
+                    text: "👁";
+                    font-size: 24px;
+                    vertical-alignment: center;
                     horizontal-alignment: center;
                 }
+            }
 
-                Text {
-                    text: root.helper;
-                    color: Theme.muted;
-                    font-size: 12px;
-                    horizontal-alignment: center;
-                    wrap: word-wrap;
-                }
+            Text {
+                text: root.message;
+                color: Theme.text;
+                font-size: 14px;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: root.helper;
+                color: Theme.muted;
+                font-size: 12px;
+                horizontal-alignment: center;
+                wrap: word-wrap;
             }
         }
     }
