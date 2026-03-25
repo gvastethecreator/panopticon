@@ -3,6 +3,7 @@
 use std::mem;
 
 use anyhow::{anyhow, Result};
+use panopticon::settings::HiddenAppEntry;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Shell::{
@@ -13,8 +14,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, DestroyIcon, DestroyMenu, DrawIconEx,
     GetClassLongPtrW, GetCursorPos, LoadIconW, SendMessageW, SetForegroundWindow, TrackPopupMenu,
     DI_NORMAL, GCLP_HICON, GCLP_HICONSM, HICON, ICON_BIG, ICON_SMALL, ICON_SMALL2, IDI_APPLICATION,
-    IMAGE_FLAGS, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_NONOTIFY,
-    TPM_RETURNCMD, WM_APP, WM_GETICON, WM_LBUTTONUP, WM_RBUTTONUP,
+    IMAGE_FLAGS, MF_CHECKED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED, TPM_BOTTOMALIGN,
+    TPM_LEFTALIGN, TPM_NONOTIFY, TPM_RETURNCMD, WM_APP, WM_GETICON, WM_LBUTTONUP, WM_RBUTTONUP,
 };
 
 /// Callback message sent by the tray icon.
@@ -27,10 +28,17 @@ const CMD_TRAY_NEXT_LAYOUT: u16 = 3;
 const CMD_TRAY_TOGGLE_MINIMIZE_TO_TRAY: u16 = 4;
 const CMD_TRAY_TOGGLE_CLOSE_TO_TRAY: u16 = 5;
 const CMD_TRAY_CYCLE_REFRESH: u16 = 6;
-const CMD_TRAY_EXIT: u16 = 7;
+const CMD_TRAY_TOGGLE_ANIMATIONS: u16 = 7;
+const CMD_TRAY_TOGGLE_DEFAULT_ASPECT_RATIO: u16 = 8;
+const CMD_TRAY_TOGGLE_DEFAULT_HIDE_ON_SELECT: u16 = 9;
+const CMD_TRAY_TOGGLE_ALWAYS_ON_TOP: u16 = 10;
+const CMD_TRAY_RESTORE_ALL_HIDDEN: u16 = 11;
+const CMD_TRAY_EXIT: u16 = 12;
+const CMD_TRAY_RESTORE_HIDDEN_BASE: u16 = 100;
 
 /// Snapshot of UI preferences needed to render the tray menu.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct TrayMenuState {
     /// Whether the main window is currently visible.
     pub window_visible: bool,
@@ -40,10 +48,20 @@ pub struct TrayMenuState {
     pub close_to_tray: bool,
     /// Current refresh interval in milliseconds.
     pub refresh_interval_ms: u32,
+    /// Whether transitions are animated.
+    pub animate_transitions: bool,
+    /// Default aspect-ratio preference for app rules.
+    pub preserve_aspect_ratio: bool,
+    /// Default hide-on-select behaviour for app rules.
+    pub hide_on_select: bool,
+    /// Whether the Panopticon window is forced topmost.
+    pub always_on_top: bool,
+    /// Hidden applications that can be restored.
+    pub hidden_apps: Vec<HiddenAppEntry>,
 }
 
 /// Commands emitted by the tray icon.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrayAction {
     /// Show or hide the main window.
     Toggle,
@@ -57,6 +75,18 @@ pub enum TrayAction {
     ToggleCloseToTray,
     /// Cycle the refresh interval.
     CycleRefreshInterval,
+    /// Toggle animation for layout transitions.
+    ToggleAnimateTransitions,
+    /// Toggle default aspect-ratio preservation for apps.
+    ToggleDefaultAspectRatio,
+    /// Toggle default hide-on-select behaviour for apps.
+    ToggleDefaultHideOnSelect,
+    /// Toggle topmost behavior for the Panopticon window.
+    ToggleAlwaysOnTop,
+    /// Restore one hidden application.
+    RestoreHidden(String),
+    /// Restore all hidden applications.
+    RestoreAllHidden,
     /// Exit the application.
     Exit,
 }
@@ -164,7 +194,11 @@ impl Drop for TrayIcon {
 
 /// Convert a tray callback into a higher-level action.
 #[must_use]
-pub fn handle_tray_message(hwnd: HWND, lparam: LPARAM, state: TrayMenuState) -> Option<TrayAction> {
+pub fn handle_tray_message(
+    hwnd: HWND,
+    lparam: LPARAM,
+    state: &TrayMenuState,
+) -> Option<TrayAction> {
     match lparam.0 as u32 {
         WM_LBUTTONUP => Some(TrayAction::Toggle),
         WM_RBUTTONUP => show_tray_menu(hwnd, state),
@@ -232,7 +266,8 @@ fn notify_data(hwnd: HWND, icon: HICON) -> NOTIFYICONDATAW {
     nid
 }
 
-fn show_tray_menu(hwnd: HWND, state: TrayMenuState) -> Option<TrayAction> {
+#[allow(clippy::too_many_lines)]
+fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
     // SAFETY: menu is created, populated, and destroyed on the same thread.
     unsafe {
         let menu = CreatePopupMenu().ok()?;
@@ -251,7 +286,16 @@ fn show_tray_menu(hwnd: HWND, state: TrayMenuState) -> Option<TrayAction> {
             "Cycle refresh interval ({})",
             format_refresh_interval_label(state.refresh_interval_ms)
         ));
+        let animations = encode_wide("Animate transitions");
+        let default_aspect_ratio = encode_wide("Default: preserve aspect ratio");
+        let default_hide_on_select = encode_wide("Default: hide after activation");
+        let always_on_top = encode_wide("Keep Panopticon on top");
+        let restore_hidden_title = encode_wide("Restore hidden apps");
+        let restore_all_hidden = encode_wide("Restore all hidden apps");
         let exit = encode_wide("Exit");
+
+        let mut hidden_labels: Vec<Vec<u16>> = Vec::with_capacity(state.hidden_apps.len());
+        let mut restore_actions: Vec<(u16, String)> = Vec::with_capacity(state.hidden_apps.len());
 
         let _ = AppendMenuW(
             menu,
@@ -300,6 +344,65 @@ fn show_tray_menu(hwnd: HWND, state: TrayMenuState) -> Option<TrayAction> {
             CMD_TRAY_CYCLE_REFRESH as usize,
             PCWSTR(refresh_interval.as_ptr()),
         );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.animate_transitions),
+            CMD_TRAY_TOGGLE_ANIMATIONS as usize,
+            PCWSTR(animations.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.preserve_aspect_ratio),
+            CMD_TRAY_TOGGLE_DEFAULT_ASPECT_RATIO as usize,
+            PCWSTR(default_aspect_ratio.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.hide_on_select),
+            CMD_TRAY_TOGGLE_DEFAULT_HIDE_ON_SELECT as usize,
+            PCWSTR(default_hide_on_select.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.always_on_top),
+            CMD_TRAY_TOGGLE_ALWAYS_ON_TOP as usize,
+            PCWSTR(always_on_top.as_ptr()),
+        );
+
+        if !state.hidden_apps.is_empty() {
+            let hidden_menu = CreatePopupMenu().ok()?;
+            let _ = AppendMenuW(
+                hidden_menu,
+                MF_STRING,
+                CMD_TRAY_RESTORE_ALL_HIDDEN as usize,
+                PCWSTR(restore_all_hidden.as_ptr()),
+            );
+            let _ = AppendMenuW(hidden_menu, MF_SEPARATOR, 0, PCWSTR::null());
+
+            for (index, hidden_app) in state.hidden_apps.iter().enumerate() {
+                let Some(command_id) = CMD_TRAY_RESTORE_HIDDEN_BASE.checked_add(index as u16)
+                else {
+                    break;
+                };
+                hidden_labels.push(encode_wide(&hidden_app.label));
+                let label = hidden_labels.last().expect("hidden label just pushed");
+                let _ = AppendMenuW(
+                    hidden_menu,
+                    MF_STRING,
+                    command_id as usize,
+                    PCWSTR(label.as_ptr()),
+                );
+                restore_actions.push((command_id, hidden_app.app_id.clone()));
+            }
+
+            let _ = AppendMenuW(
+                menu,
+                MF_POPUP,
+                hidden_menu.0 as usize,
+                PCWSTR(restore_hidden_title.as_ptr()),
+            );
+        }
+
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
         let _ = AppendMenuW(
             menu,
@@ -331,9 +434,26 @@ fn show_tray_menu(hwnd: HWND, state: TrayMenuState) -> Option<TrayAction> {
             CMD_TRAY_TOGGLE_MINIMIZE_TO_TRAY => Some(TrayAction::ToggleMinimizeToTray),
             CMD_TRAY_TOGGLE_CLOSE_TO_TRAY => Some(TrayAction::ToggleCloseToTray),
             CMD_TRAY_CYCLE_REFRESH => Some(TrayAction::CycleRefreshInterval),
+            CMD_TRAY_TOGGLE_ANIMATIONS => Some(TrayAction::ToggleAnimateTransitions),
+            CMD_TRAY_TOGGLE_DEFAULT_ASPECT_RATIO => Some(TrayAction::ToggleDefaultAspectRatio),
+            CMD_TRAY_TOGGLE_DEFAULT_HIDE_ON_SELECT => Some(TrayAction::ToggleDefaultHideOnSelect),
+            CMD_TRAY_TOGGLE_ALWAYS_ON_TOP => Some(TrayAction::ToggleAlwaysOnTop),
+            CMD_TRAY_RESTORE_ALL_HIDDEN => Some(TrayAction::RestoreAllHidden),
             CMD_TRAY_EXIT => Some(TrayAction::Exit),
-            _ => None,
+            dynamic => restore_actions
+                .into_iter()
+                .find_map(|(command_id, app_id)| {
+                    (dynamic == command_id).then_some(TrayAction::RestoreHidden(app_id))
+                }),
         }
+    }
+}
+
+const fn checked_flag(enabled: bool) -> windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS {
+    if enabled {
+        MF_CHECKED
+    } else {
+        MF_UNCHECKED
     }
 }
 

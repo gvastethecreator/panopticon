@@ -56,6 +56,20 @@
 - [x] Crear `src/settings.rs` con `serde` + `toml`.
 - [x] Persistir layout inicial, refresh interval y comportamiento de tray.
 - [x] Añadir tests unitarios para roundtrip TOML y normalización de settings.
+- [x] Persistir reglas **por aplicación**: hidden, preserve aspect ratio y hide-on-select.
+- [x] Añadir restauración de apps ocultas (todo o una por una) desde el tray.
+- [x] Añadir preferencias globales persistentes para animaciones y always-on-top.
+
+## Interacción avanzada / Rendimiento
+
+- [x] Añadir **clic derecho sobre miniaturas** con menú contextual por app.
+- [x] Añadir opción por app para esconder la aplicación del layout sin cerrarla.
+- [x] Añadir opción por app para respetar aspect ratio en el thumbnail.
+- [x] Añadir opción por app para esconder o no Panopticon al activar la app.
+- [x] Añadir transición suave entre layouts mediante interpolación por timer.
+- [x] Mejorar el diseño visual de las cards con acento superior, mejor footer y estado ampliado en toolbar.
+- [x] Añadir modo **siempre visible** (`always-on-top`) configurable desde el tray.
+- [x] Optimizar uso de recursos: liberar thumbnails al ocultar la ventana y reducir refresh en segundo plano.
 
 ## Documentación
 
