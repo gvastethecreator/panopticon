@@ -4,10 +4,11 @@
 //! thumbnails inside a given rectangular area.  All functions are **pure**
 //! (no side effects, no I/O) and therefore fully unit-testable.
 
+use serde::{Deserialize, Serialize};
 use windows::Win32::Foundation::RECT;
 
 /// The five layout modes specified in the PRD.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum LayoutType {
     /// Equal-sized cells in a √n × √n grid.
     Grid,

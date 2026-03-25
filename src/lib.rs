@@ -22,10 +22,12 @@
 //! | [`error`] | Typed error definitions |
 //! | [`constants`] | Application-wide constants |
 //! | [`logging`] | Structured logging configuration |
+//! | [`settings`] | Persistent user preferences saved as TOML |
 
 pub mod constants;
 pub mod error;
 pub mod layout;
 pub mod logging;
+pub mod settings;
 pub mod thumbnail;
 pub mod window_enum;

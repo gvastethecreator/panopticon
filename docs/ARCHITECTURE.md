@@ -14,6 +14,7 @@ panopticon (lib)
 ├── error       — Typed errors (thiserror)
 ├── layout      — Layout algorithms: Grid, Mosaic, Bento, Fibonacci, Columns
 ├── logging     — tracing + daily-rolling file appender
+├── settings    — Persistent user preferences saved as TOML
 ├── thumbnail   — RAII wrapper around DWM HTHUMBNAIL
 └── window_enum — EnumWindows-based discovery and filtering
 
@@ -58,6 +59,19 @@ Panopticon registers a persistent tray icon at startup. The tray system offers:
 
 The tray icon lets the app behave more like a native desktop utility while
 keeping the visual viewer out of the way when not needed.
+
+### Persistent Settings
+
+Panopticon persists a small set of user preferences in
+`%APPDATA%\Panopticon\settings.toml`:
+
+- initial layout
+- refresh interval
+- minimize-to-tray behavior
+- close-to-tray behavior
+
+Preferences are loaded at startup, normalized to safe values, and saved again
+whenever the user changes them from the tray menu.
 
 ### Layout Engine
 

@@ -61,9 +61,10 @@ registrar el tray icon automáticamente.
 
 ### P2. Menú contextual avanzado / Preferencias
 
-El tray ya soporta show/hide, refresh, next layout y exit. A futuro conviene
-añadir preferencias persistentes (intervalo de refresh, layout inicial,
-minimizar vs cerrar, always-on-top, etc.).
+El tray ya soporta show/hide, refresh, next layout, hide-on-minimize,
+hide-on-close, cycle refresh interval y exit. A futuro conviene añadir más
+preferencias persistentes (always-on-top, layout favorites, filtros por app,
+autostart, etc.).
 
 ### P3. Cobertura en CI
 
