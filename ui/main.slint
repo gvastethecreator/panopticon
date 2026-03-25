@@ -37,6 +37,19 @@ export struct ThumbnailData {
     show-footer: bool,
 }
 
+/// A draggable separator between layout cells.
+export struct ResizeHandleData {
+    /// Position on the split axis (px).
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    /// true = horizontal line → resize vertically.
+    horizontal: bool,
+    /// Index into the ratio array.
+    index: int,
+}
+
 // ── Thumbnail card ───────────────────────────────────────────
 
 component ThumbnailCard inherits Rectangle {
@@ -118,6 +131,37 @@ component ThumbnailCard inherits Rectangle {
         }
         moved => {
             root.pointer-moved(touch.mouse-x / 1px, touch.mouse-y / 1px);
+        }
+    }
+}
+
+// ── Resize handle (draggable separator) ──────────────────────
+
+component ResizeHandle inherits Rectangle {
+    in property <bool> horizontal;
+    in property <int> handle-index;
+    in property <bool> is-dragging: false;
+
+    callback drag-started(/* index */ int, /* x */ float, /* y */ float);
+    callback drag-moved(/* index */ int, /* x */ float, /* y */ float);
+    callback drag-ended(/* index */ int);
+
+    background: touch.has-hover || root.is-dragging ? Theme.accent.with-alpha(0.5) : transparent;
+    border-radius: 2px;
+
+    touch := TouchArea {
+        mouse-cursor: root.horizontal ? MouseCursor.row-resize : MouseCursor.col-resize;
+
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                root.drag-started(root.handle-index, touch.mouse-x / 1px, touch.mouse-y / 1px);
+            }
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
+                root.drag-ended(root.handle-index);
+            }
+        }
+        moved => {
+            root.drag-moved(root.handle-index, touch.mouse-x / 1px, touch.mouse-y / 1px);
         }
     }
 }
@@ -299,6 +343,7 @@ export component MainWindow inherits Window {
 
     // ── Properties ───────────────────────────────
     in property <[ThumbnailData]> thumbnails;
+    in property <[ResizeHandleData]> resize-handles;
     in property <bool> show-toolbar: true;
     in property <bool> show-window-info: true;
     in property <string> layout-label: "Grid";
@@ -312,6 +357,7 @@ export component MainWindow inherits Window {
     in property <float> content-height: 0;
     in property <bool> scroll-horizontal: false;
     in property <bool> scroll-vertical: false;
+    in property <int> active-drag-index: -1;
 
     // Read by Rust to know real scroll offset
     out property <float> viewport-x: flickable.viewport-x / 1px;
@@ -326,6 +372,9 @@ export component MainWindow inherits Window {
     callback thumbnail-hovered(/* index */ int);
     callback toolbar-clicked();
     callback key-pressed(/* key */ string) -> bool;
+    callback resize-drag-started(/* index */ int, /* x */ float, /* y */ float);
+    callback resize-drag-moved(/* index */ int, /* x */ float, /* y */ float);
+    callback resize-drag-ended(/* index */ int);
 
     // ── Layout ───────────────────────────────────
     VerticalLayout {
@@ -377,6 +426,21 @@ export component MainWindow inherits Window {
                     right-clicked(x, y) => { root.thumbnail-right-clicked(i, x, y); }
                     pointer-moved(x, y) => { root.thumbnail-hovered(i); }
                 }
+            }
+
+            // Resize handles rendered on top of the content
+            for handle[i] in root.resize-handles: ResizeHandle {
+                x: handle.x * 1px;
+                y: handle.y * 1px;
+                width: handle.width * 1px;
+                height: handle.height * 1px;
+                horizontal: handle.horizontal;
+                handle-index: handle.index;
+                is-dragging: root.active-drag-index == handle.index;
+
+                drag-started(idx, x, y) => { root.resize-drag-started(idx, x, y); }
+                drag-moved(idx, x, y) => { root.resize-drag-moved(idx, x, y); }
+                drag-ended(idx) => { root.resize-drag-ended(idx); }
             }
 
             // Vertical scrollbar overlay (right edge)

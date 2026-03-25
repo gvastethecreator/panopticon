@@ -16,7 +16,7 @@
 //!
 //! | Module | Purpose |
 //! |--------|---------|
-//! | [`layout`] | Mathematical layout algorithms (Grid, Mosaic, Bento, Fibonacci, Columns) |
+//! | [`layout`] | Mathematical layout algorithms (Grid, Mosaic, Bento, Fibonacci, Columns, Row, Column) |
 //! | [`thumbnail`] | RAII wrapper for DWM thumbnail handles |
 //! | [`window_enum`] | Discovery and filtering of top-level application windows |
 //! | [`error`] | Typed error definitions |

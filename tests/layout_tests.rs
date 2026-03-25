@@ -2,7 +2,10 @@
 
 use std::collections::HashSet;
 
-use panopticon::layout::{compute_layout, AspectHint, LayoutType};
+use panopticon::layout::{
+    apply_separator_drag, compute_layout, compute_layout_custom, AspectHint, LayoutCustomization,
+    LayoutType,
+};
 use windows::Win32::Foundation::RECT;
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -239,4 +242,62 @@ fn mosaic_handles_mixed_aspects() {
     for r in &rects {
         assert!(r.right > r.left && r.bottom > r.top);
     }
+}
+
+#[test]
+fn grid_custom_ratios_resize_cells_and_emit_separators() {
+    let custom = LayoutCustomization {
+        col_ratios: vec![0.75, 0.25],
+        row_ratios: vec![0.25, 0.75],
+    };
+
+    let result = compute_layout_custom(
+        LayoutType::Grid,
+        area(1_000, 600),
+        4,
+        &uniform_aspects(4),
+        Some(&custom),
+    );
+
+    assert_eq!(result.rects.len(), 4);
+    assert_eq!(result.separators.len(), 2);
+
+    let left_width = result.rects[0].right - result.rects[0].left;
+    let right_width = result.rects[1].right - result.rects[1].left;
+    let top_height = result.rects[0].bottom - result.rects[0].top;
+    let bottom_height = result.rects[2].bottom - result.rects[2].top;
+
+    assert!(left_width > right_width, "custom column ratio should widen left column");
+    assert!(bottom_height > top_height, "custom row ratio should enlarge bottom row");
+}
+
+#[test]
+fn invalid_custom_ratios_fall_back_to_default_distribution() {
+    let default_rects = compute_layout(LayoutType::Grid, area(1_000, 600), 4, &uniform_aspects(4));
+    let invalid = LayoutCustomization {
+        col_ratios: vec![f64::NAN, 1.0],
+        row_ratios: vec![0.0, -2.0],
+    };
+
+    let result = compute_layout_custom(
+        LayoutType::Grid,
+        area(1_000, 600),
+        4,
+        &uniform_aspects(4),
+        Some(&invalid),
+    );
+
+    assert_eq!(result.rects, default_rects);
+}
+
+#[test]
+fn separator_drag_clamps_and_preserves_total_ratio() {
+    let mut ratios = vec![0.5, 0.5];
+
+    apply_separator_drag(&mut ratios, 0, 0.9, 0.2);
+
+    let total: f64 = ratios.iter().sum();
+    assert!((total - 1.0).abs() < 1e-9);
+    assert!((ratios[0] - 0.8).abs() < 1e-9);
+    assert!((ratios[1] - 0.2).abs() < 1e-9);
 }

@@ -1,8 +1,13 @@
 //! Layout engine for Panopticon.
 //!
-//! Provides five mathematical layout algorithms that arrange `n` window
+//! Provides seven mathematical layout algorithms that arrange `n` window
 //! thumbnails inside a given rectangular area.  All functions are **pure**
 //! (no side effects, no I/O) and therefore fully unit-testable.
+//!
+//! Each layout can be customised via [`LayoutCustomization`], which stores
+//! user-tweaked column/row ratios that override the default distribution.
+//! Draggable separators ([`Separator`]) are computed alongside the rects
+//! so the UI can render resize handles.
 
 use serde::{Deserialize, Serialize};
 use windows::Win32::Foundation::RECT;
@@ -99,6 +104,99 @@ impl AspectHint {
     }
 }
 
+// ───────────────────────── Layout Customization ─────────────────────────
+
+/// User-tweaked proportions that override the default layout distribution.
+///
+/// `col_ratios` and `row_ratios` are **normalized** (sum ≈ 1.0).  An empty
+/// vector means "use algorithm defaults".  When the number of stored ratios
+/// does not match the current window count, the engine falls back to
+/// defaults automatically.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct LayoutCustomization {
+    /// Relative column widths (normalized weights summing to 1.0).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub col_ratios: Vec<f64>,
+    /// Relative row heights (normalized weights summing to 1.0).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub row_ratios: Vec<f64>,
+}
+
+// f64 doesn't impl Eq, but our ratios are well-behaved (no NaN).
+impl Eq for LayoutCustomization {}
+
+impl LayoutCustomization {
+    /// Return `true` when no custom ratios are stored.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.col_ratios.is_empty() && self.row_ratios.is_empty()
+    }
+}
+
+/// Normalize a ratio vector so it sums to 1.0.
+fn normalize_ratios(ratios: &[f64]) -> Vec<f64> {
+    if ratios.is_empty() {
+        return Vec::new();
+    }
+
+    if ratios.iter().any(|ratio| !ratio.is_finite() || *ratio <= 0.0) {
+        return default_ratios(ratios.len());
+    }
+
+    let sum: f64 = ratios.iter().sum();
+    if !sum.is_finite() || sum <= 0.0 {
+        return default_ratios(ratios.len());
+    }
+
+    ratios.iter().map(|r| r / sum).collect()
+}
+
+fn matching_ratios(ratios: Option<&[f64]>, expected_len: usize) -> Option<&[f64]> {
+    ratios.filter(|ratios| ratios.len() == expected_len)
+}
+
+fn scaled_segments(total: f64, slots: usize, ratios: Option<&[f64]>) -> Vec<f64> {
+    ratios.map_or_else(
+        || vec![total / slots as f64; slots],
+        |ratios| normalize_ratios(ratios).iter().map(|ratio| total * ratio).collect(),
+    )
+}
+
+fn cumulative_positions(lengths: &[f64]) -> Vec<f64> {
+    std::iter::once(0.0)
+        .chain(lengths.iter().scan(0.0, |acc, &length| {
+            *acc += length;
+            Some(*acc)
+        }))
+        .collect()
+}
+
+// ───────────────────────── Separator ─────────────────────────
+
+/// A draggable divider between adjacent layout cells.
+#[derive(Debug, Clone, Copy)]
+pub struct Separator {
+    /// Position along the split axis (logical px, area-relative).
+    pub position: i32,
+    /// `true` = horizontal line (drag vertically to resize rows).
+    /// `false` = vertical line (drag horizontally to resize columns).
+    pub horizontal: bool,
+    /// Index into `col_ratios` (vertical sep) or `row_ratios` (horizontal sep).
+    pub ratio_index: usize,
+    /// Start of the handle on the perpendicular axis.
+    pub extent_start: i32,
+    /// End of the handle on the perpendicular axis.
+    pub extent_end: i32,
+}
+
+/// Result of a layout computation including separators for resize handles.
+pub struct LayoutResult {
+    /// Destination rectangles for each window.
+    pub rects: Vec<RECT>,
+    /// Draggable separators the UI can render as resize handles.
+    pub separators: Vec<Separator>,
+}
+
 /// Padding (in pixels) applied inside each cell.
 const PADDING: i32 = 6;
 
@@ -113,56 +211,128 @@ pub fn compute_layout(
     count: usize,
     aspects: &[AspectHint],
 ) -> Vec<RECT> {
+    compute_layout_custom(layout, area, count, aspects, None).rects
+}
+
+/// Compute destination rectangles **and** draggable separators.
+///
+/// When `custom` is `Some`, the stored ratios override the default
+/// algorithm proportions where applicable.
+#[must_use]
+pub fn compute_layout_custom(
+    layout: LayoutType,
+    area: RECT,
+    count: usize,
+    aspects: &[AspectHint],
+    custom: Option<&LayoutCustomization>,
+) -> LayoutResult {
     if count == 0 {
-        return Vec::new();
+        return LayoutResult {
+            rects: Vec::new(),
+            separators: Vec::new(),
+        };
     }
     match layout {
-        LayoutType::Grid => grid_layout(area, count),
-        LayoutType::Mosaic => mosaic_layout(area, count, aspects),
-        LayoutType::Bento => bento_layout(area, count),
-        LayoutType::Fibonacci => fibonacci_layout(area, count),
-        LayoutType::Columns => columns_layout(area, count, aspects),
-        LayoutType::Row => single_row_layout(area, count, aspects),
-        LayoutType::Column => single_column_layout(area, count, aspects),
+        LayoutType::Grid => grid_layout_custom(area, count, custom),
+        LayoutType::Mosaic => mosaic_layout_custom(area, count, aspects, custom),
+        LayoutType::Bento => bento_layout_custom(area, count, custom),
+        LayoutType::Fibonacci => {
+            let rects = fibonacci_layout(area, count);
+            LayoutResult {
+                rects,
+                separators: Vec::new(),
+            }
+        }
+        LayoutType::Columns => columns_layout_custom(area, count, aspects, custom),
+        LayoutType::Row => single_row_layout_custom(area, count, aspects, custom),
+        LayoutType::Column => single_column_layout_custom(area, count, aspects, custom),
     }
 }
 
 // ───────────────────────── Grid ─────────────────────────
 
-/// Equal-sized cells in a √n × √n grid.
-fn grid_layout(area: RECT, count: usize) -> Vec<RECT> {
+/// Equal-sized cells in a √n × √n grid, with optional custom ratios.
+fn grid_layout_custom(area: RECT, count: usize, custom: Option<&LayoutCustomization>) -> LayoutResult {
     let cols = (count as f64).sqrt().ceil() as usize;
     let rows = count.div_ceil(cols);
 
     let total_w = f64::from(area.right - area.left);
     let total_h = f64::from(area.bottom - area.top);
-    let cell_w = total_w / cols as f64;
-    let cell_h = total_h / rows as f64;
+
+    let col_w = scaled_segments(
+        total_w,
+        cols,
+        matching_ratios(custom.map(|c| c.col_ratios.as_slice()), cols),
+    );
+    let row_h = scaled_segments(
+        total_h,
+        rows,
+        matching_ratios(custom.map(|c| c.row_ratios.as_slice()), rows),
+    );
+
+    let col_x = cumulative_positions(&col_w);
+    let row_y = cumulative_positions(&row_h);
 
     let mut rects = Vec::with_capacity(count);
     for i in 0..count {
         let col = i % cols;
         let row = i / cols;
         rects.push(padded_rect(
-            area.left + (col as f64 * cell_w) as i32,
-            area.top + (row as f64 * cell_h) as i32,
-            area.left + ((col + 1) as f64 * cell_w) as i32,
-            area.top + ((row + 1) as f64 * cell_h) as i32,
+            area.left + col_x[col] as i32,
+            area.top + row_y[row] as i32,
+            area.left + col_x[col + 1] as i32,
+            area.top + row_y[row + 1] as i32,
         ));
     }
-    rects
+
+    // Separators
+    let mut separators = Vec::new();
+    // Vertical separators (between columns)
+    for c in 0..cols.saturating_sub(1) {
+        separators.push(Separator {
+            position: area.left + col_x[c + 1] as i32,
+            horizontal: false,
+            ratio_index: c,
+            extent_start: area.top,
+            extent_end: area.bottom,
+        });
+    }
+    // Horizontal separators (between rows)
+    for r in 0..rows.saturating_sub(1) {
+        separators.push(Separator {
+            position: area.top + row_y[r + 1] as i32,
+            horizontal: true,
+            ratio_index: r,
+            extent_start: area.left,
+            extent_end: area.right,
+        });
+    }
+
+    LayoutResult { rects, separators }
 }
 
 // ───────────────────────── Mosaic ─────────────────────────
 
 /// Rows of windows where each row height adapts to aspect ratios.
-fn mosaic_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT> {
+fn mosaic_layout_custom(
+    area: RECT,
+    count: usize,
+    aspects: &[AspectHint],
+    custom: Option<&LayoutCustomization>,
+) -> LayoutResult {
     let total_w = f64::from(area.right - area.left);
     let total_h = f64::from(area.bottom - area.top);
 
     let cols = (count as f64).sqrt().ceil() as usize;
     let rows_count = count.div_ceil(cols);
-    let row_h = total_h / rows_count as f64;
+
+    let row_heights = scaled_segments(
+        total_h,
+        rows_count,
+        matching_ratios(custom.map(|c| c.row_ratios.as_slice()), rows_count),
+    );
+
+    let row_y = cumulative_positions(&row_heights);
 
     let mut rects = Vec::with_capacity(count);
     for i in 0..count {
@@ -173,7 +343,6 @@ fn mosaic_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT> 
             cols
         };
 
-        // Weight each cell by its aspect ratio within the row
         let row_start = row * cols;
         let row_end = (row_start + items_in_row).min(count);
         let total_ratio: f64 = (row_start..row_end)
@@ -192,49 +361,92 @@ fn mosaic_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT> 
 
         rects.push(padded_rect(
             area.left + x_offset as i32,
-            area.top + (row as f64 * row_h) as i32,
+            area.top + row_y[row] as i32,
             area.left + (x_offset + my_w) as i32,
-            area.top + ((row + 1) as f64 * row_h) as i32,
+            area.top + row_y[row + 1] as i32,
         ));
     }
-    rects
+
+    // Separators: horizontal between rows
+    let mut separators = Vec::new();
+    for r in 0..rows_count.saturating_sub(1) {
+        separators.push(Separator {
+            position: area.top + row_y[r + 1] as i32,
+            horizontal: true,
+            ratio_index: r,
+            extent_start: area.left,
+            extent_end: area.right,
+        });
+    }
+
+    LayoutResult { rects, separators }
 }
 
 // ───────────────────────── Bento ─────────────────────────
 
 /// Primary window (60 % width) plus a sidebar stack.
-fn bento_layout(area: RECT, count: usize) -> Vec<RECT> {
+fn bento_layout_custom(area: RECT, count: usize, custom: Option<&LayoutCustomization>) -> LayoutResult {
     if count == 1 {
-        return vec![padded_rect(area.left, area.top, area.right, area.bottom)];
+        return LayoutResult {
+            rects: vec![padded_rect(area.left, area.top, area.right, area.bottom)],
+            separators: Vec::new(),
+        };
     }
 
     let total_w = f64::from(area.right - area.left);
     let total_h = f64::from(area.bottom - area.top);
 
-    // Main window takes ~60% width, rest share the right column
-    let main_w = (total_w * 0.6) as i32;
-    let mut rects = Vec::with_capacity(count);
+    // Main panel width ratio (default 0.6)
+    let main_frac = custom
+        .and_then(|c| c.col_ratios.first().copied())
+        .unwrap_or(0.6)
+        .clamp(0.15, 0.85);
+    let main_w = (total_w * main_frac) as i32;
 
-    // First element: main/large
-    rects.push(padded_rect(
-        area.left,
-        area.top,
-        area.left + main_w,
-        area.bottom,
-    ));
+    let mut rects = Vec::with_capacity(count);
+    rects.push(padded_rect(area.left, area.top, area.left + main_w, area.bottom));
 
     let side_count = count - 1;
-    let side_h = total_h / side_count as f64;
+
+    let side_heights = scaled_segments(
+        total_h,
+        side_count,
+        matching_ratios(custom.map(|c| c.row_ratios.as_slice()), side_count),
+    );
+
+    let side_y = cumulative_positions(&side_heights);
 
     for i in 0..side_count {
         rects.push(padded_rect(
             area.left + main_w,
-            area.top + (i as f64 * side_h) as i32,
+            area.top + side_y[i] as i32,
             area.right,
-            area.top + ((i + 1) as f64 * side_h) as i32,
+            area.top + side_y[i + 1] as i32,
         ));
     }
-    rects
+
+    // Separators
+    let mut separators = Vec::new();
+    // Vertical: main/sidebar split
+    separators.push(Separator {
+        position: area.left + main_w,
+        horizontal: false,
+        ratio_index: 0,
+        extent_start: area.top,
+        extent_end: area.bottom,
+    });
+    // Horizontal: between sidebar rows
+    for i in 0..side_count.saturating_sub(1) {
+        separators.push(Separator {
+            position: area.top + side_y[i + 1] as i32,
+            horizontal: true,
+            ratio_index: i,
+            extent_start: area.left + main_w,
+            extent_end: area.right,
+        });
+    }
+
+    LayoutResult { rects, separators }
 }
 
 // ───────────────────────── Fibonacci ─────────────────────────
@@ -314,16 +526,27 @@ fn fibonacci_layout(area: RECT, count: usize) -> Vec<RECT> {
 // ───────────────────────── Columns ─────────────────────────
 
 /// Masonry-style: distribute items into columns, filling the shortest first.
-fn columns_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT> {
+fn columns_layout_custom(
+    area: RECT,
+    count: usize,
+    aspects: &[AspectHint],
+    custom: Option<&LayoutCustomization>,
+) -> LayoutResult {
     let num_cols = ((count as f64).sqrt().ceil() as usize).clamp(2, 5);
     let total_w = f64::from(area.right - area.left);
-    let col_w = total_w / num_cols as f64;
+
+    let col_widths = scaled_segments(
+        total_w,
+        num_cols,
+        matching_ratios(custom.map(|c| c.col_ratios.as_slice()), num_cols),
+    );
+
+    let col_x = cumulative_positions(&col_widths);
 
     let mut col_heights = vec![0.0f64; num_cols];
-    let mut assignments: Vec<(usize, f64)> = Vec::with_capacity(count); // (col_index, y_start)
+    let mut assignments: Vec<(usize, f64)> = Vec::with_capacity(count);
 
     for i in 0..count {
-        // Find shortest column
         let col = col_heights
             .iter()
             .enumerate()
@@ -331,13 +554,12 @@ fn columns_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT>
             .map_or(0, |(idx, _)| idx);
 
         let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
-        let item_h = col_w / ratio;
+        let item_h = col_widths[col] / ratio;
 
         assignments.push((col, col_heights[col]));
         col_heights[col] += item_h;
     }
 
-    // Scale to fit available height.
     let max_h = col_heights.iter().copied().fold(0.0_f64, f64::max);
     let available_h = f64::from(area.bottom - area.top);
     let scale = if max_h > 0.0 {
@@ -349,17 +571,30 @@ fn columns_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT>
     let mut rects = Vec::with_capacity(count);
     for (i, &(col, y_start)) in assignments.iter().enumerate() {
         let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
-        let item_h = (col_w / ratio) * scale;
+        let item_h = (col_widths[col] / ratio) * scale;
         let y = f64::from(area.top) + y_start * scale;
 
         rects.push(padded_rect(
-            area.left + (col as f64 * col_w) as i32,
+            area.left + col_x[col] as i32,
             y as i32,
-            area.left + ((col + 1) as f64 * col_w) as i32,
+            area.left + col_x[col + 1] as i32,
             (y + item_h) as i32,
         ));
     }
-    rects
+
+    // Separators: vertical between columns
+    let mut separators = Vec::new();
+    for c in 0..num_cols.saturating_sub(1) {
+        separators.push(Separator {
+            position: area.left + col_x[c + 1] as i32,
+            horizontal: false,
+            ratio_index: c,
+            extent_start: area.top,
+            extent_end: area.bottom,
+        });
+    }
+
+    LayoutResult { rects, separators }
 }
 
 // ───────────────────────── Row ─────────────────────────
@@ -370,32 +605,70 @@ fn columns_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT>
 /// total natural width fits within the area the cells are scaled up to
 /// fill; otherwise the returned [`RECT`]s extend beyond `area.right`
 /// and the caller is expected to provide horizontal scrolling.
-fn single_row_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT> {
+fn single_row_layout_custom(
+    area: RECT,
+    count: usize,
+    aspects: &[AspectHint],
+    custom: Option<&LayoutCustomization>,
+) -> LayoutResult {
     let height = f64::from(area.bottom - area.top);
     let width = f64::from(area.right - area.left);
 
-    let natural: Vec<f64> = (0..count)
-        .map(|i| {
-            let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
-            height * ratio
-        })
-        .collect();
-    let total: f64 = natural.iter().sum();
-
-    let widths: Vec<f64> = if total <= width {
-        let scale = width / total;
-        natural.iter().map(|w| w * scale).collect()
+    let widths: Vec<f64> = if let Some(ratios) =
+        matching_ratios(custom.map(|c| c.col_ratios.as_slice()), count)
+    {
+        // Custom ratios → scale to total natural or available width
+        let ratios = normalize_ratios(ratios);
+        let natural: Vec<f64> = (0..count)
+            .map(|i| {
+                let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+                height * ratio
+            })
+            .collect();
+        let total: f64 = natural.iter().sum();
+        let extent = total.max(width);
+        ratios.iter().map(|r| extent * r).collect()
     } else {
-        natural
+        let natural: Vec<f64> = (0..count)
+            .map(|i| {
+                let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+                height * ratio
+            })
+            .collect();
+        let total: f64 = natural.iter().sum();
+        if total <= width {
+            let scale = width / total;
+            natural.iter().map(|w| w * scale).collect()
+        } else {
+            natural
+        }
     };
 
+    let col_x = cumulative_positions(&widths);
+
     let mut rects = Vec::with_capacity(count);
-    let mut x = f64::from(area.left);
-    for &w in &widths {
-        rects.push(padded_rect(x as i32, area.top, (x + w) as i32, area.bottom));
-        x += w;
+    for i in 0..count {
+        rects.push(padded_rect(
+            area.left + col_x[i] as i32,
+            area.top,
+            area.left + col_x[i + 1] as i32,
+            area.bottom,
+        ));
     }
-    rects
+
+    // Separators: vertical between cells
+    let mut separators = Vec::new();
+    for i in 0..count.saturating_sub(1) {
+        separators.push(Separator {
+            position: area.left + col_x[i + 1] as i32,
+            horizontal: false,
+            ratio_index: i,
+            extent_start: area.top,
+            extent_end: area.bottom,
+        });
+    }
+
+    LayoutResult { rects, separators }
 }
 
 // ───────────────────────── Column (vertical strip) ─────────────────────────
@@ -404,35 +677,105 @@ fn single_row_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RE
 ///
 /// Cell heights are inversely proportional to the aspect ratio.  Overflowing
 /// content extends below `area.bottom` for vertical scrolling.
-fn single_column_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT> {
+fn single_column_layout_custom(
+    area: RECT,
+    count: usize,
+    aspects: &[AspectHint],
+    custom: Option<&LayoutCustomization>,
+) -> LayoutResult {
     let width = f64::from(area.right - area.left);
     let height = f64::from(area.bottom - area.top);
 
-    let natural: Vec<f64> = (0..count)
-        .map(|i| {
-            let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
-            width / ratio
-        })
-        .collect();
-    let total: f64 = natural.iter().sum();
-
-    let heights: Vec<f64> = if total <= height {
-        let scale = height / total;
-        natural.iter().map(|h| h * scale).collect()
+    let heights: Vec<f64> = if let Some(ratios) =
+        matching_ratios(custom.map(|c| c.row_ratios.as_slice()), count)
+    {
+        let ratios = normalize_ratios(ratios);
+        let natural: Vec<f64> = (0..count)
+            .map(|i| {
+                let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+                width / ratio
+            })
+            .collect();
+        let total: f64 = natural.iter().sum();
+        let extent = total.max(height);
+        ratios.iter().map(|r| extent * r).collect()
     } else {
-        natural
+        let natural: Vec<f64> = (0..count)
+            .map(|i| {
+                let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+                width / ratio
+            })
+            .collect();
+        let total: f64 = natural.iter().sum();
+        if total <= height {
+            let scale = height / total;
+            natural.iter().map(|h| h * scale).collect()
+        } else {
+            natural
+        }
     };
 
+    let row_y = cumulative_positions(&heights);
+
     let mut rects = Vec::with_capacity(count);
-    let mut y = f64::from(area.top);
-    for &h in &heights {
-        rects.push(padded_rect(area.left, y as i32, area.right, (y + h) as i32));
-        y += h;
+    for i in 0..count {
+        rects.push(padded_rect(
+            area.left,
+            area.top + row_y[i] as i32,
+            area.right,
+            area.top + row_y[i + 1] as i32,
+        ));
     }
-    rects
+
+    // Separators: horizontal between cells
+    let mut separators = Vec::new();
+    for i in 0..count.saturating_sub(1) {
+        separators.push(Separator {
+            position: area.top + row_y[i + 1] as i32,
+            horizontal: true,
+            ratio_index: i,
+            extent_start: area.left,
+            extent_end: area.right,
+        });
+    }
+
+    LayoutResult { rects, separators }
 }
 
 // ───────────────────────── Helpers ─────────────────────────
+
+/// Apply a drag delta to the separator at `ratio_index`, adjusting two
+/// adjacent entries in the given `ratios` vector.
+///
+/// `delta_fraction` is the signed fraction of the total axis extent the
+/// separator was moved (positive = right/down).  The function clamps so
+/// that neither neighbour goes below `min_fraction`.
+pub fn apply_separator_drag(
+    ratios: &mut [f64],
+    ratio_index: usize,
+    delta_fraction: f64,
+    min_fraction: f64,
+) {
+    if ratio_index + 1 >= ratios.len() {
+        return;
+    }
+    let a = ratios[ratio_index];
+    let b = ratios[ratio_index + 1];
+    let new_a = (a + delta_fraction).clamp(min_fraction, a + b - min_fraction);
+    let new_b = a + b - new_a;
+    ratios[ratio_index] = new_a;
+    ratios[ratio_index + 1] = new_b;
+}
+
+/// Build default equal ratios for `n` slots.
+#[must_use]
+pub fn default_ratios(n: usize) -> Vec<f64> {
+    if n == 0 {
+        Vec::new()
+    } else {
+        vec![1.0 / n as f64; n]
+    }
+}
 
 /// Create a [`RECT`] with [`PADDING`] inset on every side.
 fn padded_rect(left: i32, top: i32, right: i32, bottom: i32) -> RECT {

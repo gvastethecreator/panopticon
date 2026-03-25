@@ -1,5 +1,10 @@
 //! Modeless settings window and tag-creation dialog for the Panopticon UI.
 
+#![expect(
+    dead_code,
+    reason = "El diálogo Win32 de tags sigue reutilizándose mientras la ventana de settings principal vive en Slint"
+)]
+
 use std::ffi::c_void;
 use std::mem;
 use std::sync::Once;
@@ -1031,7 +1036,7 @@ fn register_options_class() {
             lpszClassName: OPTIONS_CLASS_NAME,
             ..Default::default()
         };
-        let _ = RegisterClassExW(&class);
+        let _ = RegisterClassExW(&raw const class);
     });
 }
 
@@ -1050,7 +1055,7 @@ fn register_tag_dialog_class() {
             lpszClassName: TAG_DIALOG_CLASS_NAME,
             ..Default::default()
         };
-        let _ = RegisterClassExW(&class);
+        let _ = RegisterClassExW(&raw const class);
     });
 }
 
