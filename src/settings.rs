@@ -27,6 +27,8 @@ pub struct AppRule {
     pub preserve_aspect_ratio: bool,
     /// Whether activating this app should hide Panopticon afterwards.
     pub hide_on_select: bool,
+    /// Manual tags used to build custom groups and filters.
+    pub tags: Vec<String>,
 }
 
 impl Default for AppRule {
@@ -36,6 +38,7 @@ impl Default for AppRule {
             hidden: false,
             preserve_aspect_ratio: false,
             hide_on_select: true,
+            tags: Vec::new(),
         }
     }
 }
@@ -43,6 +46,15 @@ impl Default for AppRule {
 /// Lightweight hidden-app entry used by menus.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HiddenAppEntry {
+    /// Stable application identifier used for persistence.
+    pub app_id: String,
+    /// Human-friendly label shown to the user.
+    pub label: String,
+}
+
+/// Lightweight application entry used by tray filter menus.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppSelectionEntry {
     /// Stable application identifier used for persistence.
     pub app_id: String,
     /// Human-friendly label shown to the user.
@@ -70,6 +82,12 @@ pub struct AppSettings {
     pub animate_transitions: bool,
     /// Whether the Panopticon window should stay topmost.
     pub always_on_top: bool,
+    /// Optional global filter limiting windows to a specific monitor.
+    pub active_monitor_filter: Option<String>,
+    /// Optional global filter limiting windows to a specific manual tag.
+    pub active_tag_filter: Option<String>,
+    /// Optional global filter limiting windows to a single application.
+    pub active_app_filter: Option<String>,
     /// Per-application remembered behaviour.
     pub app_rules: BTreeMap<String, AppRule>,
 }
@@ -85,6 +103,9 @@ impl Default for AppSettings {
             hide_on_select: true,
             animate_transitions: true,
             always_on_top: false,
+            active_monitor_filter: None,
+            active_tag_filter: None,
+            active_app_filter: None,
             app_rules: BTreeMap::new(),
         }
     }
@@ -179,6 +200,81 @@ impl AppSettings {
             .map_or(self.hide_on_select, |rule| rule.hide_on_select)
     }
 
+    /// Returns `true` when `app_id` belongs to `tag`.
+    #[must_use]
+    pub fn app_has_tag(&self, app_id: &str, tag: &str) -> bool {
+        let Some(tag) = normalize_tag(tag) else {
+            return false;
+        };
+
+        self.app_rules
+            .get(app_id)
+            .is_some_and(|rule| rule.tags.iter().any(|existing| existing == &tag))
+    }
+
+    /// Return all known tags sorted alphabetically.
+    #[must_use]
+    pub fn known_tags(&self) -> Vec<String> {
+        let mut tags: Vec<String> = self
+            .app_rules
+            .values()
+            .flat_map(|rule| rule.tags.iter().cloned())
+            .collect();
+        tags.sort();
+        tags.dedup();
+        tags
+    }
+
+    /// Return the remembered tags for an application.
+    #[must_use]
+    pub fn tags_for(&self, app_id: &str) -> Vec<String> {
+        self.app_rules
+            .get(app_id)
+            .map_or_else(Vec::new, |rule| rule.tags.clone())
+    }
+
+    /// Set the active global monitor filter.
+    pub fn set_monitor_filter(&mut self, monitor: Option<&str>) {
+        self.active_monitor_filter = monitor.and_then(normalize_filter_value);
+    }
+
+    /// Set the active manual tag/group filter.
+    pub fn set_tag_filter(&mut self, tag: Option<&str>) {
+        self.active_tag_filter = tag.and_then(normalize_tag);
+        if self.active_tag_filter.is_some() {
+            self.active_app_filter = None;
+        }
+    }
+
+    /// Set the active automatic application filter.
+    pub fn set_app_filter(&mut self, app_id: Option<&str>) {
+        self.active_app_filter = app_id.and_then(normalize_filter_value);
+        if self.active_app_filter.is_some() {
+            self.active_tag_filter = None;
+        }
+    }
+
+    /// Return a user-friendly description of the currently active group filter.
+    #[must_use]
+    pub fn active_group_filter_label(&self) -> Option<String> {
+        if let Some(tag) = &self.active_tag_filter {
+            return Some(format!("tag:{tag}"));
+        }
+
+        self.active_app_filter.as_ref().map(|app_id| {
+            self.app_rules.get(app_id).map_or_else(
+                || format!("app:{app_id}"),
+                |rule| {
+                    if rule.display_name.trim().is_empty() {
+                        format!("app:{app_id}")
+                    } else {
+                        format!("app:{}", rule.display_name)
+                    }
+                },
+            )
+        })
+    }
+
     /// Toggle hidden state for `app_id`, creating a remembered app rule if necessary.
     pub fn toggle_hidden(&mut self, app_id: &str, display_name: &str) -> bool {
         let rule = self.ensure_app_rule(app_id, display_name);
@@ -221,6 +317,31 @@ impl AppSettings {
         let rule = self.ensure_app_rule(app_id, display_name);
         rule.hide_on_select = !rule.hide_on_select;
         rule.hide_on_select
+    }
+
+    /// Toggle a manual tag for a specific application.
+    pub fn toggle_app_tag(&mut self, app_id: &str, display_name: &str, tag: &str) -> bool {
+        let Some(tag) = normalize_tag(tag) else {
+            return false;
+        };
+
+        let rule = self.ensure_app_rule(app_id, display_name);
+        if let Some(index) = rule.tags.iter().position(|existing| existing == &tag) {
+            rule.tags.remove(index);
+            false
+        } else {
+            rule.tags.push(tag);
+            rule.tags.sort();
+            rule.tags.dedup();
+            true
+        }
+    }
+
+    /// Create a new tag based on the app display name and assign it to the app.
+    pub fn create_tag_from_app(&mut self, app_id: &str, display_name: &str) -> Option<String> {
+        let tag = derive_tag_from_label(display_name)?;
+        let _ = self.toggle_app_tag(app_id, display_name, &tag);
+        Some(tag)
     }
 
     /// Update the label stored for a remembered application without changing its behaviour.
@@ -268,7 +389,27 @@ impl AppSettings {
         app_rules.retain(|app_id, _| !app_id.trim().is_empty());
         for rule in app_rules.values_mut() {
             rule.display_name = rule.display_name.trim().to_owned();
+            rule.tags = rule
+                .tags
+                .iter()
+                .filter_map(|tag| normalize_tag(tag))
+                .collect();
+            rule.tags.sort();
+            rule.tags.dedup();
         }
+
+        let active_monitor_filter = self
+            .active_monitor_filter
+            .as_deref()
+            .and_then(normalize_filter_value);
+        let active_tag_filter = self.active_tag_filter.as_deref().and_then(normalize_tag);
+        let active_app_filter = if active_tag_filter.is_some() {
+            None
+        } else {
+            self.active_app_filter
+                .as_deref()
+                .and_then(normalize_filter_value)
+        };
 
         Self {
             initial_layout: self.initial_layout,
@@ -279,6 +420,9 @@ impl AppSettings {
             hide_on_select: self.hide_on_select,
             animate_transitions: self.animate_transitions,
             always_on_top: self.always_on_top,
+            active_monitor_filter,
+            active_tag_filter,
+            active_app_filter,
             app_rules,
         }
     }
@@ -287,18 +431,54 @@ impl AppSettings {
         let display_name = display_name.trim();
         let preserve_aspect_ratio = self.preserve_aspect_ratio;
         let hide_on_select = self.hide_on_select;
-        self.app_rules
+
+        let rule = self
+            .app_rules
             .entry(app_id.to_owned())
             .or_insert_with(|| AppRule {
                 display_name: display_name.to_owned(),
                 hidden: false,
                 preserve_aspect_ratio,
                 hide_on_select,
-            })
+                tags: Vec::new(),
+            });
+
+        if rule.display_name.trim().is_empty() && !display_name.is_empty() {
+            rule.display_name = display_name.to_owned();
+        }
+
+        rule
     }
 }
 
+fn normalize_filter_value(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_owned())
+}
+
+fn normalize_tag(tag: &str) -> Option<String> {
+    let collapsed = tag.split_whitespace().collect::<Vec<_>>().join(" ");
+    let trimmed = collapsed.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_ascii_lowercase())
+}
+
+fn derive_tag_from_label(label: &str) -> Option<String> {
+    let seed: String = label
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                ' '
+            }
+        })
+        .collect();
+
+    normalize_tag(&seed)
+}
+
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::{AppSettings, HiddenAppEntry};
     use crate::layout::LayoutType;
@@ -314,7 +494,10 @@ mod tests {
             hide_on_select: false,
             animate_transitions: false,
             always_on_top: true,
-            app_rules: Default::default(),
+            active_monitor_filter: Some("DISPLAY1".to_owned()),
+            active_tag_filter: Some("work".to_owned()),
+            active_app_filter: None,
+            app_rules: std::collections::BTreeMap::default(),
         };
 
         let encoded = toml::to_string_pretty(&settings).expect("serialize settings");
@@ -334,7 +517,10 @@ mod tests {
             hide_on_select: true,
             animate_transitions: true,
             always_on_top: false,
-            app_rules: Default::default(),
+            active_monitor_filter: Some("DISPLAY2".to_owned()),
+            active_tag_filter: None,
+            active_app_filter: Some("exe:demo".to_owned()),
+            app_rules: std::collections::BTreeMap::default(),
         };
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);
@@ -364,6 +550,7 @@ mod tests {
         assert!(rule.hidden);
         assert!(rule.preserve_aspect_ratio);
         assert!(!rule.hide_on_select);
+        assert!(rule.tags.is_empty());
     }
 
     #[test]
@@ -384,6 +571,64 @@ mod tests {
                     label: "Zulu".to_owned(),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn tag_assignment_is_normalized_and_toggleable() {
+        let mut settings = AppSettings::default();
+
+        assert!(settings.toggle_app_tag("app:demo", "Demo App", "  Work Bench "));
+        assert!(settings.app_has_tag("app:demo", "work bench"));
+        assert_eq!(settings.known_tags(), vec!["work bench".to_owned()]);
+
+        assert!(!settings.toggle_app_tag("app:demo", "Demo App", "work bench"));
+        assert!(!settings.app_has_tag("app:demo", "work bench"));
+    }
+
+    #[test]
+    fn creating_tag_from_app_uses_normalized_label() {
+        let mut settings = AppSettings::default();
+
+        let created = settings.create_tag_from_app("app:browser", "Arc Browser");
+
+        assert_eq!(created.as_deref(), Some("arc browser"));
+        assert!(settings.app_has_tag("app:browser", "arc browser"));
+    }
+
+    #[test]
+    fn selecting_tag_filter_clears_app_filter() {
+        let mut settings = AppSettings::default();
+        settings.set_app_filter(Some("exe:arc"));
+
+        settings.set_tag_filter(Some("workspace"));
+
+        assert_eq!(settings.active_tag_filter.as_deref(), Some("workspace"));
+        assert!(settings.active_app_filter.is_none());
+    }
+
+    #[test]
+    fn normalized_settings_drop_empty_filters_and_tags() {
+        let mut settings = AppSettings {
+            active_monitor_filter: Some("   ".to_owned()),
+            active_tag_filter: Some("  Focused Work  ".to_owned()),
+            active_app_filter: Some("   ".to_owned()),
+            ..AppSettings::default()
+        };
+        let _ = settings.toggle_app_tag("app:one", "One", "  Alpha Team ");
+        let _ = settings.toggle_app_tag("app:one", "One", " ");
+
+        let normalized = settings.normalized();
+
+        assert!(normalized.active_monitor_filter.is_none());
+        assert_eq!(
+            normalized.active_tag_filter.as_deref(),
+            Some("focused work")
+        );
+        assert!(normalized.active_app_filter.is_none());
+        assert_eq!(
+            normalized.tags_for("app:one"),
+            vec!["alpha team".to_owned()]
         );
     }
 }

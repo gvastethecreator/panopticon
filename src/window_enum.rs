@@ -4,10 +4,14 @@
 //! top-level application windows while filtering out tool windows,
 //! system chrome, and other non-interactive surfaces.
 
+use std::mem;
 use std::path::Path;
 
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, BOOL, HWND, LPARAM, TRUE};
+use windows::Win32::Graphics::Gdi::{
+    GetMonitorInfoW, MonitorFromWindow, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
+};
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -30,6 +34,8 @@ pub struct WindowInfo {
     pub process_name: String,
     /// Native window class name.
     pub class_name: String,
+    /// Best-effort monitor name (for example `DISPLAY1`).
+    pub monitor_name: String,
 }
 
 impl WindowInfo {
@@ -134,6 +140,7 @@ unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
         .map_or_else(String::new, |segment| {
             segment.to_string_lossy().into_owned()
         });
+    let monitor_name = get_monitor_name(hwnd);
 
     results.push(WindowInfo {
         hwnd,
@@ -141,6 +148,7 @@ unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
         app_id: build_app_id(process_path.as_deref(), &class_name, &title),
         process_name,
         class_name,
+        monitor_name,
     });
 
     TRUE
@@ -216,4 +224,29 @@ fn build_app_id(process_path: Option<&str>, class_name: &str, title: &str) -> St
     }
 
     format!("title:{}", title.trim().to_ascii_lowercase())
+}
+
+fn get_monitor_name(hwnd: HWND) -> String {
+    // SAFETY: querying the nearest monitor for a valid top-level window is read-only.
+    let monitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
+    if monitor.0.is_null() {
+        return "Current monitor".to_owned();
+    }
+
+    let mut info = MONITORINFOEXW::default();
+    info.monitorInfo.cbSize = mem::size_of::<MONITORINFOEXW>() as u32;
+
+    // SAFETY: `info` is fully allocated and large enough for `MONITORINFOEXW`.
+    let success = unsafe { GetMonitorInfoW(monitor, &mut info.monitorInfo) }.as_bool();
+    if !success {
+        return "Current monitor".to_owned();
+    }
+
+    let raw_name = String::from_utf16_lossy(&info.szDevice);
+    let trimmed = raw_name.trim_end_matches('\0').trim();
+    if trimmed.is_empty() {
+        "Current monitor".to_owned()
+    } else {
+        trimmed.trim_start_matches(r#"\\.\"#).to_owned()
+    }
 }

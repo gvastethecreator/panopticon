@@ -1,214 +1,160 @@
-# Panopticon — Window Viewer
+# Panopticon
 
-[![Build](https://img.shields.io/badge/build-cargo-orange)](https://www.rust-lang.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://learn.microsoft.com/windows/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+<p align="center">
+  <img src="docs/assets/panopticon-icon.svg" alt="Panopticon icon" width="144" height="144">
+</p>
 
-A real-time window thumbnail viewer for Windows, powered by the Desktop Window Manager (DWM) API.
-Panopticon renders hardware-accelerated live previews of every open window, organised in five mathematical layout modes.
+<p align="center">
+  <strong>Visor nativo para Windows con miniaturas DWM en tiempo real, filtros por monitor y grupos por tags o aplicación.</strong>
+</p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-2ea043"></a>
+  <a href="https://www.rust-lang.org/"><img alt="Rust" src="https://img.shields.io/badge/Rust-2021-%23CE422B?logo=rust"></a>
+  <a href="https://learn.microsoft.com/windows/"><img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4?logo=windows"></a>
+</p>
 
-- **🖼️ Real-time thumbnails** — GPU-composited via DWM; zero bitmap capture, zero CPU rendering.
-- **📐 5 layout modes** — Grid, Mosaic, Bento, Fibonacci, Columns.
-- **🖱️ Click-to-activate** — Click any thumbnail to bring that window to the foreground.
-- **🫥 Hidden apps on demand** — Right-click any thumbnail to hide that application from the layout and restore it later from the tray.
-- **🧠 Per-app memory** — Panopticon remembers per-application visibility, aspect-ratio and hide-on-select rules.
-- **📽️ Smooth transitions** — Layout changes animate softly instead of jumping abruptly.
-- **📏 Optional aspect-ratio fit** — Preserve source proportions globally or per application.
-- **🧭 Tray icon + quick menu** — Minimise to tray, restore with one click, or right-click for actions.
-- **⚙️ Persistent preferences** — Remember layout, refresh interval, tray behavior, always-on-top and per-app rules across launches.
-- **📏 Per-Monitor DPI Aware** — Correct rendering on mixed-DPI multi-monitor setups.
-- **📝 Structured logging** — Logs written to `%TEMP%/panopticon/logs/` via `tracing`.
-- **⚡ Adaptive refresh** — Releases thumbnails while hidden and backs off refresh work in the tray.
+Panopticon es una aplicación de escritorio escrita en Rust que enumera ventanas de Windows y renderiza miniaturas vivas mediante la API de Desktop Window Manager (DWM). Está pensada para ofrecer una vista global del escritorio con layouts matemáticos, reglas persistentes por aplicación y comportamiento estilo utility/tray app.
 
-## Requirements
+## Lo más destacado
 
-| Requirement | Version |
+- **Miniaturas en vivo por GPU** usando `DwmRegisterThumbnail`, sin capturas bitmap manuales.
+- **5 layouts**: Grid, Mosaic, Bento, Fibonacci y Columns.
+- **Filtros por monitor** desde el tray menu.
+- **Grupos manuales por tags**: crea un tag desde una app y asígnalo a otras apps.
+- **Agrupación automática por aplicación** mediante filtro por app desde el tray.
+- **Memoria por app** para ocultar, preservar aspect ratio y ocultar Panopticon tras activar una ventana.
+- **Tray menu potente** con restore de apps ocultas, toggles de comportamiento y filtros activos.
+- **Animaciones suaves** al recomputar el layout.
+- **Logging estructurado** en `%TEMP%/panopticon/logs/`.
+- **Refresco adaptativo** cuando la ventana principal está escondida en el tray.
+
+## Requisitos
+
+| Requisito | Versión |
 | --- | --- |
-| OS | Windows 10 / 11 (64-bit) |
-| Rust toolchain | 1.82+ (edition 2021) |
-| DWM | Enabled (default on Windows 10+) |
+| Sistema operativo | Windows 10 / 11 (64-bit) |
+| Toolchain Rust | 1.82+ |
+| DWM | Habilitado |
 
-## Installation
+## Instalación rápida
 
 ```bash
-# Clone the repository
-git clone https://github.com/<user>/panopticon.git
+git clone https://github.com/gvastethecreator/panopticon.git
 cd panopticon
-
-# Build (release, optimised)
 cargo build --release
 ```
 
-The binary is located at `target/release/panopticon.exe`.
+El ejecutable queda en `target/release/panopticon.exe`.
 
-## Usage
+## Uso
 
 ```bash
-# Run directly
 cargo run --release
-
-# Or execute the binary
-./target/release/panopticon.exe
 ```
 
-### Controls
+### Controles
 
-| Input | Action |
+| Entrada | Acción |
 | --- | --- |
-| **Tab** | Cycle to the next layout mode |
-| **R** | Refresh the window list manually |
-| **Click** on thumbnail | Activate (bring to front) the selected window |
-| **Right-click** on thumbnail | Hide app / toggle per-app aspect ratio / toggle hide-after-open |
-| **Click** on toolbar | Switch layout mode |
-| **Minimize / Close** | Hide to tray instead of terminating the app |
-| **Left-click** tray icon | Restore / hide Panopticon |
-| **Right-click** tray icon | Open quick actions and preferences |
-| **Esc** | Exit Panopticon immediately |
+| `Tab` | Cambiar al siguiente layout |
+| `R` | Refrescar la lista de ventanas |
+| Click izquierdo sobre miniatura | Activar la ventana |
+| Click derecho sobre miniatura | Abrir opciones por aplicación |
+| Click izquierdo en icono del tray | Mostrar / ocultar Panopticon |
+| Click derecho en icono del tray | Acciones rápidas, filtros y preferencias |
+| `Esc` | Cerrar la aplicación |
 
-### Tray Preferences
+### Filtros y grupos
 
-The tray menu now lets you configure runtime behavior without editing files:
+Panopticon ahora puede reducir el tablero según el contexto que necesites:
 
-- **Hide on minimize** — when enabled, minimizing sends the app to the tray.
-- **Hide on close** — when enabled, pressing the close button sends the app to the tray.
-- **Cycle refresh interval** — rotates between `1s`, `2s`, `5s`, and `10s`.
-- **Animate transitions** — enables soft interpolation when the layout changes.
-- **Default: preserve aspect ratio** — newly customized apps preserve their source proportions.
-- **Default: hide after activation** — newly customized apps hide Panopticon after focus transfer.
-- **Keep Panopticon on top** — keeps the dashboard visible above other windows.
-- **Restore hidden apps** — restore all hidden applications or one by one from a submenu.
+- **Filter by monitor** — muestra sólo ventanas del monitor seleccionado.
+- **Filter by tag** — muestra sólo apps asociadas a un tag manual.
+- **Filter by application** — agrupa/filtra automáticamente por aplicación (`app_id`).
 
-These preferences are persisted to:
+### Cómo crear tags
+
+1. Haz click derecho sobre una miniatura.
+2. Selecciona **Create tag from this app** para sembrar un tag a partir del nombre de la aplicación.
+3. En otras apps, usa **Assign existing tags** para añadir o quitar tags existentes.
+
+> Los tags se persisten en `settings.toml`. Si quieres nombres completamente personalizados, también puedes editarlos manualmente en el archivo de configuración.
+
+## Configuración
+
+Las preferencias se guardan en:
 
 ```text
 %APPDATA%\Panopticon\settings.toml
 ```
 
-### Per-Application Options
+Ejemplo mínimo:
 
-Every thumbnail now exposes a right-click context menu with remembered rules:
+```toml
+initial_layout = "grid"
+refresh_interval_ms = 2000
+minimize_to_tray = true
+close_to_tray = true
+preserve_aspect_ratio = false
+hide_on_select = true
+animate_transitions = true
+always_on_top = false
+active_monitor_filter = "DISPLAY1"
+active_tag_filter = "work"
 
-- **Hide from layout** — removes that application from the visible dashboard without closing it.
-- **Respect aspect ratio** — letterboxes the live preview to avoid stretching the source window.
-- **Hide Panopticon after opening this app** — decides whether selecting that app should also hide the viewer.
-
-Those settings are stored per application using a stable identifier derived from the executable path when available.
-
-### Layout Modes
-
-| Mode | Description |
-| --- | --- |
-| **Grid** | Equal-sized cells in a √n × √n grid |
-| **Mosaic** | Rows with aspect-ratio-weighted column widths |
-| **Bento** | Primary window (60 %) + sidebar stack |
-| **Fibonacci** | Golden-ratio spiral subdivision |
-| **Columns** | Masonry-style shortest-column-first |
-
-### Resource Usage Notes
-
-Panopticon now reduces background cost in two practical ways:
-
-- when the main window is hidden to the tray, live thumbnails are released;
-- while hidden, the refresh loop automatically backs off to at least `10s`.
-
-This keeps the app fluid when visible without wasting compositor work while it is tucked away in the tray.
-
-## Development
-
-### Prerequisites
-
-```bash
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Install just (task runner) — optional but recommended
-cargo install just
-
-# Install tarpaulin for coverage (optional)
-cargo install cargo-tarpaulin
+[app_rules."exe:c:\\program files\\arc\\arc.exe"]
+display_name = "Arc"
+hidden = false
+preserve_aspect_ratio = true
+hide_on_select = false
+tags = ["work", "browser"]
 ```
 
-### Common Tasks
+Consulta más ejemplos en [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
+
+## Desarrollo
+
+### Tareas principales
 
 ```bash
-just build       # 🔨 Debug build
-just release     # 🚀 Release build
-just check       # ✅ Type check
-just lint        # 🧹 Clippy (pedantic)
-just fmt         # 🎨 Format code
-just test        # 🧪 Run tests
-just coverage    # 📊 Coverage report (requires cargo-tarpaulin)
-just doc         # 📖 Open generated docs
-just ci          # 🔄 Full CI check (fmt + lint + test)
-```
-
-### VS Code Tasks
-
-The workspace includes short, emoji-based tasks in `.vscode/tasks.json`:
-
-```text
-🔍 check   🛠 build   🚀 release   ▶ run   ⚡ run-release
-🧪 test    🧹 lint    🎨 fmt       📚 doc  📊 coverage
-🧼 clean   ♻ ci
-```
-
-### Manual Commands
-
-```bash
-cargo clippy -- -D warnings -W clippy::pedantic
-cargo fmt -- --check
+cargo check
 cargo test
-cargo doc --no-deps --open
+cargo clippy --all-targets -- -D warnings -W clippy::pedantic
+cargo fmt -- --check
 ```
 
-## Architecture
+También puedes usar las tareas del workspace o el `Justfile`.
 
-```text
-src/
-├── app/
-│   ├── mod.rs      — Binary-only helpers
-│   └── tray.rs     — Tray icon, popup menu, icon generation
-├── lib.rs          — Library root: re-exports all modules
-├── main.rs         — Win32 window, message loop, painting, HWND-attached state
-├── constants.rs    — Colours, timers, key codes, geometry
-├── error.rs        — Typed errors (thiserror)
-├── layout.rs       — Layout engine (Grid, Mosaic, Bento, Fibonacci, Columns)
-├── logging.rs      — tracing + file appender setup
-├── settings.rs     — persistent user preferences (TOML)
-├── thumbnail.rs    — RAII wrapper for DWM HTHUMBNAIL
-└── window_enum.rs  — Window enumeration and filtering
-tests/
-└── layout_tests.rs — Integration tests for the layout engine
-docs/
-└── ARCHITECTURE.md — Detailed architecture documentation
-```
+## Documentación
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for an in-depth design overview.
+- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — instalación y primer arranque.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — diseño interno del proyecto.
+- [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — settings, filtros y tags.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — guía de contribución.
+- [`SECURITY.md`](SECURITY.md) — reporte responsable de vulnerabilidades.
+- [`SUPPORT.md`](SUPPORT.md) — soporte, preguntas y canales sugeridos.
 
-## Logging
+## Estado del proyecto
 
-Panopticon writes structured logs to:
+El proyecto ya está preparado para trabajo open source básico:
 
-```text
-%TEMP%\panopticon\logs\panopticon.log
-```
+- CI por GitHub Actions en Windows;
+- plantillas de issues y PR;
+- documentación pública y guía de contribución;
+- changelog inicial y políticas básicas de colaboración.
 
-Set the `RUST_LOG` environment variable to control verbosity:
+## Contribuir
 
-```bash
-set RUST_LOG=debug
-./target/release/panopticon.exe
-```
+Las contribuciones son bienvenidas. Antes de abrir un PR:
 
-## Contributing
+1. crea una rama propia,
+2. ejecuta `cargo fmt`, `cargo clippy` y `cargo test`,
+3. documenta cualquier cambio visible o de configuración.
 
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feat/my-feature`.
-3. Ensure all checks pass: `just ci`.
-4. Submit a pull request.
+Más detalles en [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## License
+## Licencia
 
-MIT
+MIT. Mira [`LICENSE`](LICENSE).

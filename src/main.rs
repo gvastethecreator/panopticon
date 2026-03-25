@@ -31,15 +31,18 @@ use panopticon::constants::{
     TITLE_TRUNCATE_AT, TOOLBAR_HEIGHT, VK_ESCAPE, VK_R, VK_TAB,
 };
 use panopticon::layout::{compute_layout, AspectHint, LayoutType};
-use panopticon::settings::AppSettings;
+use panopticon::settings::{AppSelectionEntry, AppSettings};
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::c_void;
 use std::mem;
 use std::ptr::NonNull;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
+
+static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
@@ -63,6 +66,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
 const CMD_WINDOW_HIDE_APP: u16 = 1;
 const CMD_WINDOW_TOGGLE_ASPECT_RATIO: u16 = 2;
 const CMD_WINDOW_TOGGLE_HIDE_ON_SELECT: u16 = 3;
+const CMD_WINDOW_CREATE_TAG_FROM_APP: u16 = 4;
+const CMD_WINDOW_TAG_BASE: u16 = 100;
 
 // ───────────────────────── Application State ─────────────────────────
 
@@ -88,18 +93,21 @@ struct AppState {
     animation_started_at: Option<Instant>,
 }
 
-struct ToolbarStatus<'a> {
+struct ToolbarStatus {
     hidden_count: usize,
-    refresh_label: &'a str,
+    refresh_label: String,
     always_on_top: bool,
     animate_transitions: bool,
+    filters_label: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum WindowMenuAction {
     HideApp,
     ToggleAspectRatio,
     ToggleHideOnSelect,
+    CreateTagFromApp,
+    ToggleTag(String),
 }
 
 /// Obtain a mutable reference to the application state stored on the window.
@@ -123,6 +131,8 @@ fn main() {
     // SAFETY: FFI call with no preconditions; failure is non-fatal.
     unsafe {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        let taskbar_msg = RegisterWindowMessageW(w!("TaskbarCreated"));
+        TASKBAR_CREATED_MSG.store(taskbar_msg, Ordering::Relaxed);
     }
 
     let icons = AppIcons::new().unwrap_or_else(|error| {
@@ -146,7 +156,16 @@ fn main() {
     });
 
     let state_ptr = Box::into_raw(state);
-    let hwnd = create_main_window(state_ptr);
+    let hwnd = match create_main_window(state_ptr) {
+        Ok(hwnd) => hwnd,
+        Err(err) => {
+            tracing::error!("Failed to create main window: {}", err);
+            // Reclaim the leaked box to avoid memory leak if we gracefully exited,
+            // though process exit handles it anyway.
+            let _ = unsafe { Box::from_raw(state_ptr) };
+            std::process::exit(1);
+        }
+    };
 
     // SAFETY: state pointer was stored in `GWLP_USERDATA` during `WM_NCCREATE`.
     unsafe {
@@ -182,14 +201,11 @@ fn main() {
 
 /// Register the Win32 window class and create the main Panopticon window.
 ///
-/// # Panics
-///
-/// Panics if `GetModuleHandleW` or `CreateWindowExW` fails.
-fn create_main_window(state_ptr: *mut AppState) -> HWND {
+fn create_main_window(state_ptr: *mut AppState) -> std::result::Result<HWND, &'static str> {
     // SAFETY: `state_ptr` points to a boxed `AppState` allocated in `main`
     // and lives until `WM_NCDESTROY` reclaims it.
     unsafe {
-        let instance = GetModuleHandleW(None).expect("GetModuleHandleW failed");
+        let instance = GetModuleHandleW(None).map_err(|_| "GetModuleHandleW failed")?;
         let class_name = w!("PanopticonClass");
         let hinstance = windows::Win32::Foundation::HINSTANCE(instance.0);
         let icons = &(*state_ptr).icons;
@@ -207,9 +223,12 @@ fn create_main_window(state_ptr: *mut AppState) -> HWND {
             ..Default::default()
         };
 
-        RegisterClassExW(&wc);
+        let atom = RegisterClassExW(&wc);
+        if atom == 0 {
+            return Err("RegisterClassExW failed");
+        }
 
-        CreateWindowExW(
+        let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class_name,
             w!("Panopticon — Window Viewer"),
@@ -223,7 +242,9 @@ fn create_main_window(state_ptr: *mut AppState) -> HWND {
             hinstance,
             Some(state_ptr.cast::<c_void>()),
         )
-        .expect("CreateWindowExW failed")
+        .map_err(|_| "CreateWindowExW failed")?;
+
+        Ok(hwnd)
     }
 }
 
@@ -242,6 +263,16 @@ unsafe extern "system" fn wnd_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    let taskbar_msg = TASKBAR_CREATED_MSG.load(Ordering::Relaxed);
+    if taskbar_msg != 0 && msg == taskbar_msg {
+        if let Some(state) = app_from_hwnd(hwnd) {
+            if let Some(tray) = state.tray_icon.as_mut() {
+                tray.readd(state.icons.small);
+            }
+        }
+        return LRESULT(0);
+    }
+
     match msg {
         WM_NCCREATE => {
             let create_struct = lparam.0 as *const CREATESTRUCTW;
@@ -389,13 +420,7 @@ fn handle_keydown(hwnd: HWND, vk: u16) {
 fn handle_tray_action(hwnd: HWND, action: TrayAction) {
     match action {
         TrayAction::Toggle => toggle_window_visibility(hwnd),
-        TrayAction::Refresh => {
-            let _ = refresh_windows(hwnd);
-            recompute_layout(hwnd);
-            unsafe {
-                let _ = InvalidateRect(hwnd, None, true);
-            }
-        }
+        TrayAction::Refresh => refresh_and_repaint(hwnd),
         TrayAction::NextLayout => {
             cycle_layout(hwnd, "tray");
             recompute_layout(hwnd);
@@ -446,25 +471,31 @@ fn handle_tray_action(hwnd: HWND, action: TrayAction) {
                 }
             }
         }
+        TrayAction::SetMonitorFilter(filter) => {
+            update_settings(hwnd, |settings| {
+                settings.set_monitor_filter(filter.as_deref())
+            });
+            refresh_and_repaint(hwnd);
+        }
+        TrayAction::SetTagFilter(filter) => {
+            update_settings(hwnd, |settings| settings.set_tag_filter(filter.as_deref()));
+            refresh_and_repaint(hwnd);
+        }
+        TrayAction::SetAppFilter(filter) => {
+            update_settings(hwnd, |settings| settings.set_app_filter(filter.as_deref()));
+            refresh_and_repaint(hwnd);
+        }
         TrayAction::RestoreHidden(app_id) => {
             update_settings(hwnd, |settings| {
                 let _ = settings.restore_hidden_app(&app_id);
             });
-            let _ = refresh_windows(hwnd);
-            recompute_layout(hwnd);
-            unsafe {
-                let _ = InvalidateRect(hwnd, None, true);
-            }
+            refresh_and_repaint(hwnd);
         }
         TrayAction::RestoreAllHidden => {
             update_settings(hwnd, |settings| {
                 let _ = settings.restore_all_hidden_apps();
             });
-            let _ = refresh_windows(hwnd);
-            recompute_layout(hwnd);
-            unsafe {
-                let _ = InvalidateRect(hwnd, None, true);
-            }
+            refresh_and_repaint(hwnd);
         }
         TrayAction::Exit => request_exit(hwnd),
     }
@@ -474,6 +505,16 @@ fn tray_menu_state(hwnd: HWND) -> TrayMenuState {
     // SAFETY: state lives on the current window thread.
     let state = unsafe { app_from_hwnd(hwnd) };
     if let Some(state) = state {
+        let available_windows: Vec<WindowInfo> = enumerate_windows()
+            .into_iter()
+            .filter(|window| window.hwnd != hwnd)
+            .collect();
+        for window in &available_windows {
+            state
+                .settings
+                .refresh_app_label(&window.app_id, &window.app_label());
+        }
+
         TrayMenuState {
             window_visible: unsafe { IsWindowVisible(hwnd).as_bool() },
             minimize_to_tray: state.settings.minimize_to_tray,
@@ -483,6 +524,12 @@ fn tray_menu_state(hwnd: HWND) -> TrayMenuState {
             preserve_aspect_ratio: state.settings.preserve_aspect_ratio,
             hide_on_select: state.settings.hide_on_select,
             always_on_top: state.settings.always_on_top,
+            active_monitor_filter: state.settings.active_monitor_filter.clone(),
+            available_monitors: collect_available_monitors(&available_windows),
+            active_tag_filter: state.settings.active_tag_filter.clone(),
+            available_tags: state.settings.known_tags(),
+            active_app_filter: state.settings.active_app_filter.clone(),
+            available_apps: collect_available_apps(&available_windows),
             hidden_apps: state.settings.hidden_app_entries(),
         }
     } else {
@@ -495,6 +542,12 @@ fn tray_menu_state(hwnd: HWND) -> TrayMenuState {
             preserve_aspect_ratio: false,
             hide_on_select: true,
             always_on_top: false,
+            active_monitor_filter: None,
+            available_monitors: Vec::new(),
+            active_tag_filter: None,
+            available_tags: Vec::new(),
+            active_app_filter: None,
+            available_apps: Vec::new(),
             hidden_apps: Vec::new(),
         }
     }
@@ -521,6 +574,54 @@ fn update_settings(hwnd: HWND, mutate: impl FnOnce(&mut AppSettings)) {
             }
         }
     }
+}
+
+fn refresh_and_repaint(hwnd: HWND) {
+    let _ = refresh_windows(hwnd);
+    recompute_layout(hwnd);
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, true);
+    }
+}
+
+fn collect_available_monitors(windows: &[WindowInfo]) -> Vec<String> {
+    let monitors: BTreeSet<String> = windows
+        .iter()
+        .map(|window| window.monitor_name.clone())
+        .collect();
+    monitors.into_iter().collect()
+}
+
+fn collect_available_apps(windows: &[WindowInfo]) -> Vec<AppSelectionEntry> {
+    let mut app_map: HashMap<String, String> = HashMap::new();
+    for window in windows {
+        app_map
+            .entry(window.app_id.clone())
+            .or_insert_with(|| window.app_label());
+    }
+
+    let mut apps: Vec<AppSelectionEntry> = app_map
+        .into_iter()
+        .map(|(app_id, label)| AppSelectionEntry { app_id, label })
+        .collect();
+    apps.sort_by(|left, right| {
+        left.label
+            .cmp(&right.label)
+            .then(left.app_id.cmp(&right.app_id))
+    });
+    apps
+}
+
+fn active_filter_summary(settings: &AppSettings) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(monitor) = &settings.active_monitor_filter {
+        parts.push(format!("monitor:{monitor}"));
+    }
+    if let Some(group) = settings.active_group_filter_label() {
+        parts.push(group);
+    }
+
+    (!parts.is_empty()).then(|| parts.join(" · "))
 }
 
 fn cycle_layout(hwnd: HWND, source: &str) {
@@ -642,9 +743,10 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
             state.windows.len(),
             &ToolbarStatus {
                 hidden_count: state.settings.hidden_app_entries().len(),
-                refresh_label: &state.settings.refresh_interval_label(),
+                refresh_label: state.settings.refresh_interval_label(),
                 always_on_top: state.settings.always_on_top,
                 animate_transitions: state.settings.animate_transitions,
+                filters_label: active_filter_summary(&state.settings),
             },
         );
 
@@ -791,8 +893,20 @@ fn paint_toolbar(
     toolbar_rect: RECT,
     layout: LayoutType,
     window_count: usize,
-    status: &ToolbarStatus<'_>,
+    status: &ToolbarStatus,
 ) {
+    let mut status_text = format!(
+        "{}  ·  {} visibles  ·  {} ocultas  ·  {} refresh",
+        layout.label(),
+        window_count,
+        status.hidden_count,
+        status.refresh_label
+    );
+    if let Some(filters_label) = &status.filters_label {
+        status_text.push_str("  ·  ");
+        status_text.push_str(filters_label);
+    }
+
     draw_text_line(
         hdc,
         "Panopticon",
@@ -806,13 +920,6 @@ fn paint_toolbar(
         DT_LEFT | DT_SINGLELINE | DT_VCENTER,
     );
 
-    let status_text = format!(
-        "{}  ·  {} visibles  ·  {} ocultas  ·  {} refresh",
-        layout.label(),
-        window_count,
-        status.hidden_count,
-        status.refresh_label
-    );
     draw_text_line(
         hdc,
         &status_text,
@@ -853,6 +960,18 @@ fn paint_toolbar(
 }
 
 fn paint_empty_state(hdc: HDC, client_rect: RECT, state: &AppState) {
+    let helper_text = active_filter_summary(&state.settings).map_or_else(
+        || {
+            "Open or restore any desktop window. Panopticon will keep watching from the tray."
+                .to_owned()
+        },
+        |filters| {
+            format!(
+                "No windows match the current filters ({filters}). Adjust them from the tray or restore more apps."
+            )
+        },
+    );
+
     let content_rect = RECT {
         left: client_rect.left,
         top: client_rect.top + TOOLBAR_HEIGHT,
@@ -909,7 +1028,7 @@ fn paint_empty_state(hdc: HDC, client_rect: RECT, state: &AppState) {
 
     draw_text_line(
         hdc,
-        "Open or restore any desktop window. Panopticon will keep watching from the tray.",
+        &helper_text,
         RECT {
             left: card_rect.left + 24,
             top: card_rect.top + 126,
@@ -966,8 +1085,26 @@ fn refresh_windows(hwnd: HWND) -> bool {
             .refresh_app_label(&window.app_id, &window.app_label());
     }
 
+    let active_monitor_filter = state.settings.active_monitor_filter.clone();
+    let active_tag_filter = state.settings.active_tag_filter.clone();
+    let active_app_filter = state.settings.active_app_filter.clone();
     let discovered: Vec<WindowInfo> = discovered_all
         .into_iter()
+        .filter(|window| {
+            active_monitor_filter
+                .as_deref()
+                .is_none_or(|monitor| window.monitor_name == monitor)
+        })
+        .filter(|window| {
+            active_tag_filter
+                .as_deref()
+                .is_none_or(|tag| state.settings.app_has_tag(&window.app_id, tag))
+        })
+        .filter(|window| {
+            active_app_filter
+                .as_deref()
+                .is_none_or(|app_id| window.app_id == app_id)
+        })
         .filter(|window| !state.settings.is_hidden(&window.app_id))
         .collect();
 
@@ -992,7 +1129,8 @@ fn refresh_windows(hwnd: HWND) -> bool {
         let metadata_changed = fresh.title != managed_window.info.title
             || fresh.app_id != managed_window.info.app_id
             || fresh.process_name != managed_window.info.process_name
-            || fresh.class_name != managed_window.info.class_name;
+            || fresh.class_name != managed_window.info.class_name
+            || fresh.monitor_name != managed_window.info.monitor_name;
         if metadata_changed {
             managed_window.info = fresh.clone();
             changed = true;
@@ -1267,19 +1405,33 @@ fn handle_window_menu_action(hwnd: HWND, info: &WindowInfo, action: WindowMenuAc
             update_settings(hwnd, |settings| {
                 let _ = settings.toggle_hidden(&info.app_id, &info.app_label());
             });
-            let _ = refresh_windows(hwnd);
-            recompute_layout(hwnd);
+            refresh_and_repaint(hwnd);
         }
         WindowMenuAction::ToggleAspectRatio => {
             update_settings(hwnd, |settings| {
                 let _ = settings.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label());
             });
             recompute_layout(hwnd);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, true);
+            }
         }
         WindowMenuAction::ToggleHideOnSelect => {
             update_settings(hwnd, |settings| {
                 let _ = settings.toggle_app_hide_on_select(&info.app_id, &info.app_label());
             });
+        }
+        WindowMenuAction::CreateTagFromApp => {
+            update_settings(hwnd, |settings| {
+                let _ = settings.create_tag_from_app(&info.app_id, &info.app_label());
+            });
+            refresh_and_repaint(hwnd);
+        }
+        WindowMenuAction::ToggleTag(tag) => {
+            update_settings(hwnd, |settings| {
+                let _ = settings.toggle_app_tag(&info.app_id, &info.app_label(), &tag);
+            });
+            refresh_and_repaint(hwnd);
         }
     }
 
@@ -1300,8 +1452,17 @@ fn show_window_context_menu(
         let hide_label = wide("Hide from layout");
         let aspect_label = wide("Respect aspect ratio");
         let hide_after_open_label = wide("Hide Panopticon after opening this app");
+        let create_tag_label = wide("Create tag from this app");
+        let tags_title = wide("Assign existing tags");
+        let known_tags = app_from_hwnd(hwnd)
+            .map(|state| state.settings.known_tags())
+            .unwrap_or_default();
+        let current_tags: HashSet<String> = app_from_hwnd(hwnd)
+            .map(|state| state.settings.tags_for(&info.app_id).into_iter().collect())
+            .unwrap_or_default();
+        let mut tag_labels: Vec<Vec<u16>> = Vec::with_capacity(known_tags.len());
+        let mut tag_actions: Vec<(u16, String)> = Vec::with_capacity(known_tags.len());
 
-        let _ = info;
         let _ = AppendMenuW(
             menu,
             MF_STRING,
@@ -1321,6 +1482,40 @@ fn show_window_context_menu(
             CMD_WINDOW_TOGGLE_HIDE_ON_SELECT as usize,
             PCWSTR(hide_after_open_label.as_ptr()),
         );
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            CMD_WINDOW_CREATE_TAG_FROM_APP as usize,
+            PCWSTR(create_tag_label.as_ptr()),
+        );
+
+        if !known_tags.is_empty() {
+            let tags_menu = CreatePopupMenu().ok()?;
+            for (index, tag) in known_tags.iter().enumerate() {
+                let Some(command_id) = CMD_WINDOW_TAG_BASE.checked_add(index as u16) else {
+                    break;
+                };
+
+                tag_labels.push(wide(tag));
+                if let Some(label) = tag_labels.last() {
+                    let _ = AppendMenuW(
+                        tags_menu,
+                        MF_STRING | checked_menu_flag(current_tags.contains(tag)),
+                        command_id as usize,
+                        PCWSTR(label.as_ptr()),
+                    );
+                }
+                tag_actions.push((command_id, tag.clone()));
+            }
+
+            let _ = AppendMenuW(
+                menu,
+                windows::Win32::UI::WindowsAndMessaging::MF_POPUP,
+                tags_menu.0 as usize,
+                PCWSTR(tags_title.as_ptr()),
+            );
+        }
 
         let mut cursor = POINT::default();
         let _ = GetCursorPos(&mut cursor);
@@ -1340,7 +1535,10 @@ fn show_window_context_menu(
             CMD_WINDOW_HIDE_APP => Some(WindowMenuAction::HideApp),
             CMD_WINDOW_TOGGLE_ASPECT_RATIO => Some(WindowMenuAction::ToggleAspectRatio),
             CMD_WINDOW_TOGGLE_HIDE_ON_SELECT => Some(WindowMenuAction::ToggleHideOnSelect),
-            _ => None,
+            CMD_WINDOW_CREATE_TAG_FROM_APP => Some(WindowMenuAction::CreateTagFromApp),
+            dynamic => tag_actions.into_iter().find_map(|(command_id, tag)| {
+                (dynamic == command_id).then_some(WindowMenuAction::ToggleTag(tag))
+            }),
         }
     }
 }

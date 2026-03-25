@@ -3,7 +3,7 @@
 use std::mem;
 
 use anyhow::{anyhow, Result};
-use panopticon::settings::HiddenAppEntry;
+use panopticon::settings::{AppSelectionEntry, HiddenAppEntry};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Shell::{
@@ -35,6 +35,12 @@ const CMD_TRAY_TOGGLE_ALWAYS_ON_TOP: u16 = 10;
 const CMD_TRAY_RESTORE_ALL_HIDDEN: u16 = 11;
 const CMD_TRAY_EXIT: u16 = 12;
 const CMD_TRAY_RESTORE_HIDDEN_BASE: u16 = 100;
+const CMD_TRAY_MONITOR_ALL: u16 = 200;
+const CMD_TRAY_MONITOR_BASE: u16 = 210;
+const CMD_TRAY_TAG_FILTER_ALL: u16 = 300;
+const CMD_TRAY_TAG_FILTER_BASE: u16 = 310;
+const CMD_TRAY_APP_FILTER_ALL: u16 = 400;
+const CMD_TRAY_APP_FILTER_BASE: u16 = 410;
 
 /// Snapshot of UI preferences needed to render the tray menu.
 #[derive(Debug, Clone)]
@@ -56,6 +62,18 @@ pub struct TrayMenuState {
     pub hide_on_select: bool,
     /// Whether the Panopticon window is forced topmost.
     pub always_on_top: bool,
+    /// Currently active monitor filter, if any.
+    pub active_monitor_filter: Option<String>,
+    /// Monitors available from the current desktop snapshot.
+    pub available_monitors: Vec<String>,
+    /// Currently active manual tag filter, if any.
+    pub active_tag_filter: Option<String>,
+    /// Known manual tags that can be filtered.
+    pub available_tags: Vec<String>,
+    /// Currently active automatic application filter, if any.
+    pub active_app_filter: Option<String>,
+    /// Applications that can be filtered automatically.
+    pub available_apps: Vec<AppSelectionEntry>,
     /// Hidden applications that can be restored.
     pub hidden_apps: Vec<HiddenAppEntry>,
 }
@@ -83,6 +101,12 @@ pub enum TrayAction {
     ToggleDefaultHideOnSelect,
     /// Toggle topmost behavior for the Panopticon window.
     ToggleAlwaysOnTop,
+    /// Filter windows by a specific monitor.
+    SetMonitorFilter(Option<String>),
+    /// Filter windows by a manual tag/group.
+    SetTagFilter(Option<String>),
+    /// Filter windows automatically by application.
+    SetAppFilter(Option<String>),
     /// Restore one hidden application.
     RestoreHidden(String),
     /// Restore all hidden applications.
@@ -171,6 +195,18 @@ impl TrayIcon {
         }
 
         Ok(Self { hwnd, active: true })
+    }
+
+    /// Re-register the tray icon (e.g., after an Explorer restart).
+    pub fn readd(&mut self, icon: HICON) {
+        let nid = notify_data(self.hwnd, icon);
+        // SAFETY: valid window handle, fixed icon ID.
+        let added = unsafe { Shell_NotifyIconW(NIM_ADD, &nid).as_bool() };
+        if added {
+            self.active = true;
+        } else {
+            tracing::warn!("Failed to re-add tray icon after Explorer restart");
+        }
     }
 
     /// Remove the tray icon if it is currently registered.
@@ -292,10 +328,23 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
         let always_on_top = encode_wide("Keep Panopticon on top");
         let restore_hidden_title = encode_wide("Restore hidden apps");
         let restore_all_hidden = encode_wide("Restore all hidden apps");
+        let monitor_filter_title = encode_wide("Filter by monitor");
+        let monitor_all = encode_wide("All monitors");
+        let tag_filter_title = encode_wide("Filter by tag");
+        let tag_filter_all = encode_wide("All tags");
+        let app_filter_title = encode_wide("Filter by application");
+        let app_filter_all = encode_wide("All applications");
         let exit = encode_wide("Exit");
 
         let mut hidden_labels: Vec<Vec<u16>> = Vec::with_capacity(state.hidden_apps.len());
+        let mut monitor_labels: Vec<Vec<u16>> = Vec::with_capacity(state.available_monitors.len());
+        let mut tag_labels: Vec<Vec<u16>> = Vec::with_capacity(state.available_tags.len());
+        let mut app_labels: Vec<Vec<u16>> = Vec::with_capacity(state.available_apps.len());
         let mut restore_actions: Vec<(u16, String)> = Vec::with_capacity(state.hidden_apps.len());
+        let mut monitor_actions: Vec<(u16, String)> =
+            Vec::with_capacity(state.available_monitors.len());
+        let mut tag_actions: Vec<(u16, String)> = Vec::with_capacity(state.available_tags.len());
+        let mut app_actions: Vec<(u16, String)> = Vec::with_capacity(state.available_apps.len());
 
         let _ = AppendMenuW(
             menu,
@@ -369,6 +418,117 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
             PCWSTR(always_on_top.as_ptr()),
         );
 
+        if !state.available_monitors.is_empty() {
+            let monitor_menu = CreatePopupMenu().ok()?;
+            let _ = AppendMenuW(
+                monitor_menu,
+                MF_STRING | checked_flag(state.active_monitor_filter.is_none()),
+                CMD_TRAY_MONITOR_ALL as usize,
+                PCWSTR(monitor_all.as_ptr()),
+            );
+
+            for (index, monitor) in state.available_monitors.iter().enumerate() {
+                let Some(command_id) = CMD_TRAY_MONITOR_BASE.checked_add(index as u16) else {
+                    break;
+                };
+
+                monitor_labels.push(encode_wide(monitor));
+                if let Some(label) = monitor_labels.last() {
+                    let _ = AppendMenuW(
+                        monitor_menu,
+                        MF_STRING
+                            | checked_flag(
+                                state.active_monitor_filter.as_deref() == Some(monitor.as_str()),
+                            ),
+                        command_id as usize,
+                        PCWSTR(label.as_ptr()),
+                    );
+                }
+                monitor_actions.push((command_id, monitor.clone()));
+            }
+
+            let _ = AppendMenuW(
+                menu,
+                MF_POPUP,
+                monitor_menu.0 as usize,
+                PCWSTR(monitor_filter_title.as_ptr()),
+            );
+        }
+
+        if !state.available_tags.is_empty() {
+            let tag_menu = CreatePopupMenu().ok()?;
+            let _ = AppendMenuW(
+                tag_menu,
+                MF_STRING | checked_flag(state.active_tag_filter.is_none()),
+                CMD_TRAY_TAG_FILTER_ALL as usize,
+                PCWSTR(tag_filter_all.as_ptr()),
+            );
+
+            for (index, tag) in state.available_tags.iter().enumerate() {
+                let Some(command_id) = CMD_TRAY_TAG_FILTER_BASE.checked_add(index as u16) else {
+                    break;
+                };
+
+                tag_labels.push(encode_wide(tag));
+                if let Some(label) = tag_labels.last() {
+                    let _ = AppendMenuW(
+                        tag_menu,
+                        MF_STRING
+                            | checked_flag(
+                                state.active_tag_filter.as_deref() == Some(tag.as_str()),
+                            ),
+                        command_id as usize,
+                        PCWSTR(label.as_ptr()),
+                    );
+                }
+                tag_actions.push((command_id, tag.clone()));
+            }
+
+            let _ = AppendMenuW(
+                menu,
+                MF_POPUP,
+                tag_menu.0 as usize,
+                PCWSTR(tag_filter_title.as_ptr()),
+            );
+        }
+
+        if !state.available_apps.is_empty() {
+            let app_menu = CreatePopupMenu().ok()?;
+            let _ = AppendMenuW(
+                app_menu,
+                MF_STRING | checked_flag(state.active_app_filter.is_none()),
+                CMD_TRAY_APP_FILTER_ALL as usize,
+                PCWSTR(app_filter_all.as_ptr()),
+            );
+
+            for (index, app) in state.available_apps.iter().enumerate() {
+                let Some(command_id) = CMD_TRAY_APP_FILTER_BASE.checked_add(index as u16) else {
+                    break;
+                };
+
+                app_labels.push(encode_wide(&app.label));
+                if let Some(label) = app_labels.last() {
+                    let _ = AppendMenuW(
+                        app_menu,
+                        MF_STRING
+                            | checked_flag(
+                                state.active_app_filter.as_deref() == Some(app.app_id.as_str()),
+                            ),
+                        command_id as usize,
+                        PCWSTR(label.as_ptr()),
+                    );
+                }
+                app_actions.push((command_id, app.app_id.clone()));
+            }
+
+            let _ = AppendMenuW(
+                menu,
+                MF_POPUP,
+                app_menu.0 as usize,
+                PCWSTR(app_filter_title.as_ptr()),
+            );
+        }
+
         if !state.hidden_apps.is_empty() {
             let hidden_menu = CreatePopupMenu().ok()?;
             let _ = AppendMenuW(
@@ -385,13 +545,14 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
                     break;
                 };
                 hidden_labels.push(encode_wide(&hidden_app.label));
-                let label = hidden_labels.last().expect("hidden label just pushed");
-                let _ = AppendMenuW(
-                    hidden_menu,
-                    MF_STRING,
-                    command_id as usize,
-                    PCWSTR(label.as_ptr()),
-                );
+                if let Some(label) = hidden_labels.last() {
+                    let _ = AppendMenuW(
+                        hidden_menu,
+                        MF_STRING,
+                        command_id as usize,
+                        PCWSTR(label.as_ptr()),
+                    );
+                }
                 restore_actions.push((command_id, hidden_app.app_id.clone()));
             }
 
@@ -438,12 +599,32 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
             CMD_TRAY_TOGGLE_DEFAULT_ASPECT_RATIO => Some(TrayAction::ToggleDefaultAspectRatio),
             CMD_TRAY_TOGGLE_DEFAULT_HIDE_ON_SELECT => Some(TrayAction::ToggleDefaultHideOnSelect),
             CMD_TRAY_TOGGLE_ALWAYS_ON_TOP => Some(TrayAction::ToggleAlwaysOnTop),
+            CMD_TRAY_MONITOR_ALL => Some(TrayAction::SetMonitorFilter(None)),
+            CMD_TRAY_TAG_FILTER_ALL => Some(TrayAction::SetTagFilter(None)),
+            CMD_TRAY_APP_FILTER_ALL => Some(TrayAction::SetAppFilter(None)),
             CMD_TRAY_RESTORE_ALL_HIDDEN => Some(TrayAction::RestoreAllHidden),
             CMD_TRAY_EXIT => Some(TrayAction::Exit),
-            dynamic => restore_actions
+            dynamic => monitor_actions
                 .into_iter()
-                .find_map(|(command_id, app_id)| {
-                    (dynamic == command_id).then_some(TrayAction::RestoreHidden(app_id))
+                .find_map(|(command_id, monitor)| {
+                    (dynamic == command_id).then_some(TrayAction::SetMonitorFilter(Some(monitor)))
+                })
+                .or_else(|| {
+                    tag_actions.into_iter().find_map(|(command_id, tag)| {
+                        (dynamic == command_id).then_some(TrayAction::SetTagFilter(Some(tag)))
+                    })
+                })
+                .or_else(|| {
+                    app_actions.into_iter().find_map(|(command_id, app_id)| {
+                        (dynamic == command_id).then_some(TrayAction::SetAppFilter(Some(app_id)))
+                    })
+                })
+                .or_else(|| {
+                    restore_actions
+                        .into_iter()
+                        .find_map(|(command_id, app_id)| {
+                            (dynamic == command_id).then_some(TrayAction::RestoreHidden(app_id))
+                        })
                 }),
         }
     }
