@@ -1,0 +1,58 @@
+[package]
+name = "panopticon"
+version = "1.1.0"
+edition = "2021"
+description = "Real-time window thumbnail viewer for Windows using the DWM API"
+readme = "README.md"
+license = "MIT"
+
+# ── Dependencies ──────────────────────────────────────────────
+
+[dependencies]
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+
+[dependencies.windows]
+version = "0.58"
+features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Shell",
+]
+
+# ── Profiles ──────────────────────────────────────────────────
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+
+# ── Lints ─────────────────────────────────────────────────────
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Win32 interop requires extensive integer casting — allow the noisy cast lints.
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_sign_loss = "allow"
+cast_precision_loss = "allow"
+cast_lossless = "allow"
+# WindowsAndMessaging exports hundreds of symbols; a wildcard is practical.
+wildcard_imports = "allow"
+# Error / panic doc sections are tracked but not enforced yet.
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+# "WindowInfo in window_enum" is perfectly clear.
+module_name_repetitions = "allow"
+# Win32 paint routines are inherently long.
+too_many_lines = "allow"
+# x / y / w / h are idiomatic for geometry.
+similar_names = "allow"
