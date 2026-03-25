@@ -6,8 +6,8 @@ use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, SetForegroundWindow, TrackPopupMenu,
-    MENU_ITEM_FLAGS, MF_CHECKED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
-    TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_NONOTIFY, TPM_RETURNCMD,
+    MENU_ITEM_FLAGS, MF_CHECKED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED, TPM_BOTTOMALIGN,
+    TPM_LEFTALIGN, TPM_NONOTIFY, TPM_RETURNCMD,
 };
 
 const CMD_WINDOW_HIDE_APP: u16 = 1;
@@ -114,11 +114,9 @@ pub fn show_window_context_menu(
             CMD_WINDOW_TOGGLE_ASPECT_RATIO => Some(WindowMenuAction::ToggleAspectRatio),
             CMD_WINDOW_TOGGLE_HIDE_ON_SELECT => Some(WindowMenuAction::ToggleHideOnSelect),
             CMD_WINDOW_CREATE_TAG_FROM_APP => Some(WindowMenuAction::CreateTagFromApp),
-            dynamic => tag_actions
-                .into_iter()
-                .find_map(|(command, tag)| {
-                    (dynamic == command).then_some(WindowMenuAction::ToggleTag(tag))
-                }),
+            dynamic => tag_actions.into_iter().find_map(|(command, tag)| {
+                (dynamic == command).then_some(WindowMenuAction::ToggleTag(tag))
+            }),
         }
     }
 }

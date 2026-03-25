@@ -267,8 +267,14 @@ fn grid_custom_ratios_resize_cells_and_emit_separators() {
     let top_height = result.rects[0].bottom - result.rects[0].top;
     let bottom_height = result.rects[2].bottom - result.rects[2].top;
 
-    assert!(left_width > right_width, "custom column ratio should widen left column");
-    assert!(bottom_height > top_height, "custom row ratio should enlarge bottom row");
+    assert!(
+        left_width > right_width,
+        "custom column ratio should widen left column"
+    );
+    assert!(
+        bottom_height > top_height,
+        "custom row ratio should enlarge bottom row"
+    );
 }
 
 #[test]
