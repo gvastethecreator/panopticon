@@ -1,163 +1,130 @@
-# Panopticon — Architecture
+# Arquitectura de Panopticon
 
-## Overview
+## Resumen
 
-Panopticon is a native Windows desktop application written in Rust. It displays
-real-time thumbnails of all open windows using the Desktop Window Manager (DWM)
-API, organised via mathematical layout algorithms.
+Panopticon es una aplicación Win32 nativa escrita en Rust. Combina:
 
-## Crate Structure
+- enumeración de ventanas (`EnumWindows`),
+- miniaturas DWM (`DwmRegisterThumbnail`),
+- layout puro en memoria,
+- render UI ligero con GDI,
+- persistencia TOML para reglas y filtros.
 
-```text
-panopticon (lib)
-├── constants   — Colours, timers, key codes, UI geometry
-├── error       — Typed errors (thiserror)
-├── layout      — Layout algorithms: Grid, Mosaic, Bento, Fibonacci, Columns
-├── logging     — tracing + daily-rolling file appender
-├── settings    — Persistent user preferences saved as TOML
-├── thumbnail   — RAII wrapper around DWM HTHUMBNAIL
-└── window_enum — EnumWindows-based discovery and filtering
-
-panopticon (bin)
-├── main.rs     — Win32 window, message loop, painting, HWND-attached state
-└── app/
-        ├── mod.rs  — Binary-only helpers
-        └── tray.rs — Tray icon, popup menu, icon generation, window-icon helpers
-```
-
-## Key Design Decisions
-
-### DWM Thumbnails (Zero-Copy Rendering)
-
-Instead of capturing bitmaps, Panopticon registers DWM thumbnails that the
-Windows compositor renders directly on the GPU. This means:
-
-- **Near-zero CPU** for rendering (the GPU handles composition).
-- **Real-time fidelity** including playing videos.
-- **No memory overhead** from bitmap buffers.
-
-### HWND-Attached State Pattern
-
-Win32 window procedures (`WNDPROC`) are `extern "system"` callbacks that cannot
-carry user data through their signature. Panopticon attaches a boxed
-`AppState` directly to the window using `GWLP_USERDATA` during `WM_NCCREATE`.
-
-Benefits:
-
-1. Avoids a process-global singleton.
-2. Uses the canonical Win32 ownership model.
-3. Allows deterministic cleanup in `WM_NCDESTROY`.
-4. Keeps all mutable UI state scoped to the lifetime of the main window.
-
-### Tray Integration
-
-Panopticon registers a persistent tray icon at startup. The tray system offers:
-
-- Left-click toggle (show / hide).
-- Right-click quick actions (show, refresh, next layout, restore hidden apps, exit).
-- A generated custom icon used both by the window class and by the tray icon.
-
-The tray icon lets the app behave more like a native desktop utility while
-keeping the visual viewer out of the way when not needed.
-
-### Persistent Settings
-
-Panopticon persists a small set of user preferences in
-`%APPDATA%\Panopticon\settings.toml`:
-
-- initial layout
-- refresh interval
-- minimize-to-tray behavior
-- close-to-tray behavior
-- default aspect-ratio behavior
-- default hide-on-select behavior
-- always-on-top state
-- animation enablement
-- per-application rules (hidden / aspect ratio / hide-on-select)
-
-Preferences are loaded at startup, normalized to safe values, and saved again
-whenever the user changes them from the tray menu or a thumbnail context menu.
-
-### Per-Application Identity and Rules
-
-Each discovered window is enriched with:
-
-- executable-path-derived app id when available,
-- process name,
-- native class name.
-
-This lets Panopticon remember preferences per application rather than per transient window title.
-The same identity is used to hide apps from the layout, restore them later from the tray,
-preserve aspect ratio selectively, and remember whether Panopticon should hide after activation.
-
-### Animated Layout Transitions
-
-Panopticon keeps both a target rectangle and a display rectangle for each managed window.
-When layouts change, a lightweight timer interpolates between them over a short duration,
-updating thumbnail destinations on each frame without introducing heavyweight rendering dependencies.
-
-### Layout Engine
-
-The layout engine is a **pure function**:
+## Estructura del crate
 
 ```text
-(LayoutType, RECT, count, aspects) → Vec<RECT>
+src/
+├── app/
+│   ├── mod.rs
+│   └── tray.rs
+├── constants.rs
+├── error.rs
+├── layout.rs
+├── lib.rs
+├── logging.rs
+├── main.rs
+├── settings.rs
+├── thumbnail.rs
+└── window_enum.rs
 ```
 
-It has no side effects and is fully unit-testable. Each layout mode computes
-destination rectangles differently:
-
-- **Grid** — equal-sized cells in a √n × √n grid.
-- **Mosaic** — row-based with aspect-ratio-weighted column widths.
-- **Bento** — primary window (60 %) plus sidebar stack.
-- **Fibonacci** — golden-ratio spiral subdivision.
-- **Columns** — masonry-style shortest-column-first placement.
-
-### Error Handling
-
-- **Library code** uses `thiserror` for typed, ergonomic errors.
-- **Binary code** uses `anyhow` for top-level propagation.
-- DWM failures are handled gracefully (thumbnails are dropped, not panicked on).
-
-### Logging
-
-`tracing` with a daily-rolling file appender writes structured logs to
-`%TEMP%/panopticon/logs/`. This is critical because
-`#![windows_subsystem = "windows"]` suppresses console output.
-
-## Data Flow
+## Flujo principal
 
 ```text
-EnumWindows → filter → WindowInfo[]
-                           ↓
-                   DwmRegisterThumbnail → Thumbnail (RAII)
-                           ↓
-             compute_layout(mode, area, count, aspects) → RECT[]
-                           ↓
-                   DwmUpdateThumbnailProperties(rect)
-                           ↓
-                       WM_PAINT → GDI labels, borders, toolbar
+EnumWindows
+  → WindowInfo[]
+  → filtros (monitor / tag / app / hidden)
+  → ManagedWindow[]
+  → compute_layout(...)
+  → DwmUpdateThumbnailProperties(...)
+  → WM_PAINT para labels, bordes y toolbar
 ```
 
-## Periodic Refresh
+## Responsabilidades por módulo
 
-A configurable `WM_TIMER` re-enumerates windows, adds/removes thumbnails, and
-recomputes the layout. The timer also handles:
+### `src/window_enum.rs`
 
-- Windows closed externally.
-- Windows resized (source size changed).
-- New windows opened.
+- Descubre ventanas visibles de usuario.
+- Excluye superficies del sistema y tool windows.
+- Deriva un `app_id` estable.
+- Obtiene el `monitor_name` para filtros por monitor.
 
-When the Panopticon window is hidden to the tray, it also releases DWM thumbnails,
-backs off the refresh cadence, and recreates previews on demand when the window is shown again.
+### `src/settings.rs`
 
-## Dependencies
+- Persiste preferencias globales y por aplicación.
+- Normaliza settings de disco.
+- Gestiona reglas por app:
+  - `hidden`
+  - `preserve_aspect_ratio`
+  - `hide_on_select`
+  - `tags`
+- Guarda filtros activos:
+  - `active_monitor_filter`
+  - `active_tag_filter`
+  - `active_app_filter`
 
-| Crate | Purpose |
-| ----- | ------- |
-| `windows` 0.58 | Official Microsoft Win32 bindings |
-| `thiserror` | Ergonomic error derives |
-| `anyhow` | Top-level error propagation |
-| `tracing` | Structured logging facade |
-| `tracing-subscriber` | Log subscriber with formatting and filtering |
-| `tracing-appender` | Daily-rolling file appender |
+### `src/main.rs`
+
+- Crea la ventana principal Win32.
+- Mantiene `AppState` asociado al `HWND` con `GWLP_USERDATA`.
+- Atiende el message loop.
+- Sincroniza ventanas, thumbnails, layout y repaint.
+- Implementa el menú contextual por aplicación.
+
+### `src/app/tray.rs`
+
+- Registra el icono del tray.
+- Reacciona a `TaskbarCreated` para re-registrar el icono tras reinicio de Explorer.
+- Construye menús para:
+  - acciones rápidas,
+  - restauración de apps ocultas,
+  - filtro por monitor,
+  - filtro por tag,
+  - filtro por aplicación.
+
+### `src/layout.rs`
+
+Motor puro y testeable:
+
+```text
+(LayoutType, RECT, count, aspects) -> Vec<RECT>
+```
+
+No depende de Win32 más allá del tipo geométrico `RECT`, por eso es la parte más sencilla de validar en tests.
+
+## Decisiones de diseño importantes
+
+### Estado acoplado al `HWND`
+
+Se evita un singleton global. El estado vive en `GWLP_USERDATA`, lo que sigue el patrón clásico de Win32 y hace más predecible la liberación en `WM_NCDESTROY`.
+
+### Miniaturas DWM en vez de capturas bitmap
+
+La composición queda en GPU y evita costes extra de CPU o copia de buffers.
+
+### Filtros como parte de la configuración persistida
+
+Los filtros no sólo afectan la vista actual: también sobreviven entre sesiones. Esto permite que Panopticon arranque “ya filtrado” si así lo dejó la persona usuaria.
+
+### Tags manuales + grupos automáticos
+
+- **Manual**: cada app puede tener `tags` persistentes.
+- **Automático**: el filtro por aplicación reutiliza `app_id` y `display_name` ya existentes.
+
+Eso reduce complejidad de UI y evita introducir una estructura de grupos duplicada.
+
+## Seguridad y `unsafe`
+
+El proyecto usa `unsafe` por necesidad, no por deporte. Las reglas activas son:
+
+- cada bloque `unsafe` debe llevar comentario `// SAFETY:`;
+- no se exponen raw pointers en APIs públicas;
+- la lógica de alto nivel sigue estando fuera de `unsafe` siempre que es posible.
+
+## Oportunidades futuras
+
+- editor de tags totalmente libre dentro de la UI (sin depender del TOML ni de tags sembrados desde apps),
+- perfiles por monitor,
+- empaquetado/instalador,
+- screenshots y demos automatizadas,
+- publicación de releases firmadas.
