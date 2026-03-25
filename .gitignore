@@ -1,0 +1,29 @@
+# ── Build artefacts ───────────────────────────────────────────
+/target/
+**/*.rs.bk
+
+# ── IDE / editor ─────────────────────────────────────────────
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS files ─────────────────────────────────────────────────
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ── Environment / secrets ────────────────────────────────────
+.env
+.env.local
+*.pem
+
+# ── Coverage reports ─────────────────────────────────────────
+tarpaulin-report.html
+lcov.info
+
+# ── Logs (generated at runtime) ──────────────────────────────
+/logs/
+
+# ── Backup files from refactoring ────────────────────────────
+*.bak
