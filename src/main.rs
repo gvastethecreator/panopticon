@@ -169,32 +169,13 @@ fn main() {
         last_size: (0, 0),
     }));
 
-    // Show the window so the native HWND exists.
+    // Show the window so the native HWND exists on next event-loop iteration.
     main_window.show().unwrap();
 
-    let hwnd = get_hwnd(main_window.window()).expect("failed to obtain native HWND from Slint");
-    state.borrow_mut().hwnd = hwnd;
-
-    // DWM appearance.
-    apply_window_appearance(hwnd, &state.borrow().settings);
-    apply_topmost_mode(hwnd, state.borrow().settings.always_on_top);
-
-    // System tray.
-    {
-        let mut s = state.borrow_mut();
-        match TrayIcon::add(hwnd, s.icons.small) {
-            Ok(tray) => s.tray_icon = Some(tray),
-            Err(error) => tracing::error!(%error, "tray icon registration failed"),
-        }
-    }
-
-    // Subclass the Slint HWND to intercept tray / appbar / minimize messages.
-    setup_subclass(hwnd, &state, &main_window);
-
-    // Slint callbacks.
+    // Slint callbacks (don't need HWND — they use state internally).
     setup_callbacks(&main_window, &state);
 
-    // Handle close button (WM_CLOSE is intercepted by subclass).
+    // Handle close button.
     main_window.window().on_close_requested({
         let state = state.clone();
         move || {
@@ -211,15 +192,46 @@ fn main() {
         }
     });
 
-    // Initial refresh + layout.
-    refresh_windows(&state);
-    recompute_and_update_ui(&state, &main_window);
+    // ── Deferred native-HWND initialisation (runs once the event loop is live) ──
+    let init_timer = Timer::default();
+    init_timer.start(TimerMode::SingleShot, Duration::from_millis(0), {
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move || {
+            let Some(win) = weak.upgrade() else { return };
+            let Some(hwnd) = get_hwnd(win.window()) else {
+                tracing::error!("HWND unavailable after event-loop start");
+                return;
+            };
+            state.borrow_mut().hwnd = hwnd;
 
-    // App-bar registration (if dock edge is set).
-    if state.borrow().settings.dock_edge.is_some() {
-        let mut s = state.borrow_mut();
-        apply_dock_mode(&mut s);
-    }
+            // DWM appearance.
+            apply_window_appearance(hwnd, &state.borrow().settings);
+            apply_topmost_mode(hwnd, state.borrow().settings.always_on_top);
+
+            // System tray.
+            {
+                let mut s = state.borrow_mut();
+                match TrayIcon::add(hwnd, s.icons.small) {
+                    Ok(tray) => s.tray_icon = Some(tray),
+                    Err(error) => tracing::error!(%error, "tray icon registration failed"),
+                }
+            }
+
+            // Subclass the Slint HWND to intercept tray / appbar / minimize messages.
+            setup_subclass(hwnd, &state, &win);
+
+            // Initial refresh + layout.
+            refresh_windows(&state);
+            recompute_and_update_ui(&state, &win);
+
+            // App-bar registration (if dock edge is set).
+            if state.borrow().settings.dock_edge.is_some() {
+                let mut s = state.borrow_mut();
+                apply_dock_mode(&mut s);
+            }
+        }
+    });
 
     // ── Timers ──────────────────────────────────────
 
@@ -230,6 +242,10 @@ fn main() {
         let weak = main_window.as_weak();
         move || {
             let Some(win) = weak.upgrade() else { return };
+            // Skip until HWND is initialised by the init timer.
+            if state.borrow().hwnd.0.is_null() {
+                return;
+            }
 
             // Drain pending actions.
             let actions: Vec<PendingAction> =
@@ -289,7 +305,10 @@ fn main() {
 
     tracing::info!("entering Slint event loop");
     slint::run_event_loop_until_quit().unwrap();
-    teardown_subclass(hwnd);
+    let hwnd = state.borrow().hwnd;
+    if !hwnd.0.is_null() {
+        teardown_subclass(hwnd);
+    }
     tracing::info!("Panopticon exiting");
 }
 
@@ -498,6 +517,9 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
 fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     let mut s = state.borrow_mut();
     let host_hwnd = s.hwnd;
+    if host_hwnd.0.is_null() {
+        return false;
+    }
     let host_visible = unsafe { IsWindowVisible(host_hwnd).as_bool() };
 
     let discovered_all: Vec<WindowInfo> = enumerate_windows()
@@ -637,6 +659,7 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     };
 
     let can_animate = s.settings.animate_transitions
+        && !s.hwnd.0.is_null()
         && unsafe { IsWindowVisible(s.hwnd).as_bool() }
         && s.windows.iter().any(|mw| rect_has_area(mw.display_rect));
     let mut animation_needed = false;
@@ -732,7 +755,7 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let Ok(mut s) = state.try_borrow_mut() else {
         return;
     };
-    if !unsafe { IsWindowVisible(s.hwnd).as_bool() } {
+    if s.hwnd.0.is_null() || !unsafe { IsWindowVisible(s.hwnd).as_bool() } {
         return;
     }
 
@@ -886,6 +909,9 @@ fn handle_thumbnail_click(
 
 fn handle_thumbnail_right_click(state: &Rc<RefCell<AppState>>, index: usize) {
     let s = state.borrow();
+    if s.hwnd.0.is_null() {
+        return;
+    }
     let Some(mw) = s.windows.get(index) else {
         return;
     };
