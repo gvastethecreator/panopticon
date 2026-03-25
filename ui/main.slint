@@ -616,3 +616,81 @@ export component SettingsWindow inherits Window {
         }
     }
 }
+
+export component TagDialogWindow inherits Window {
+    title: "Panopticon — Create tag";
+    icon: @image-url("../assets/icon.svg");
+    background: Theme.bg;
+    preferred-width: 420px;
+    preferred-height: 260px;
+
+    in property <string> app-label: "";
+    in-out property <string> tag-name: "";
+    in-out property <int> color-index: 0;
+
+    callback create();
+    callback closed();
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 12px;
+
+        Text {
+            text: "Create custom tag";
+            color: Theme.text;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        Text {
+            text: "Application: " + root.app-label;
+            color: Theme.label;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+
+        Rectangle { height: 4px; }
+
+        Text {
+            text: "Tag name";
+            color: Theme.accent;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        LineEdit {
+            text <=> root.tag-name;
+            horizontal-alignment: left;
+            font-size: 12px;
+        }
+
+        Text {
+            text: "Preset colour";
+            color: Theme.accent;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        ComboBox {
+            model: ["Amber", "Sky", "Mint", "Rose", "Violet", "Sun"];
+            current-index <=> root.color-index;
+        }
+
+        Rectangle { vertical-stretch: 1; }
+
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: end;
+
+            Button {
+                text: "Create and assign";
+                clicked => { root.create(); }
+            }
+
+            Button {
+                text: "Close";
+                clicked => { root.closed(); }
+            }
+        }
+    }
+}

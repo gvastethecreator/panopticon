@@ -12,8 +12,9 @@
 
 mod app;
 
-use app::options::{open_tag_dialog, TagCreateSubmit, WM_TAG_CREATED};
+use app::settings_ui::{apply_settings_window_changes, populate_settings_window};
 use app::tray::{handle_tray_message, AppIcons, TrayAction, TrayIcon, TrayMenuState, WM_TRAYICON};
+use app::window_menu::{show_window_context_menu, WindowMenuAction};
 use panopticon::constants::{
     ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TOOLBAR_HEIGHT,
 };
@@ -38,8 +39,8 @@ use slint::{
     CloseRequestResponse, ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel,
 };
 
-use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
+use windows::core::w;
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, SIZE, WPARAM};
 use windows::Win32::Graphics::Dwm::{
     DwmQueryThumbnailSourceSize, DwmSetWindowAttribute, DWMSBT_MAINWINDOW, DWMSBT_NONE,
     DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE,
@@ -64,13 +65,6 @@ slint::include_modules!();
 /// Callback message posted by the shell when the app-bar needs repositioning.
 const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
 
-/// Context-menu command IDs for per-window right-click menu.
-const CMD_WINDOW_HIDE_APP: u16 = 1;
-const CMD_WINDOW_TOGGLE_ASPECT_RATIO: u16 = 2;
-const CMD_WINDOW_TOGGLE_HIDE_ON_SELECT: u16 = 3;
-const CMD_WINDOW_CREATE_TAG_FROM_APP: u16 = 4;
-const CMD_WINDOW_TAG_BASE: u16 = 100;
-
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
 // ───────────────────────── Thread-local subclass state ─────────────────────────
@@ -81,33 +75,17 @@ thread_local! {
     static UI_WINDOW: RefCell<Option<slint::Weak<MainWindow>>> = const { RefCell::new(None) };
     static PENDING_ACTIONS: RefCell<Vec<PendingAction>> = const { RefCell::new(Vec::new()) };
     static SETTINGS_WIN: RefCell<Option<SettingsWindow>> = const { RefCell::new(None) };
+    static TAG_DIALOG_WIN: RefCell<Option<TagDialogWindow>> = const { RefCell::new(None) };
 }
 
 // ───────────────────────── Types ─────────────────────────
 
 enum PendingAction {
     Tray(TrayAction),
-    TagCreated(TagCreationRequest),
     Reposition,
     HideToTray,
     Refresh,
     Exit,
-}
-
-struct TagCreationRequest {
-    app_id: String,
-    display_name: String,
-    tag_name: String,
-    color_hex: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum WindowMenuAction {
-    HideApp,
-    ToggleAspectRatio,
-    ToggleHideOnSelect,
-    CreateTagFromApp,
-    ToggleTag(String),
 }
 
 /// Tracks an in-progress separator drag.
@@ -435,21 +413,6 @@ unsafe extern "system" fn subclass_proc(
                         PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Tray(action)));
                     }
                 }
-            }
-            LRESULT(0)
-        }
-        tag_created if tag_created == WM_TAG_CREATED => {
-            let payload = lparam.0 as *mut TagCreateSubmit;
-            if !payload.is_null() {
-                let payload = Box::from_raw(payload);
-                PENDING_ACTIONS.with(|q| {
-                    q.borrow_mut().push(PendingAction::TagCreated(TagCreationRequest {
-                        app_id: payload.app_id.clone(),
-                        display_name: payload.display_name.clone(),
-                        tag_name: payload.tag_name.clone(),
-                        color_hex: payload.color_hex.clone(),
-                    }));
-                });
             }
             LRESULT(0)
         }
@@ -1043,10 +1006,18 @@ fn handle_thumbnail_right_click(
     let info = mw.info.clone();
     let preserve = s.settings.preserve_aspect_ratio_for(&info.app_id);
     let hide_on = s.settings.hide_on_select_for(&info.app_id);
+    let known_tags = s.settings.known_tags();
+    let current_tags: HashSet<String> = s.settings.tags_for(&info.app_id).into_iter().collect();
     let hwnd = s.hwnd;
     drop(s);
 
-    if let Some(action) = show_window_context_menu(state, hwnd, &info, preserve, hide_on) {
+    if let Some(action) = show_window_context_menu(
+        hwnd,
+        preserve,
+        hide_on,
+        &known_tags,
+        &current_tags,
+    ) {
         handle_window_menu_action(state, weak, &info, action);
     }
 }
@@ -1062,107 +1033,6 @@ fn activate_window(hwnd: HWND) {
 
 // ───────────────────────── Context Menu ─────────────────────────
 
-fn show_window_context_menu(
-    state: &Rc<RefCell<AppState>>,
-    parent_hwnd: HWND,
-    info: &WindowInfo,
-    preserve_aspect_ratio: bool,
-    hide_on_select: bool,
-) -> Option<WindowMenuAction> {
-    unsafe {
-        let menu = CreatePopupMenu().ok()?;
-        let hide_label = wide("Hide from layout");
-        let aspect_label = wide("Respect aspect ratio");
-        let hide_after_label = wide("Hide Panopticon after opening this app");
-        let create_tag_label = wide("Create custom tag…");
-        let tags_title = wide("Assign existing tags");
-
-        let s = state.borrow();
-        let known_tags = s.settings.known_tags();
-        let current_tags: HashSet<String> = s.settings.tags_for(&info.app_id).into_iter().collect();
-        drop(s);
-
-        let mut tag_labels: Vec<Vec<u16>> = Vec::with_capacity(known_tags.len());
-        let mut tag_actions: Vec<(u16, String)> = Vec::with_capacity(known_tags.len());
-
-        let _ = AppendMenuW(
-            menu,
-            MF_STRING,
-            CMD_WINDOW_HIDE_APP as usize,
-            PCWSTR(hide_label.as_ptr()),
-        );
-        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-        let _ = AppendMenuW(
-            menu,
-            MF_STRING | checked_flag(preserve_aspect_ratio),
-            CMD_WINDOW_TOGGLE_ASPECT_RATIO as usize,
-            PCWSTR(aspect_label.as_ptr()),
-        );
-        let _ = AppendMenuW(
-            menu,
-            MF_STRING | checked_flag(hide_on_select),
-            CMD_WINDOW_TOGGLE_HIDE_ON_SELECT as usize,
-            PCWSTR(hide_after_label.as_ptr()),
-        );
-        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-        let _ = AppendMenuW(
-            menu,
-            MF_STRING,
-            CMD_WINDOW_CREATE_TAG_FROM_APP as usize,
-            PCWSTR(create_tag_label.as_ptr()),
-        );
-
-        if !known_tags.is_empty() {
-            let tags_menu = CreatePopupMenu().ok()?;
-            for (i, tag) in known_tags.iter().enumerate() {
-                let Some(cmd) = CMD_WINDOW_TAG_BASE.checked_add(i as u16) else {
-                    break;
-                };
-                tag_labels.push(wide(tag));
-                if let Some(label) = tag_labels.last() {
-                    let _ = AppendMenuW(
-                        tags_menu,
-                        MF_STRING | checked_flag(current_tags.contains(tag)),
-                        cmd as usize,
-                        PCWSTR(label.as_ptr()),
-                    );
-                }
-                tag_actions.push((cmd, tag.clone()));
-            }
-            let _ = AppendMenuW(
-                menu,
-                MF_POPUP,
-                tags_menu.0 as usize,
-                PCWSTR(tags_title.as_ptr()),
-            );
-        }
-
-        let mut cursor = POINT::default();
-        let _ = GetCursorPos(&raw mut cursor);
-        let _ = SetForegroundWindow(parent_hwnd);
-        let cmd = TrackPopupMenu(
-            menu,
-            TPM_RETURNCMD | TPM_NONOTIFY | TPM_LEFTALIGN | TPM_BOTTOMALIGN,
-            cursor.x,
-            cursor.y,
-            0,
-            parent_hwnd,
-            None,
-        );
-        let _ = DestroyMenu(menu);
-
-        match cmd.0 as u16 {
-            CMD_WINDOW_HIDE_APP => Some(WindowMenuAction::HideApp),
-            CMD_WINDOW_TOGGLE_ASPECT_RATIO => Some(WindowMenuAction::ToggleAspectRatio),
-            CMD_WINDOW_TOGGLE_HIDE_ON_SELECT => Some(WindowMenuAction::ToggleHideOnSelect),
-            CMD_WINDOW_CREATE_TAG_FROM_APP => Some(WindowMenuAction::CreateTagFromApp),
-            dynamic => tag_actions
-                .into_iter()
-                .find_map(|(c, t)| (dynamic == c).then_some(WindowMenuAction::ToggleTag(t))),
-        }
-    }
-}
-
 fn handle_window_menu_action(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
@@ -1174,29 +1044,29 @@ fn handle_window_menu_action(
 
     match action {
         WindowMenuAction::HideApp => {
-            update_settings(state, |s| {
-                let _ = s.toggle_hidden(&info.app_id, &info.app_label());
+            update_settings(state, |settings| {
+                let _ = settings.toggle_hidden(&info.app_id, &info.app_label());
             });
             needs_window_refresh = true;
             needs_ui_refresh = true;
         }
         WindowMenuAction::ToggleAspectRatio => {
-            update_settings(state, |s| {
-                let _ = s.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label());
+            update_settings(state, |settings| {
+                let _ = settings.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label());
             });
             needs_ui_refresh = true;
         }
         WindowMenuAction::ToggleHideOnSelect => {
-            update_settings(state, |s| {
-                let _ = s.toggle_app_hide_on_select(&info.app_id, &info.app_label());
+            update_settings(state, |settings| {
+                let _ = settings.toggle_app_hide_on_select(&info.app_id, &info.app_label());
             });
         }
         WindowMenuAction::CreateTagFromApp => {
-            open_create_tag_dialog(state, info);
+            open_create_tag_dialog(state, weak, info);
         }
         WindowMenuAction::ToggleTag(tag) => {
-            update_settings(state, |s| {
-                let _ = s.toggle_app_tag(&info.app_id, &info.app_label(), &tag);
+            update_settings(state, |settings| {
+                let _ = settings.toggle_app_tag(&info.app_id, &info.app_label(), &tag);
             });
             needs_window_refresh = true;
             needs_ui_refresh = true;
@@ -1212,24 +1082,77 @@ fn handle_window_menu_action(
     }
 }
 
-fn open_create_tag_dialog(state: &Rc<RefCell<AppState>>, info: &WindowInfo) {
-    let hwnd = state.borrow().hwnd;
-    if hwnd.0.is_null() {
+fn open_create_tag_dialog(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    info: &WindowInfo,
+) {
+    let already_open = TAG_DIALOG_WIN.with(|dialog| {
+        let guard = dialog.borrow();
+        if let Some(existing) = guard.as_ref() {
+            existing.show().ok();
+            true
+        } else {
+            false
+        }
+    });
+    if already_open {
         return;
     }
 
     let suggested_name = suggested_tag_name(&info.app_label());
     let suggested_color = state.borrow().settings.tag_color_hex(&suggested_name);
 
-    if let Err(error) = open_tag_dialog(
-        hwnd,
-        &info.app_id,
-        &info.app_label(),
-        &suggested_name,
-        &suggested_color,
-    ) {
-        tracing::error!(%error, app_id = %info.app_id, "failed to open tag dialog");
+    let dialog = match TagDialogWindow::new() {
+        Ok(dialog) => dialog,
+        Err(error) => {
+            tracing::error!(%error, app_id = %info.app_id, "failed to create tag dialog");
+            return;
+        }
+    };
+
+    dialog.set_app_label(SharedString::from(info.app_label()));
+    dialog.set_tag_name(SharedString::from(suggested_name));
+    dialog.set_color_index(tag_color_index(&suggested_color));
+
+    dialog.on_create({
+        let state = state.clone();
+        let weak = weak.clone();
+        let app_id = info.app_id.clone();
+        let display_name = info.app_label();
+        move || {
+            TAG_DIALOG_WIN.with(|dialog_cell| {
+                let guard = dialog_cell.borrow();
+                let Some(dialog) = guard.as_ref() else { return };
+                let tag_name = dialog.get_tag_name().to_string();
+                let color_hex = tag_color_hex(dialog.get_color_index());
+                drop(guard);
+
+                apply_tag_creation(&state, &weak, &app_id, &display_name, &tag_name, &color_hex);
+                close_tag_dialog_window();
+            });
+        }
+    });
+
+    dialog.on_closed(|| {
+        close_tag_dialog_window();
+    });
+
+    dialog.window().on_close_requested(|| {
+        close_tag_dialog_window();
+        CloseRequestResponse::HideWindow
+    });
+
+    if let Err(error) = dialog.show() {
+        tracing::error!(%error, app_id = %info.app_id, "failed to show tag dialog");
+        return;
     }
+
+    if let Some(dialog_hwnd) = get_hwnd(dialog.window()) {
+        apply_window_appearance(dialog_hwnd, &state.borrow().settings);
+    }
+
+    TAG_DIALOG_WIN.with(|dialog_cell| *dialog_cell.borrow_mut() = Some(dialog));
 }
 
 fn suggested_tag_name(label: &str) -> String {
@@ -1250,18 +1173,46 @@ fn suggested_tag_name(label: &str) -> String {
 fn apply_tag_creation(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
-    request: &TagCreationRequest,
+    app_id: &str,
+    display_name: &str,
+    tag_name: &str,
+    color_hex: &str,
 ) {
     update_settings(state, |settings| {
-        let _ = settings.assign_tag_with_color(
-            &request.app_id,
-            &request.display_name,
-            &request.tag_name,
-            &request.color_hex,
-        );
+        let _ = settings.assign_tag_with_color(app_id, display_name, tag_name, color_hex);
     });
     let _ = refresh_windows(state);
     refresh_ui(state, weak);
+}
+
+fn close_tag_dialog_window() {
+    let taken = TAG_DIALOG_WIN.with(|dialog| dialog.borrow_mut().take());
+    if let Some(dialog) = taken {
+        dialog.hide().ok();
+    }
+}
+
+fn tag_color_index(color_hex: &str) -> i32 {
+    match color_hex.to_ascii_uppercase().as_str() {
+        "5CA9FF" => 1,
+        "3CCF91" => 2,
+        "FF6B8A" => 3,
+        "9B7BFF" => 4,
+        "F4B740" => 5,
+        _ => 0,
+    }
+}
+
+fn tag_color_hex(index: i32) -> String {
+    match index {
+        1 => "5CA9FF",
+        2 => "3CCF91",
+        3 => "FF6B8A",
+        4 => "9B7BFF",
+        5 => "F4B740",
+        _ => "D29A5C",
+    }
+    .to_owned()
 }
 
 // ───────────────────────── Keyboard ─────────────────────────
@@ -1694,7 +1645,6 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
     let weak = win.as_weak();
     match action {
         PendingAction::Tray(ta) => handle_tray_action(state, &weak, ta),
-        PendingAction::TagCreated(request) => apply_tag_creation(state, &weak, &request),
         PendingAction::Reposition => {
             if let Ok(mut s) = state.try_borrow_mut() {
                 if s.is_appbar {
@@ -1733,24 +1683,7 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, _main_weak: &slint::Weak<
         }
     };
 
-    // Populate from current settings.
-    {
-        let s = state.borrow();
-        sw.set_always_on_top_setting(s.settings.always_on_top);
-        sw.set_animate_transitions_setting(s.settings.animate_transitions);
-        sw.set_minimize_to_tray_setting(s.settings.minimize_to_tray);
-        sw.set_close_to_tray_setting(s.settings.close_to_tray);
-        sw.set_preserve_aspect_ratio_setting(s.settings.preserve_aspect_ratio);
-        sw.set_hide_on_select_setting(s.settings.hide_on_select);
-        sw.set_show_toolbar_setting(s.settings.show_toolbar);
-        sw.set_show_info_setting(s.settings.show_window_info);
-        sw.set_use_system_backdrop_setting(s.settings.use_system_backdrop);
-        sw.set_bg_color_hex(SharedString::from(&s.settings.background_color_hex));
-        sw.set_fixed_width_value(s.settings.fixed_width.unwrap_or(0) as i32);
-        sw.set_fixed_height_value(s.settings.fixed_height.unwrap_or(0) as i32);
-        sw.set_refresh_index(refresh_to_index(s.settings.refresh_interval_ms));
-        sw.set_layout_index(layout_to_index(s.settings.initial_layout));
-    }
+    populate_settings_window(&sw, &state.borrow().settings);
 
     sw.on_apply({
         let state = state.clone();
@@ -1759,23 +1692,7 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, _main_weak: &slint::Weak<
                 let guard = h.borrow();
                 let Some(sw) = guard.as_ref() else { return };
                 let mut s = state.borrow_mut();
-                s.settings.always_on_top = sw.get_always_on_top_setting();
-                s.settings.animate_transitions = sw.get_animate_transitions_setting();
-                s.settings.minimize_to_tray = sw.get_minimize_to_tray_setting();
-                s.settings.close_to_tray = sw.get_close_to_tray_setting();
-                s.settings.preserve_aspect_ratio = sw.get_preserve_aspect_ratio_setting();
-                s.settings.hide_on_select = sw.get_hide_on_select_setting();
-                s.settings.show_toolbar = sw.get_show_toolbar_setting();
-                s.settings.show_window_info = sw.get_show_info_setting();
-                s.settings.use_system_backdrop = sw.get_use_system_backdrop_setting();
-                s.settings.background_color_hex = sw.get_bg_color_hex().to_string();
-                let fw = sw.get_fixed_width_value();
-                s.settings.fixed_width = if fw > 0 { Some(fw as u32) } else { None };
-                let fh = sw.get_fixed_height_value();
-                s.settings.fixed_height = if fh > 0 { Some(fh as u32) } else { None };
-                s.settings.refresh_interval_ms = index_to_refresh(sw.get_refresh_index());
-                let layout = index_to_layout(sw.get_layout_index());
-                s.settings.initial_layout = layout;
+                let layout = apply_settings_window_changes(sw, &mut s.settings);
                 s.current_layout = layout;
                 s.settings = s.settings.normalized();
                 let _ = s.settings.save(s.profile_name.as_deref());
@@ -2201,58 +2118,4 @@ fn lerp_rect(from: RECT, to: RECT, t: f32) -> RECT {
 
 fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
     (from as f32 + (to - from) as f32 * t).round() as i32
-}
-
-fn checked_flag(enabled: bool) -> MENU_ITEM_FLAGS {
-    if enabled {
-        MF_CHECKED
-    } else {
-        MF_UNCHECKED
-    }
-}
-
-fn wide(value: &str) -> Vec<u16> {
-    value.encode_utf16().chain(std::iter::once(0)).collect()
-}
-
-fn layout_to_index(layout: LayoutType) -> i32 {
-    match layout {
-        LayoutType::Grid => 0,
-        LayoutType::Mosaic => 1,
-        LayoutType::Bento => 2,
-        LayoutType::Fibonacci => 3,
-        LayoutType::Columns => 4,
-        LayoutType::Row => 5,
-        LayoutType::Column => 6,
-    }
-}
-
-fn index_to_layout(i: i32) -> LayoutType {
-    match i {
-        1 => LayoutType::Mosaic,
-        2 => LayoutType::Bento,
-        3 => LayoutType::Fibonacci,
-        4 => LayoutType::Columns,
-        5 => LayoutType::Row,
-        6 => LayoutType::Column,
-        _ => LayoutType::Grid,
-    }
-}
-
-fn refresh_to_index(ms: u32) -> i32 {
-    match ms {
-        1_000 => 0,
-        5_000 => 2,
-        10_000 => 3,
-        _ => 1,
-    }
-}
-
-fn index_to_refresh(i: i32) -> u32 {
-    match i {
-        0 => 1_000,
-        2 => 5_000,
-        3 => 10_000,
-        _ => 2_000,
-    }
 }
