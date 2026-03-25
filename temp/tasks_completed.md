@@ -6,6 +6,8 @@
 - [x] Crear `src/constants.rs` — constantes extraídas de `main.rs` (colores BGR, timers, VK codes, límites de texto).
 - [x] Crear `src/error.rs` — errores tipados con `thiserror` (`PanopticonError`).
 - [x] Crear `src/logging.rs` — logging estructurado con `tracing` + `tracing-appender` (rolling diario en `%TEMP%/panopticon/logs/`).
+- [x] Migrar estado del binario a **`GWLP_USERDATA`** — eliminar el singleton global y adjuntar `AppState` al `HWND`.
+- [x] Reutilizar `src/app/` con `mod.rs` + `tray.rs` para helpers del binario.
 
 ## Dependencias (Cargo.toml)
 
@@ -34,9 +36,18 @@
 ## Seguridad y Correctitud
 
 - [x] **Bug corregido:** `is_state_ready()` guard previene panic cuando `WM_SIZE` / `WM_PAINT` llegan antes de que `AppState` esté inicializado (durante `CreateWindowExW`).
+- [x] **Refactor posterior:** se elimina completamente el patrón global `UnsafeCell` y se sustituye por `GWLP_USERDATA` + cleanup en `WM_NCDESTROY`.
 - [x] Documentar `unsafe impl Sync` con justificación de por qué es sound (single-threaded message loop).
 - [x] Añadir comentarios `// SAFETY:` en cada bloque `unsafe` (24+ bloques).
 - [x] Marcar `app()` como `unsafe fn` con documentación de precondiciones.
+
+## UX / Interfaz
+
+- [x] Añadir **tray icon real** con icono generado en runtime (no stock icon por defecto salvo fallback).
+- [x] Añadir menú contextual del tray: show/hide, refresh, next layout, exit.
+- [x] Minimizar/cerrar → esconder al tray; `Esc` mantiene salida inmediata.
+- [x] Mejorar la toolbar y el empty state con una interfaz más sobria y profesional.
+- [x] Mostrar icono real de la ventana cuando el thumbnail no está disponible.
 
 ## Documentación
 
@@ -55,8 +66,11 @@
 ## Automatización y Tooling
 
 - [x] `Justfile` con 12 tareas: build, release, check, lint, fmt, fmt-check, test, coverage, doc, run, run-release, clean, ci.
+- [x] `.vscode/tasks.json` con tareas cortas y legibles con emojis.
+- [x] `.vscode/launch.json` actualizado para usar las nuevas tareas.
 - [x] `rustfmt.toml` (edition 2021, max_width 100).
 - [x] `.gitignore` robusto (target, IDE, OS files, env, coverage, logs, backups).
+- [x] `.github/workflows/ci.yml` con fmt, clippy, tests y release build en Windows.
 
 ## Formato
 
