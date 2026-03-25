@@ -366,10 +366,6 @@ fn forward_to_original(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> 
     unsafe { CallWindowProcW(mem::transmute(original), hwnd, msg, wparam, lparam) }
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "El dispatcher Win32 se mantiene lineal para auditar mensajes y efectos colaterales en un solo lugar"
-)]
 unsafe extern "system" fn subclass_proc(
     hwnd: HWND,
     msg: u32,
