@@ -53,31 +53,20 @@ Tests de integración posibles gracias al lib crate.
 
 ## Deuda Técnica Pendiente (Futura)
 
-### P1. Estado Global Con UnsafeCell
+### P1. Re-registro del tray icon tras reinicio de Explorer
 
-El patrón `static UnsafeCell` es correcto para single-thread Win32, pero
-idealmente se migraría a `SetWindowLongPtrW` / `GWLP_USERDATA` que es el
-patrón canónico en Win32-Rust. Requiere refactor del flujo de `CreateWindowExW`.
+Si `explorer.exe` se reinicia, el área de notificación pierde los iconos. La
+mejora pendiente es escuchar el mensaje registrado `TaskbarCreated` y volver a
+registrar el tray icon automáticamente.
 
-### P2. Directorio `src/app/` Vacío
+### P2. Menú contextual avanzado / Preferencias
 
-Existe un directorio `src/app/` vacío. Debería eliminarse si no se planea usar.
+El tray ya soporta show/hide, refresh, next layout y exit. A futuro conviene
+añadir preferencias persistentes (intervalo de refresh, layout inicial,
+minimizar vs cerrar, always-on-top, etc.).
 
-### P3. Backup `src/main.rs.bak`
+### P3. Cobertura en CI
 
-Archivo de backup del refactor. Eliminar una vez verificado que todo funciona.
-
-### P4. CI/CD Pipeline
-
-No hay GitHub Actions ni pipeline de CI. Recomendación: crear
-`.github/workflows/ci.yml` que ejecute `just ci`.
-
-### P5. Cargo-tarpaulin para Coverage
-
-El Justfile tiene tarea `coverage` pero `cargo-tarpaulin` no está instalado
-por defecto. Documentar el setup en CONTRIBUTING.md.
-
-### P6. Fallback para Ventanas Minimizadas
-
-El PRD menciona mostrar el icono de la aplicación para ventanas minimizadas
-(vía `GetClassLongPtrW` / `GCLP_HICON`). Actualmente muestra `[minimized]`.
+Ya existe tarea `coverage` y documentación para `cargo-tarpaulin`, pero no se
+incluye aún en GitHub Actions por coste/tiempo de ejecución y compatibilidad en
+Windows.

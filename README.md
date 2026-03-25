@@ -1,8 +1,8 @@
 # Panopticon — Window Viewer
 
 [![Build](https://img.shields.io/badge/build-cargo-orange)](https://www.rust-lang.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)]()
-[![License](https://img.shields.io/badge/license-MIT-green)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://learn.microsoft.com/windows/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A real-time window thumbnail viewer for Windows, powered by the Desktop Window Manager (DWM) API.
 Panopticon renders hardware-accelerated live previews of every open window, organised in five mathematical layout modes.
@@ -12,6 +12,7 @@ Panopticon renders hardware-accelerated live previews of every open window, orga
 - **🖼️ Real-time thumbnails** — GPU-composited via DWM; zero bitmap capture, zero CPU rendering.
 - **📐 5 layout modes** — Grid, Mosaic, Bento, Fibonacci, Columns.
 - **🖱️ Click-to-activate** — Click any thumbnail to bring that window to the foreground.
+- **🧭 Tray icon + quick menu** — Minimise to tray, restore with one click, or right-click for actions.
 - **📏 Per-Monitor DPI Aware** — Correct rendering on mixed-DPI multi-monitor setups.
 - **📝 Structured logging** — Logs written to `%TEMP%/panopticon/logs/` via `tracing`.
 - **⚡ Low footprint** — < 1 % CPU idle, < 50 MB RAM.
@@ -19,7 +20,7 @@ Panopticon renders hardware-accelerated live previews of every open window, orga
 ## Requirements
 
 | Requirement | Version |
-|---|---|
+| --- | --- |
 | OS | Windows 10 / 11 (64-bit) |
 | Rust toolchain | 1.82+ (edition 2021) |
 | DWM | Enabled (default on Windows 10+) |
@@ -50,17 +51,20 @@ cargo run --release
 ### Controls
 
 | Input | Action |
-|---|---|
+| --- | --- |
 | **Tab** | Cycle to the next layout mode |
 | **R** | Refresh the window list manually |
 | **Click** on thumbnail | Activate (bring to front) the selected window |
 | **Click** on toolbar | Switch layout mode |
-| **Esc** | Exit Panopticon |
+| **Minimize / Close** | Hide to tray instead of terminating the app |
+| **Left-click** tray icon | Restore / hide Panopticon |
+| **Right-click** tray icon | Open quick actions (show, refresh, next layout, exit) |
+| **Esc** | Exit Panopticon immediately |
 
 ### Layout Modes
 
 | Mode | Description |
-|---|---|
+| --- | --- |
 | **Grid** | Equal-sized cells in a √n × √n grid |
 | **Mosaic** | Rows with aspect-ratio-weighted column widths |
 | **Bento** | Primary window (60 %) + sidebar stack |
@@ -77,6 +81,9 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Install just (task runner) — optional but recommended
 cargo install just
+
+# Install tarpaulin for coverage (optional)
+cargo install cargo-tarpaulin
 ```
 
 ### Common Tasks
@@ -93,6 +100,16 @@ just doc         # 📖 Open generated docs
 just ci          # 🔄 Full CI check (fmt + lint + test)
 ```
 
+### VS Code Tasks
+
+The workspace includes short, emoji-based tasks in `.vscode/tasks.json`:
+
+```text
+🔍 check   🛠 build   🚀 release   ▶ run   ⚡ run-release
+🧪 test    🧹 lint    🎨 fmt       📚 doc  📊 coverage
+🧼 clean   ♻ ci
+```
+
 ### Manual Commands
 
 ```bash
@@ -104,10 +121,13 @@ cargo doc --no-deps --open
 
 ## Architecture
 
-```
+```text
 src/
+├── app/
+│   ├── mod.rs      — Binary-only helpers
+│   └── tray.rs     — Tray icon, popup menu, icon generation
 ├── lib.rs          — Library root: re-exports all modules
-├── main.rs         — Win32 window, message loop, painting, state
+├── main.rs         — Win32 window, message loop, painting, HWND-attached state
 ├── constants.rs    — Colours, timers, key codes, geometry
 ├── error.rs        — Typed errors (thiserror)
 ├── layout.rs       — Layout engine (Grid, Mosaic, Bento, Fibonacci, Columns)
@@ -126,7 +146,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for an in-depth design overview
 
 Panopticon writes structured logs to:
 
-```
+```text
 %TEMP%\panopticon\logs\panopticon.log
 ```
 

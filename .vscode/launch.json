@@ -10,7 +10,7 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "preLaunchTask": "Panopticon: Build Debug"
+            "preLaunchTask": "🛠 build"
         },
         {
             "name": "Run Release",
@@ -21,7 +21,7 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "preLaunchTask": "Panopticon: Build Release"
+            "preLaunchTask": "🚀 release"
         }
     ]
 }
