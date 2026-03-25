@@ -61,6 +61,16 @@ pub struct AppSelectionEntry {
     pub label: String,
 }
 
+/// Edge of the screen where the window can be docked as an app-bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DockEdge {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
 /// User preferences persisted between application launches.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
@@ -90,6 +100,16 @@ pub struct AppSettings {
     pub active_app_filter: Option<String>,
     /// Per-application remembered behaviour.
     pub app_rules: BTreeMap<String, AppRule>,
+    /// Fixed window width in pixels (`None` = automatic).
+    pub fixed_width: Option<u32>,
+    /// Fixed window height in pixels (`None` = automatic).
+    pub fixed_height: Option<u32>,
+    /// Dock the window to a screen edge, reserving desktop space.
+    pub dock_edge: Option<DockEdge>,
+    /// Target monitor name for docking (e.g. `DISPLAY1`).
+    pub dock_monitor: Option<String>,
+    /// Show the status toolbar at the top of the window.
+    pub show_toolbar: bool,
 }
 
 impl Default for AppSettings {
@@ -107,17 +127,32 @@ impl Default for AppSettings {
             active_tag_filter: None,
             active_app_filter: None,
             app_rules: BTreeMap::new(),
+            fixed_width: None,
+            fixed_height: None,
+            dock_edge: None,
+            dock_monitor: None,
+            show_toolbar: true,
         }
     }
 }
 
 impl AppSettings {
-    /// Resolve the on-disk settings path.
+    /// Resolve the on-disk settings path for a given instance profile.
     #[must_use]
-    pub fn path() -> PathBuf {
+    pub fn path_for(profile: Option<&str>) -> PathBuf {
         let base_dir = std::env::var_os("APPDATA")
             .map_or_else(|| std::env::temp_dir().join("Panopticon"), PathBuf::from);
-        base_dir.join("Panopticon").join("settings.toml")
+        let base = base_dir.join("Panopticon");
+        match profile.filter(|p| !p.trim().is_empty()) {
+            Some(name) => base.join("profiles").join(format!("{}.toml", name.trim())),
+            None => base.join("settings.toml"),
+        }
+    }
+
+    /// Resolve the on-disk settings path (default profile).
+    #[must_use]
+    pub fn path() -> PathBuf {
+        Self::path_for(None)
     }
 
     /// Load settings from disk, returning defaults if the file does not exist.
@@ -125,8 +160,8 @@ impl AppSettings {
     /// # Errors
     ///
     /// Returns an error if the file exists but cannot be read or parsed.
-    pub fn load_or_default() -> Result<Self> {
-        let path = Self::path();
+    pub fn load_or_default(profile: Option<&str>) -> Result<Self> {
+        let path = Self::path_for(profile);
         if !path.exists() {
             return Ok(Self::default());
         }
@@ -143,8 +178,8 @@ impl AppSettings {
     ///
     /// Returns an error if the settings directory cannot be created or if the
     /// TOML payload cannot be serialized.
-    pub fn save(&self) -> Result<()> {
-        let path = Self::path();
+    pub fn save(&self, profile: Option<&str>) -> Result<()> {
+        let path = Self::path_for(profile);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -424,6 +459,14 @@ impl AppSettings {
             active_tag_filter,
             active_app_filter,
             app_rules,
+            fixed_width: self.fixed_width,
+            fixed_height: self.fixed_height,
+            dock_edge: self.dock_edge,
+            dock_monitor: self
+                .dock_monitor
+                .as_deref()
+                .and_then(normalize_filter_value),
+            show_toolbar: self.show_toolbar,
         }
     }
 
@@ -498,6 +541,11 @@ mod tests {
             active_tag_filter: Some("work".to_owned()),
             active_app_filter: None,
             app_rules: std::collections::BTreeMap::default(),
+            fixed_width: Some(120),
+            fixed_height: None,
+            dock_edge: Some(super::DockEdge::Left),
+            dock_monitor: Some("DISPLAY1".to_owned()),
+            show_toolbar: false,
         };
 
         let encoded = toml::to_string_pretty(&settings).expect("serialize settings");
@@ -521,6 +569,11 @@ mod tests {
             active_tag_filter: None,
             active_app_filter: Some("exe:demo".to_owned()),
             app_rules: std::collections::BTreeMap::default(),
+            fixed_width: None,
+            fixed_height: None,
+            dock_edge: None,
+            dock_monitor: None,
+            show_toolbar: true,
         };
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);

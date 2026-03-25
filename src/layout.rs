@@ -20,6 +20,10 @@ pub enum LayoutType {
     Fibonacci,
     /// Masonry-style shortest-column-first placement.
     Columns,
+    /// Single horizontal row — each window takes 100 % height; scrollable.
+    Row,
+    /// Single vertical column — each window takes 100 % width; scrollable.
+    Column,
 }
 
 impl LayoutType {
@@ -31,7 +35,9 @@ impl LayoutType {
             Self::Mosaic => Self::Bento,
             Self::Bento => Self::Fibonacci,
             Self::Fibonacci => Self::Columns,
-            Self::Columns => Self::Grid,
+            Self::Columns => Self::Row,
+            Self::Row => Self::Column,
+            Self::Column => Self::Grid,
         }
     }
 
@@ -44,8 +50,32 @@ impl LayoutType {
             Self::Bento => "Bento",
             Self::Fibonacci => "Fibonacci",
             Self::Columns => "Columns",
+            Self::Row => "Row",
+            Self::Column => "Column",
         }
     }
+
+    /// Axis along which this layout may produce content that overflows the
+    /// visible area and therefore supports scrolling.
+    #[must_use]
+    pub fn scroll_direction(self) -> ScrollDirection {
+        match self {
+            Self::Row => ScrollDirection::Horizontal,
+            Self::Column => ScrollDirection::Vertical,
+            _ => ScrollDirection::None,
+        }
+    }
+}
+
+/// Scrolling axis for a layout mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollDirection {
+    /// Content fits within the visible area — no scrolling.
+    None,
+    /// Content may overflow horizontally (Row mode).
+    Horizontal,
+    /// Content may overflow vertically (Column mode).
+    Vertical,
 }
 
 /// Aspect-ratio hint for a single window (`width / height`).
@@ -92,6 +122,8 @@ pub fn compute_layout(
         LayoutType::Bento => bento_layout(area, count),
         LayoutType::Fibonacci => fibonacci_layout(area, count),
         LayoutType::Columns => columns_layout(area, count, aspects),
+        LayoutType::Row => single_row_layout(area, count, aspects),
+        LayoutType::Column => single_column_layout(area, count, aspects),
     }
 }
 
@@ -326,6 +358,76 @@ fn columns_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT>
             area.left + ((col + 1) as f64 * col_w) as i32,
             (y + item_h) as i32,
         ));
+    }
+    rects
+}
+
+// ───────────────────────── Row ─────────────────────────
+
+/// Single horizontal row: each window takes the full available height.
+///
+/// Cell widths are proportional to each window's aspect ratio.  When the
+/// total natural width fits within the area the cells are scaled up to
+/// fill; otherwise the returned [`RECT`]s extend beyond `area.right`
+/// and the caller is expected to provide horizontal scrolling.
+fn single_row_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT> {
+    let height = f64::from(area.bottom - area.top);
+    let width = f64::from(area.right - area.left);
+
+    let natural: Vec<f64> = (0..count)
+        .map(|i| {
+            let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+            height * ratio
+        })
+        .collect();
+    let total: f64 = natural.iter().sum();
+
+    let widths: Vec<f64> = if total <= width {
+        let scale = width / total;
+        natural.iter().map(|w| w * scale).collect()
+    } else {
+        natural
+    };
+
+    let mut rects = Vec::with_capacity(count);
+    let mut x = f64::from(area.left);
+    for &w in &widths {
+        rects.push(padded_rect(x as i32, area.top, (x + w) as i32, area.bottom));
+        x += w;
+    }
+    rects
+}
+
+// ───────────────────────── Column (vertical strip) ─────────────────────────
+
+/// Single vertical column: each window takes the full available width.
+///
+/// Cell heights are inversely proportional to the aspect ratio.  Overflowing
+/// content extends below `area.bottom` for vertical scrolling.
+fn single_column_layout(area: RECT, count: usize, aspects: &[AspectHint]) -> Vec<RECT> {
+    let width = f64::from(area.right - area.left);
+    let height = f64::from(area.bottom - area.top);
+
+    let natural: Vec<f64> = (0..count)
+        .map(|i| {
+            let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+            width / ratio
+        })
+        .collect();
+    let total: f64 = natural.iter().sum();
+
+    let heights: Vec<f64> = if total <= height {
+        let scale = height / total;
+        natural.iter().map(|h| h * scale).collect()
+    } else {
+        natural
+    };
+
+    let mut rects = Vec::with_capacity(count);
+    let mut y = f64::from(area.top);
+    for &h in &heights {
+        rects.push(padded_rect(area.left, y as i32, area.right, (y + h) as i32));
+        y += h;
     }
     rects
 }

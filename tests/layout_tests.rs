@@ -26,7 +26,18 @@ fn uniform_aspects(count: usize) -> Vec<AspectHint> {
     ]
 }
 
-const ALL_LAYOUTS: [LayoutType; 5] = [
+const ALL_LAYOUTS: [LayoutType; 7] = [
+    LayoutType::Grid,
+    LayoutType::Mosaic,
+    LayoutType::Bento,
+    LayoutType::Fibonacci,
+    LayoutType::Columns,
+    LayoutType::Row,
+    LayoutType::Column,
+];
+
+/// Layouts where all rects are guaranteed to stay within the provided area.
+const BOUNDED_LAYOUTS: [LayoutType; 5] = [
     LayoutType::Grid,
     LayoutType::Mosaic,
     LayoutType::Bento,
@@ -81,7 +92,7 @@ fn all_layouts_return_correct_count() {
 fn rects_stay_within_area() {
     let a = area(1920, 1080);
     let aspects = uniform_aspects(9);
-    for layout in ALL_LAYOUTS {
+    for layout in BOUNDED_LAYOUTS {
         let rects = compute_layout(layout, a, 9, &aspects);
         for (i, r) in rects.iter().enumerate() {
             assert!(
@@ -114,15 +125,15 @@ fn rects_have_positive_dimensions() {
 fn layout_next_cycles_through_all_variants() {
     let mut layout = LayoutType::Grid;
     let mut seen = Vec::new();
-    for _ in 0..6 {
+    for _ in 0..8 {
         seen.push(layout);
         layout = layout.next();
     }
-    // After 5 steps we should be back to Grid.
-    assert_eq!(seen[0], seen[5]);
+    // After 7 steps we should be back to Grid.
+    assert_eq!(seen[0], seen[7]);
     // All intermediate variants should be distinct.
-    let distinct: HashSet<_> = seen[..5].iter().collect();
-    assert_eq!(distinct.len(), 5);
+    let distinct: HashSet<_> = seen[..7].iter().collect();
+    assert_eq!(distinct.len(), 7);
 }
 
 // ── Aspect-ratio edge case ───────────────────────────────────
@@ -156,6 +167,49 @@ fn layouts_handle_very_small_area() {
         let rects = compute_layout(layout, tiny, 4, &aspects);
         assert_eq!(rects.len(), 4, "{layout:?} should still return 4 rects");
     }
+}
+
+// ── Row / Column layout tests ────────────────────────────────
+
+#[test]
+fn row_layout_extends_beyond_area_when_content_overflows() {
+    let a = area(800, 600);
+    let aspects = uniform_aspects(10);
+    let rects = compute_layout(LayoutType::Row, a, 10, &aspects);
+    assert_eq!(rects.len(), 10);
+    // With 10 landscape windows the total width should exceed 800.
+    let max_right = rects.iter().map(|r| r.right).max().unwrap();
+    assert!(max_right > a.right, "Row should overflow horizontally");
+}
+
+#[test]
+fn column_layout_extends_beyond_area_when_content_overflows() {
+    let a = area(800, 600);
+    let aspects = uniform_aspects(10);
+    let rects = compute_layout(LayoutType::Column, a, 10, &aspects);
+    assert_eq!(rects.len(), 10);
+    // With 10 wide windows, total height should exceed 600.
+    let max_bottom = rects.iter().map(|r| r.bottom).max().unwrap();
+    assert!(max_bottom > a.bottom, "Column should overflow vertically");
+}
+
+#[test]
+fn row_layout_fits_single_window() {
+    let a = area(1280, 720);
+    let aspects = uniform_aspects(1);
+    let rects = compute_layout(LayoutType::Row, a, 1, &aspects);
+    assert_eq!(rects.len(), 1);
+    // Single window should fill the area (accounting for padding).
+    assert!(rects[0].right <= a.right);
+}
+
+#[test]
+fn column_layout_fits_single_window() {
+    let a = area(1280, 720);
+    let aspects = uniform_aspects(1);
+    let rects = compute_layout(LayoutType::Column, a, 1, &aspects);
+    assert_eq!(rects.len(), 1);
+    assert!(rects[0].bottom <= a.bottom);
 }
 
 // ── Mixed aspect ratios ──────────────────────────────────────

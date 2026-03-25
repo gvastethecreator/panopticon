@@ -3,7 +3,7 @@
 use std::mem;
 
 use anyhow::{anyhow, Result};
-use panopticon::settings::{AppSelectionEntry, HiddenAppEntry};
+use panopticon::settings::{AppSelectionEntry, DockEdge, HiddenAppEntry};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Shell::{
@@ -41,6 +41,12 @@ const CMD_TRAY_TAG_FILTER_ALL: u16 = 300;
 const CMD_TRAY_TAG_FILTER_BASE: u16 = 310;
 const CMD_TRAY_APP_FILTER_ALL: u16 = 400;
 const CMD_TRAY_APP_FILTER_BASE: u16 = 410;
+const CMD_TRAY_DOCK_NONE: u16 = 500;
+const CMD_TRAY_DOCK_LEFT: u16 = 501;
+const CMD_TRAY_DOCK_RIGHT: u16 = 502;
+const CMD_TRAY_DOCK_TOP: u16 = 503;
+const CMD_TRAY_DOCK_BOTTOM: u16 = 504;
+const CMD_TRAY_TOGGLE_TOOLBAR: u16 = 13;
 
 /// Snapshot of UI preferences needed to render the tray menu.
 #[derive(Debug, Clone)]
@@ -76,6 +82,10 @@ pub struct TrayMenuState {
     pub available_apps: Vec<AppSelectionEntry>,
     /// Hidden applications that can be restored.
     pub hidden_apps: Vec<HiddenAppEntry>,
+    /// Current dock edge, if any.
+    pub dock_edge: Option<DockEdge>,
+    /// Whether the toolbar is visible.
+    pub show_toolbar: bool,
 }
 
 /// Commands emitted by the tray icon.
@@ -111,6 +121,10 @@ pub enum TrayAction {
     RestoreHidden(String),
     /// Restore all hidden applications.
     RestoreAllHidden,
+    /// Dock the window to a screen edge (or undock).
+    SetDockEdge(Option<DockEdge>),
+    /// Toggle the toolbar visibility.
+    ToggleToolbar,
     /// Exit the application.
     Exit,
 }
@@ -326,6 +340,13 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
         let default_aspect_ratio = encode_wide("Default: preserve aspect ratio");
         let default_hide_on_select = encode_wide("Default: hide after activation");
         let always_on_top = encode_wide("Keep Panopticon on top");
+        let show_toolbar = encode_wide("Show toolbar");
+        let dock_title = encode_wide("Dock position");
+        let dock_none = encode_wide("Floating (no dock)");
+        let dock_left = encode_wide("Left");
+        let dock_right = encode_wide("Right");
+        let dock_top = encode_wide("Top");
+        let dock_bottom = encode_wide("Bottom");
         let restore_hidden_title = encode_wide("Restore hidden apps");
         let restore_all_hidden = encode_wide("Restore all hidden apps");
         let monitor_filter_title = encode_wide("Filter by monitor");
@@ -417,6 +438,53 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
             CMD_TRAY_TOGGLE_ALWAYS_ON_TOP as usize,
             PCWSTR(always_on_top.as_ptr()),
         );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.show_toolbar),
+            CMD_TRAY_TOGGLE_TOOLBAR as usize,
+            PCWSTR(show_toolbar.as_ptr()),
+        );
+
+        // ── Dock submenu ───
+        {
+            let dock_menu = CreatePopupMenu().ok()?;
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge.is_none()),
+                CMD_TRAY_DOCK_NONE as usize,
+                PCWSTR(dock_none.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Left)),
+                CMD_TRAY_DOCK_LEFT as usize,
+                PCWSTR(dock_left.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Right)),
+                CMD_TRAY_DOCK_RIGHT as usize,
+                PCWSTR(dock_right.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Top)),
+                CMD_TRAY_DOCK_TOP as usize,
+                PCWSTR(dock_top.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Bottom)),
+                CMD_TRAY_DOCK_BOTTOM as usize,
+                PCWSTR(dock_bottom.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                menu,
+                MF_POPUP,
+                dock_menu.0 as usize,
+                PCWSTR(dock_title.as_ptr()),
+            );
+        }
 
         if !state.available_monitors.is_empty() {
             let monitor_menu = CreatePopupMenu().ok()?;
@@ -599,6 +667,12 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
             CMD_TRAY_TOGGLE_DEFAULT_ASPECT_RATIO => Some(TrayAction::ToggleDefaultAspectRatio),
             CMD_TRAY_TOGGLE_DEFAULT_HIDE_ON_SELECT => Some(TrayAction::ToggleDefaultHideOnSelect),
             CMD_TRAY_TOGGLE_ALWAYS_ON_TOP => Some(TrayAction::ToggleAlwaysOnTop),
+            CMD_TRAY_TOGGLE_TOOLBAR => Some(TrayAction::ToggleToolbar),
+            CMD_TRAY_DOCK_NONE => Some(TrayAction::SetDockEdge(None)),
+            CMD_TRAY_DOCK_LEFT => Some(TrayAction::SetDockEdge(Some(DockEdge::Left))),
+            CMD_TRAY_DOCK_RIGHT => Some(TrayAction::SetDockEdge(Some(DockEdge::Right))),
+            CMD_TRAY_DOCK_TOP => Some(TrayAction::SetDockEdge(Some(DockEdge::Top))),
+            CMD_TRAY_DOCK_BOTTOM => Some(TrayAction::SetDockEdge(Some(DockEdge::Bottom))),
             CMD_TRAY_MONITOR_ALL => Some(TrayAction::SetMonitorFilter(None)),
             CMD_TRAY_TAG_FILTER_ALL => Some(TrayAction::SetTagFilter(None)),
             CMD_TRAY_APP_FILTER_ALL => Some(TrayAction::SetAppFilter(None)),
