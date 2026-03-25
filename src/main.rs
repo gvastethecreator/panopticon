@@ -5,16 +5,14 @@
     clippy::cast_sign_loss,
     clippy::cast_precision_loss,
     clippy::cast_lossless,
-    clippy::wildcard_imports,
+    clippy::wildcard_imports
 )]
 
 //! Binary entry point for Panopticon — Slint UI with DWM thumbnail overlays.
 
 mod app;
 
-use app::tray::{
-    handle_tray_message, AppIcons, TrayAction, TrayIcon, TrayMenuState, WM_TRAYICON,
-};
+use app::tray::{handle_tray_message, AppIcons, TrayAction, TrayIcon, TrayMenuState, WM_TRAYICON};
 use panopticon::constants::{
     ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TOOLBAR_HEIGHT,
 };
@@ -32,7 +30,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
+use slint::{
+    CloseRequestResponse, ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel,
+};
 
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
@@ -41,7 +41,9 @@ use windows::Win32::Graphics::Dwm::{
     DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE,
     DWMWCP_ROUND,
 };
-use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY};
+use windows::Win32::Graphics::Gdi::{
+    GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
+};
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
@@ -57,9 +59,6 @@ slint::include_modules!();
 
 /// Callback message posted by the shell when the app-bar needs repositioning.
 const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
-
-/// Standard Win32 value: one wheel notch equals 120 delta units.
-const WHEEL_DELTA: i32 = 120;
 
 /// Context-menu command IDs for per-window right-click menu.
 const CMD_WINDOW_HIDE_APP: u16 = 1;
@@ -271,10 +270,9 @@ fn main() {
             let weak = main_window.as_weak();
             move || {
                 let visible = UI_STATE.with(|s| {
-                    s.borrow().as_ref().map_or(false, |rc| {
-                        rc.try_borrow().map_or(false, |s| unsafe {
-                            IsWindowVisible(s.hwnd).as_bool()
-                        })
+                    s.borrow().as_ref().is_some_and(|rc| {
+                        rc.try_borrow()
+                            .is_ok_and(|s| unsafe { IsWindowVisible(s.hwnd).as_bool() })
                     })
                 });
                 if !visible {
@@ -308,11 +306,7 @@ fn get_hwnd(window: &slint::Window) -> Option<HWND> {
 
 // ───────────────────────── HWND Subclass ─────────────────────────
 
-fn setup_subclass(
-    hwnd: HWND,
-    state: &Rc<RefCell<AppState>>,
-    main_window: &MainWindow,
-) {
+fn setup_subclass(hwnd: HWND, state: &Rc<RefCell<AppState>>, main_window: &MainWindow) {
     UI_STATE.with(|s| *s.borrow_mut() = Some(state.clone()));
     UI_WINDOW.with(|w| *w.borrow_mut() = Some(main_window.as_weak()));
 
@@ -320,12 +314,12 @@ fn setup_subclass(
     ORIGINAL_WNDPROC.with(|p| p.set(original));
 
     unsafe {
-        let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, subclass_proc as isize);
+        let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, subclass_proc as usize as isize);
     }
 }
 
 fn teardown_subclass(hwnd: HWND) {
-    let original = ORIGINAL_WNDPROC.with(|p| p.get());
+    let original = ORIGINAL_WNDPROC.with(Cell::get);
     if original != 0 {
         unsafe {
             let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, original);
@@ -336,8 +330,9 @@ fn teardown_subclass(hwnd: HWND) {
 }
 
 #[inline]
+#[allow(clippy::missing_transmute_annotations)]
 fn forward_to_original(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let original = ORIGINAL_WNDPROC.with(|p| p.get());
+    let original = ORIGINAL_WNDPROC.with(Cell::get);
     // SAFETY: `original` points to winit's WndProc set during window creation.
     unsafe { CallWindowProcW(mem::transmute(original), hwnd, msg, wparam, lparam) }
 }
@@ -368,12 +363,15 @@ unsafe extern "system" fn subclass_proc(
         WM_TRAYICON => {
             let mouse_msg = lparam.0 as u32;
             if mouse_msg == WM_LBUTTONUP {
-                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Tray(TrayAction::Toggle)));
+                PENDING_ACTIONS
+                    .with(|q| q.borrow_mut().push(PendingAction::Tray(TrayAction::Toggle)));
             } else if mouse_msg == WM_RBUTTONUP {
                 // Build the menu state snapshot (borrows & releases state).
                 let menu_state = UI_STATE.with(|s| {
                     s.borrow().as_ref().and_then(|rc| {
-                        rc.try_borrow_mut().ok().map(|mut st| build_tray_menu_state(&mut st))
+                        rc.try_borrow_mut()
+                            .ok()
+                            .map(|mut st| build_tray_menu_state(&mut st))
                     })
                 });
                 // `TrackPopupMenu` blocks; no borrows are held during the call.
@@ -393,9 +391,10 @@ unsafe extern "system" fn subclass_proc(
         }
         WM_CLOSE => {
             let should_hide = UI_STATE.with(|s| {
-                s.borrow().as_ref().and_then(|rc| {
-                    rc.try_borrow().ok().map(|st| st.settings.close_to_tray)
-                }).unwrap_or(false)
+                s.borrow()
+                    .as_ref()
+                    .and_then(|rc| rc.try_borrow().ok().map(|st| st.settings.close_to_tray))
+                    .unwrap_or(false)
             });
             if should_hide {
                 PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::HideToTray));
@@ -405,11 +404,14 @@ unsafe extern "system" fn subclass_proc(
             LRESULT(0)
         }
         WM_SIZE => {
-            if wparam.0 as u32 == 1 /* SIZE_MINIMIZED */ {
+            if wparam.0 as u32 == 1
+            /* SIZE_MINIMIZED */
+            {
                 let should_hide = UI_STATE.with(|s| {
-                    s.borrow().as_ref().and_then(|rc| {
-                        rc.try_borrow().ok().map(|st| st.settings.minimize_to_tray)
-                    }).unwrap_or(false)
+                    s.borrow()
+                        .as_ref()
+                        .and_then(|rc| rc.try_borrow().ok().map(|st| st.settings.minimize_to_tray))
+                        .unwrap_or(false)
                 });
                 if should_hide {
                     PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::HideToTray));
@@ -514,7 +516,11 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     let discovered: Vec<WindowInfo> = discovered_all
         .into_iter()
         .filter(|w| monitor_f.as_deref().is_none_or(|m| w.monitor_name == m))
-        .filter(|w| tag_f.as_deref().is_none_or(|t| s.settings.app_has_tag(&w.app_id, t)))
+        .filter(|w| {
+            tag_f
+                .as_deref()
+                .is_none_or(|t| s.settings.app_has_tag(&w.app_id, t))
+        })
         .filter(|w| app_f.as_deref().is_none_or(|a| w.app_id == a))
         .filter(|w| !s.settings.is_hidden(&w.app_id))
         .collect();
@@ -557,11 +563,7 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         }
     }
 
-    let existing: HashSet<isize> = s
-        .windows
-        .iter()
-        .map(|mw| mw.info.hwnd.0 as isize)
-        .collect();
+    let existing: HashSet<isize> = s.windows.iter().map(|mw| mw.info.hwnd.0 as isize).collect();
 
     for info in discovered {
         if existing.contains(&(info.hwnd.0 as isize)) {
@@ -601,7 +603,11 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let scale = win.window().scale_factor();
     let logical_w = (phys.width as f32 / scale).round() as i32;
     let logical_h = (phys.height as f32 / scale).round() as i32;
-    let toolbar_h = if s.settings.show_toolbar { TOOLBAR_HEIGHT } else { 0 };
+    let toolbar_h = if s.settings.show_toolbar {
+        TOOLBAR_HEIGHT
+    } else {
+        0
+    };
 
     // Layout engine works in logical pixels, content-area relative (top = 0).
     let content_area = RECT {
@@ -637,7 +643,11 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
 
     for (i, mw) in s.windows.iter_mut().enumerate() {
         if let Some(&rect) = rects.get(i) {
-            let prev = if rect_has_area(mw.display_rect) { mw.display_rect } else { rect };
+            let prev = if rect_has_area(mw.display_rect) {
+                mw.display_rect
+            } else {
+                rect
+            };
             mw.animation_from_rect = prev;
             mw.target_rect = rect;
             if can_animate && prev != rect {
@@ -719,20 +729,32 @@ fn update_hover_in_model(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
 // ───────────────────────── DWM Thumbnails ─────────────────────────
 
 fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let Ok(mut s) = state.try_borrow_mut() else { return };
+    let Ok(mut s) = state.try_borrow_mut() else {
+        return;
+    };
     if !unsafe { IsWindowVisible(s.hwnd).as_bool() } {
         return;
     }
 
     let scale = win.window().scale_factor();
     let phys = win.window().size();
-    let toolbar_h = if s.settings.show_toolbar { TOOLBAR_HEIGHT as f32 } else { 0.0 };
-    let footer_h = if s.settings.show_window_info { THUMBNAIL_FOOTER_HEIGHT } else { 0 };
+    let toolbar_h = if s.settings.show_toolbar {
+        TOOLBAR_HEIGHT as f32
+    } else {
+        0.0
+    };
+    let footer_h = if s.settings.show_window_info {
+        THUMBNAIL_FOOTER_HEIGHT
+    } else {
+        0
+    };
     let viewport_x = win.get_viewport_x();
     let viewport_y = win.get_viewport_y();
 
     let dest_hwnd = s.hwnd;
-    let preserve_flags: Vec<bool> = s.windows.iter()
+    let preserve_flags: Vec<bool> = s
+        .windows
+        .iter()
         .map(|mw| s.settings.preserve_aspect_ratio_for(&mw.info.app_id))
         .collect();
     for (i, mw) in s.windows.iter_mut().enumerate() {
@@ -761,6 +783,8 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::many_single_char_names)]
 fn compute_dwm_rect(
     card_rect: &RECT,
     source_size: SIZE,
@@ -784,7 +808,12 @@ fn compute_dwm_rect(
         let s = wr.min(hr);
         let rw = source_size.cx as f32 * s;
         let rh = source_size.cy as f32 * s;
-        (l + (aw - rw) / 2.0, t + (ah - rh) / 2.0, l + (aw - rw) / 2.0 + rw, t + (ah - rh) / 2.0 + rh)
+        (
+            l + (aw - rw) / 2.0,
+            t + (ah - rh) / 2.0,
+            l + (aw - rw) / 2.0 + rw,
+            t + (ah - rh) / 2.0 + rh,
+        )
     } else {
         (l, t, r, b)
     };
@@ -820,8 +849,12 @@ fn release_all_thumbnails(state: &Rc<RefCell<AppState>>) {
 
 fn query_source_size(handle: isize) -> SIZE {
     let mut size = unsafe { DwmQueryThumbnailSourceSize(handle).unwrap_or_default() };
-    if size.cx == 0 { size.cx = 800; }
-    if size.cy == 0 { size.cy = 600; }
+    if size.cx == 0 {
+        size.cx = 800;
+    }
+    if size.cy == 0 {
+        size.cy = 600;
+    }
     size
 }
 
@@ -833,7 +866,9 @@ fn handle_thumbnail_click(
     index: usize,
 ) {
     let s = state.borrow();
-    let Some(mw) = s.windows.get(index) else { return };
+    let Some(mw) = s.windows.get(index) else {
+        return;
+    };
     let info = mw.info.clone();
     let hide_on_select = s.settings.hide_on_select_for(&info.app_id);
     drop(s);
@@ -851,7 +886,9 @@ fn handle_thumbnail_click(
 
 fn handle_thumbnail_right_click(state: &Rc<RefCell<AppState>>, index: usize) {
     let s = state.borrow();
-    let Some(mw) = s.windows.get(index) else { return };
+    let Some(mw) = s.windows.get(index) else {
+        return;
+    };
     let info = mw.info.clone();
     let preserve = s.settings.preserve_aspect_ratio_for(&info.app_id);
     let hide_on = s.settings.hide_on_select_for(&info.app_id);
@@ -897,30 +934,70 @@ fn show_window_context_menu(
         let mut tag_labels: Vec<Vec<u16>> = Vec::with_capacity(known_tags.len());
         let mut tag_actions: Vec<(u16, String)> = Vec::with_capacity(known_tags.len());
 
-        let _ = AppendMenuW(menu, MF_STRING, CMD_WINDOW_HIDE_APP as usize, PCWSTR(hide_label.as_ptr()));
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            CMD_WINDOW_HIDE_APP as usize,
+            PCWSTR(hide_label.as_ptr()),
+        );
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-        let _ = AppendMenuW(menu, MF_STRING | checked_flag(preserve_aspect_ratio), CMD_WINDOW_TOGGLE_ASPECT_RATIO as usize, PCWSTR(aspect_label.as_ptr()));
-        let _ = AppendMenuW(menu, MF_STRING | checked_flag(hide_on_select), CMD_WINDOW_TOGGLE_HIDE_ON_SELECT as usize, PCWSTR(hide_after_label.as_ptr()));
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(preserve_aspect_ratio),
+            CMD_WINDOW_TOGGLE_ASPECT_RATIO as usize,
+            PCWSTR(aspect_label.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(hide_on_select),
+            CMD_WINDOW_TOGGLE_HIDE_ON_SELECT as usize,
+            PCWSTR(hide_after_label.as_ptr()),
+        );
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-        let _ = AppendMenuW(menu, MF_STRING, CMD_WINDOW_CREATE_TAG_FROM_APP as usize, PCWSTR(create_tag_label.as_ptr()));
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            CMD_WINDOW_CREATE_TAG_FROM_APP as usize,
+            PCWSTR(create_tag_label.as_ptr()),
+        );
 
         if !known_tags.is_empty() {
             let tags_menu = CreatePopupMenu().ok()?;
             for (i, tag) in known_tags.iter().enumerate() {
-                let Some(cmd) = CMD_WINDOW_TAG_BASE.checked_add(i as u16) else { break };
+                let Some(cmd) = CMD_WINDOW_TAG_BASE.checked_add(i as u16) else {
+                    break;
+                };
                 tag_labels.push(wide(tag));
                 if let Some(label) = tag_labels.last() {
-                    let _ = AppendMenuW(tags_menu, MF_STRING | checked_flag(current_tags.contains(tag)), cmd as usize, PCWSTR(label.as_ptr()));
+                    let _ = AppendMenuW(
+                        tags_menu,
+                        MF_STRING | checked_flag(current_tags.contains(tag)),
+                        cmd as usize,
+                        PCWSTR(label.as_ptr()),
+                    );
                 }
                 tag_actions.push((cmd, tag.clone()));
             }
-            let _ = AppendMenuW(menu, MF_POPUP, tags_menu.0 as usize, PCWSTR(tags_title.as_ptr()));
+            let _ = AppendMenuW(
+                menu,
+                MF_POPUP,
+                tags_menu.0 as usize,
+                PCWSTR(tags_title.as_ptr()),
+            );
         }
 
         let mut cursor = POINT::default();
-        let _ = GetCursorPos(&mut cursor);
+        let _ = GetCursorPos(&raw mut cursor);
         let _ = SetForegroundWindow(parent_hwnd);
-        let cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_NONOTIFY | TPM_LEFTALIGN | TPM_BOTTOMALIGN, cursor.x, cursor.y, 0, parent_hwnd, None);
+        let cmd = TrackPopupMenu(
+            menu,
+            TPM_RETURNCMD | TPM_NONOTIFY | TPM_LEFTALIGN | TPM_BOTTOMALIGN,
+            cursor.x,
+            cursor.y,
+            0,
+            parent_hwnd,
+            None,
+        );
         let _ = DestroyMenu(menu);
 
         match cmd.0 as u16 {
@@ -928,7 +1005,9 @@ fn show_window_context_menu(
             CMD_WINDOW_TOGGLE_ASPECT_RATIO => Some(WindowMenuAction::ToggleAspectRatio),
             CMD_WINDOW_TOGGLE_HIDE_ON_SELECT => Some(WindowMenuAction::ToggleHideOnSelect),
             CMD_WINDOW_CREATE_TAG_FROM_APP => Some(WindowMenuAction::CreateTagFromApp),
-            dynamic => tag_actions.into_iter().find_map(|(c, t)| (dynamic == c).then_some(WindowMenuAction::ToggleTag(t))),
+            dynamic => tag_actions
+                .into_iter()
+                .find_map(|(c, t)| (dynamic == c).then_some(WindowMenuAction::ToggleTag(t))),
         }
     }
 }
@@ -940,51 +1019,82 @@ fn handle_window_menu_action(
 ) {
     match action {
         WindowMenuAction::HideApp => {
-            update_settings(state, |s| { let _ = s.toggle_hidden(&info.app_id, &info.app_label()); });
+            update_settings(state, |s| {
+                let _ = s.toggle_hidden(&info.app_id, &info.app_label());
+            });
         }
         WindowMenuAction::ToggleAspectRatio => {
-            update_settings(state, |s| { let _ = s.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label()); });
+            update_settings(state, |s| {
+                let _ = s.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label());
+            });
         }
         WindowMenuAction::ToggleHideOnSelect => {
-            update_settings(state, |s| { let _ = s.toggle_app_hide_on_select(&info.app_id, &info.app_label()); });
+            update_settings(state, |s| {
+                let _ = s.toggle_app_hide_on_select(&info.app_id, &info.app_label());
+            });
         }
         WindowMenuAction::CreateTagFromApp => {
             // Tag creation via Slint dialog is deferred for a future iteration.
             tracing::info!(app_id = %info.app_id, "tag creation requested");
         }
         WindowMenuAction::ToggleTag(tag) => {
-            update_settings(state, |s| { let _ = s.toggle_app_tag(&info.app_id, &info.app_label(), &tag); });
+            update_settings(state, |s| {
+                let _ = s.toggle_app_tag(&info.app_id, &info.app_label(), &tag);
+            });
         }
     }
 }
 
 // ───────────────────────── Keyboard ─────────────────────────
 
-fn handle_key(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    key: &str,
-) -> bool {
+fn handle_key(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, key: &str) -> bool {
     match key {
-        "1" => { set_layout(state, weak, LayoutType::Grid); true }
-        "2" => { set_layout(state, weak, LayoutType::Mosaic); true }
-        "3" => { set_layout(state, weak, LayoutType::Bento); true }
-        "4" => { set_layout(state, weak, LayoutType::Fibonacci); true }
-        "5" => { set_layout(state, weak, LayoutType::Columns); true }
-        "6" => { set_layout(state, weak, LayoutType::Row); true }
-        "7" => { set_layout(state, weak, LayoutType::Column); true }
+        "1" => {
+            set_layout(state, weak, LayoutType::Grid);
+            true
+        }
+        "2" => {
+            set_layout(state, weak, LayoutType::Mosaic);
+            true
+        }
+        "3" => {
+            set_layout(state, weak, LayoutType::Bento);
+            true
+        }
+        "4" => {
+            set_layout(state, weak, LayoutType::Fibonacci);
+            true
+        }
+        "5" => {
+            set_layout(state, weak, LayoutType::Columns);
+            true
+        }
+        "6" => {
+            set_layout(state, weak, LayoutType::Row);
+            true
+        }
+        "7" => {
+            set_layout(state, weak, LayoutType::Column);
+            true
+        }
         "a" | "A" => {
-            update_settings(state, |s| { s.animate_transitions = !s.animate_transitions; });
+            update_settings(state, |s| {
+                s.animate_transitions = !s.animate_transitions;
+            });
             refresh_ui(state, weak);
             true
         }
         "h" | "H" => {
-            update_settings(state, |s| { s.show_toolbar = !s.show_toolbar; });
+            update_settings(state, |s| {
+                s.show_toolbar = !s.show_toolbar;
+            });
             refresh_ui(state, weak);
             true
         }
         "i" | "I" => {
-            update_settings(state, |s| { s.show_window_info = !s.show_window_info; });
+            update_settings(state, |s| {
+                s.show_window_info = !s.show_window_info;
+            });
             refresh_ui(state, weak);
             true
         }
@@ -993,7 +1103,9 @@ fn handle_key(
             true
         }
         "p" | "P" => {
-            update_settings(state, |s| { s.always_on_top = !s.always_on_top; });
+            update_settings(state, |s| {
+                s.always_on_top = !s.always_on_top;
+            });
             let s = state.borrow();
             apply_topmost_mode(s.hwnd, s.settings.always_on_top);
             drop(s);
@@ -1011,7 +1123,8 @@ fn handle_key(
             refresh_ui(state, weak);
             true
         }
-        "\u{001B}" => { // Escape
+        "\u{001B}" => {
+            // Escape
             PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Exit));
             true
         }
@@ -1052,7 +1165,11 @@ fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
 }
 
 #[allow(clippy::too_many_lines)]
-fn handle_tray_action(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, action: TrayAction) {
+fn handle_tray_action(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    action: TrayAction,
+) {
     match action {
         TrayAction::Toggle => toggle_visibility(state, weak),
         TrayAction::Refresh => {
@@ -1064,52 +1181,74 @@ fn handle_tray_action(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWind
             refresh_ui(state, weak);
         }
         TrayAction::ToggleMinimizeToTray => {
-            update_settings(state, |s| { s.minimize_to_tray = !s.minimize_to_tray; });
+            update_settings(state, |s| {
+                s.minimize_to_tray = !s.minimize_to_tray;
+            });
         }
         TrayAction::ToggleCloseToTray => {
-            update_settings(state, |s| { s.close_to_tray = !s.close_to_tray; });
+            update_settings(state, |s| {
+                s.close_to_tray = !s.close_to_tray;
+            });
         }
         TrayAction::CycleRefreshInterval => {
             update_settings(state, AppSettings::cycle_refresh_interval);
             refresh_ui(state, weak);
         }
         TrayAction::ToggleAnimateTransitions => {
-            update_settings(state, |s| { s.animate_transitions = !s.animate_transitions; });
+            update_settings(state, |s| {
+                s.animate_transitions = !s.animate_transitions;
+            });
         }
         TrayAction::ToggleDefaultAspectRatio => {
-            update_settings(state, |s| { s.preserve_aspect_ratio = !s.preserve_aspect_ratio; });
+            update_settings(state, |s| {
+                s.preserve_aspect_ratio = !s.preserve_aspect_ratio;
+            });
             refresh_ui(state, weak);
         }
         TrayAction::ToggleDefaultHideOnSelect => {
-            update_settings(state, |s| { s.hide_on_select = !s.hide_on_select; });
+            update_settings(state, |s| {
+                s.hide_on_select = !s.hide_on_select;
+            });
         }
         TrayAction::ToggleAlwaysOnTop => {
-            update_settings(state, |s| { s.always_on_top = !s.always_on_top; });
+            update_settings(state, |s| {
+                s.always_on_top = !s.always_on_top;
+            });
             let s = state.borrow();
             apply_topmost_mode(s.hwnd, s.settings.always_on_top);
         }
         TrayAction::SetMonitorFilter(filter) => {
-            update_settings(state, |s| { s.set_monitor_filter(filter.as_deref()); });
+            update_settings(state, |s| {
+                s.set_monitor_filter(filter.as_deref());
+            });
             refresh_windows(state);
             refresh_ui(state, weak);
         }
         TrayAction::SetTagFilter(filter) => {
-            update_settings(state, |s| { s.set_tag_filter(filter.as_deref()); });
+            update_settings(state, |s| {
+                s.set_tag_filter(filter.as_deref());
+            });
             refresh_windows(state);
             refresh_ui(state, weak);
         }
         TrayAction::SetAppFilter(filter) => {
-            update_settings(state, |s| { s.set_app_filter(filter.as_deref()); });
+            update_settings(state, |s| {
+                s.set_app_filter(filter.as_deref());
+            });
             refresh_windows(state);
             refresh_ui(state, weak);
         }
         TrayAction::RestoreHidden(app_id) => {
-            update_settings(state, |s| { let _ = s.restore_hidden_app(&app_id); });
+            update_settings(state, |s| {
+                let _ = s.restore_hidden_app(&app_id);
+            });
             refresh_windows(state);
             refresh_ui(state, weak);
         }
         TrayAction::RestoreAllHidden => {
-            update_settings(state, |s| { let _ = s.restore_all_hidden_apps(); });
+            update_settings(state, |s| {
+                let _ = s.restore_all_hidden_apps();
+            });
             refresh_windows(state);
             refresh_ui(state, weak);
         }
@@ -1134,7 +1273,9 @@ fn handle_tray_action(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWind
             refresh_ui(state, weak);
         }
         TrayAction::ToggleToolbar => {
-            update_settings(state, |s| { s.show_toolbar = !s.show_toolbar; });
+            update_settings(state, |s| {
+                s.show_toolbar = !s.show_toolbar;
+            });
             refresh_ui(state, weak);
         }
         TrayAction::OpenSettingsWindow => {
@@ -1146,11 +1287,7 @@ fn handle_tray_action(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWind
     }
 }
 
-fn handle_pending_action(
-    state: &Rc<RefCell<AppState>>,
-    win: &MainWindow,
-    action: PendingAction,
-) {
+fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action: PendingAction) {
     let weak = win.as_weak();
     match action {
         PendingAction::Tray(ta) => handle_tray_action(state, &weak, ta),
@@ -1215,35 +1352,35 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, _main_weak: &slint::Weak<
         let state = state.clone();
         move || {
             SETTINGS_WIN.with(|h| {
-            let guard = h.borrow();
-            let Some(sw) = guard.as_ref() else { return };
-            let mut s = state.borrow_mut();
-            s.settings.always_on_top = sw.get_always_on_top_setting();
-            s.settings.animate_transitions = sw.get_animate_transitions_setting();
-            s.settings.minimize_to_tray = sw.get_minimize_to_tray_setting();
-            s.settings.close_to_tray = sw.get_close_to_tray_setting();
-            s.settings.preserve_aspect_ratio = sw.get_preserve_aspect_ratio_setting();
-            s.settings.hide_on_select = sw.get_hide_on_select_setting();
-            s.settings.show_toolbar = sw.get_show_toolbar_setting();
-            s.settings.show_window_info = sw.get_show_info_setting();
-            s.settings.use_system_backdrop = sw.get_use_system_backdrop_setting();
-            s.settings.background_color_hex = sw.get_bg_color_hex().to_string();
-            let fw = sw.get_fixed_width_value();
-            s.settings.fixed_width = if fw > 0 { Some(fw as u32) } else { None };
-            let fh = sw.get_fixed_height_value();
-            s.settings.fixed_height = if fh > 0 { Some(fh as u32) } else { None };
-            s.settings.refresh_interval_ms = index_to_refresh(sw.get_refresh_index());
-            let layout = index_to_layout(sw.get_layout_index());
-            s.settings.initial_layout = layout;
-            s.current_layout = layout;
-            s.settings = s.settings.normalized();
-            let _ = s.settings.save(s.profile_name.as_deref());
-            let hwnd = s.hwnd;
-            let always_on_top = s.settings.always_on_top;
-            let settings_clone = s.settings.clone();
-            drop(s);
-            apply_window_appearance(hwnd, &settings_clone);
-            apply_topmost_mode(hwnd, always_on_top);
+                let guard = h.borrow();
+                let Some(sw) = guard.as_ref() else { return };
+                let mut s = state.borrow_mut();
+                s.settings.always_on_top = sw.get_always_on_top_setting();
+                s.settings.animate_transitions = sw.get_animate_transitions_setting();
+                s.settings.minimize_to_tray = sw.get_minimize_to_tray_setting();
+                s.settings.close_to_tray = sw.get_close_to_tray_setting();
+                s.settings.preserve_aspect_ratio = sw.get_preserve_aspect_ratio_setting();
+                s.settings.hide_on_select = sw.get_hide_on_select_setting();
+                s.settings.show_toolbar = sw.get_show_toolbar_setting();
+                s.settings.show_window_info = sw.get_show_info_setting();
+                s.settings.use_system_backdrop = sw.get_use_system_backdrop_setting();
+                s.settings.background_color_hex = sw.get_bg_color_hex().to_string();
+                let fw = sw.get_fixed_width_value();
+                s.settings.fixed_width = if fw > 0 { Some(fw as u32) } else { None };
+                let fh = sw.get_fixed_height_value();
+                s.settings.fixed_height = if fh > 0 { Some(fh as u32) } else { None };
+                s.settings.refresh_interval_ms = index_to_refresh(sw.get_refresh_index());
+                let layout = index_to_layout(sw.get_layout_index());
+                s.settings.initial_layout = layout;
+                s.current_layout = layout;
+                s.settings = s.settings.normalized();
+                let _ = s.settings.save(s.profile_name.as_deref());
+                let hwnd = s.hwnd;
+                let always_on_top = s.settings.always_on_top;
+                let settings_clone = s.settings.clone();
+                drop(s);
+                apply_window_appearance(hwnd, &settings_clone);
+                apply_topmost_mode(hwnd, always_on_top);
             });
         }
     });
@@ -1274,11 +1411,7 @@ fn cycle_layout(state: &Rc<RefCell<AppState>>) {
     let _ = s.settings.save(s.profile_name.as_deref());
 }
 
-fn set_layout(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    layout: LayoutType,
-) {
+fn set_layout(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, layout: LayoutType) {
     {
         let mut s = state.borrow_mut();
         if s.current_layout == layout {
@@ -1305,8 +1438,12 @@ fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
 }
 
 fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let Ok(mut s) = state.try_borrow_mut() else { return };
-    let Some(started_at) = s.animation_started_at else { return };
+    let Ok(mut s) = state.try_borrow_mut() else {
+        return;
+    };
+    let Some(started_at) = s.animation_started_at else {
+        return;
+    };
     if !unsafe { IsWindowVisible(s.hwnd).as_bool() } {
         s.animation_started_at = None;
         return;
@@ -1390,7 +1527,9 @@ fn request_exit(state: &Rc<RefCell<AppState>>) {
             tray.remove();
         }
     }
-    SETTINGS_WIN.with(|h| { h.borrow_mut().take(); });
+    SETTINGS_WIN.with(|h| {
+        h.borrow_mut().take();
+    });
     slint::quit_event_loop().ok();
 }
 
@@ -1399,14 +1538,30 @@ fn request_exit(state: &Rc<RefCell<AppState>>) {
 fn apply_window_appearance(hwnd: HWND, settings: &AppSettings) {
     let dark_mode: i32 = 1;
     let corner = DWMWCP_ROUND;
-    let backdrop = if settings.use_system_backdrop { DWMSBT_MAINWINDOW } else { DWMSBT_NONE };
+    let backdrop = if settings.use_system_backdrop {
+        DWMSBT_MAINWINDOW
+    } else {
+        DWMSBT_NONE
+    };
     unsafe {
-        let _ = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
-            std::ptr::from_ref(&dark_mode).cast::<c_void>(), mem::size_of_val(&dark_mode) as u32);
-        let _ = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
-            std::ptr::from_ref(&corner).cast::<c_void>(), mem::size_of_val(&corner) as u32);
-        let _ = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE,
-            std::ptr::from_ref(&backdrop).cast::<c_void>(), mem::size_of_val(&backdrop) as u32);
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            std::ptr::from_ref(&dark_mode).cast::<c_void>(),
+            mem::size_of_val(&dark_mode) as u32,
+        );
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            std::ptr::from_ref(&corner).cast::<c_void>(),
+            mem::size_of_val(&corner) as u32,
+        );
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            std::ptr::from_ref(&backdrop).cast::<c_void>(),
+            mem::size_of_val(&backdrop) as u32,
+        );
     }
 }
 
@@ -1414,8 +1569,15 @@ fn apply_topmost_mode(hwnd: HWND, always_on_top: bool) {
     unsafe {
         let _ = SetWindowPos(
             hwnd,
-            if always_on_top { HWND_TOPMOST } else { HWND_NOTOPMOST },
-            0, 0, 0, 0,
+            if always_on_top {
+                HWND_TOPMOST
+            } else {
+                HWND_NOTOPMOST
+            },
+            0,
+            0,
+            0,
+            0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
         );
     }
@@ -1441,7 +1603,7 @@ fn register_appbar(hwnd: HWND) -> bool {
         uCallbackMessage: WM_APPBAR_CALLBACK,
         ..Default::default()
     };
-    unsafe { SHAppBarMessage(ABM_NEW, &mut abd) != 0 }
+    unsafe { SHAppBarMessage(ABM_NEW, &raw mut abd) != 0 }
 }
 
 fn unregister_appbar(hwnd: HWND) {
@@ -1450,12 +1612,16 @@ fn unregister_appbar(hwnd: HWND) {
         hWnd: hwnd,
         ..Default::default()
     };
-    unsafe { let _ = SHAppBarMessage(ABM_REMOVE, &mut abd); }
+    unsafe {
+        let _ = SHAppBarMessage(ABM_REMOVE, &raw mut abd);
+    }
 }
 
 #[allow(clippy::similar_names)]
 fn reposition_appbar(state: &mut AppState) {
-    let Some(edge) = state.settings.dock_edge else { return };
+    let Some(edge) = state.settings.dock_edge else {
+        return;
+    };
     let hwnd = state.hwnd;
     let monitor_rect = get_monitor_rect(hwnd);
     let abe = dock_edge_to_abe(edge);
@@ -1473,24 +1639,42 @@ fn reposition_appbar(state: &mut AppState) {
     };
 
     unsafe {
-        let _ = SHAppBarMessage(ABM_QUERYPOS, &mut abd);
+        let _ = SHAppBarMessage(ABM_QUERYPOS, &raw mut abd);
         match edge {
             DockEdge::Left => abd.rc.right = abd.rc.left + thickness,
             DockEdge::Right => abd.rc.left = abd.rc.right - thickness,
             DockEdge::Top => abd.rc.bottom = abd.rc.top + thickness,
             DockEdge::Bottom => abd.rc.top = abd.rc.bottom - thickness,
         }
-        let _ = SHAppBarMessage(ABM_SETPOS, &mut abd);
-        let _ = SetWindowPos(hwnd, HWND_TOPMOST, abd.rc.left, abd.rc.top,
-            abd.rc.right - abd.rc.left, abd.rc.bottom - abd.rc.top, SWP_NOACTIVATE);
+        let _ = SHAppBarMessage(ABM_SETPOS, &raw mut abd);
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            abd.rc.left,
+            abd.rc.top,
+            abd.rc.right - abd.rc.left,
+            abd.rc.bottom - abd.rc.top,
+            SWP_NOACTIVATE,
+        );
     }
 }
 
 fn restore_floating_style(hwnd: HWND) {
     unsafe {
-        let _ = SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_OVERLAPPEDWINDOW | WS_VISIBLE).0 as isize);
-        let _ = SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        let _ = SetWindowLongPtrW(
+            hwnd,
+            GWL_STYLE,
+            (WS_OVERLAPPEDWINDOW | WS_VISIBLE).0 as isize,
+        );
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
     }
 }
 
@@ -1506,9 +1690,20 @@ const fn dock_edge_to_abe(edge: DockEdge) -> u32 {
 fn get_monitor_rect(hwnd: HWND) -> RECT {
     unsafe {
         let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
-        let mut info = MONITORINFO { cbSize: mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
-        if GetMonitorInfoW(monitor, &mut info).as_bool() { info.rcMonitor }
-        else { RECT { left: 0, top: 0, right: 1920, bottom: 1080 } }
+        let mut info = MONITORINFO {
+            cbSize: mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if GetMonitorInfoW(monitor, &raw mut info).as_bool() {
+            info.rcMonitor
+        } else {
+            RECT {
+                left: 0,
+                top: 0,
+                right: 1920,
+                bottom: 1080,
+            }
+        }
     }
 }
 
@@ -1520,7 +1715,9 @@ fn parse_profile_from_args() -> Option<String> {
     while i < args.len() {
         if args[i] == "--profile" && i + 1 < args.len() {
             let name = args[i + 1].trim().to_owned();
-            if !name.is_empty() { return Some(name); }
+            if !name.is_empty() {
+                return Some(name);
+            }
         }
         i += 1;
     }
@@ -1531,8 +1728,9 @@ fn tag_accent_color(settings: &AppSettings) -> slint::Color {
     settings
         .active_tag_filter
         .as_deref()
-        .map(|tag| hex_to_slint_color(&settings.tag_color_hex(tag)))
-        .unwrap_or(slint::Color::from_rgb_u8(0xD2, 0x9A, 0x5C))
+        .map_or(slint::Color::from_rgb_u8(0xD2, 0x9A, 0x5C), |tag| {
+            hex_to_slint_color(&settings.tag_color_hex(tag))
+        })
 }
 
 fn hex_to_slint_color(hex: &str) -> slint::Color {
@@ -1555,8 +1753,12 @@ fn truncate_title(title: &str) -> String {
 
 fn active_filter_summary(settings: &AppSettings) -> Option<String> {
     let mut parts = Vec::new();
-    if let Some(m) = &settings.active_monitor_filter { parts.push(format!("monitor:{m}")); }
-    if let Some(g) = settings.active_group_filter_label() { parts.push(g); }
+    if let Some(m) = &settings.active_monitor_filter {
+        parts.push(format!("monitor:{m}"));
+    }
+    if let Some(g) = settings.active_group_filter_label() {
+        parts.push(g);
+    }
     (!parts.is_empty()).then(|| parts.join(" · "))
 }
 
@@ -1596,7 +1798,11 @@ fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
 }
 
 fn checked_flag(enabled: bool) -> MENU_ITEM_FLAGS {
-    if enabled { MF_CHECKED } else { MF_UNCHECKED }
+    if enabled {
+        MF_CHECKED
+    } else {
+        MF_UNCHECKED
+    }
 }
 
 fn wide(value: &str) -> Vec<u16> {
@@ -1617,7 +1823,6 @@ fn layout_to_index(layout: LayoutType) -> i32 {
 
 fn index_to_layout(i: i32) -> LayoutType {
     match i {
-        0 => LayoutType::Grid,
         1 => LayoutType::Mosaic,
         2 => LayoutType::Bento,
         3 => LayoutType::Fibonacci,
@@ -1629,9 +1834,19 @@ fn index_to_layout(i: i32) -> LayoutType {
 }
 
 fn refresh_to_index(ms: u32) -> i32 {
-    match ms { 1_000 => 0, 2_000 => 1, 5_000 => 2, 10_000 => 3, _ => 1 }
+    match ms {
+        1_000 => 0,
+        5_000 => 2,
+        10_000 => 3,
+        _ => 1,
+    }
 }
 
 fn index_to_refresh(i: i32) -> u32 {
-    match i { 0 => 1_000, 1 => 2_000, 2 => 5_000, 3 => 10_000, _ => 2_000 }
+    match i {
+        0 => 1_000,
+        2 => 5_000,
+        3 => 10_000,
+        _ => 2_000,
+    }
 }
