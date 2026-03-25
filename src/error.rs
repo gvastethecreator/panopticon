@@ -24,6 +24,14 @@ pub enum PanopticonError {
     /// Logging subsystem failed to initialise.
     #[error("logging initialisation failed: {0}")]
     Logging(String),
+
+    /// Persistent settings could not be read or written.
+    #[error("settings I/O failed: {0}")]
+    SettingsIo(#[from] std::io::Error),
+
+    /// Persistent settings could not be parsed or serialized.
+    #[error("settings parse failed: {0}")]
+    SettingsParse(String),
 }
 
 /// Convenience alias for `Result<T, PanopticonError>`.

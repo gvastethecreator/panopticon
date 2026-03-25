@@ -24,7 +24,23 @@ const TRAY_ICON_ID: u32 = 1;
 const CMD_TRAY_TOGGLE: u16 = 1;
 const CMD_TRAY_REFRESH: u16 = 2;
 const CMD_TRAY_NEXT_LAYOUT: u16 = 3;
-const CMD_TRAY_EXIT: u16 = 4;
+const CMD_TRAY_TOGGLE_MINIMIZE_TO_TRAY: u16 = 4;
+const CMD_TRAY_TOGGLE_CLOSE_TO_TRAY: u16 = 5;
+const CMD_TRAY_CYCLE_REFRESH: u16 = 6;
+const CMD_TRAY_EXIT: u16 = 7;
+
+/// Snapshot of UI preferences needed to render the tray menu.
+#[derive(Debug, Clone, Copy)]
+pub struct TrayMenuState {
+    /// Whether the main window is currently visible.
+    pub window_visible: bool,
+    /// Whether minimizing should hide to the tray.
+    pub minimize_to_tray: bool,
+    /// Whether closing should hide to the tray.
+    pub close_to_tray: bool,
+    /// Current refresh interval in milliseconds.
+    pub refresh_interval_ms: u32,
+}
 
 /// Commands emitted by the tray icon.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +51,12 @@ pub enum TrayAction {
     Refresh,
     /// Cycle to the next layout mode.
     NextLayout,
+    /// Toggle “hide on minimize”.
+    ToggleMinimizeToTray,
+    /// Toggle “hide on close”.
+    ToggleCloseToTray,
+    /// Cycle the refresh interval.
+    CycleRefreshInterval,
     /// Exit the application.
     Exit,
 }
@@ -142,10 +164,10 @@ impl Drop for TrayIcon {
 
 /// Convert a tray callback into a higher-level action.
 #[must_use]
-pub fn handle_tray_message(hwnd: HWND, lparam: LPARAM, window_visible: bool) -> Option<TrayAction> {
+pub fn handle_tray_message(hwnd: HWND, lparam: LPARAM, state: TrayMenuState) -> Option<TrayAction> {
     match lparam.0 as u32 {
         WM_LBUTTONUP => Some(TrayAction::Toggle),
-        WM_RBUTTONUP => show_tray_menu(hwnd, window_visible),
+        WM_RBUTTONUP => show_tray_menu(hwnd, state),
         _ => None,
     }
 }
@@ -210,11 +232,11 @@ fn notify_data(hwnd: HWND, icon: HICON) -> NOTIFYICONDATAW {
     nid
 }
 
-fn show_tray_menu(hwnd: HWND, window_visible: bool) -> Option<TrayAction> {
+fn show_tray_menu(hwnd: HWND, state: TrayMenuState) -> Option<TrayAction> {
     // SAFETY: menu is created, populated, and destroyed on the same thread.
     unsafe {
         let menu = CreatePopupMenu().ok()?;
-        let toggle_label = if window_visible {
+        let toggle_label = if state.window_visible {
             "Hide to tray"
         } else {
             "Show Panopticon"
@@ -223,6 +245,12 @@ fn show_tray_menu(hwnd: HWND, window_visible: bool) -> Option<TrayAction> {
         let toggle = encode_wide(toggle_label);
         let refresh = encode_wide("Refresh windows");
         let next_layout = encode_wide("Next layout");
+        let minimize_to_tray = encode_wide("Hide on minimize");
+        let close_to_tray = encode_wide("Hide on close");
+        let refresh_interval = encode_wide(&format!(
+            "Cycle refresh interval ({})",
+            format_refresh_interval_label(state.refresh_interval_ms)
+        ));
         let exit = encode_wide("Exit");
 
         let _ = AppendMenuW(
@@ -242,6 +270,35 @@ fn show_tray_menu(hwnd: HWND, window_visible: bool) -> Option<TrayAction> {
             MF_STRING,
             CMD_TRAY_NEXT_LAYOUT as usize,
             PCWSTR(next_layout.as_ptr()),
+        );
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING
+                | if state.minimize_to_tray {
+                    windows::Win32::UI::WindowsAndMessaging::MF_CHECKED
+                } else {
+                    windows::Win32::UI::WindowsAndMessaging::MF_UNCHECKED
+                },
+            CMD_TRAY_TOGGLE_MINIMIZE_TO_TRAY as usize,
+            PCWSTR(minimize_to_tray.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING
+                | if state.close_to_tray {
+                    windows::Win32::UI::WindowsAndMessaging::MF_CHECKED
+                } else {
+                    windows::Win32::UI::WindowsAndMessaging::MF_UNCHECKED
+                },
+            CMD_TRAY_TOGGLE_CLOSE_TO_TRAY as usize,
+            PCWSTR(close_to_tray.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            CMD_TRAY_CYCLE_REFRESH as usize,
+            PCWSTR(refresh_interval.as_ptr()),
         );
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
         let _ = AppendMenuW(
@@ -271,9 +328,20 @@ fn show_tray_menu(hwnd: HWND, window_visible: bool) -> Option<TrayAction> {
             CMD_TRAY_TOGGLE => Some(TrayAction::Toggle),
             CMD_TRAY_REFRESH => Some(TrayAction::Refresh),
             CMD_TRAY_NEXT_LAYOUT => Some(TrayAction::NextLayout),
+            CMD_TRAY_TOGGLE_MINIMIZE_TO_TRAY => Some(TrayAction::ToggleMinimizeToTray),
+            CMD_TRAY_TOGGLE_CLOSE_TO_TRAY => Some(TrayAction::ToggleCloseToTray),
+            CMD_TRAY_CYCLE_REFRESH => Some(TrayAction::CycleRefreshInterval),
             CMD_TRAY_EXIT => Some(TrayAction::Exit),
             _ => None,
         }
+    }
+}
+
+fn format_refresh_interval_label(interval_ms: u32) -> String {
+    if interval_ms.is_multiple_of(1_000) {
+        format!("{}s", interval_ms / 1_000)
+    } else {
+        format!("{:.1}s", f64::from(interval_ms) / 1_000.0)
     }
 }
 

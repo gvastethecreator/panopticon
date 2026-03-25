@@ -13,6 +13,7 @@ Panopticon renders hardware-accelerated live previews of every open window, orga
 - **📐 5 layout modes** — Grid, Mosaic, Bento, Fibonacci, Columns.
 - **🖱️ Click-to-activate** — Click any thumbnail to bring that window to the foreground.
 - **🧭 Tray icon + quick menu** — Minimise to tray, restore with one click, or right-click for actions.
+- **⚙️ Persistent preferences** — Remember layout, refresh interval, and tray behavior across launches.
 - **📏 Per-Monitor DPI Aware** — Correct rendering on mixed-DPI multi-monitor setups.
 - **📝 Structured logging** — Logs written to `%TEMP%/panopticon/logs/` via `tracing`.
 - **⚡ Low footprint** — < 1 % CPU idle, < 50 MB RAM.
@@ -58,8 +59,22 @@ cargo run --release
 | **Click** on toolbar | Switch layout mode |
 | **Minimize / Close** | Hide to tray instead of terminating the app |
 | **Left-click** tray icon | Restore / hide Panopticon |
-| **Right-click** tray icon | Open quick actions (show, refresh, next layout, exit) |
+| **Right-click** tray icon | Open quick actions and preferences |
 | **Esc** | Exit Panopticon immediately |
+
+### Tray Preferences
+
+The tray menu now lets you configure runtime behavior without editing files:
+
+- **Hide on minimize** — when enabled, minimizing sends the app to the tray.
+- **Hide on close** — when enabled, pressing the close button sends the app to the tray.
+- **Cycle refresh interval** — rotates between `1s`, `2s`, `5s`, and `10s`.
+
+These preferences are persisted to:
+
+```text
+%APPDATA%\Panopticon\settings.toml
+```
 
 ### Layout Modes
 
@@ -132,6 +147,7 @@ src/
 ├── error.rs        — Typed errors (thiserror)
 ├── layout.rs       — Layout engine (Grid, Mosaic, Bento, Fibonacci, Columns)
 ├── logging.rs      — tracing + file appender setup
+├── settings.rs     — persistent user preferences (TOML)
 ├── thumbnail.rs    — RAII wrapper for DWM HTHUMBNAIL
 └── window_enum.rs  — Window enumeration and filtering
 tests/

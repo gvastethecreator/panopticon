@@ -48,6 +48,14 @@
 - [x] Minimizar/cerrar → esconder al tray; `Esc` mantiene salida inmediata.
 - [x] Mejorar la toolbar y el empty state con una interfaz más sobria y profesional.
 - [x] Mostrar icono real de la ventana cuando el thumbnail no está disponible.
+- [x] Añadir preferencias configurables desde el tray: hide on minimize, hide on close y ciclo de refresh interval.
+- [x] Persistir preferencias en `%APPDATA%\Panopticon\settings.toml`.
+
+## Settings / Persistencia
+
+- [x] Crear `src/settings.rs` con `serde` + `toml`.
+- [x] Persistir layout inicial, refresh interval y comportamiento de tray.
+- [x] Añadir tests unitarios para roundtrip TOML y normalización de settings.
 
 ## Documentación
 
