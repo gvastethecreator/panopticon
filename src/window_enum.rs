@@ -237,7 +237,7 @@ fn get_monitor_name(hwnd: HWND) -> String {
     info.monitorInfo.cbSize = mem::size_of::<MONITORINFOEXW>() as u32;
 
     // SAFETY: `info` is fully allocated and large enough for `MONITORINFOEXW`.
-    let success = unsafe { GetMonitorInfoW(monitor, &mut info.monitorInfo) }.as_bool();
+    let success = unsafe { GetMonitorInfoW(monitor, &raw mut info.monitorInfo) }.as_bool();
     if !success {
         return "Current monitor".to_owned();
     }
@@ -247,6 +247,6 @@ fn get_monitor_name(hwnd: HWND) -> String {
     if trimmed.is_empty() {
         "Current monitor".to_owned()
     } else {
-        trimmed.trim_start_matches(r#"\\.\"#).to_owned()
+        trimmed.trim_start_matches(r"\\.\").to_owned()
     }
 }

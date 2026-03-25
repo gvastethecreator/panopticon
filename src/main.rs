@@ -473,16 +473,20 @@ fn handle_tray_action(hwnd: HWND, action: TrayAction) {
         }
         TrayAction::SetMonitorFilter(filter) => {
             update_settings(hwnd, |settings| {
-                settings.set_monitor_filter(filter.as_deref())
+                settings.set_monitor_filter(filter.as_deref());
             });
             refresh_and_repaint(hwnd);
         }
         TrayAction::SetTagFilter(filter) => {
-            update_settings(hwnd, |settings| settings.set_tag_filter(filter.as_deref()));
+            update_settings(hwnd, |settings| {
+                settings.set_tag_filter(filter.as_deref());
+            });
             refresh_and_repaint(hwnd);
         }
         TrayAction::SetAppFilter(filter) => {
-            update_settings(hwnd, |settings| settings.set_app_filter(filter.as_deref()));
+            update_settings(hwnd, |settings| {
+                settings.set_app_filter(filter.as_deref());
+            });
             refresh_and_repaint(hwnd);
         }
         TrayAction::RestoreHidden(app_id) => {
