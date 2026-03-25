@@ -20,21 +20,21 @@
 
 mod app;
 
-use app::tray::{
-    draw_window_icon, handle_tray_message, AppIcons, TrayAction, TrayIcon, TrayMenuState,
-    WM_TRAYICON,
-};
 use app::options::{
     open_options_window, open_tag_dialog, OptionsSubmit, TagCreateSubmit, WM_OPTIONS_APPLY,
     WM_OPTIONS_CLOSED, WM_TAG_CREATED,
 };
+use app::tray::{
+    draw_window_icon, handle_tray_message, AppIcons, TrayAction, TrayIcon, TrayMenuState,
+    WM_TRAYICON,
+};
 use panopticon::constants::{
     ACCENT_COLOR, ANIMATION_DURATION_MS, BORDER_COLOR, FALLBACK_TEXT_COLOR, HOVER_BORDER_COLOR,
-    LABEL_COLOR, MAX_TITLE_CHARS, MUTED_TEXT_COLOR, PANEL_BG_COLOR, SCROLL_STEP,
-    SCROLLBAR_MARGIN, SCROLLBAR_MIN_THUMB, SCROLLBAR_THICKNESS, TB_COLOR, TEXT_COLOR,
+    LABEL_COLOR, MAX_TITLE_CHARS, MUTED_TEXT_COLOR, PANEL_BG_COLOR, SCROLLBAR_MARGIN,
+    SCROLLBAR_MIN_THUMB, SCROLLBAR_THICKNESS, SCROLL_STEP, TB_COLOR, TEXT_COLOR,
     THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TIMER_ANIMATION, TIMER_REFRESH,
-    TITLE_TRUNCATE_AT, TOOLBAR_HEIGHT, VK_1, VK_2, VK_3, VK_4, VK_5, VK_6, VK_7, VK_A,
-    VK_ESCAPE, VK_H, VK_I, VK_O, VK_P, VK_R, VK_TAB,
+    TITLE_TRUNCATE_AT, TOOLBAR_HEIGHT, VK_1, VK_2, VK_3, VK_4, VK_5, VK_6, VK_7, VK_A, VK_ESCAPE,
+    VK_H, VK_I, VK_O, VK_P, VK_R, VK_TAB,
 };
 use panopticon::layout::{compute_layout, AspectHint, LayoutType, ScrollDirection};
 use panopticon::settings::{AppSelectionEntry, AppSettings, DockEdge};
@@ -474,7 +474,7 @@ unsafe extern "system" fn wnd_proc(
             let payload = lparam.0 as *mut OptionsSubmit;
             if !payload.is_null() {
                 let payload = Box::from_raw(payload);
-                apply_settings_snapshot(hwnd, payload.settings);
+                apply_settings_snapshot(hwnd, &payload.settings);
             }
             LRESULT(0)
         }
@@ -982,13 +982,16 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
         let _ = GetClientRect(hwnd, &mut client_rect);
 
         let background_color = state.settings.background_color_bgr();
-        let accent_color = state.settings.active_tag_filter.as_deref().map_or(
-            ACCENT_COLOR,
-            |tag| state.settings.tag_color_bgr(tag),
-        );
-        let active_group_background = state.settings.active_tag_filter.as_deref().map(|tag| {
-            blend_bgr(background_color, state.settings.tag_color_bgr(tag), 1, 4)
-        });
+        let accent_color = state
+            .settings
+            .active_tag_filter
+            .as_deref()
+            .map_or(ACCENT_COLOR, |tag| state.settings.tag_color_bgr(tag));
+        let active_group_background = state
+            .settings
+            .active_tag_filter
+            .as_deref()
+            .map(|tag| blend_bgr(background_color, state.settings.tag_color_bgr(tag), 1, 4));
 
         let bg_brush = CreateSolidBrush(COLORREF(background_color));
         let toolbar_brush = CreateSolidBrush(COLORREF(TB_COLOR));
@@ -1079,6 +1082,10 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Painting needs the active brush set and layout-dependent footer height"
+)]
 fn paint_windows(
     hdc: HDC,
     state: &AppState,
@@ -1136,7 +1143,13 @@ fn paint_windows(
         }
 
         if managed_window.thumbnail.is_none() {
-            paint_thumbnail_placeholder(hdc, managed_window.info.hwnd, outer_rect, panel_brush, footer_height);
+            paint_thumbnail_placeholder(
+                hdc,
+                managed_window.info.hwnd,
+                outer_rect,
+                panel_brush,
+                footer_height,
+            );
         }
 
         if footer_height > 0 {
@@ -2129,9 +2142,10 @@ fn open_or_focus_options_window(hwnd: HWND) {
 fn open_create_tag_dialog(hwnd: HWND, info: &WindowInfo) {
     let suggested_name = suggested_tag_name(&info.app_label());
     let suggested_color = unsafe {
-        app_from_hwnd(hwnd)
-            .map(|state| state.settings.tag_color_hex(&suggested_name))
-            .unwrap_or_else(|| String::from("D29A5C"))
+        app_from_hwnd(hwnd).map_or_else(
+            || String::from("D29A5C"),
+            |state| state.settings.tag_color_hex(&suggested_name),
+        )
     };
 
     if let Err(error) = open_tag_dialog(
@@ -2172,7 +2186,7 @@ fn apply_tag_creation(
     refresh_and_repaint(hwnd);
 }
 
-fn apply_settings_snapshot(hwnd: HWND, new_settings: AppSettings) {
+fn apply_settings_snapshot(hwnd: HWND, new_settings: &AppSettings) {
     unsafe {
         let Some(state) = app_from_hwnd(hwnd) else {
             return;
@@ -2218,7 +2232,11 @@ fn apply_settings_snapshot(hwnd: HWND, new_settings: AppSettings) {
 
 fn restore_floating_window_style(hwnd: HWND) {
     unsafe {
-        let _ = SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_OVERLAPPEDWINDOW | WS_VISIBLE).0 as isize);
+        let _ = SetWindowLongPtrW(
+            hwnd,
+            GWL_STYLE,
+            (WS_OVERLAPPEDWINDOW | WS_VISIBLE).0 as isize,
+        );
         let _ = SetWindowPos(
             hwnd,
             HWND_TOPMOST,
@@ -2241,9 +2259,19 @@ fn apply_fixed_window_size(hwnd: HWND, settings: &AppSettings) {
             let _ = GetWindowRect(hwnd, &mut window_rect);
         }
         let current_width = window_rect.right - window_rect.left;
-        let height = settings.fixed_height.map_or(window_rect.bottom - window_rect.top, |value| value as i32);
+        let height = settings
+            .fixed_height
+            .map_or(window_rect.bottom - window_rect.top, |value| value as i32);
         unsafe {
-            let _ = SetWindowPos(hwnd, None, 0, 0, current_width, height, SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                0,
+                0,
+                current_width,
+                height,
+                SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER,
+            );
         }
         return;
     };
@@ -2256,7 +2284,15 @@ fn apply_fixed_window_size(hwnd: HWND, settings: &AppSettings) {
         .fixed_height
         .map_or(window_rect.bottom - window_rect.top, |value| value as i32);
     unsafe {
-        let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            width,
+            height,
+            SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER,
+        );
     }
 }
 
@@ -2273,19 +2309,19 @@ fn apply_window_appearance(hwnd: HWND, settings: &AppSettings) {
         let _ = DwmSetWindowAttribute(
             hwnd,
             DWMWA_USE_IMMERSIVE_DARK_MODE,
-            &dark_mode as *const _ as *const c_void,
+            std::ptr::from_ref(&dark_mode).cast::<c_void>(),
             mem::size_of_val(&dark_mode) as u32,
         );
         let _ = DwmSetWindowAttribute(
             hwnd,
             DWMWA_WINDOW_CORNER_PREFERENCE,
-            &corner_preference as *const _ as *const c_void,
+            std::ptr::from_ref(&corner_preference).cast::<c_void>(),
             mem::size_of_val(&corner_preference) as u32,
         );
         let _ = DwmSetWindowAttribute(
             hwnd,
             DWMWA_SYSTEMBACKDROP_TYPE,
-            &backdrop_type as *const _ as *const c_void,
+            std::ptr::from_ref(&backdrop_type).cast::<c_void>(),
             mem::size_of_val(&backdrop_type) as u32,
         );
     }
@@ -2340,7 +2376,12 @@ fn paint_overlay_scrollbar(hdc: HDC, state: &AppState, client_rect: RECT, accent
 
     unsafe {
         let thumb_brush = CreateSolidBrush(COLORREF(blend_bgr(accent_color, 0x00FF_FFFF, 1, 5)));
-        let track_brush = CreateSolidBrush(COLORREF(blend_bgr(state.settings.background_color_bgr(), 0x00FF_FFFF, 1, 12)));
+        let track_brush = CreateSolidBrush(COLORREF(blend_bgr(
+            state.settings.background_color_bgr(),
+            0x00FF_FFFF,
+            1,
+            12,
+        )));
         FillRect(hdc, &expand_rect(thumb_rect, 2), track_brush);
         FillRect(hdc, &thumb_rect, thumb_brush);
         let _ = DeleteObject(thumb_brush);
@@ -2375,9 +2416,14 @@ fn scrollbar_thumb_rect(state: &AppState, client_rect: RECT) -> Option<RECT> {
             let track_len = (content_rect.right - content_rect.left - SCROLLBAR_MARGIN * 2).max(0);
             let visible = (content_rect.right - content_rect.left).max(1);
             let content = state.content_extent.max(visible);
-            let thumb_len = ((visible * track_len) / content).clamp(SCROLLBAR_MIN_THUMB, track_len.max(SCROLLBAR_MIN_THUMB));
+            let thumb_len = ((visible * track_len) / content)
+                .clamp(SCROLLBAR_MIN_THUMB, track_len.max(SCROLLBAR_MIN_THUMB));
             let travel = (track_len - thumb_len).max(0);
-            let thumb_offset = if max_scroll == 0 { 0 } else { (state.scroll_offset * travel) / max_scroll };
+            let thumb_offset = if max_scroll == 0 {
+                0
+            } else {
+                (state.scroll_offset * travel) / max_scroll
+            };
             Some(RECT {
                 left: content_rect.left + SCROLLBAR_MARGIN + thumb_offset,
                 top: content_rect.bottom - SCROLLBAR_MARGIN - SCROLLBAR_THICKNESS,
@@ -2389,9 +2435,14 @@ fn scrollbar_thumb_rect(state: &AppState, client_rect: RECT) -> Option<RECT> {
             let track_len = (content_rect.bottom - content_rect.top - SCROLLBAR_MARGIN * 2).max(0);
             let visible = (content_rect.bottom - content_rect.top).max(1);
             let content = state.content_extent.max(visible);
-            let thumb_len = ((visible * track_len) / content).clamp(SCROLLBAR_MIN_THUMB, track_len.max(SCROLLBAR_MIN_THUMB));
+            let thumb_len = ((visible * track_len) / content)
+                .clamp(SCROLLBAR_MIN_THUMB, track_len.max(SCROLLBAR_MIN_THUMB));
             let travel = (track_len - thumb_len).max(0);
-            let thumb_offset = if max_scroll == 0 { 0 } else { (state.scroll_offset * travel) / max_scroll };
+            let thumb_offset = if max_scroll == 0 {
+                0
+            } else {
+                (state.scroll_offset * travel) / max_scroll
+            };
             Some(RECT {
                 left: content_rect.right - SCROLLBAR_MARGIN - SCROLLBAR_THICKNESS,
                 top: content_rect.top + SCROLLBAR_MARGIN + thumb_offset,
@@ -2435,8 +2486,7 @@ const fn compose_bgr(blue: u8, green: u8, red: u8) -> u32 {
 }
 
 const fn blend_channel(base: u8, overlay: u8, numerator: u32, denominator: u32) -> u8 {
-    (((base as u32 * (denominator - numerator)) + (overlay as u32 * numerator)) / denominator)
-        as u8
+    (((base as u32 * (denominator - numerator)) + (overlay as u32 * numerator)) / denominator) as u8
 }
 
 fn point_in_rect(rect: RECT, x: i32, y: i32) -> bool {

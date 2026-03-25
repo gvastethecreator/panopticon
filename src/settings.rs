@@ -297,12 +297,10 @@ impl AppSettings {
             return DEFAULT_TAG_COLOR_HEX.to_owned();
         };
 
-        self.tag_styles
-            .get(&tag)
-            .map_or_else(
-                || DEFAULT_TAG_COLOR_HEX.to_owned(),
-                |style| style.color_hex.clone(),
-            )
+        self.tag_styles.get(&tag).map_or_else(
+            || DEFAULT_TAG_COLOR_HEX.to_owned(),
+            |style| style.color_hex.clone(),
+        )
     }
 
     /// Return the tag colour encoded as a Windows `COLORREF`-compatible BGR value.
@@ -615,7 +613,11 @@ fn normalize_tag(tag: &str) -> Option<String> {
 
 fn normalize_color_hex(color_hex: &str) -> Option<String> {
     let trimmed = color_hex.trim().trim_start_matches('#');
-    if trimmed.len() != 6 || !trimmed.chars().all(|character| character.is_ascii_hexdigit()) {
+    if trimmed.len() != 6
+        || !trimmed
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    {
         return None;
     }
 
@@ -793,12 +795,8 @@ mod tests {
     fn assign_tag_with_color_persists_tag_style() {
         let mut settings = AppSettings::default();
 
-        let created = settings.assign_tag_with_color(
-            "app:browser",
-            "Arc Browser",
-            " Focus ",
-            "#22AA88",
-        );
+        let created =
+            settings.assign_tag_with_color("app:browser", "Arc Browser", " Focus ", "#22AA88");
 
         assert_eq!(created.as_deref(), Some("focus"));
         assert!(settings.app_has_tag("app:browser", "focus"));

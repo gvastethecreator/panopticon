@@ -99,7 +99,8 @@ struct TagDialogState {
 pub fn open_options_window(parent: HWND, settings: &AppSettings) -> Result<HWND> {
     register_options_class();
 
-    let instance = unsafe { GetModuleHandleW(None) }.map_err(|_| anyhow!("GetModuleHandleW failed"))?;
+    let instance =
+        unsafe { GetModuleHandleW(None) }.map_err(|_| anyhow!("GetModuleHandleW failed"))?;
     let hinstance = windows::Win32::Foundation::HINSTANCE(instance.0);
     let state = Box::new(OptionsWindowState {
         parent,
@@ -141,7 +142,8 @@ pub fn open_tag_dialog(
 ) -> Result<HWND> {
     register_tag_dialog_class();
 
-    let instance = unsafe { GetModuleHandleW(None) }.map_err(|_| anyhow!("GetModuleHandleW failed"))?;
+    let instance =
+        unsafe { GetModuleHandleW(None) }.map_err(|_| anyhow!("GetModuleHandleW failed"))?;
     let hinstance = windows::Win32::Foundation::HINSTANCE(instance.0);
     let state = Box::new(TagDialogState {
         parent,
@@ -184,7 +186,17 @@ pub fn open_tag_dialog(
         let mut x = 20;
         for (index, (label, color_hex)) in TAG_PRESETS.iter().enumerate() {
             let id = IDC_TAG_PRESET_BASE + index as i32;
-            create_radio(hwnd, id, label, x, 138, 90, 22, 0, *color_hex == suggested_color_hex);
+            create_radio(
+                hwnd,
+                id,
+                label,
+                x,
+                138,
+                90,
+                22,
+                0,
+                *color_hex == suggested_color_hex,
+            );
             x += 96;
         }
 
@@ -296,7 +308,8 @@ unsafe extern "system" fn tag_dialog_wnd_proc(
                         return LRESULT(0);
                     };
 
-                    let tag_name = read_window_text(GetDlgItem(hwnd, IDC_TAG_NAME).unwrap_or_default());
+                    let tag_name =
+                        read_window_text(GetDlgItem(hwnd, IDC_TAG_NAME).unwrap_or_default());
                     if tag_name.trim().is_empty() {
                         let _ = MessageBoxW(
                             hwnd,
@@ -345,20 +358,105 @@ unsafe extern "system" fn tag_dialog_wnd_proc(
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Declarative Win32 layout code is easier to maintain in one place"
+)]
 fn populate_options_window(hwnd: HWND, settings: &AppSettings) {
     unsafe {
         create_group_box(hwnd, "Comportamiento", 16, 16, 280, 170);
-        create_checkbox(hwnd, IDC_ALWAYS_ON_TOP, "Siempre visible", 32, 44, 220, 20, settings.always_on_top);
-        create_checkbox(hwnd, IDC_ANIMATE, "Animaciones", 32, 68, 220, 20, settings.animate_transitions);
-        create_checkbox(hwnd, IDC_MINIMIZE_TO_TRAY, "Ocultar al minimizar", 32, 92, 220, 20, settings.minimize_to_tray);
-        create_checkbox(hwnd, IDC_CLOSE_TO_TRAY, "Ocultar al cerrar", 32, 116, 220, 20, settings.close_to_tray);
-        create_checkbox(hwnd, IDC_DEFAULT_ASPECT, "Respetar aspect ratio por defecto", 32, 140, 240, 20, settings.preserve_aspect_ratio);
-        create_checkbox(hwnd, IDC_DEFAULT_HIDE_ON_SELECT, "Ocultar tras activar ventana", 32, 164, 240, 20, settings.hide_on_select);
+        create_checkbox(
+            hwnd,
+            IDC_ALWAYS_ON_TOP,
+            "Siempre visible",
+            32,
+            44,
+            220,
+            20,
+            settings.always_on_top,
+        );
+        create_checkbox(
+            hwnd,
+            IDC_ANIMATE,
+            "Animaciones",
+            32,
+            68,
+            220,
+            20,
+            settings.animate_transitions,
+        );
+        create_checkbox(
+            hwnd,
+            IDC_MINIMIZE_TO_TRAY,
+            "Ocultar al minimizar",
+            32,
+            92,
+            220,
+            20,
+            settings.minimize_to_tray,
+        );
+        create_checkbox(
+            hwnd,
+            IDC_CLOSE_TO_TRAY,
+            "Ocultar al cerrar",
+            32,
+            116,
+            220,
+            20,
+            settings.close_to_tray,
+        );
+        create_checkbox(
+            hwnd,
+            IDC_DEFAULT_ASPECT,
+            "Respetar aspect ratio por defecto",
+            32,
+            140,
+            240,
+            20,
+            settings.preserve_aspect_ratio,
+        );
+        create_checkbox(
+            hwnd,
+            IDC_DEFAULT_HIDE_ON_SELECT,
+            "Ocultar tras activar ventana",
+            32,
+            164,
+            240,
+            20,
+            settings.hide_on_select,
+        );
 
         create_group_box(hwnd, "Interfaz", 308, 16, 292, 170);
-        create_checkbox(hwnd, IDC_SHOW_HEADER, "Mostrar header", 324, 44, 220, 20, settings.show_toolbar);
-        create_checkbox(hwnd, IDC_SHOW_INFO, "Mostrar información bajo thumbnails", 324, 68, 240, 20, settings.show_window_info);
-        create_checkbox(hwnd, IDC_USE_SYSTEM_BACKDROP, "Adaptar apariencia a Windows 11", 324, 92, 240, 20, settings.use_system_backdrop);
+        create_checkbox(
+            hwnd,
+            IDC_SHOW_HEADER,
+            "Mostrar header",
+            324,
+            44,
+            220,
+            20,
+            settings.show_toolbar,
+        );
+        create_checkbox(
+            hwnd,
+            IDC_SHOW_INFO,
+            "Mostrar información bajo thumbnails",
+            324,
+            68,
+            240,
+            20,
+            settings.show_window_info,
+        );
+        create_checkbox(
+            hwnd,
+            IDC_USE_SYSTEM_BACKDROP,
+            "Adaptar apariencia a Windows 11",
+            324,
+            92,
+            240,
+            20,
+            settings.use_system_backdrop,
+        );
         create_label(hwnd, "Fondo", 324, 124, 160, 20, 0);
         let mut x = 324;
         for (index, (label, color_hex)) in BG_PRESETS.iter().enumerate() {
@@ -371,39 +469,223 @@ fn populate_options_window(hwnd: HWND, settings: &AppSettings) {
                 86,
                 20,
                 0,
-                settings.background_color_hex.eq_ignore_ascii_case(color_hex),
+                settings
+                    .background_color_hex
+                    .eq_ignore_ascii_case(color_hex),
             );
             x += 90;
         }
 
         create_group_box(hwnd, "Refresh y layout inicial", 16, 196, 280, 250);
         create_label(hwnd, "Refresh", 32, 224, 120, 20, 0);
-        create_radio(hwnd, IDC_REFRESH_1S, "1s", 32, 248, 60, 20, 0, settings.refresh_interval_ms == 1_000);
-        create_radio(hwnd, IDC_REFRESH_2S, "2s", 92, 248, 60, 20, 0, settings.refresh_interval_ms == 2_000);
-        create_radio(hwnd, IDC_REFRESH_5S, "5s", 152, 248, 60, 20, 0, settings.refresh_interval_ms == 5_000);
-        create_radio(hwnd, IDC_REFRESH_10S, "10s", 212, 248, 60, 20, 0, settings.refresh_interval_ms == 10_000);
+        create_radio(
+            hwnd,
+            IDC_REFRESH_1S,
+            "1s",
+            32,
+            248,
+            60,
+            20,
+            0,
+            settings.refresh_interval_ms == 1_000,
+        );
+        create_radio(
+            hwnd,
+            IDC_REFRESH_2S,
+            "2s",
+            92,
+            248,
+            60,
+            20,
+            0,
+            settings.refresh_interval_ms == 2_000,
+        );
+        create_radio(
+            hwnd,
+            IDC_REFRESH_5S,
+            "5s",
+            152,
+            248,
+            60,
+            20,
+            0,
+            settings.refresh_interval_ms == 5_000,
+        );
+        create_radio(
+            hwnd,
+            IDC_REFRESH_10S,
+            "10s",
+            212,
+            248,
+            60,
+            20,
+            0,
+            settings.refresh_interval_ms == 10_000,
+        );
 
         create_label(hwnd, "Layout", 32, 284, 120, 20, 0);
-        create_radio(hwnd, IDC_LAYOUT_GRID, "Grid", 32, 308, 80, 20, 0, settings.initial_layout == LayoutType::Grid);
-        create_radio(hwnd, IDC_LAYOUT_MOSAIC, "Mosaic", 112, 308, 80, 20, 0, settings.initial_layout == LayoutType::Mosaic);
-        create_radio(hwnd, IDC_LAYOUT_BENTO, "Bento", 192, 308, 80, 20, 0, settings.initial_layout == LayoutType::Bento);
-        create_radio(hwnd, IDC_LAYOUT_FIBONACCI, "Fibonacci", 32, 332, 90, 20, 0, settings.initial_layout == LayoutType::Fibonacci);
-        create_radio(hwnd, IDC_LAYOUT_COLUMNS, "Columns", 122, 332, 90, 20, 0, settings.initial_layout == LayoutType::Columns);
-        create_radio(hwnd, IDC_LAYOUT_ROW, "Row (horizontal)", 32, 356, 120, 20, 0, settings.initial_layout == LayoutType::Row);
-        create_radio(hwnd, IDC_LAYOUT_COLUMN, "Column (vertical)", 152, 356, 120, 20, 0, settings.initial_layout == LayoutType::Column);
+        create_radio(
+            hwnd,
+            IDC_LAYOUT_GRID,
+            "Grid",
+            32,
+            308,
+            80,
+            20,
+            0,
+            settings.initial_layout == LayoutType::Grid,
+        );
+        create_radio(
+            hwnd,
+            IDC_LAYOUT_MOSAIC,
+            "Mosaic",
+            112,
+            308,
+            80,
+            20,
+            0,
+            settings.initial_layout == LayoutType::Mosaic,
+        );
+        create_radio(
+            hwnd,
+            IDC_LAYOUT_BENTO,
+            "Bento",
+            192,
+            308,
+            80,
+            20,
+            0,
+            settings.initial_layout == LayoutType::Bento,
+        );
+        create_radio(
+            hwnd,
+            IDC_LAYOUT_FIBONACCI,
+            "Fibonacci",
+            32,
+            332,
+            90,
+            20,
+            0,
+            settings.initial_layout == LayoutType::Fibonacci,
+        );
+        create_radio(
+            hwnd,
+            IDC_LAYOUT_COLUMNS,
+            "Columns",
+            122,
+            332,
+            90,
+            20,
+            0,
+            settings.initial_layout == LayoutType::Columns,
+        );
+        create_radio(
+            hwnd,
+            IDC_LAYOUT_ROW,
+            "Row (horizontal)",
+            32,
+            356,
+            120,
+            20,
+            0,
+            settings.initial_layout == LayoutType::Row,
+        );
+        create_radio(
+            hwnd,
+            IDC_LAYOUT_COLUMN,
+            "Column (vertical)",
+            152,
+            356,
+            120,
+            20,
+            0,
+            settings.initial_layout == LayoutType::Column,
+        );
 
         create_group_box(hwnd, "Dock y tamaño", 308, 196, 292, 250);
         create_label(hwnd, "Dock", 324, 224, 80, 20, 0);
-        create_radio(hwnd, IDC_DOCK_NONE, "Flotante", 324, 248, 80, 20, 0, settings.dock_edge.is_none());
-        create_radio(hwnd, IDC_DOCK_LEFT, "Left", 404, 248, 60, 20, 0, settings.dock_edge == Some(DockEdge::Left));
-        create_radio(hwnd, IDC_DOCK_RIGHT, "Right", 474, 248, 70, 20, 0, settings.dock_edge == Some(DockEdge::Right));
-        create_radio(hwnd, IDC_DOCK_TOP, "Top", 324, 272, 60, 20, 0, settings.dock_edge == Some(DockEdge::Top));
-        create_radio(hwnd, IDC_DOCK_BOTTOM, "Bottom", 404, 272, 80, 20, 0, settings.dock_edge == Some(DockEdge::Bottom));
+        create_radio(
+            hwnd,
+            IDC_DOCK_NONE,
+            "Flotante",
+            324,
+            248,
+            80,
+            20,
+            0,
+            settings.dock_edge.is_none(),
+        );
+        create_radio(
+            hwnd,
+            IDC_DOCK_LEFT,
+            "Left",
+            404,
+            248,
+            60,
+            20,
+            0,
+            settings.dock_edge == Some(DockEdge::Left),
+        );
+        create_radio(
+            hwnd,
+            IDC_DOCK_RIGHT,
+            "Right",
+            474,
+            248,
+            70,
+            20,
+            0,
+            settings.dock_edge == Some(DockEdge::Right),
+        );
+        create_radio(
+            hwnd,
+            IDC_DOCK_TOP,
+            "Top",
+            324,
+            272,
+            60,
+            20,
+            0,
+            settings.dock_edge == Some(DockEdge::Top),
+        );
+        create_radio(
+            hwnd,
+            IDC_DOCK_BOTTOM,
+            "Bottom",
+            404,
+            272,
+            80,
+            20,
+            0,
+            settings.dock_edge == Some(DockEdge::Bottom),
+        );
 
         create_label(hwnd, "Fixed width", 324, 316, 90, 20, 0);
-        create_edit(hwnd, IDC_FIXED_WIDTH, &settings.fixed_width.map_or_else(String::new, |value| value.to_string()), 420, 312, 72, 24, true);
+        create_edit(
+            hwnd,
+            IDC_FIXED_WIDTH,
+            &settings
+                .fixed_width
+                .map_or_else(String::new, |value| value.to_string()),
+            420,
+            312,
+            72,
+            24,
+            true,
+        );
         create_label(hwnd, "Fixed height", 324, 348, 90, 20, 0);
-        create_edit(hwnd, IDC_FIXED_HEIGHT, &settings.fixed_height.map_or_else(String::new, |value| value.to_string()), 420, 344, 72, 24, true);
+        create_edit(
+            hwnd,
+            IDC_FIXED_HEIGHT,
+            &settings
+                .fixed_height
+                .map_or_else(String::new, |value| value.to_string()),
+            420,
+            344,
+            72,
+            24,
+            true,
+        );
 
         create_group_box(hwnd, "Hotkeys", 16, 458, 584, 180);
         create_label(
@@ -457,7 +739,7 @@ fn collect_options(hwnd: HWND, base: &AppSettings) -> AppSettings {
     settings.dock_edge = selected_dock_edge(hwnd);
     settings.fixed_width = read_edit_u32(hwnd, IDC_FIXED_WIDTH);
     settings.fixed_height = read_edit_u32(hwnd, IDC_FIXED_HEIGHT);
-    settings.background_color_hex = selected_background_color(hwnd).to_owned();
+    selected_background_color(hwnd).clone_into(&mut settings.background_color_hex);
     settings
 }
 
@@ -539,6 +821,10 @@ fn is_checked(hwnd: HWND, control_id: i32) -> bool {
     unsafe { SendMessageW(control, BM_GETCHECK, WPARAM(0), LPARAM(0)).0 == 1 }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Win32 child-control creation needs explicit id, label, and geometry"
+)]
 unsafe fn create_checkbox(
     parent: HWND,
     id: i32,
@@ -563,12 +849,16 @@ unsafe fn create_checkbox(
     let _ = SendMessageW(
         handle,
         BM_SETCHECK,
-        WPARAM(usize::from(if checked { 1u16 } else { 0u16 })),
+        WPARAM(usize::from(u16::from(checked))),
         LPARAM(0),
     );
     handle
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Win32 radio-button creation needs explicit id, style bits, and geometry"
+)]
 unsafe fn create_radio(
     parent: HWND,
     id: i32,
@@ -594,7 +884,7 @@ unsafe fn create_radio(
     let _ = SendMessageW(
         handle,
         BM_SETCHECK,
-        WPARAM(usize::from(if checked { 1u16 } else { 0u16 })),
+        WPARAM(usize::from(u16::from(checked))),
         LPARAM(0),
     );
     handle
@@ -622,6 +912,10 @@ unsafe fn create_button(
     )
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Win32 edit controls need text, id, geometry, and numeric mode"
+)]
 unsafe fn create_edit(
     parent: HWND,
     id: i32,
@@ -689,6 +983,10 @@ unsafe fn create_label(
     )
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Single helper centralizes repetitive Win32 control construction"
+)]
 unsafe fn create_control(
     parent: HWND,
     class_name: PCWSTR,

@@ -20,12 +20,15 @@ Panopticon es una aplicación de escritorio escrita en Rust que enumera ventanas
 ## Lo más destacado
 
 - **Miniaturas en vivo por GPU** usando `DwmRegisterThumbnail`, sin capturas bitmap manuales.
-- **5 layouts**: Grid, Mosaic, Bento, Fibonacci y Columns.
+- **7 layouts**: Grid, Mosaic, Bento, Fibonacci, Columns, Row (horizontal) y Column (vertical).
 - **Filtros por monitor** desde el tray menu.
-- **Grupos manuales por tags**: crea un tag desde una app y asígnalo a otras apps.
+- **Grupos manuales por tags**: crea un tag con nombre + color desde una app y asígnalo a otras apps.
 - **Agrupación automática por aplicación** mediante filtro por app desde el tray.
 - **Memoria por app** para ocultar, preservar aspect ratio y ocultar Panopticon tras activar una ventana.
 - **Tray menu potente** con restore de apps ocultas, toggles de comportamiento y filtros activos.
+- **Ventana de configuración dedicada** con apariencia, layout inicial, header, info y dock.
+- **Scrollbar overlay** visible sólo al pasar el mouse cuando realmente hay overflow.
+- **Fondo configurable + integración visual con Windows 11** mediante backdrop/rounded corners cuando está disponible.
 - **Animaciones suaves** al recomputar el layout.
 - **Logging estructurado** en `%TEMP%/panopticon/logs/`.
 - **Refresco adaptativo** cuando la ventana principal está escondida en el tray.
@@ -59,7 +62,13 @@ cargo run --release
 | Entrada | Acción |
 | --- | --- |
 | `Tab` | Cambiar al siguiente layout |
+| `1` … `7` | Seleccionar layout directamente |
 | `R` | Refrescar la lista de ventanas |
+| `A` | Alternar animaciones |
+| `H` | Mostrar / ocultar header |
+| `I` | Mostrar / ocultar información bajo thumbnails |
+| `P` | Alternar siempre visible |
+| `O` | Abrir la ventana de configuración |
 | Click izquierdo sobre miniatura | Activar la ventana |
 | Click derecho sobre miniatura | Abrir opciones por aplicación |
 | Click izquierdo en icono del tray | Mostrar / ocultar Panopticon |
@@ -77,10 +86,12 @@ Panopticon ahora puede reducir el tablero según el contexto que necesites:
 ### Cómo crear tags
 
 1. Haz click derecho sobre una miniatura.
-2. Selecciona **Create tag from this app** para sembrar un tag a partir del nombre de la aplicación.
-3. En otras apps, usa **Assign existing tags** para añadir o quitar tags existentes.
+2. Selecciona **Create custom tag…**.
+3. Escribe el nombre del tag y elige un color.
+4. Confirma para asignarlo a esa app y reutilizarlo luego en otras apps.
+5. En otras apps, usa **Assign existing tags** para añadir o quitar tags existentes.
 
-> Los tags se persisten en `settings.toml`. Si quieres nombres completamente personalizados, también puedes editarlos manualmente en el archivo de configuración.
+> Cuando el filtro activo es un tag, el tablero tiñe el fondo del área de contenido con el color de ese grupo.
 
 ## Configuración
 
@@ -101,8 +112,15 @@ preserve_aspect_ratio = false
 hide_on_select = true
 animate_transitions = true
 always_on_top = false
+background_color_hex = "181513"
+use_system_backdrop = true
+show_toolbar = true
+show_window_info = true
 active_monitor_filter = "DISPLAY1"
 active_tag_filter = "work"
+
+[tag_styles.work]
+color_hex = "D29A5C"
 
 [app_rules."exe:c:\\program files\\arc\\arc.exe"]
 display_name = "Arc"
@@ -111,6 +129,8 @@ preserve_aspect_ratio = true
 hide_on_select = false
 tags = ["work", "browser"]
 ```
+
+La ventana de configuración permite editar estas preferencias sin tocar el TOML a mano.
 
 Consulta más ejemplos en [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 
