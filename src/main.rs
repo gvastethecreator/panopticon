@@ -770,6 +770,7 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     win.set_scroll_vertical(scroll_v);
     win.set_content_width(s.content_extent as f32);
     win.set_content_height(s.content_extent as f32);
+    clamp_viewport_offsets(win, scroll_dir, s.content_extent, logical_w, content_area.bottom);
 
     sync_settings_to_ui(win, &s.settings);
 
@@ -786,6 +787,31 @@ fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
     win.set_filters_label(SharedString::from(
         active_filter_summary(settings).unwrap_or_default(),
     ));
+}
+
+fn clamp_viewport_offsets(
+    win: &MainWindow,
+    scroll_dir: ScrollDirection,
+    content_extent: i32,
+    visible_width: i32,
+    visible_height: i32,
+) {
+    match scroll_dir {
+        ScrollDirection::Horizontal => {
+            let max_scroll = (content_extent - visible_width).max(0) as f32;
+            win.set_viewport_x(win.get_viewport_x().clamp(-max_scroll, 0.0));
+            win.set_viewport_y(0.0);
+        }
+        ScrollDirection::Vertical => {
+            let max_scroll = (content_extent - visible_height).max(0) as f32;
+            win.set_viewport_y(win.get_viewport_y().clamp(-max_scroll, 0.0));
+            win.set_viewport_x(0.0);
+        }
+        ScrollDirection::None => {
+            win.set_viewport_x(0.0);
+            win.set_viewport_y(0.0);
+        }
+    }
 }
 
 fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
