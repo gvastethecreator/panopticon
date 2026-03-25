@@ -81,3 +81,8 @@ pub const MAX_TITLE_CHARS: usize = 40;
 
 /// Position at which a long title is truncated (before appending "…").
 pub const TITLE_TRUNCATE_AT: usize = 37;
+
+// ── Scroll ───────────────────────────────────────────────────
+
+/// Pixels scrolled per mouse-wheel notch in Row / Column modes.
+pub const SCROLL_STEP: i32 = 60;

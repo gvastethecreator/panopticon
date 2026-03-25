@@ -26,12 +26,12 @@ use app::tray::{
 };
 use panopticon::constants::{
     ACCENT_SOFT_COLOR, ANIMATION_DURATION_MS, BG_COLOR, BORDER_COLOR, FALLBACK_TEXT_COLOR,
-    HOVER_BORDER_COLOR, LABEL_COLOR, MAX_TITLE_CHARS, MUTED_TEXT_COLOR, PANEL_BG_COLOR, TB_COLOR,
-    TEXT_COLOR, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TIMER_ANIMATION, TIMER_REFRESH,
-    TITLE_TRUNCATE_AT, TOOLBAR_HEIGHT, VK_ESCAPE, VK_R, VK_TAB,
+    HOVER_BORDER_COLOR, LABEL_COLOR, MAX_TITLE_CHARS, MUTED_TEXT_COLOR, PANEL_BG_COLOR,
+    SCROLL_STEP, TB_COLOR, TEXT_COLOR, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT,
+    TIMER_ANIMATION, TIMER_REFRESH, TITLE_TRUNCATE_AT, TOOLBAR_HEIGHT, VK_ESCAPE, VK_R, VK_TAB,
 };
-use panopticon::layout::{compute_layout, AspectHint, LayoutType};
-use panopticon::settings::{AppSelectionEntry, AppSettings};
+use panopticon::layout::{compute_layout, AspectHint, LayoutType, ScrollDirection};
+use panopticon::settings::{AppSelectionEntry, AppSettings, DockEdge};
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 
@@ -49,12 +49,17 @@ use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, S
 use windows::Win32::Graphics::Dwm::DwmQueryThumbnailSourceSize;
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect, FrameRect,
-    InvalidateRect, SetBkMode, SetTextColor, DRAW_TEXT_FORMAT, DT_CENTER, DT_END_ELLIPSIS, DT_LEFT,
-    DT_RIGHT, DT_SINGLELINE, DT_VCENTER, HBRUSH, HDC, PAINTSTRUCT, TRANSPARENT,
+    GetMonitorInfoW, InvalidateRect, MonitorFromWindow, SetBkMode, SetTextColor, DRAW_TEXT_FORMAT,
+    DT_CENTER, DT_END_ELLIPSIS, DT_LEFT, DT_RIGHT, DT_SINGLELINE, DT_VCENTER, HBRUSH, HDC,
+    MONITORINFO, MONITOR_DEFAULTTOPRIMARY, PAINTSTRUCT, TRANSPARENT,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+};
+use windows::Win32::UI::Shell::{
+    SHAppBarMessage, ABE_BOTTOM, ABE_LEFT, ABE_RIGHT, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE,
+    ABM_SETPOS, ABN_POSCHANGED, APPBARDATA,
 };
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -62,6 +67,12 @@ use windows::Win32::UI::WindowsAndMessaging::{
     HWND_NOTOPMOST, HWND_TOPMOST, MF_CHECKED, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
     SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
 };
+
+/// Callback message posted by the shell when the app-bar needs repositioning.
+const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
+
+/// Standard Win32 value: one wheel notch equals 120 delta units.
+const WHEEL_DELTA: i32 = 120;
 
 const CMD_WINDOW_HIDE_APP: u16 = 1;
 const CMD_WINDOW_TOGGLE_ASPECT_RATIO: u16 = 2;
@@ -91,6 +102,14 @@ struct AppState {
     icons: AppIcons,
     settings: AppSettings,
     animation_started_at: Option<Instant>,
+    /// Scroll offset in pixels (horizontal for Row, vertical for Column).
+    scroll_offset: i32,
+    /// Total content extent along the scroll axis (pixels).
+    content_extent: i32,
+    /// Whether this window is currently registered as a Win32 app-bar.
+    is_appbar: bool,
+    /// Instance profile name from `--profile <name>` CLI argument.
+    profile_name: Option<String>,
 }
 
 struct ToolbarStatus {
@@ -110,6 +129,22 @@ enum WindowMenuAction {
     ToggleTag(String),
 }
 
+/// Parse `--profile <name>` from the command-line arguments.
+fn parse_profile_from_args() -> Option<String> {
+    let args: Vec<String> = std::env::args().collect();
+    let mut index = 1;
+    while index < args.len() {
+        if args[index] == "--profile" && index + 1 < args.len() {
+            let name = args[index + 1].trim().to_owned();
+            if !name.is_empty() {
+                return Some(name);
+            }
+        }
+        index += 1;
+    }
+    None
+}
+
 /// Obtain a mutable reference to the application state stored on the window.
 ///
 /// # Safety
@@ -126,7 +161,8 @@ unsafe fn app_from_hwnd(hwnd: HWND) -> Option<&'static mut AppState> {
 
 fn main() {
     let _log_guard = panopticon::logging::init().ok();
-    tracing::info!("Panopticon starting");
+    let profile = parse_profile_from_args();
+    tracing::info!(profile = ?profile, "Panopticon starting");
 
     // SAFETY: FFI call with no preconditions; failure is non-fatal.
     unsafe {
@@ -139,7 +175,7 @@ fn main() {
         tracing::error!(%error, "custom app icon generation failed; falling back to system icon");
         AppIcons::fallback_system()
     });
-    let settings = AppSettings::load_or_default().unwrap_or_else(|error| {
+    let settings = AppSettings::load_or_default(profile.as_deref()).unwrap_or_else(|error| {
         tracing::error!(%error, "failed to load settings; using defaults");
         AppSettings::default()
     });
@@ -153,6 +189,10 @@ fn main() {
         icons,
         settings,
         animation_started_at: None,
+        scroll_offset: 0,
+        content_extent: 0,
+        is_appbar: false,
+        profile_name: profile,
     });
 
     let state_ptr = Box::into_raw(state);
@@ -174,6 +214,10 @@ fn main() {
             match TrayIcon::add(hwnd, state.icons.small) {
                 Ok(tray_icon) => state.tray_icon = Some(tray_icon),
                 Err(error) => tracing::error!(%error, "failed to initialise tray icon"),
+            }
+            // Register app-bar and position the window if a dock edge is set.
+            if state.settings.dock_edge.is_some() {
+                apply_dock_mode(state);
             }
         }
     }
@@ -206,9 +250,20 @@ fn create_main_window(state_ptr: *mut AppState) -> std::result::Result<HWND, &'s
     // and lives until `WM_NCDESTROY` reclaims it.
     unsafe {
         let instance = GetModuleHandleW(None).map_err(|_| "GetModuleHandleW failed")?;
-        let class_name = w!("PanopticonClass");
         let hinstance = windows::Win32::Foundation::HINSTANCE(instance.0);
         let icons = &(*state_ptr).icons;
+        let profile = &(*state_ptr).profile_name;
+        let settings = &(*state_ptr).settings;
+
+        // Unique class name per profile so multiple instances coexist.
+        let class_name_owned: Vec<u16> = match profile {
+            Some(name) => format!("PanopticonClass_{name}")
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect(),
+            None => "PanopticonClass\0".encode_utf16().collect(),
+        };
+        let class_name = PCWSTR(class_name_owned.as_ptr());
 
         let wc = WNDCLASSEXW {
             cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
@@ -228,15 +283,36 @@ fn create_main_window(state_ptr: *mut AppState) -> std::result::Result<HWND, &'s
             return Err("RegisterClassExW failed");
         }
 
+        // Window title includes profile name for multi-instance identification.
+        let title_text = match profile {
+            Some(name) => format!("Panopticon [{name}]"),
+            None => "Panopticon — Window Viewer".to_owned(),
+        };
+        let title_wide: Vec<u16> = title_text
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+
+        // Dock mode uses a borderless popup; floating mode uses the standard frame.
+        let (style, width, height) = if settings.dock_edge.is_some() {
+            let w = settings.fixed_width.unwrap_or(300) as i32;
+            let h = settings.fixed_height.unwrap_or(600) as i32;
+            (WS_POPUP | WS_VISIBLE, w, h)
+        } else {
+            let w = settings.fixed_width.map_or(1320, |v| v as i32);
+            let h = settings.fixed_height.map_or(840, |v| v as i32);
+            (WS_OVERLAPPEDWINDOW | WS_VISIBLE, w, h)
+        };
+
         let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class_name,
-            w!("Panopticon — Window Viewer"),
-            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            PCWSTR(title_wide.as_ptr()),
+            style,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
-            1320,
-            840,
+            width,
+            height,
             None,
             None,
             hinstance,
@@ -314,6 +390,11 @@ unsafe extern "system" fn wnd_proc(
             }
             LRESULT(0)
         }
+        WM_MOUSEWHEEL => {
+            let delta = ((wparam.0 >> 16) as i16) as i32;
+            handle_scroll(hwnd, delta);
+            LRESULT(0)
+        }
         WM_SHOWWINDOW => {
             if wparam.0 != 0 {
                 let _ = refresh_windows(hwnd);
@@ -357,8 +438,22 @@ unsafe extern "system" fn wnd_proc(
             }
             LRESULT(0)
         }
+        appbar_cb if appbar_cb == WM_APPBAR_CALLBACK => {
+            if wparam.0 as u32 == ABN_POSCHANGED {
+                if let Some(state) = app_from_hwnd(hwnd) {
+                    if state.is_appbar {
+                        reposition_appbar(state);
+                    }
+                }
+            }
+            LRESULT(0)
+        }
         WM_DESTROY => {
             if let Some(state) = app_from_hwnd(hwnd) {
+                if state.is_appbar {
+                    unregister_appbar(hwnd);
+                    state.is_appbar = false;
+                }
                 state.windows.clear();
                 if let Some(tray_icon) = state.tray_icon.as_mut() {
                     tray_icon.remove();
@@ -417,6 +512,7 @@ fn handle_keydown(hwnd: HWND, vk: u16) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn handle_tray_action(hwnd: HWND, action: TrayAction) {
     match action {
         TrayAction::Toggle => toggle_window_visibility(hwnd),
@@ -501,6 +597,53 @@ fn handle_tray_action(hwnd: HWND, action: TrayAction) {
             });
             refresh_and_repaint(hwnd);
         }
+        TrayAction::SetDockEdge(edge) => {
+            // SAFETY: state lives on the current UI thread.
+            unsafe {
+                if let Some(state) = app_from_hwnd(hwnd) {
+                    // Unregister existing app-bar.
+                    if state.is_appbar {
+                        unregister_appbar(hwnd);
+                        state.is_appbar = false;
+                    }
+                    state.settings.dock_edge = edge;
+                    state.settings = state.settings.normalized();
+                    if let Err(error) = state.settings.save(state.profile_name.as_deref()) {
+                        tracing::error!(%error, "failed to persist settings");
+                    }
+                    if edge.is_some() {
+                        apply_dock_mode(state);
+                    } else {
+                        // Restore floating window style.
+                        let _ = SetWindowLongPtrW(
+                            hwnd,
+                            GWL_STYLE,
+                            (WS_OVERLAPPEDWINDOW | WS_VISIBLE).0 as isize,
+                        );
+                        let _ = SetWindowPos(
+                            hwnd,
+                            HWND_TOPMOST,
+                            0,
+                            0,
+                            0,
+                            0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                        );
+                        apply_topmost_mode(hwnd, state.settings.always_on_top);
+                    }
+                }
+            }
+            refresh_and_repaint(hwnd);
+        }
+        TrayAction::ToggleToolbar => {
+            update_settings(hwnd, |settings| {
+                settings.show_toolbar = !settings.show_toolbar;
+            });
+            recompute_layout(hwnd);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, true);
+            }
+        }
         TrayAction::Exit => request_exit(hwnd),
     }
 }
@@ -535,6 +678,8 @@ fn tray_menu_state(hwnd: HWND) -> TrayMenuState {
             active_app_filter: state.settings.active_app_filter.clone(),
             available_apps: collect_available_apps(&available_windows),
             hidden_apps: state.settings.hidden_app_entries(),
+            dock_edge: state.settings.dock_edge,
+            show_toolbar: state.settings.show_toolbar,
         }
     } else {
         TrayMenuState {
@@ -553,6 +698,8 @@ fn tray_menu_state(hwnd: HWND) -> TrayMenuState {
             active_app_filter: None,
             available_apps: Vec::new(),
             hidden_apps: Vec::new(),
+            dock_edge: None,
+            show_toolbar: true,
         }
     }
 }
@@ -573,7 +720,7 @@ fn update_settings(hwnd: HWND, mutate: impl FnOnce(&mut AppSettings)) {
         if let Some(state) = app_from_hwnd(hwnd) {
             mutate(&mut state.settings);
             state.settings = state.settings.normalized();
-            if let Err(error) = state.settings.save() {
+            if let Err(error) = state.settings.save(state.profile_name.as_deref()) {
                 tracing::error!(%error, "failed to persist settings");
             }
         }
@@ -634,7 +781,7 @@ fn cycle_layout(hwnd: HWND, source: &str) {
         if let Some(state) = app_from_hwnd(hwnd) {
             state.current_layout = state.current_layout.next();
             state.settings.initial_layout = state.current_layout;
-            if let Err(error) = state.settings.save() {
+            if let Err(error) = state.settings.save(state.profile_name.as_deref()) {
                 tracing::error!(%error, source = source, "failed to persist selected layout");
             }
             tracing::debug!(layout = ?state.current_layout, source = source, "layout switched");
@@ -724,35 +871,43 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
 
         FillRect(hdc, &client_rect, bg_brush);
 
-        let toolbar_rect = RECT {
-            left: client_rect.left,
-            top: client_rect.top,
-            right: client_rect.right,
-            bottom: client_rect.top + TOOLBAR_HEIGHT,
+        let toolbar_h = if state.settings.show_toolbar {
+            TOOLBAR_HEIGHT
+        } else {
+            0
         };
-        FillRect(hdc, &toolbar_rect, toolbar_brush);
 
-        let separator_rect = RECT {
-            left: toolbar_rect.left,
-            top: toolbar_rect.bottom - 1,
-            right: toolbar_rect.right,
-            bottom: toolbar_rect.bottom,
-        };
-        FillRect(hdc, &separator_rect, border_brush);
+        if state.settings.show_toolbar {
+            let toolbar_rect = RECT {
+                left: client_rect.left,
+                top: client_rect.top,
+                right: client_rect.right,
+                bottom: client_rect.top + toolbar_h,
+            };
+            FillRect(hdc, &toolbar_rect, toolbar_brush);
 
-        paint_toolbar(
-            hdc,
-            toolbar_rect,
-            state.current_layout,
-            state.windows.len(),
-            &ToolbarStatus {
-                hidden_count: state.settings.hidden_app_entries().len(),
-                refresh_label: state.settings.refresh_interval_label(),
-                always_on_top: state.settings.always_on_top,
-                animate_transitions: state.settings.animate_transitions,
-                filters_label: active_filter_summary(&state.settings),
-            },
-        );
+            let separator_rect = RECT {
+                left: toolbar_rect.left,
+                top: toolbar_rect.bottom - 1,
+                right: toolbar_rect.right,
+                bottom: toolbar_rect.bottom,
+            };
+            FillRect(hdc, &separator_rect, border_brush);
+
+            paint_toolbar(
+                hdc,
+                toolbar_rect,
+                state.current_layout,
+                state.windows.len(),
+                &ToolbarStatus {
+                    hidden_count: state.settings.hidden_app_entries().len(),
+                    refresh_label: state.settings.refresh_interval_label(),
+                    always_on_top: state.settings.always_on_top,
+                    animate_transitions: state.settings.animate_transitions,
+                    filters_label: active_filter_summary(&state.settings),
+                },
+            );
+        }
 
         if state.windows.is_empty() {
             paint_empty_state(hdc, client_rect, state);
@@ -788,8 +943,22 @@ fn paint_windows(
     accent_brush: HBRUSH,
     panel_brush: HBRUSH,
 ) {
+    let scroll_dir = state.current_layout.scroll_direction();
+    let scroll_offset = state.scroll_offset;
+
+    let mut client_rect = RECT::default();
+    unsafe {
+        let _ = GetClientRect(state.hwnd, &mut client_rect);
+    }
+
     for (index, managed_window) in state.windows.iter().enumerate() {
-        let outer_rect = managed_window.display_rect;
+        let outer_rect = apply_scroll_rect(managed_window.display_rect, scroll_offset, scroll_dir);
+
+        // Skip windows entirely outside the visible client area.
+        if !rects_overlap(outer_rect, client_rect) {
+            continue;
+        }
+
         // SAFETY: `hdc` and brushes are valid for the active paint pass.
         unsafe {
             FrameRect(hdc, &outer_rect, border_brush);
@@ -976,9 +1145,15 @@ fn paint_empty_state(hdc: HDC, client_rect: RECT, state: &AppState) {
         },
     );
 
+    let toolbar_h = if state.settings.show_toolbar {
+        TOOLBAR_HEIGHT
+    } else {
+        0
+    };
+
     let content_rect = RECT {
         left: client_rect.left,
-        top: client_rect.top + TOOLBAR_HEIGHT,
+        top: client_rect.top + toolbar_h,
         right: client_rect.right,
         bottom: client_rect.bottom,
     };
@@ -1223,9 +1398,15 @@ fn recompute_layout(hwnd: HWND) {
         let _ = GetClientRect(state.hwnd, &mut client_rect);
     }
 
+    let toolbar_h = if state.settings.show_toolbar {
+        TOOLBAR_HEIGHT
+    } else {
+        0
+    };
+
     let content_area = RECT {
         left: client_rect.left,
-        top: client_rect.top + TOOLBAR_HEIGHT,
+        top: client_rect.top + toolbar_h,
         right: client_rect.right,
         bottom: client_rect.bottom,
     };
@@ -1245,6 +1426,21 @@ fn recompute_layout(hwnd: HWND) {
         state.windows.len(),
         &aspects,
     );
+
+    // Track content extent for scrolling in Row / Column modes.
+    let scroll_dir = state.current_layout.scroll_direction();
+    state.content_extent = match scroll_dir {
+        ScrollDirection::Horizontal => rects.iter().map(|r| r.right).max().unwrap_or(0),
+        ScrollDirection::Vertical => rects.iter().map(|r| r.bottom).max().unwrap_or(0),
+        ScrollDirection::None => 0,
+    };
+    // max_scroll = (total content end) − (visible area end).
+    let max_scroll = match scroll_dir {
+        ScrollDirection::Horizontal => (state.content_extent - content_area.right).max(0),
+        ScrollDirection::Vertical => (state.content_extent - content_area.bottom).max(0),
+        ScrollDirection::None => 0,
+    };
+    state.scroll_offset = state.scroll_offset.clamp(0, max_scroll);
 
     let can_animate = state.settings.animate_transitions
         && unsafe { IsWindowVisible(state.hwnd).as_bool() }
@@ -1294,7 +1490,18 @@ fn recompute_layout(hwnd: HWND) {
 
 /// Handle a left-button click: switch layout (toolbar) or activate a window.
 fn handle_click(hwnd: HWND, x: i32, y: i32) {
-    if y < TOOLBAR_HEIGHT {
+    // SAFETY: state lives on the current window thread.
+    let Some(state) = (unsafe { app_from_hwnd(hwnd) }) else {
+        return;
+    };
+
+    let toolbar_h = if state.settings.show_toolbar {
+        TOOLBAR_HEIGHT
+    } else {
+        0
+    };
+
+    if y < toolbar_h {
         cycle_layout(hwnd, "toolbar");
         recompute_layout(hwnd);
         unsafe {
@@ -1303,15 +1510,12 @@ fn handle_click(hwnd: HWND, x: i32, y: i32) {
         return;
     }
 
-    // SAFETY: state lives on the current window thread.
-    let Some(state) = (unsafe { app_from_hwnd(hwnd) }) else {
-        return;
-    };
+    let (sx, sy) = scroll_adjusted_point(x, y, state);
 
     let hit = state
         .windows
         .iter()
-        .find(|managed_window| point_in_rect(managed_window.display_rect, x, y))
+        .find(|managed_window| point_in_rect(managed_window.display_rect, sx, sy))
         .map(|managed_window| {
             (
                 managed_window.info.clone(),
@@ -1331,19 +1535,27 @@ fn handle_click(hwnd: HWND, x: i32, y: i32) {
 }
 
 fn handle_right_click(hwnd: HWND, x: i32, y: i32) {
-    if y < TOOLBAR_HEIGHT {
-        return;
-    }
-
     // SAFETY: state lives on the current window thread.
     let Some(state) = (unsafe { app_from_hwnd(hwnd) }) else {
         return;
     };
 
+    let toolbar_h = if state.settings.show_toolbar {
+        TOOLBAR_HEIGHT
+    } else {
+        0
+    };
+
+    if y < toolbar_h {
+        return;
+    }
+
+    let (sx, sy) = scroll_adjusted_point(x, y, state);
+
     let hit = state
         .windows
         .iter()
-        .find(|managed_window| point_in_rect(managed_window.display_rect, x, y))
+        .find(|managed_window| point_in_rect(managed_window.display_rect, sx, sy))
         .map(|managed_window| {
             (
                 managed_window.info.clone(),
@@ -1385,11 +1597,18 @@ fn handle_hover(hwnd: HWND, x: i32, y: i32) {
         return;
     };
 
-    let new_hover = if y >= TOOLBAR_HEIGHT {
+    let toolbar_h = if state.settings.show_toolbar {
+        TOOLBAR_HEIGHT
+    } else {
+        0
+    };
+
+    let new_hover = if y >= toolbar_h {
+        let (sx, sy) = scroll_adjusted_point(x, y, state);
         state
             .windows
             .iter()
-            .position(|managed_window| point_in_rect(managed_window.display_rect, x, y))
+            .position(|managed_window| point_in_rect(managed_window.display_rect, sx, sy))
     } else {
         None
     };
@@ -1601,16 +1820,27 @@ fn update_window_previews(state: &mut AppState) {
 
     let settings = &state.settings;
     let owner_hwnd = state.hwnd;
+    let scroll_dir = state.current_layout.scroll_direction();
+    let scroll_offset = state.scroll_offset;
+
+    let mut client_rect = RECT::default();
+    unsafe {
+        let _ = GetClientRect(state.hwnd, &mut client_rect);
+    }
+
     for managed_window in &mut state.windows {
         let preserve_aspect_ratio = settings.preserve_aspect_ratio_for(&managed_window.info.app_id);
         let _ = ensure_thumbnail(owner_hwnd, managed_window);
         if let Some(thumbnail) = managed_window.thumbnail.as_ref() {
+            let scrolled =
+                apply_scroll_rect(managed_window.display_rect, scroll_offset, scroll_dir);
+            let visible = rects_overlap(scrolled, client_rect);
             let destination = preview_destination_rect(
-                managed_window.display_rect,
+                scrolled,
                 managed_window.source_size,
                 preserve_aspect_ratio,
             );
-            if thumbnail.update(destination, true).is_err() {
+            if thumbnail.update(destination, visible).is_err() {
                 tracing::warn!(title = %managed_window.info.title, "thumbnail update failed — dropping");
                 managed_window.thumbnail = None;
             }
@@ -1739,4 +1969,205 @@ fn checked_menu_flag(enabled: bool) -> MENU_ITEM_FLAGS {
 
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+// ───────────────────────── Scroll helpers ─────────────────────────
+
+/// Handle `WM_MOUSEWHEEL`: adjust `scroll_offset` and update thumbnails.
+fn handle_scroll(hwnd: HWND, wheel_delta: i32) {
+    let Some(state) = (unsafe { app_from_hwnd(hwnd) }) else {
+        return;
+    };
+
+    let scroll_dir = state.current_layout.scroll_direction();
+    if scroll_dir == ScrollDirection::None {
+        return;
+    }
+
+    // Negative delta → scroll toward higher offsets (down / right).
+    let step = -(wheel_delta * SCROLL_STEP / WHEEL_DELTA);
+    state.scroll_offset += step;
+
+    let mut client_rect = RECT::default();
+    unsafe {
+        let _ = GetClientRect(state.hwnd, &mut client_rect);
+    }
+    let toolbar_h = if state.settings.show_toolbar {
+        TOOLBAR_HEIGHT
+    } else {
+        0
+    };
+    let content_end = match scroll_dir {
+        ScrollDirection::Horizontal => client_rect.right,
+        ScrollDirection::Vertical => client_rect.bottom,
+        ScrollDirection::None => 0,
+    };
+    let _ = toolbar_h; // toolbar is already accounted for in content_extent
+    let max_scroll = (state.content_extent - content_end).max(0);
+    state.scroll_offset = state.scroll_offset.clamp(0, max_scroll);
+
+    update_window_previews(state);
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, false);
+    }
+}
+
+/// Offset a [`RECT`] by the current scroll amount along the active axis.
+fn apply_scroll_rect(rect: RECT, offset: i32, direction: ScrollDirection) -> RECT {
+    match direction {
+        ScrollDirection::Horizontal => RECT {
+            left: rect.left - offset,
+            top: rect.top,
+            right: rect.right - offset,
+            bottom: rect.bottom,
+        },
+        ScrollDirection::Vertical => RECT {
+            left: rect.left,
+            top: rect.top - offset,
+            right: rect.right,
+            bottom: rect.bottom - offset,
+        },
+        ScrollDirection::None => rect,
+    }
+}
+
+/// Convert a mouse point from client coordinates to content coordinates by
+/// reversing the current scroll offset.
+fn scroll_adjusted_point(x: i32, y: i32, state: &AppState) -> (i32, i32) {
+    match state.current_layout.scroll_direction() {
+        ScrollDirection::Horizontal => (x + state.scroll_offset, y),
+        ScrollDirection::Vertical => (x, y + state.scroll_offset),
+        ScrollDirection::None => (x, y),
+    }
+}
+
+/// Check whether two [`RECT`]s overlap (share any area).
+fn rects_overlap(a: RECT, b: RECT) -> bool {
+    a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+}
+
+// ───────────────────────── App-bar (dock) helpers ─────────────────────────
+
+/// Switch the window to a borderless popup and register it as a Win32 app-bar.
+fn apply_dock_mode(state: &mut AppState) {
+    let hwnd = state.hwnd;
+
+    // SAFETY: changing the window style on the UI thread.
+    unsafe {
+        let _ = SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_POPUP | WS_VISIBLE).0 as isize);
+    }
+
+    if register_appbar(hwnd) {
+        state.is_appbar = true;
+        reposition_appbar(state);
+    } else {
+        tracing::warn!("failed to register app-bar");
+    }
+}
+
+/// Register this window as a desktop app-bar via `SHAppBarMessage(ABM_NEW)`.
+fn register_appbar(hwnd: HWND) -> bool {
+    let mut abd = APPBARDATA {
+        cbSize: mem::size_of::<APPBARDATA>() as u32,
+        hWnd: hwnd,
+        uCallbackMessage: WM_APPBAR_CALLBACK,
+        ..Default::default()
+    };
+    // SAFETY: valid APPBARDATA with a live HWND.
+    unsafe { SHAppBarMessage(ABM_NEW, &mut abd) != 0 }
+}
+
+/// Remove the app-bar registration for `hwnd`.
+fn unregister_appbar(hwnd: HWND) {
+    let mut abd = APPBARDATA {
+        cbSize: mem::size_of::<APPBARDATA>() as u32,
+        hWnd: hwnd,
+        ..Default::default()
+    };
+    // SAFETY: valid APPBARDATA; no-op if not currently registered.
+    unsafe {
+        let _ = SHAppBarMessage(ABM_REMOVE, &mut abd);
+    }
+}
+
+/// Query the system for the correct position and reserve screen space.
+#[allow(clippy::similar_names)]
+fn reposition_appbar(state: &mut AppState) {
+    let Some(edge) = state.settings.dock_edge else {
+        return;
+    };
+
+    let hwnd = state.hwnd;
+    let monitor_rect = get_monitor_rect(hwnd);
+    let abe = dock_edge_to_abe(edge);
+    let thickness = match edge {
+        DockEdge::Left | DockEdge::Right => state.settings.fixed_width.unwrap_or(300) as i32,
+        DockEdge::Top | DockEdge::Bottom => state.settings.fixed_height.unwrap_or(200) as i32,
+    };
+
+    let mut abd = APPBARDATA {
+        cbSize: mem::size_of::<APPBARDATA>() as u32,
+        hWnd: hwnd,
+        uEdge: abe,
+        rc: monitor_rect,
+        ..Default::default()
+    };
+
+    // SAFETY: synchronous shell messages on the UI thread.
+    unsafe {
+        // Let the system adjust the proposed rect for conflicts.
+        let _ = SHAppBarMessage(ABM_QUERYPOS, &mut abd);
+
+        // Set the opposite edge to enforce our configured thickness.
+        match edge {
+            DockEdge::Left => abd.rc.right = abd.rc.left + thickness,
+            DockEdge::Right => abd.rc.left = abd.rc.right - thickness,
+            DockEdge::Top => abd.rc.bottom = abd.rc.top + thickness,
+            DockEdge::Bottom => abd.rc.top = abd.rc.bottom - thickness,
+        }
+
+        let _ = SHAppBarMessage(ABM_SETPOS, &mut abd);
+
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            abd.rc.left,
+            abd.rc.top,
+            abd.rc.right - abd.rc.left,
+            abd.rc.bottom - abd.rc.top,
+            SWP_NOACTIVATE,
+        );
+    }
+}
+
+/// Map a [`DockEdge`] to the Win32 `ABE_*` constant.
+const fn dock_edge_to_abe(edge: DockEdge) -> u32 {
+    match edge {
+        DockEdge::Left => ABE_LEFT,
+        DockEdge::Right => ABE_RIGHT,
+        DockEdge::Top => ABE_TOP,
+        DockEdge::Bottom => ABE_BOTTOM,
+    }
+}
+
+/// Return the full monitor rectangle for the monitor that contains `hwnd`.
+fn get_monitor_rect(hwnd: HWND) -> RECT {
+    // SAFETY: read-only query against the display system.
+    unsafe {
+        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
+        let mut info = MONITORINFO {
+            cbSize: mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if GetMonitorInfoW(monitor, &mut info).as_bool() {
+            info.rcMonitor
+        } else {
+            RECT {
+                left: 0,
+                top: 0,
+                right: 1920,
+                bottom: 1080,
+            }
+        }
+    }
 }
