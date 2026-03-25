@@ -209,37 +209,7 @@ fn main() {
         let weak = main_window.as_weak();
         move || {
             let Some(win) = weak.upgrade() else { return };
-            let Some(hwnd) = get_hwnd(win.window()) else {
-                tracing::error!("HWND unavailable after event-loop start");
-                return;
-            };
-            state.borrow_mut().hwnd = hwnd;
-
-            // DWM appearance.
-            apply_window_appearance(hwnd, &state.borrow().settings);
-            apply_topmost_mode(hwnd, state.borrow().settings.always_on_top);
-
-            // System tray.
-            {
-                let mut s = state.borrow_mut();
-                match TrayIcon::add(hwnd, s.icons.small) {
-                    Ok(tray) => s.tray_icon = Some(tray),
-                    Err(error) => tracing::error!(%error, "tray icon registration failed"),
-                }
-            }
-
-            // Subclass the Slint HWND to intercept tray / appbar / minimize messages.
-            setup_subclass(hwnd, &state, &win);
-
-            // Initial refresh + layout.
-            refresh_windows(&state);
-            recompute_and_update_ui(&state, &win);
-
-            // App-bar registration (if dock edge is set).
-            if state.borrow().settings.dock_edge.is_some() {
-                let mut s = state.borrow_mut();
-                apply_dock_mode(&mut s);
-            }
+            let _ = try_initialize_native_runtime(&state, &win);
         }
     });
 
@@ -252,8 +222,7 @@ fn main() {
         let weak = main_window.as_weak();
         move || {
             let Some(win) = weak.upgrade() else { return };
-            // Skip until HWND is initialised by the init timer.
-            if state.borrow().hwnd.0.is_null() {
+            if state.borrow().hwnd.0.is_null() && !try_initialize_native_runtime(&state, &win) {
                 return;
             }
 
@@ -331,6 +300,60 @@ fn get_hwnd(window: &slint::Window) -> Option<HWND> {
         RawWindowHandle::Win32(h) => Some(HWND(h.hwnd.get() as *mut c_void)),
         _ => None,
     }
+}
+
+fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow) -> bool {
+    if !state.borrow().hwnd.0.is_null() {
+        return true;
+    }
+
+    let Some(hwnd) = get_hwnd(win.window()) else {
+        tracing::debug!("HWND not ready yet; deferring native initialization");
+        return false;
+    };
+
+    {
+        let mut s = state.borrow_mut();
+        if !s.hwnd.0.is_null() {
+            return true;
+        }
+        s.hwnd = hwnd;
+    }
+
+    let settings_snapshot = state.borrow().settings.clone();
+    tracing::info!(hwnd = ?hwnd, "native HWND acquired");
+
+    // DWM appearance.
+    apply_window_appearance(hwnd, &settings_snapshot);
+    apply_topmost_mode(hwnd, settings_snapshot.always_on_top);
+
+    // System tray.
+    {
+        let mut s = state.borrow_mut();
+        match TrayIcon::add(hwnd, s.icons.small) {
+            Ok(tray) => {
+                tracing::info!("tray icon registered");
+                s.tray_icon = Some(tray);
+            }
+            Err(error) => tracing::error!(%error, "tray icon registration failed"),
+        }
+    }
+
+    // Subclass the Slint HWND to intercept tray / appbar / minimize messages.
+    setup_subclass(hwnd, state, win);
+
+    let refreshed = refresh_windows(state);
+    let tracked = state.borrow().windows.len();
+    tracing::info!(refreshed, tracked_windows = tracked, "initial window refresh completed");
+    recompute_and_update_ui(state, win);
+
+    // App-bar registration (if dock edge is set).
+    if settings_snapshot.dock_edge.is_some() {
+        let mut s = state.borrow_mut();
+        apply_dock_mode(&mut s);
+    }
+
+    true
 }
 
 // ───────────────────────── HWND Subclass ─────────────────────────
@@ -864,7 +887,7 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         let preserve = preserve_flags[i];
         let _ = ensure_thumbnail(dest_hwnd, mw);
         if let Some(thumb) = mw.thumbnail.as_ref() {
-            let dest = compute_dwm_rect(
+            let raw_dest = compute_dwm_rect(
                 &mw.display_rect,
                 mw.source_size,
                 preserve,
@@ -874,15 +897,39 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                 viewport_y,
                 scale,
             );
-            let visible = dest.left < phys.width as i32
+            let (dest, has_valid_area) = sanitize_thumbnail_rect(raw_dest);
+            let visible = has_valid_area
+                && dest.left < phys.width as i32
                 && dest.right > 0
                 && dest.top < phys.height as i32
                 && dest.bottom > 0;
-            if thumb.update(dest, visible).is_err() {
-                tracing::warn!(title = %mw.info.title, "thumbnail update failed — dropping");
+            if let Err(error) = thumb.update(dest, visible) {
+                tracing::warn!(
+                    %error,
+                    title = %mw.info.title,
+                    visible,
+                    dest = ?dest,
+                    "thumbnail update failed — dropping"
+                );
                 mw.thumbnail = None;
             }
         }
+    }
+}
+
+fn sanitize_thumbnail_rect(dest: RECT) -> (RECT, bool) {
+    if dest.right <= dest.left || dest.bottom <= dest.top {
+        (
+            RECT {
+                left: 0,
+                top: 0,
+                right: 1,
+                bottom: 1,
+            },
+            false,
+        )
+    } else {
+        (dest, true)
     }
 }
 
