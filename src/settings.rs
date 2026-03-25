@@ -444,7 +444,7 @@ impl AppSettings {
             });
 
         if rule.display_name.trim().is_empty() && !display_name.is_empty() {
-            rule.display_name = display_name.to_owned();
+            display_name.clone_into(&mut rule.display_name);
         }
 
         rule

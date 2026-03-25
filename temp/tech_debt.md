@@ -71,19 +71,20 @@ Panopticon está en segundo plano.
 
 ## Deuda Técnica Pendiente (Futura)
 
-### P1. Re-registro del tray icon tras reinicio de Explorer
+### P1. Editor libre de tags dentro de la UI
 
-Si `explorer.exe` se reinicia, el área de notificación pierde los iconos. La
-mejora pendiente es escuchar el mensaje registrado `TaskbarCreated` y volver a
-registrar el tray icon automáticamente.
+Ahora ya existen tags persistentes, creación rápida desde una app y filtros por
+tag/aplicación/monitor. El siguiente salto útil sería un editor inline para
+crear/renombrar tags arbitrarios sin depender del nombre de una app o de editar
+el TOML manualmente.
 
-### P2. Menú contextual avanzado / Preferencias
+### P2. Preferencias avanzadas / perfiles por monitor
 
 El tray ya soporta show/hide, refresh, next layout, hide-on-minimize,
 hide-on-close, cycle refresh interval, animaciones, defaults por app,
-always-on-top, restauración de apps ocultas y exit. A futuro conviene añadir
-preferencias como layout favorites, autostart, perfiles por monitor o reglas
-más finas por proceso/clase.
+always-on-top, restauración de apps ocultas, filtros por monitor y grupos por
+tag o aplicación. A futuro conviene añadir layout favorites, autostart,
+perfiles completos por monitor o reglas más finas por proceso/clase.
 
 ### P3. Cobertura en CI
 
