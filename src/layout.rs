@@ -139,7 +139,10 @@ fn normalize_ratios(ratios: &[f64]) -> Vec<f64> {
         return Vec::new();
     }
 
-    if ratios.iter().any(|ratio| !ratio.is_finite() || *ratio <= 0.0) {
+    if ratios
+        .iter()
+        .any(|ratio| !ratio.is_finite() || *ratio <= 0.0)
+    {
         return default_ratios(ratios.len());
     }
 
@@ -158,7 +161,12 @@ fn matching_ratios(ratios: Option<&[f64]>, expected_len: usize) -> Option<&[f64]
 fn scaled_segments(total: f64, slots: usize, ratios: Option<&[f64]>) -> Vec<f64> {
     ratios.map_or_else(
         || vec![total / slots as f64; slots],
-        |ratios| normalize_ratios(ratios).iter().map(|ratio| total * ratio).collect(),
+        |ratios| {
+            normalize_ratios(ratios)
+                .iter()
+                .map(|ratio| total * ratio)
+                .collect()
+        },
     )
 }
 
@@ -252,7 +260,11 @@ pub fn compute_layout_custom(
 // ───────────────────────── Grid ─────────────────────────
 
 /// Equal-sized cells in a √n × √n grid, with optional custom ratios.
-fn grid_layout_custom(area: RECT, count: usize, custom: Option<&LayoutCustomization>) -> LayoutResult {
+fn grid_layout_custom(
+    area: RECT,
+    count: usize,
+    custom: Option<&LayoutCustomization>,
+) -> LayoutResult {
     let cols = (count as f64).sqrt().ceil() as usize;
     let rows = count.div_ceil(cols);
 
@@ -385,7 +397,11 @@ fn mosaic_layout_custom(
 // ───────────────────────── Bento ─────────────────────────
 
 /// Primary window (60 % width) plus a sidebar stack.
-fn bento_layout_custom(area: RECT, count: usize, custom: Option<&LayoutCustomization>) -> LayoutResult {
+fn bento_layout_custom(
+    area: RECT,
+    count: usize,
+    custom: Option<&LayoutCustomization>,
+) -> LayoutResult {
     if count == 1 {
         return LayoutResult {
             rects: vec![padded_rect(area.left, area.top, area.right, area.bottom)],
@@ -404,7 +420,12 @@ fn bento_layout_custom(area: RECT, count: usize, custom: Option<&LayoutCustomiza
     let main_w = (total_w * main_frac) as i32;
 
     let mut rects = Vec::with_capacity(count);
-    rects.push(padded_rect(area.left, area.top, area.left + main_w, area.bottom));
+    rects.push(padded_rect(
+        area.left,
+        area.top,
+        area.left + main_w,
+        area.bottom,
+    ));
 
     let side_count = count - 1;
 
@@ -614,35 +635,34 @@ fn single_row_layout_custom(
     let height = f64::from(area.bottom - area.top);
     let width = f64::from(area.right - area.left);
 
-    let widths: Vec<f64> = if let Some(ratios) =
-        matching_ratios(custom.map(|c| c.col_ratios.as_slice()), count)
-    {
-        // Custom ratios → scale to total natural or available width
-        let ratios = normalize_ratios(ratios);
-        let natural: Vec<f64> = (0..count)
-            .map(|i| {
-                let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
-                height * ratio
-            })
-            .collect();
-        let total: f64 = natural.iter().sum();
-        let extent = total.max(width);
-        ratios.iter().map(|r| extent * r).collect()
-    } else {
-        let natural: Vec<f64> = (0..count)
-            .map(|i| {
-                let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
-                height * ratio
-            })
-            .collect();
-        let total: f64 = natural.iter().sum();
-        if total <= width {
-            let scale = width / total;
-            natural.iter().map(|w| w * scale).collect()
+    let widths: Vec<f64> =
+        if let Some(ratios) = matching_ratios(custom.map(|c| c.col_ratios.as_slice()), count) {
+            // Custom ratios → scale to total natural or available width
+            let ratios = normalize_ratios(ratios);
+            let natural: Vec<f64> = (0..count)
+                .map(|i| {
+                    let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+                    height * ratio
+                })
+                .collect();
+            let total: f64 = natural.iter().sum();
+            let extent = total.max(width);
+            ratios.iter().map(|r| extent * r).collect()
         } else {
-            natural
-        }
-    };
+            let natural: Vec<f64> = (0..count)
+                .map(|i| {
+                    let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+                    height * ratio
+                })
+                .collect();
+            let total: f64 = natural.iter().sum();
+            if total <= width {
+                let scale = width / total;
+                natural.iter().map(|w| w * scale).collect()
+            } else {
+                natural
+            }
+        };
 
     let col_x = cumulative_positions(&widths);
 
@@ -686,34 +706,33 @@ fn single_column_layout_custom(
     let width = f64::from(area.right - area.left);
     let height = f64::from(area.bottom - area.top);
 
-    let heights: Vec<f64> = if let Some(ratios) =
-        matching_ratios(custom.map(|c| c.row_ratios.as_slice()), count)
-    {
-        let ratios = normalize_ratios(ratios);
-        let natural: Vec<f64> = (0..count)
-            .map(|i| {
-                let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
-                width / ratio
-            })
-            .collect();
-        let total: f64 = natural.iter().sum();
-        let extent = total.max(height);
-        ratios.iter().map(|r| extent * r).collect()
-    } else {
-        let natural: Vec<f64> = (0..count)
-            .map(|i| {
-                let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
-                width / ratio
-            })
-            .collect();
-        let total: f64 = natural.iter().sum();
-        if total <= height {
-            let scale = height / total;
-            natural.iter().map(|h| h * scale).collect()
+    let heights: Vec<f64> =
+        if let Some(ratios) = matching_ratios(custom.map(|c| c.row_ratios.as_slice()), count) {
+            let ratios = normalize_ratios(ratios);
+            let natural: Vec<f64> = (0..count)
+                .map(|i| {
+                    let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+                    width / ratio
+                })
+                .collect();
+            let total: f64 = natural.iter().sum();
+            let extent = total.max(height);
+            ratios.iter().map(|r| extent * r).collect()
         } else {
-            natural
-        }
-    };
+            let natural: Vec<f64> = (0..count)
+                .map(|i| {
+                    let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+                    width / ratio
+                })
+                .collect();
+            let total: f64 = natural.iter().sum();
+            if total <= height {
+                let scale = height / total;
+                natural.iter().map(|h| h * scale).collect()
+            } else {
+                natural
+            }
+        };
 
     let row_y = cumulative_positions(&heights);
 

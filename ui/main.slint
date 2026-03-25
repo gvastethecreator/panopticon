@@ -33,6 +33,7 @@ export struct ThumbnailData {
     title: string,
     app-label: string,
     is-hovered: bool,
+    is-active: bool,
     accent-color: color,
     show-footer: bool,
 }
@@ -56,6 +57,7 @@ component ThumbnailCard inherits Rectangle {
     in property <string> title;
     in property <string> app-label;
     in property <bool> is-hovered;
+    in property <bool> is-active;
     in property <bool> show-footer: true;
     in property <color> accent-color: Theme.accent;
 
@@ -64,8 +66,8 @@ component ThumbnailCard inherits Rectangle {
     callback pointer-moved(/* x */ float, /* y */ float);
 
     background: Theme.card-bg;
-    border-width: is-hovered ? 2px : 1px;
-    border-color: is-hovered ? Theme.hover-border : Theme.border;
+    border-width: is-hovered || is-active ? 2px : 1px;
+    border-color: is-active ? Theme.accent : (is-hovered ? Theme.hover-border : Theme.border);
     border-radius: 4px;
     clip: true;
 
@@ -154,14 +156,14 @@ component ResizeHandle inherits Rectangle {
 
         pointer-event(event) => {
             if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
-                root.drag-started(root.handle-index, touch.mouse-x / 1px, touch.mouse-y / 1px);
+                root.drag-started(root.handle-index, root.x / 1px + touch.mouse-x / 1px, root.y / 1px + touch.mouse-y / 1px);
             }
             if event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
                 root.drag-ended(root.handle-index);
             }
         }
         moved => {
-            root.drag-moved(root.handle-index, touch.mouse-x / 1px, touch.mouse-y / 1px);
+            root.drag-moved(root.handle-index, root.x / 1px + touch.mouse-x / 1px, root.y / 1px + touch.mouse-y / 1px);
         }
     }
 }
@@ -361,9 +363,6 @@ export component MainWindow inherits Window {
     in-out property <float> viewport-x: 0;
     in-out property <float> viewport-y: 0;
 
-    // Track mouse presence for scrollbar visibility
-    in-out property <bool> mouse-inside: false;
-
     // ── Callbacks ────────────────────────────────
     callback thumbnail-clicked(/* index */ int);
     callback thumbnail-right-clicked(/* index */ int, /* x */ float, /* y */ float);
@@ -394,56 +393,6 @@ export component MainWindow inherits Window {
             property <float> max-scroll-x: max(root.content-width - self.width / 1px, 0);
             property <float> max-scroll-y: max(root.content-height - self.height / 1px, 0);
 
-            // Detect mouse enter/leave
-            outer-touch := TouchArea {
-                property <bool> middle-pan-active: false;
-                property <float> last-pan-x: 0;
-                property <float> last-pan-y: 0;
-
-                pointer-event(event) => {
-                    if event.kind == PointerEventKind.move {
-                        root.mouse-inside = true;
-                    }
-
-                    if event.kind == PointerEventKind.down && event.button == PointerEventButton.middle {
-                        self.middle-pan-active = root.scroll-horizontal || root.scroll-vertical;
-                        self.last-pan-x = self.mouse-x / 1px;
-                        self.last-pan-y = self.mouse-y / 1px;
-                    }
-
-                    if event.kind == PointerEventKind.up && event.button == PointerEventButton.middle {
-                        self.middle-pan-active = false;
-                    }
-                }
-
-                moved => {
-                    root.mouse-inside = true;
-                    if self.middle-pan-active {
-                        if root.scroll-horizontal {
-                            root.viewport-x = min(0, max(-content-frame.max-scroll-x, root.viewport-x + (self.mouse-x / 1px - self.last-pan-x)));
-                        }
-                        if root.scroll-vertical {
-                            root.viewport-y = min(0, max(-content-frame.max-scroll-y, root.viewport-y + (self.mouse-y / 1px - self.last-pan-y)));
-                        }
-                        self.last-pan-x = self.mouse-x / 1px;
-                        self.last-pan-y = self.mouse-y / 1px;
-                    }
-                }
-
-                scroll-event(event) => {
-                    root.mouse-inside = true;
-                    if root.scroll-horizontal {
-                        root.viewport-x = min(0, max(-content-frame.max-scroll-x, root.viewport-x + (event.delta_x == 0px ? event.delta_y / 1px : event.delta_x / 1px)));
-                        return accept;
-                    }
-                    if root.scroll-vertical {
-                        root.viewport-y = min(0, max(-content-frame.max-scroll-y, root.viewport-y + event.delta_y / 1px));
-                        return accept;
-                    }
-                    reject
-                }
-            }
-
             if root.thumbnails.length == 0: EmptyState {}
 
             flickable := Flickable {
@@ -461,6 +410,7 @@ export component MainWindow inherits Window {
                     title: thumb.title;
                     app-label: thumb.app-label;
                     is-hovered: thumb.is-hovered;
+                    is-active: thumb.is-active;
                     accent-color: thumb.accent-color;
                     show-footer: thumb.show-footer;
 
@@ -495,7 +445,7 @@ export component MainWindow inherits Window {
                 content-extent: root.content-height;
                 visible-size: parent.height / 1px;
                 horizontal: false;
-                mouse-inside: root.mouse-inside;
+                mouse-inside: true;
             }
 
             // Horizontal scrollbar overlay (bottom edge)
@@ -508,7 +458,7 @@ export component MainWindow inherits Window {
                 content-extent: root.content-width;
                 visible-size: parent.width / 1px;
                 horizontal: true;
-                mouse-inside: root.mouse-inside;
+                mouse-inside: true;
             }
         }
     }

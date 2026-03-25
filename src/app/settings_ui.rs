@@ -23,7 +23,10 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_layout_index(layout_to_index(settings.initial_layout));
 }
 
-pub fn apply_settings_window_changes(window: &SettingsWindow, settings: &mut AppSettings) -> LayoutType {
+pub fn apply_settings_window_changes(
+    window: &SettingsWindow,
+    settings: &mut AppSettings,
+) -> LayoutType {
     settings.always_on_top = window.get_always_on_top_setting();
     settings.animate_transitions = window.get_animate_transitions_setting();
     settings.minimize_to_tray = window.get_minimize_to_tray_setting();

@@ -23,7 +23,7 @@ use panopticon::constants::{
 };
 use panopticon::layout::{
     apply_separator_drag, compute_layout_custom, default_ratios, AspectHint, LayoutType,
-    Separator, ScrollDirection,
+    ScrollDirection, Separator,
 };
 use panopticon::settings::{AppSelectionEntry, AppSettings, DockEdge};
 use panopticon::thumbnail::Thumbnail;
@@ -39,7 +39,7 @@ use std::time::{Duration, Instant};
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{
-    CloseRequestResponse, ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel,
+    CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel,
 };
 
 use windows::core::w;
@@ -79,6 +79,14 @@ thread_local! {
     static PENDING_ACTIONS: RefCell<Vec<PendingAction>> = const { RefCell::new(Vec::new()) };
     static SETTINGS_WIN: RefCell<Option<SettingsWindow>> = const { RefCell::new(None) };
     static TAG_DIALOG_WIN: RefCell<Option<TagDialogWindow>> = const { RefCell::new(None) };
+    static PAN_STATE: RefCell<MiddlePanState> = const { RefCell::new(MiddlePanState { active: false, last_x: 0, last_y: 0 }) };
+}
+
+/// Tracks middle-button pan drag state.
+struct MiddlePanState {
+    active: bool,
+    last_x: i32,
+    last_y: i32,
 }
 
 // ───────────────────────── Types ─────────────────────────
@@ -122,13 +130,13 @@ struct AppState {
     windows: Vec<ManagedWindow>,
     current_layout: LayoutType,
     hover_index: Option<usize>,
+    active_hwnd: Option<HWND>,
     tray_icon: Option<TrayIcon>,
     icons: AppIcons,
     settings: AppSettings,
     animation_started_at: Option<Instant>,
     content_extent: i32,
     is_appbar: bool,
-    mouse_inside: bool,
     profile_name: Option<String>,
     last_size: (i32, i32),
     /// Cached separators from the last layout computation.
@@ -171,13 +179,13 @@ fn main() {
         windows: Vec::new(),
         current_layout: settings.initial_layout,
         hover_index: None,
+        active_hwnd: None,
         tray_icon: None,
         icons,
         settings,
         animation_started_at: None,
         content_extent: 0,
         is_appbar: false,
-        mouse_inside: false,
         profile_name: profile,
         last_size: (0, 0),
         separators: Vec::new(),
@@ -335,7 +343,7 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
     // System tray.
     {
         let mut s = state.borrow_mut();
-                match TrayIcon::add(hwnd, preferred_tray_icon(hwnd, s.icons.small)) {
+        match TrayIcon::add(hwnd, preferred_tray_icon(hwnd, s.icons.small)) {
             Ok(tray) => {
                 tracing::info!("tray icon registered");
                 s.tray_icon = Some(tray);
@@ -349,7 +357,11 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
 
     let refreshed = refresh_windows(state);
     let tracked = state.borrow().windows.len();
-    tracing::info!(refreshed, tracked_windows = tracked, "initial window refresh completed");
+    tracing::info!(
+        refreshed,
+        tracked_windows = tracked,
+        "initial window refresh completed"
+    );
     recompute_and_update_ui(state, win);
 
     // App-bar registration (if dock edge is set).
@@ -418,26 +430,7 @@ unsafe extern "system" fn subclass_proc(
 
     match msg {
         WM_TRAYICON => {
-            let mouse_msg = lparam.0 as u32;
-            if mouse_msg == WM_LBUTTONUP {
-                PENDING_ACTIONS
-                    .with(|q| q.borrow_mut().push(PendingAction::Tray(TrayAction::Toggle)));
-            } else if mouse_msg == WM_RBUTTONUP {
-                // Build the menu state snapshot (borrows & releases state).
-                let menu_state = UI_STATE.with(|s| {
-                    s.borrow().as_ref().and_then(|rc| {
-                        rc.try_borrow_mut()
-                            .ok()
-                            .map(|mut st| build_tray_menu_state(&mut st))
-                    })
-                });
-                // `TrackPopupMenu` blocks; no borrows are held during the call.
-                if let Some(menu_state) = menu_state {
-                    if let Some(action) = handle_tray_message(hwnd, lparam, &menu_state) {
-                        PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Tray(action)));
-                    }
-                }
-            }
+            handle_tray_subclass(hwnd, lparam);
             LRESULT(0)
         }
         WM_APPBAR_CALLBACK => {
@@ -477,24 +470,162 @@ unsafe extern "system" fn subclass_proc(
             forward_to_original(hwnd, msg, wparam, lparam)
         }
         WM_SHOWWINDOW => {
-            if wparam.0 != 0 {
-                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Refresh));
-            } else {
-                // Release DWM thumbnails when the window is hidden.
-                UI_STATE.with(|s| {
-                    if let Some(rc) = s.borrow().as_ref() {
-                        if let Ok(mut st) = rc.try_borrow_mut() {
-                            for mw in &mut st.windows {
-                                mw.thumbnail = None;
-                            }
-                        }
-                    }
-                });
-            }
+            handle_show_window(wparam);
             forward_to_original(hwnd, msg, wparam, lparam)
+        }
+        WM_MBUTTONDOWN => {
+            let x = (lparam.0 & 0xFFFF) as i16 as i32;
+            let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
+            PAN_STATE.with(|p| {
+                let mut pan = p.borrow_mut();
+                pan.active = true;
+                pan.last_x = x;
+                pan.last_y = y;
+            });
+            LRESULT(0)
+        }
+        WM_MOUSEWHEEL => {
+            let handled = handle_wheel_scroll(wparam);
+            if handled {
+                LRESULT(0)
+            } else {
+                forward_to_original(hwnd, msg, wparam, lparam)
+            }
+        }
+        WM_MBUTTONUP => {
+            PAN_STATE.with(|p| p.borrow_mut().active = false);
+            LRESULT(0)
+        }
+        WM_MOUSEMOVE => {
+            let pan_active = PAN_STATE.with(|p| p.borrow().active);
+            if pan_active {
+                handle_middle_pan_move(lparam);
+                LRESULT(0)
+            } else {
+                forward_to_original(hwnd, msg, wparam, lparam)
+            }
         }
         _ => forward_to_original(hwnd, msg, wparam, lparam),
     }
+}
+
+/// Handles `WM_SHOWWINDOW` — enqueue refresh on show, release thumbnails on hide.
+fn handle_show_window(wparam: WPARAM) {
+    if wparam.0 != 0 {
+        PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Refresh));
+    } else {
+        UI_STATE.with(|s| {
+            if let Some(rc) = s.borrow().as_ref() {
+                if let Ok(mut st) = rc.try_borrow_mut() {
+                    for mw in &mut st.windows {
+                        mw.thumbnail = None;
+                    }
+                }
+            }
+        });
+    }
+}
+
+/// Handles tray icon messages (left/right click).
+fn handle_tray_subclass(hwnd: HWND, lparam: LPARAM) {
+    let mouse_msg = lparam.0 as u32;
+    if mouse_msg == WM_LBUTTONUP {
+        PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Tray(TrayAction::Toggle)));
+    } else if mouse_msg == WM_RBUTTONUP {
+        let menu_state = UI_STATE.with(|s| {
+            s.borrow().as_ref().and_then(|rc| {
+                rc.try_borrow_mut()
+                    .ok()
+                    .map(|mut st| build_tray_menu_state(&mut st))
+            })
+        });
+        if let Some(menu_state) = menu_state {
+            if let Some(action) = handle_tray_message(hwnd, lparam, &menu_state) {
+                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Tray(action)));
+            }
+        }
+    }
+}
+
+/// Handles mouse wheel scroll — maps vertical wheel to horizontal for Row mode.
+/// Returns `true` if the event was consumed.
+fn handle_wheel_scroll(wparam: WPARAM) -> bool {
+    let delta = (wparam.0 >> 16) as i16 as f32; // high word = wheel delta
+    let scroll_px = delta / 120.0 * 48.0; // 48 logical px per wheel tick
+    UI_WINDOW.with(|w| {
+        let Some(win) = w.borrow().as_ref().and_then(slint::Weak::upgrade) else {
+            return false;
+        };
+        let scroll_h = win.get_scroll_horizontal();
+        let scroll_v = win.get_scroll_vertical();
+        if scroll_h {
+            let scale = win.window().scale_factor();
+            let phys = win.window().size();
+            let cw = win.get_content_width();
+            let visible = phys.width as f32 / scale;
+            let max_scroll = (cw - visible).max(0.0);
+            let new_vx = (win.get_viewport_x() + scroll_px).clamp(-max_scroll, 0.0);
+            win.set_viewport_x(new_vx);
+            true
+        } else if scroll_v {
+            let scale = win.window().scale_factor();
+            let phys = win.window().size();
+            let toolbar_h = if win.get_show_toolbar() {
+                TOOLBAR_HEIGHT as f32
+            } else {
+                0.0
+            };
+            let ch = win.get_content_height();
+            let visible = phys.height as f32 / scale - toolbar_h;
+            let max_scroll = (ch - visible).max(0.0);
+            let new_vy = (win.get_viewport_y() + scroll_px).clamp(-max_scroll, 0.0);
+            win.set_viewport_y(new_vy);
+            true
+        } else {
+            false
+        }
+    })
+}
+
+/// Applies a middle-button pan delta to the scroll viewport.
+fn handle_middle_pan_move(lparam: LPARAM) {
+    let x = (lparam.0 & 0xFFFF) as i16 as i32;
+    let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
+    PAN_STATE.with(|p| {
+        let mut pan = p.borrow_mut();
+        let dx = x - pan.last_x;
+        let dy = y - pan.last_y;
+        pan.last_x = x;
+        pan.last_y = y;
+        UI_WINDOW.with(|w| {
+            if let Some(win) = w.borrow().as_ref().and_then(slint::Weak::upgrade) {
+                let scale = win.window().scale_factor();
+                let scroll_h = win.get_scroll_horizontal();
+                let scroll_v = win.get_scroll_vertical();
+                if scroll_h {
+                    let phys = win.window().size();
+                    let cw = win.get_content_width();
+                    let visible = phys.width as f32 / scale;
+                    let max_scroll = (cw - visible).max(0.0);
+                    let new_vx = (win.get_viewport_x() + dx as f32 / scale).clamp(-max_scroll, 0.0);
+                    win.set_viewport_x(new_vx);
+                }
+                if scroll_v {
+                    let phys = win.window().size();
+                    let toolbar_h = if win.get_show_toolbar() {
+                        TOOLBAR_HEIGHT as f32
+                    } else {
+                        0.0
+                    };
+                    let ch = win.get_content_height();
+                    let visible = phys.height as f32 / scale - toolbar_h;
+                    let max_scroll = (ch - visible).max(0.0);
+                    let new_vy = (win.get_viewport_y() + dy as f32 / scale).clamp(-max_scroll, 0.0);
+                    win.set_viewport_y(new_vy);
+                }
+            }
+        });
+    });
 }
 
 // ───────────────────────── Slint Callbacks ─────────────────────────
@@ -524,7 +655,6 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
             let new_index = Some(index as usize);
             if s.hover_index != new_index {
                 s.hover_index = new_index;
-                s.mouse_inside = true;
                 drop(s);
                 if let Some(win) = weak.upgrade() {
                     update_hover_in_model(&state, &win);
@@ -770,7 +900,13 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     win.set_scroll_vertical(scroll_v);
     win.set_content_width(s.content_extent as f32);
     win.set_content_height(s.content_extent as f32);
-    clamp_viewport_offsets(win, scroll_dir, s.content_extent, logical_w, content_area.bottom);
+    clamp_viewport_offsets(
+        win,
+        scroll_dir,
+        s.content_extent,
+        logical_w,
+        content_area.bottom,
+    );
 
     sync_settings_to_ui(win, &s.settings);
 
@@ -831,6 +967,7 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
             title: SharedString::from(truncate_title(&mw.info.title)),
             app_label: SharedString::from(mw.info.app_label()),
             is_hovered: s.hover_index == Some(i),
+            is_active: s.active_hwnd == Some(mw.info.hwnd),
             accent_color: accent,
             show_footer,
         })
@@ -881,7 +1018,23 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
 }
 
 fn update_hover_in_model(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    sync_model_to_slint(state, win);
+    let s = state.borrow();
+    let model = win.get_thumbnails();
+    let count = model.row_count();
+    for i in 0..count {
+        if let Some(mut item) = model.row_data(i) {
+            let should_hover = s.hover_index == Some(i);
+            let should_active = s
+                .windows
+                .get(i)
+                .is_some_and(|mw| s.active_hwnd == Some(mw.info.hwnd));
+            if item.is_hovered != should_hover || item.is_active != should_active {
+                item.is_hovered = should_hover;
+                item.is_active = should_active;
+                model.set_row_data(i, item);
+            }
+        }
+    }
 }
 
 // ───────────────────────── DWM Thumbnails ─────────────────────────
@@ -1047,12 +1200,13 @@ fn handle_thumbnail_click(
     weak: &slint::Weak<MainWindow>,
     index: usize,
 ) {
-    let s = state.borrow();
+    let mut s = state.borrow_mut();
     let Some(mw) = s.windows.get(index) else {
         return;
     };
     let info = mw.info.clone();
     let hide_on_select = s.settings.hide_on_select_for(&info.app_id);
+    s.active_hwnd = Some(info.hwnd);
     drop(s);
 
     tracing::info!(title = %info.title, app_id = %info.app_id, "activating window");
@@ -1063,6 +1217,8 @@ fn handle_thumbnail_click(
             release_all_thumbnails(state);
             win.hide().ok();
         }
+    } else if let Some(win) = weak.upgrade() {
+        update_hover_in_model(state, &win);
     }
 }
 
@@ -1086,13 +1242,9 @@ fn handle_thumbnail_right_click(
     let hwnd = s.hwnd;
     drop(s);
 
-    if let Some(action) = show_window_context_menu(
-        hwnd,
-        preserve,
-        hide_on,
-        &known_tags,
-        &current_tags,
-    ) {
+    if let Some(action) =
+        show_window_context_menu(hwnd, preserve, hide_on, &known_tags, &current_tags)
+    {
         handle_window_menu_action(state, weak, &info, action);
     }
 }
@@ -1390,8 +1542,8 @@ fn handle_resize_drag_start(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
     separator_index: usize,
-    _x: f64,
-    _y: f64,
+    x: f64,
+    y: f64,
 ) {
     let mut s = state.borrow_mut();
     let Some(sep) = s.separators.get(separator_index).copied() else {
@@ -1414,12 +1566,15 @@ fn handle_resize_drag_start(
         logical_w as f64
     };
 
+    // x, y are now absolute coordinates in content-frame space.
+    let initial_offset = if sep.horizontal { y } else { x };
+
     s.drag_separator = Some(DragState {
         separator_index,
         horizontal: sep.horizontal,
         ratio_index: sep.ratio_index,
         axis_extent,
-        last_pointer_offset: 0.0,
+        last_pointer_offset: initial_offset,
     });
 }
 
@@ -1447,11 +1602,8 @@ fn handle_resize_drag_move(
     };
 
     let handle_center = 7.0; // half of handle_thickness
-    let pointer_offset = if horizontal {
-        y - handle_center
-    } else {
-        x - handle_center
-    };
+    let _ = handle_center; // coordinates are now absolute in content-frame space
+    let pointer_offset = if horizontal { y } else { x };
     let delta_frac = (pointer_offset - last_pointer_offset) / axis_extent;
 
     let mut s = state.borrow_mut();
@@ -1484,10 +1636,7 @@ fn handle_resize_drag_move(
     }
 }
 
-fn handle_resize_drag_end(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-) {
+fn handle_resize_drag_end(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
     let mut s = state.borrow_mut();
     s.drag_separator = None;
     let _ = s.settings.save(s.profile_name.as_deref());
@@ -1907,6 +2056,7 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
             title: SharedString::from(truncate_title(&mw.info.title)),
             app_label: SharedString::from(mw.info.app_label()),
             is_hovered: s.hover_index == Some(i),
+            is_active: s.active_hwnd == Some(mw.info.hwnd),
             accent_color: accent,
             show_footer,
         })
