@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="108" fill="#181513"/>
+  <!-- 2×2 grid of window thumbnail cards -->
+  <rect x="64" y="64" width="176" height="136" rx="12" fill="#2A2522" stroke="#3A3530" stroke-width="2"/>
+  <rect x="64" y="64" width="176" height="4" rx="2" fill="#D29A5C"/>
+  <rect x="272" y="64" width="176" height="136" rx="12" fill="#2A2522" stroke="#3A3530" stroke-width="2"/>
+  <rect x="272" y="64" width="176" height="4" rx="2" fill="#5CA9FF"/>
+  <rect x="64" y="232" width="176" height="136" rx="12" fill="#2A2522" stroke="#3A3530" stroke-width="2"/>
+  <rect x="64" y="232" width="176" height="4" rx="2" fill="#3CCF91"/>
+  <rect x="272" y="232" width="176" height="136" rx="12" fill="#2A2522" stroke="#3A3530" stroke-width="2"/>
+  <rect x="272" y="232" width="176" height="4" rx="2" fill="#FF6B8A"/>
+  <!-- Panopticon eye accent -->
+  <circle cx="256" cy="420" r="22" fill="#D29A5C" opacity="0.9"/>
+  <circle cx="256" cy="420" r="9" fill="#181513"/>
+</svg>

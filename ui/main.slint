@@ -1,0 +1,554 @@
+// ── Panopticon – Slint UI ─────────────────────────────────────
+// Dark theme optimised for Windows 11 with warm amber accents.
+
+import { CheckBox, ComboBox, LineEdit, ScrollView, GroupBox, Button,
+         VerticalBox, HorizontalBox, TabWidget, Slider, SpinBox } from "std-widgets.slint";
+
+// ── Theme colours ────────────────────────────────────────────
+
+export global Theme {
+    out property <color> bg:           #181513;
+    out property <color> toolbar-bg:   #1a1814;
+    out property <color> panel-bg:     #2A2522;
+    out property <color> card-bg:      #1e1c1a;
+    out property <color> border:       #3a3530;
+    out property <color> accent:       #D29A5C;
+    out property <color> accent-soft:  #5C4A38;
+    out property <color> text:         #E6E2DE;
+    out property <color> label:        #C8C1BA;
+    out property <color> muted:        #8D867F;
+    out property <color> hover-border: #D29A5C;
+    out property <color> placeholder:  #141210;
+    out property <color> footer-bg:    #1a1814;
+    out property <color> surface:      #221E1C;
+}
+
+// ── Data structures ──────────────────────────────────────────
+
+export struct ThumbnailData {
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    title: string,
+    app-label: string,
+    is-hovered: bool,
+    accent-color: color,
+    show-footer: bool,
+}
+
+// ── Thumbnail card ───────────────────────────────────────────
+
+component ThumbnailCard inherits Rectangle {
+    in property <string> title;
+    in property <string> app-label;
+    in property <bool> is-hovered;
+    in property <bool> show-footer: true;
+    in property <color> accent-color: Theme.accent;
+
+    callback clicked();
+    callback right-clicked(/* x */ float, /* y */ float);
+    callback pointer-moved(/* x */ float, /* y */ float);
+
+    background: Theme.card-bg;
+    border-width: is-hovered ? 2px : 1px;
+    border-color: is-hovered ? Theme.hover-border : Theme.border;
+    border-radius: 4px;
+    clip: true;
+
+    // Accent strip
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 3px;
+        background: root.accent-color;
+    }
+
+    // DWM thumbnail area — intentionally empty/dark so the compositor
+    // can overlay the live window preview on top.
+    Rectangle {
+        x: 1px;
+        y: 3px;
+        width: parent.width - 2px;
+        height: parent.height - 3px - (root.show-footer ? 34px : 0px);
+        background: Theme.placeholder;
+    }
+
+    // Footer with title + app label
+    if root.show-footer: Rectangle {
+        x: 0;
+        y: parent.height - 34px;
+        width: 100%;
+        height: 34px;
+        background: Theme.footer-bg;
+
+        Text {
+            x: 10px;
+            y: 0;
+            width: parent.width * 55% - 15px;
+            height: 100%;
+            text: root.title;
+            color: Theme.label;
+            vertical-alignment: center;
+            font-size: 11.5px;
+            overflow: elide;
+        }
+
+        Text {
+            x: parent.width * 55%;
+            y: 0;
+            width: parent.width * 45% - 10px;
+            height: 100%;
+            text: root.app-label;
+            color: Theme.muted;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            font-size: 10.5px;
+            overflow: elide;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.right {
+                root.right-clicked(touch.mouse-x / 1px, touch.mouse-y / 1px);
+            }
+        }
+        moved => {
+            root.pointer-moved(touch.mouse-x / 1px, touch.mouse-y / 1px);
+        }
+    }
+}
+
+// ── Toolbar ──────────────────────────────────────────────────
+
+component Toolbar inherits Rectangle {
+    in property <string> layout-label;
+    in property <int> window-count;
+    in property <int> hidden-count;
+    in property <string> refresh-label;
+    in property <bool> always-on-top;
+    in property <bool> animate-transitions;
+    in property <string> filters-label;
+
+    callback clicked();
+
+    height: 48px;
+    background: Theme.toolbar-bg;
+
+    // Bottom separator
+    Rectangle {
+        y: parent.height - 1px;
+        width: 100%;
+        height: 1px;
+        background: Theme.border;
+    }
+
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        alignment: space-between;
+
+        // Left: brand
+        Text {
+            text: "Panopticon";
+            color: Theme.text;
+            vertical-alignment: center;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        // Centre: status
+        Text {
+            text: root.layout-label + "  ·  " + root.window-count + " visibles  ·  "
+                  + root.hidden-count + " ocultas  ·  " + root.refresh-label
+                  + (root.filters-label != "" ? ("  ·  " + root.filters-label) : "");
+            color: Theme.label;
+            vertical-alignment: center;
+            font-size: 11.5px;
+            overflow: elide;
+            horizontal-stretch: 1;
+            horizontal-alignment: center;
+        }
+
+        // Right: quick info
+        Text {
+            text: (root.always-on-top ? "siempre visible" : "ventana normal") + "  ·  "
+                  + (root.animate-transitions ? "anim on" : "anim off")
+                  + "  ·  click der.: opciones  ·  Esc salir";
+            color: Theme.muted;
+            vertical-alignment: center;
+            font-size: 10.5px;
+            horizontal-alignment: right;
+        }
+    }
+}
+
+// ── Empty state ──────────────────────────────────────────────
+
+component EmptyState inherits Rectangle {
+    in property <string> message: "No windows available to preview";
+    in property <string> helper: "Open or restore any desktop window.\nPanopticon will keep watching from the tray.";
+
+    background: transparent;
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 12px;
+        padding: 40px;
+
+        Rectangle {
+            width: 380px;
+            height: 180px;
+            background: Theme.panel-bg;
+            border-width: 1px;
+            border-color: Theme.border;
+            border-radius: 12px;
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 10px;
+                padding: 24px;
+
+                // Icon placeholder
+                Rectangle {
+                    width: 48px;
+                    height: 48px;
+                    border-radius: 24px;
+                    background: Theme.accent-soft;
+
+                    Text {
+                        width: 100%;
+                        height: 100%;
+                        text: "👁";
+                        font-size: 24px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                }
+
+                Text {
+                    text: root.message;
+                    color: Theme.text;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: root.helper;
+                    color: Theme.muted;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+}
+
+// ── Overlay scrollbar ────────────────────────────────────────
+
+component OverlayScrollbar inherits Rectangle {
+    in property <float> viewport-offset;
+    in property <float> content-extent;
+    in property <float> visible-size;
+    in property <bool> horizontal;
+    in property <bool> mouse-inside;
+
+    property <float> max-scroll: max(content-extent - visible-size, 0.001);
+    property <float> ratio: min(visible-size / max(content-extent, 0.001), 1.0);
+    property <float> thumb-frac: max(ratio, 0.05);
+    property <float> travel-frac: 1.0 - thumb-frac;
+    property <float> scroll-frac: clamp(-viewport-offset / max-scroll, 0.0, 1.0);
+    property <bool> show: mouse-inside && max-scroll > 0;
+
+    visible: root.show;
+    opacity: 0.7;
+
+    // Track
+    Rectangle {
+        background: Theme.surface.with-alpha(0.3);
+        border-radius: 3px;
+
+        // Thumb
+        Rectangle {
+            x: root.horizontal ? (parent.width * root.travel-frac * root.scroll-frac) : 0;
+            y: root.horizontal ? 0 : (parent.height * root.travel-frac * root.scroll-frac);
+            width: root.horizontal ? (parent.width * root.thumb-frac) : parent.width;
+            height: root.horizontal ? parent.height : (parent.height * root.thumb-frac);
+            background: Theme.accent.with-alpha(0.6);
+            border-radius: 3px;
+        }
+    }
+}
+
+// ── Main window ──────────────────────────────────────────────
+
+export component MainWindow inherits Window {
+    title: "Panopticon — Window Viewer";
+    icon: @image-url("../assets/icon.svg");
+    background: Theme.bg;
+    preferred-width: 1320px;
+    preferred-height: 840px;
+
+    // ── Properties ───────────────────────────────
+    in property <[ThumbnailData]> thumbnails;
+    in property <bool> show-toolbar: true;
+    in property <bool> show-window-info: true;
+    in property <string> layout-label: "Grid";
+    in property <int> window-count: 0;
+    in property <int> hidden-count: 0;
+    in property <string> refresh-label: "2s";
+    in property <bool> is-always-on-top: false;
+    in property <bool> animate-transitions: true;
+    in property <string> filters-label: "";
+    in property <float> content-width: 0;
+    in property <float> content-height: 0;
+    in property <bool> scroll-horizontal: false;
+    in property <bool> scroll-vertical: false;
+
+    // Read by Rust to know real scroll offset
+    out property <float> viewport-x: flickable.viewport-x / 1px;
+    out property <float> viewport-y: flickable.viewport-y / 1px;
+
+    // Track mouse presence for scrollbar visibility
+    in-out property <bool> mouse-inside: false;
+
+    // ── Callbacks ────────────────────────────────
+    callback thumbnail-clicked(/* index */ int);
+    callback thumbnail-right-clicked(/* index */ int, /* x */ float, /* y */ float);
+    callback thumbnail-hovered(/* index */ int);
+    callback toolbar-clicked();
+    callback key-pressed(/* key */ string) -> bool;
+
+    // ── Layout ───────────────────────────────────
+    VerticalLayout {
+        // Toolbar
+        if root.show-toolbar: Toolbar {
+            layout-label: root.layout-label;
+            window-count: root.window-count;
+            hidden-count: root.hidden-count;
+            refresh-label: root.refresh-label;
+            always-on-top: root.is-always-on-top;
+            animate-transitions: root.animate-transitions;
+            filters-label: root.filters-label;
+            clicked => { root.toolbar-clicked(); }
+        }
+
+        // Content area
+        Rectangle {
+            clip: true;
+
+            // Detect mouse enter/leave
+            outer-touch := TouchArea {
+                moved => { root.mouse-inside = true; }
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.move {
+                        root.mouse-inside = true;
+                    }
+                }
+            }
+
+            if root.thumbnails.length == 0: EmptyState {}
+
+            flickable := Flickable {
+                viewport-width: root.scroll-horizontal ? root.content-width * 1px : parent.width;
+                viewport-height: root.scroll-vertical ? root.content-height * 1px : parent.height;
+                interactive: root.scroll-horizontal || root.scroll-vertical;
+
+                for thumb[i] in root.thumbnails: ThumbnailCard {
+                    x: thumb.x * 1px;
+                    y: thumb.y * 1px;
+                    width: thumb.width * 1px;
+                    height: thumb.height * 1px;
+                    title: thumb.title;
+                    app-label: thumb.app-label;
+                    is-hovered: thumb.is-hovered;
+                    accent-color: thumb.accent-color;
+                    show-footer: thumb.show-footer;
+
+                    clicked => { root.thumbnail-clicked(i); }
+                    right-clicked(x, y) => { root.thumbnail-right-clicked(i, x, y); }
+                    pointer-moved(x, y) => { root.thumbnail-hovered(i); }
+                }
+            }
+
+            // Vertical scrollbar overlay (right edge)
+            if root.scroll-vertical: OverlayScrollbar {
+                x: parent.width - 14px;
+                y: 4px;
+                width: 6px;
+                height: parent.height - 8px;
+                viewport-offset: flickable.viewport-y / 1px;
+                content-extent: root.content-height;
+                visible-size: parent.height / 1px;
+                horizontal: false;
+                mouse-inside: root.mouse-inside;
+            }
+
+            // Horizontal scrollbar overlay (bottom edge)
+            if root.scroll-horizontal: OverlayScrollbar {
+                x: 4px;
+                y: parent.height - 14px;
+                width: parent.width - 8px;
+                height: 6px;
+                viewport-offset: flickable.viewport-x / 1px;
+                content-extent: root.content-width;
+                visible-size: parent.width / 1px;
+                horizontal: true;
+                mouse-inside: root.mouse-inside;
+            }
+        }
+    }
+
+    // ── Keyboard ─────────────────────────────────
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if root.key-pressed(event.text) {
+                return accept;
+            }
+            reject
+        }
+    }
+}
+
+// ── Settings window ──────────────────────────────────────────
+
+export component SettingsWindow inherits Window {
+    title: "Panopticon — Settings";
+    icon: @image-url("../assets/icon.svg");
+    background: Theme.bg;
+    preferred-width: 520px;
+    preferred-height: 680px;
+
+    // ── Properties ───────────────────────────────
+    in-out property <bool> always-on-top-setting: false;
+    in-out property <bool> animate-transitions-setting: true;
+    in-out property <bool> minimize-to-tray-setting: true;
+    in-out property <bool> close-to-tray-setting: true;
+    in-out property <bool> preserve-aspect-ratio-setting: false;
+    in-out property <bool> hide-on-select-setting: true;
+    in-out property <bool> show-toolbar-setting: true;
+    in-out property <bool> show-info-setting: true;
+    in-out property <bool> use-system-backdrop-setting: true;
+    in-out property <int> refresh-index: 1;
+    in-out property <int> layout-index: 0;
+    in-out property <string> bg-color-hex: "181513";
+    in-out property <int> fixed-width-value: 0;
+    in-out property <int> fixed-height-value: 0;
+
+    // ── Callbacks ────────────────────────────────
+    callback apply();
+    callback closed();
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 10px;
+
+        // Title
+        Text {
+            text: "Settings";
+            color: Theme.text;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        ScrollView {
+            VerticalLayout {
+                spacing: 14px;
+                padding-top: 8px;
+                padding-bottom: 8px;
+
+                // ── Behaviour ──
+                Text { text: "Behaviour"; color: Theme.accent; font-size: 13px; font-weight: 600; }
+
+                CheckBox { text: "Always on top"; checked <=> root.always-on-top-setting; }
+                CheckBox { text: "Animate transitions"; checked <=> root.animate-transitions-setting; }
+                CheckBox { text: "Minimize to tray"; checked <=> root.minimize-to-tray-setting; }
+                CheckBox { text: "Close to tray"; checked <=> root.close-to-tray-setting; }
+                CheckBox { text: "Default: preserve aspect ratio"; checked <=> root.preserve-aspect-ratio-setting; }
+                CheckBox { text: "Default: hide after selecting app"; checked <=> root.hide-on-select-setting; }
+
+                // ── Display ──
+                Rectangle { height: 4px; }
+                Text { text: "Display"; color: Theme.accent; font-size: 13px; font-weight: 600; }
+
+                CheckBox { text: "Show toolbar"; checked <=> root.show-toolbar-setting; }
+                CheckBox { text: "Show window info below thumbnails"; checked <=> root.show-info-setting; }
+                CheckBox { text: "Use system backdrop (Win11)"; checked <=> root.use-system-backdrop-setting; }
+
+                // ── Layout ──
+                Rectangle { height: 4px; }
+                Text { text: "Default layout"; color: Theme.accent; font-size: 13px; font-weight: 600; }
+
+                ComboBox {
+                    model: ["Grid", "Mosaic", "Bento", "Fibonacci", "Columns", "Row", "Column"];
+                    current-index <=> root.layout-index;
+                }
+
+                // ── Refresh ──
+                Rectangle { height: 4px; }
+                Text { text: "Refresh interval"; color: Theme.accent; font-size: 13px; font-weight: 600; }
+
+                ComboBox {
+                    model: ["1s", "2s", "5s", "10s"];
+                    current-index <=> root.refresh-index;
+                }
+
+                // ── Fixed size ──
+                Rectangle { height: 4px; }
+                Text { text: "Fixed dimensions (0 = auto)"; color: Theme.accent; font-size: 13px; font-weight: 600; }
+
+                HorizontalLayout {
+                    spacing: 12px;
+                    Text { text: "Width:"; color: Theme.label; vertical-alignment: center; font-size: 12px; }
+                    SpinBox { value <=> root.fixed-width-value; minimum: 0; maximum: 3840; }
+                    Text { text: "Height:"; color: Theme.label; vertical-alignment: center; font-size: 12px; }
+                    SpinBox { value <=> root.fixed-height-value; minimum: 0; maximum: 2160; }
+                }
+
+                // ── Background ──
+                Rectangle { height: 4px; }
+                Text { text: "Background colour (RGB hex)"; color: Theme.accent; font-size: 13px; font-weight: 600; }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: "#"; color: Theme.muted; vertical-alignment: center; font-size: 12px; }
+                    LineEdit {
+                        text <=> root.bg-color-hex;
+                        horizontal-alignment: left;
+                        font-size: 12px;
+                    }
+                }
+
+                // Spacer
+                Rectangle { vertical-stretch: 1; }
+            }
+        }
+
+        // Action buttons
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: end;
+
+            Button {
+                text: "Apply";
+                clicked => { root.apply(); }
+            }
+
+            Button {
+                text: "Close";
+                clicked => {
+                    root.closed();
+                }
+            }
+        }
+    }
+}

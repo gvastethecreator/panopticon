@@ -1,14 +1,17 @@
 [package]
 name = "panopticon"
-version = "1.1.0"
+version = "2.0.0"
 edition = "2021"
 description = "Real-time window thumbnail viewer for Windows using the DWM API"
 readme = "README.md"
 license = "MIT"
+build = "build.rs"
 
 # ── Dependencies ──────────────────────────────────────────────
 
 [dependencies]
+slint = { version = "1.15", features = ["raw-window-handle-06"] }
+raw-window-handle = "0.6"
 thiserror = "2"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
@@ -16,6 +19,9 @@ toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
+
+[build-dependencies]
+slint-build = "1.15"
 
 [dependencies.windows]
 version = "0.58"
