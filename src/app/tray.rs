@@ -47,6 +47,7 @@ const CMD_TRAY_DOCK_RIGHT: u16 = 502;
 const CMD_TRAY_DOCK_TOP: u16 = 503;
 const CMD_TRAY_DOCK_BOTTOM: u16 = 504;
 const CMD_TRAY_TOGGLE_TOOLBAR: u16 = 13;
+const CMD_TRAY_OPEN_SETTINGS: u16 = 14;
 
 /// Snapshot of UI preferences needed to render the tray menu.
 #[derive(Debug, Clone)]
@@ -125,6 +126,8 @@ pub enum TrayAction {
     SetDockEdge(Option<DockEdge>),
     /// Toggle the toolbar visibility.
     ToggleToolbar,
+    /// Open the dedicated settings window.
+    OpenSettingsWindow,
     /// Exit the application.
     Exit,
 }
@@ -340,7 +343,8 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
         let default_aspect_ratio = encode_wide("Default: preserve aspect ratio");
         let default_hide_on_select = encode_wide("Default: hide after activation");
         let always_on_top = encode_wide("Keep Panopticon on top");
-        let show_toolbar = encode_wide("Show toolbar");
+        let show_toolbar = encode_wide("Show header");
+        let open_settings = encode_wide("Open settings window");
         let dock_title = encode_wide("Dock position");
         let dock_none = encode_wide("Floating (no dock)");
         let dock_left = encode_wide("Left");
@@ -443,6 +447,12 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
             MF_STRING | checked_flag(state.show_toolbar),
             CMD_TRAY_TOGGLE_TOOLBAR as usize,
             PCWSTR(show_toolbar.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            CMD_TRAY_OPEN_SETTINGS as usize,
+            PCWSTR(open_settings.as_ptr()),
         );
 
         // ── Dock submenu ───
@@ -668,6 +678,7 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
             CMD_TRAY_TOGGLE_DEFAULT_HIDE_ON_SELECT => Some(TrayAction::ToggleDefaultHideOnSelect),
             CMD_TRAY_TOGGLE_ALWAYS_ON_TOP => Some(TrayAction::ToggleAlwaysOnTop),
             CMD_TRAY_TOGGLE_TOOLBAR => Some(TrayAction::ToggleToolbar),
+            CMD_TRAY_OPEN_SETTINGS => Some(TrayAction::OpenSettingsWindow),
             CMD_TRAY_DOCK_NONE => Some(TrayAction::SetDockEdge(None)),
             CMD_TRAY_DOCK_LEFT => Some(TrayAction::SetDockEdge(Some(DockEdge::Left))),
             CMD_TRAY_DOCK_RIGHT => Some(TrayAction::SetDockEdge(Some(DockEdge::Right))),

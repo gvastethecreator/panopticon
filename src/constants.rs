@@ -86,3 +86,54 @@ pub const TITLE_TRUNCATE_AT: usize = 37;
 
 /// Pixels scrolled per mouse-wheel notch in Row / Column modes.
 pub const SCROLL_STEP: i32 = 60;
+
+/// Thickness of the hover-only overlay scrollbar.
+pub const SCROLLBAR_THICKNESS: i32 = 8;
+
+/// Distance from the window edge to the overlay scrollbar.
+pub const SCROLLBAR_MARGIN: i32 = 10;
+
+/// Minimum thumb size for the overlay scrollbar.
+pub const SCROLLBAR_MIN_THUMB: i32 = 36;
+
+/// Duration of the subtle edge feedback animation, in milliseconds.
+pub const EDGE_FEEDBACK_DURATION_MS: u32 = 120;
+
+/// Maximum pixel offset used by the subtle edge feedback animation.
+pub const EDGE_FEEDBACK_DISTANCE: i32 = 10;
+
+/// `A` key — toggle animations.
+pub const VK_A: u16 = 0x41;
+
+/// `H` key — toggle header visibility.
+pub const VK_H: u16 = 0x48;
+
+/// `I` key — toggle thumbnail metadata visibility.
+pub const VK_I: u16 = 0x49;
+
+/// `O` key — open the settings window.
+pub const VK_O: u16 = 0x4F;
+
+/// `P` key — toggle always-on-top mode.
+pub const VK_P: u16 = 0x50;
+
+/// Number-row shortcut for layout 1.
+pub const VK_1: u16 = 0x31;
+
+/// Number-row shortcut for layout 2.
+pub const VK_2: u16 = 0x32;
+
+/// Number-row shortcut for layout 3.
+pub const VK_3: u16 = 0x33;
+
+/// Number-row shortcut for layout 4.
+pub const VK_4: u16 = 0x34;
+
+/// Number-row shortcut for layout 5.
+pub const VK_5: u16 = 0x35;
+
+/// Number-row shortcut for layout 6.
+pub const VK_6: u16 = 0x36;
+
+/// Number-row shortcut for layout 7.
+pub const VK_7: u16 = 0x37;

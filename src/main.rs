@@ -24,11 +24,17 @@ use app::tray::{
     draw_window_icon, handle_tray_message, AppIcons, TrayAction, TrayIcon, TrayMenuState,
     WM_TRAYICON,
 };
+use app::options::{
+    open_options_window, open_tag_dialog, OptionsSubmit, TagCreateSubmit, WM_OPTIONS_APPLY,
+    WM_OPTIONS_CLOSED, WM_TAG_CREATED,
+};
 use panopticon::constants::{
-    ACCENT_SOFT_COLOR, ANIMATION_DURATION_MS, BG_COLOR, BORDER_COLOR, FALLBACK_TEXT_COLOR,
-    HOVER_BORDER_COLOR, LABEL_COLOR, MAX_TITLE_CHARS, MUTED_TEXT_COLOR, PANEL_BG_COLOR,
-    SCROLL_STEP, TB_COLOR, TEXT_COLOR, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT,
-    TIMER_ANIMATION, TIMER_REFRESH, TITLE_TRUNCATE_AT, TOOLBAR_HEIGHT, VK_ESCAPE, VK_R, VK_TAB,
+    ACCENT_COLOR, ANIMATION_DURATION_MS, BORDER_COLOR, FALLBACK_TEXT_COLOR, HOVER_BORDER_COLOR,
+    LABEL_COLOR, MAX_TITLE_CHARS, MUTED_TEXT_COLOR, PANEL_BG_COLOR, SCROLL_STEP,
+    SCROLLBAR_MARGIN, SCROLLBAR_MIN_THUMB, SCROLLBAR_THICKNESS, TB_COLOR, TEXT_COLOR,
+    THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TIMER_ANIMATION, TIMER_REFRESH,
+    TITLE_TRUNCATE_AT, TOOLBAR_HEIGHT, VK_1, VK_2, VK_3, VK_4, VK_5, VK_6, VK_7, VK_A,
+    VK_ESCAPE, VK_H, VK_I, VK_O, VK_P, VK_R, VK_TAB,
 };
 use panopticon::layout::{compute_layout, AspectHint, LayoutType, ScrollDirection};
 use panopticon::settings::{AppSelectionEntry, AppSettings, DockEdge};
@@ -46,7 +52,11 @@ static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
-use windows::Win32::Graphics::Dwm::DwmQueryThumbnailSourceSize;
+use windows::Win32::Graphics::Dwm::{
+    DwmQueryThumbnailSourceSize, DwmSetWindowAttribute, DWMSBT_MAINWINDOW, DWMSBT_NONE,
+    DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE,
+    DWMWCP_ROUND,
+};
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect, FrameRect,
     GetMonitorInfoW, InvalidateRect, MonitorFromWindow, SetBkMode, SetTextColor, DRAW_TEXT_FORMAT,
@@ -70,6 +80,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 /// Callback message posted by the shell when the app-bar needs repositioning.
 const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
+
+/// Timer used to keep the hover-only scrollbar in sync with pointer presence.
+const TIMER_HOVER_VISIBILITY: usize = 3;
 
 /// Standard Win32 value: one wheel notch equals 120 delta units.
 const WHEEL_DELTA: i32 = 120;
@@ -108,6 +121,10 @@ struct AppState {
     content_extent: i32,
     /// Whether this window is currently registered as a Win32 app-bar.
     is_appbar: bool,
+    /// Modeless options window, if currently open.
+    options_window: Option<HWND>,
+    /// Whether the mouse cursor is currently inside the main window.
+    mouse_inside: bool,
     /// Instance profile name from `--profile <name>` CLI argument.
     profile_name: Option<String>,
 }
@@ -192,6 +209,8 @@ fn main() {
         scroll_offset: 0,
         content_extent: 0,
         is_appbar: false,
+        options_window: None,
+        mouse_inside: false,
         profile_name: profile,
     });
 
@@ -210,6 +229,7 @@ fn main() {
     // SAFETY: state pointer was stored in `GWLP_USERDATA` during `WM_NCCREATE`.
     unsafe {
         if let Some(state) = app_from_hwnd(hwnd) {
+            apply_window_appearance(hwnd, &state.settings);
             apply_topmost_mode(state.hwnd, state.settings.always_on_top);
             match TrayIcon::add(hwnd, state.icons.small) {
                 Ok(tray_icon) => state.tray_icon = Some(tray_icon),
@@ -387,6 +407,8 @@ unsafe extern "system" fn wnd_proc(
                 }
             } else if wparam.0 == TIMER_ANIMATION {
                 advance_animation(hwnd);
+            } else if wparam.0 == TIMER_HOVER_VISIBILITY {
+                update_mouse_presence(hwnd);
             }
             LRESULT(0)
         }
@@ -448,8 +470,39 @@ unsafe extern "system" fn wnd_proc(
             }
             LRESULT(0)
         }
+        options_apply if options_apply == WM_OPTIONS_APPLY => {
+            let payload = lparam.0 as *mut OptionsSubmit;
+            if !payload.is_null() {
+                let payload = Box::from_raw(payload);
+                apply_settings_snapshot(hwnd, payload.settings);
+            }
+            LRESULT(0)
+        }
+        options_closed if options_closed == WM_OPTIONS_CLOSED => {
+            if let Some(state) = app_from_hwnd(hwnd) {
+                state.options_window = None;
+            }
+            LRESULT(0)
+        }
+        tag_created if tag_created == WM_TAG_CREATED => {
+            let payload = lparam.0 as *mut TagCreateSubmit;
+            if !payload.is_null() {
+                let payload = Box::from_raw(payload);
+                apply_tag_creation(
+                    hwnd,
+                    &payload.app_id,
+                    &payload.display_name,
+                    &payload.tag_name,
+                    &payload.color_hex,
+                );
+            }
+            LRESULT(0)
+        }
         WM_DESTROY => {
             if let Some(state) = app_from_hwnd(hwnd) {
+                if let Some(options_hwnd) = state.options_window.take() {
+                    let _ = DestroyWindow(options_hwnd);
+                }
                 if state.is_appbar {
                     unregister_appbar(hwnd);
                     state.is_appbar = false;
@@ -460,6 +513,7 @@ unsafe extern "system" fn wnd_proc(
                 }
             }
             let _ = KillTimer(hwnd, TIMER_ANIMATION);
+            let _ = KillTimer(hwnd, TIMER_HOVER_VISIBILITY);
             let _ = KillTimer(hwnd, TIMER_REFRESH);
             PostQuitMessage(0);
             LRESULT(0)
@@ -492,6 +546,50 @@ fn lparam_y(lp: LPARAM) -> i32 {
 /// Handle a `WM_KEYDOWN` virtual-key code.
 fn handle_keydown(hwnd: HWND, vk: u16) {
     match vk {
+        VK_1 => set_layout(hwnd, LayoutType::Grid, "keyboard"),
+        VK_2 => set_layout(hwnd, LayoutType::Mosaic, "keyboard"),
+        VK_3 => set_layout(hwnd, LayoutType::Bento, "keyboard"),
+        VK_4 => set_layout(hwnd, LayoutType::Fibonacci, "keyboard"),
+        VK_5 => set_layout(hwnd, LayoutType::Columns, "keyboard"),
+        VK_6 => set_layout(hwnd, LayoutType::Row, "keyboard"),
+        VK_7 => set_layout(hwnd, LayoutType::Column, "keyboard"),
+        VK_A => {
+            update_settings(hwnd, |settings| {
+                settings.animate_transitions = !settings.animate_transitions;
+            });
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, true);
+            }
+        }
+        VK_H => {
+            update_settings(hwnd, |settings| {
+                settings.show_toolbar = !settings.show_toolbar;
+            });
+            recompute_layout(hwnd);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, true);
+            }
+        }
+        VK_I => {
+            update_settings(hwnd, |settings| {
+                settings.show_window_info = !settings.show_window_info;
+            });
+            recompute_layout(hwnd);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, true);
+            }
+        }
+        VK_O => open_or_focus_options_window(hwnd),
+        VK_P => {
+            update_settings(hwnd, |settings| {
+                settings.always_on_top = !settings.always_on_top;
+            });
+            unsafe {
+                if let Some(state) = app_from_hwnd(hwnd) {
+                    apply_topmost_mode(hwnd, state.settings.always_on_top);
+                }
+            }
+        }
         VK_TAB => {
             cycle_layout(hwnd, "keyboard");
             recompute_layout(hwnd);
@@ -644,6 +742,7 @@ fn handle_tray_action(hwnd: HWND, action: TrayAction) {
                 let _ = InvalidateRect(hwnd, None, true);
             }
         }
+        TrayAction::OpenSettingsWindow => open_or_focus_options_window(hwnd),
         TrayAction::Exit => request_exit(hwnd),
     }
 }
@@ -789,6 +888,27 @@ fn cycle_layout(hwnd: HWND, source: &str) {
     }
 }
 
+fn set_layout(hwnd: HWND, layout: LayoutType, source: &str) {
+    unsafe {
+        if let Some(state) = app_from_hwnd(hwnd) {
+            if state.current_layout == layout {
+                return;
+            }
+
+            state.current_layout = layout;
+            state.settings.initial_layout = layout;
+            if let Err(error) = state.settings.save(state.profile_name.as_deref()) {
+                tracing::error!(%error, source = source, "failed to persist selected layout");
+            }
+        }
+    }
+
+    recompute_layout(hwnd);
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, true);
+    }
+}
+
 fn reset_refresh_timer(hwnd: HWND) {
     // SAFETY: valid HWND for the main window; replacing the same timer ID is supported.
     unsafe {
@@ -861,13 +981,22 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
         let mut client_rect = RECT::default();
         let _ = GetClientRect(hwnd, &mut client_rect);
 
-        let bg_brush = CreateSolidBrush(COLORREF(BG_COLOR));
+        let background_color = state.settings.background_color_bgr();
+        let accent_color = state.settings.active_tag_filter.as_deref().map_or(
+            ACCENT_COLOR,
+            |tag| state.settings.tag_color_bgr(tag),
+        );
+        let active_group_background = state.settings.active_tag_filter.as_deref().map(|tag| {
+            blend_bgr(background_color, state.settings.tag_color_bgr(tag), 1, 4)
+        });
+
+        let bg_brush = CreateSolidBrush(COLORREF(background_color));
         let toolbar_brush = CreateSolidBrush(COLORREF(TB_COLOR));
         let panel_brush = CreateSolidBrush(COLORREF(PANEL_BG_COLOR));
         let border_brush = CreateSolidBrush(COLORREF(BORDER_COLOR));
         let footer_brush = CreateSolidBrush(COLORREF(TB_COLOR));
         let hover_brush = CreateSolidBrush(COLORREF(HOVER_BORDER_COLOR));
-        let accent_brush = CreateSolidBrush(COLORREF(ACCENT_SOFT_COLOR));
+        let accent_brush = CreateSolidBrush(COLORREF(accent_color));
 
         FillRect(hdc, &client_rect, bg_brush);
 
@@ -876,6 +1005,19 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
         } else {
             0
         };
+        let footer_h = footer_height_for(&state.settings);
+        let content_rect = RECT {
+            left: client_rect.left,
+            top: client_rect.top + toolbar_h,
+            right: client_rect.right,
+            bottom: client_rect.bottom,
+        };
+
+        if let Some(group_bg) = active_group_background {
+            let group_brush = CreateSolidBrush(COLORREF(group_bg));
+            FillRect(hdc, &content_rect, group_brush);
+            let _ = DeleteObject(group_brush);
+        }
 
         if state.settings.show_toolbar {
             let toolbar_rect = RECT {
@@ -920,8 +1062,11 @@ fn paint_impl(hwnd: HWND, state: &AppState) {
                 hover_brush,
                 accent_brush,
                 panel_brush,
+                footer_h,
             );
         }
+
+        paint_overlay_scrollbar(hdc, state, client_rect, accent_color);
 
         let _ = DeleteObject(bg_brush);
         let _ = DeleteObject(toolbar_brush);
@@ -942,6 +1087,7 @@ fn paint_windows(
     hover_brush: HBRUSH,
     accent_brush: HBRUSH,
     panel_brush: HBRUSH,
+    footer_height: i32,
 ) {
     let scroll_dir = state.current_layout.scroll_direction();
     let scroll_offset = state.scroll_offset;
@@ -989,76 +1135,81 @@ fn paint_windows(
             }
         }
 
-        let footer_rect = RECT {
-            left: outer_rect.left,
-            top: outer_rect.bottom - THUMBNAIL_FOOTER_HEIGHT,
-            right: outer_rect.right,
-            bottom: outer_rect.bottom,
-        };
-        // SAFETY: `hdc` and brushes are valid for the active paint pass.
-        unsafe {
-            FillRect(hdc, &footer_rect, footer_brush);
-        }
-
         if managed_window.thumbnail.is_none() {
-            paint_thumbnail_placeholder(hdc, managed_window, footer_rect, panel_brush);
+            paint_thumbnail_placeholder(hdc, managed_window.info.hwnd, outer_rect, panel_brush, footer_height);
         }
 
-        let process_rect = RECT {
-            left: footer_rect.left + 10,
-            top: footer_rect.top,
-            right: footer_rect.right - 120,
-            bottom: footer_rect.bottom,
-        };
-        draw_text_line(
-            hdc,
-            &truncate_title(&managed_window.info.title),
-            process_rect,
-            LABEL_COLOR,
-            DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS,
-        );
+        if footer_height > 0 {
+            let footer_rect = RECT {
+                left: outer_rect.left,
+                top: outer_rect.bottom - footer_height,
+                right: outer_rect.right,
+                bottom: outer_rect.bottom,
+            };
+            // SAFETY: `hdc` and brushes are valid for the active paint pass.
+            unsafe {
+                FillRect(hdc, &footer_rect, footer_brush);
+            }
 
-        draw_text_line(
-            hdc,
-            &truncate_title(&managed_window.info.app_label()),
-            RECT {
-                left: footer_rect.left + 120,
+            let process_rect = RECT {
+                left: footer_rect.left + 10,
                 top: footer_rect.top,
-                right: footer_rect.right - 10,
+                right: footer_rect.right - 120,
                 bottom: footer_rect.bottom,
-            },
-            MUTED_TEXT_COLOR,
-            DT_RIGHT | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS,
-        );
+            };
+            draw_text_line(
+                hdc,
+                &truncate_title(&managed_window.info.title),
+                process_rect,
+                LABEL_COLOR,
+                DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS,
+            );
+
+            draw_text_line(
+                hdc,
+                &truncate_title(&managed_window.info.app_label()),
+                RECT {
+                    left: footer_rect.left + 120,
+                    top: footer_rect.top,
+                    right: footer_rect.right - 10,
+                    bottom: footer_rect.bottom,
+                },
+                MUTED_TEXT_COLOR,
+                DT_RIGHT | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS,
+            );
+        }
     }
 }
 
 fn paint_thumbnail_placeholder(
     hdc: HDC,
-    managed_window: &ManagedWindow,
-    _footer_rect: RECT,
+    source_hwnd: HWND,
+    card_rect: RECT,
     panel_brush: HBRUSH,
+    footer_height: i32,
 ) {
-    let placeholder_rect = preview_area_for_card(managed_window.display_rect);
+    let placeholder_rect = preview_area_for_card(card_rect, footer_height);
     // SAFETY: `hdc` and brushes are valid for the active paint pass.
     unsafe {
         FillRect(hdc, &placeholder_rect, panel_brush);
     }
-    draw_window_icon(hdc, managed_window.info.hwnd, placeholder_rect, 32);
+    draw_window_icon(hdc, source_hwnd, placeholder_rect, 32);
 
-    let caption_rect = RECT {
-        left: placeholder_rect.left + 12,
-        top: placeholder_rect.bottom - 34,
-        right: placeholder_rect.right - 12,
-        bottom: placeholder_rect.bottom - 10,
-    };
-    draw_text_line(
-        hdc,
-        "Live preview unavailable",
-        caption_rect,
-        FALLBACK_TEXT_COLOR,
-        DT_CENTER | DT_SINGLELINE | DT_VCENTER,
-    );
+    if footer_height > 0 {
+        let caption_rect = RECT {
+            left: placeholder_rect.left + 12,
+            top: placeholder_rect.bottom - 34,
+            right: placeholder_rect.right - 12,
+            bottom: placeholder_rect.bottom - 10,
+        };
+        draw_text_line(
+            hdc,
+            "Live preview unavailable",
+            caption_rect,
+            FALLBACK_TEXT_COLOR,
+            DT_CENTER | DT_SINGLELINE | DT_VCENTER,
+        );
+    }
 }
 
 fn paint_toolbar(
@@ -1597,6 +1748,14 @@ fn handle_hover(hwnd: HWND, x: i32, y: i32) {
         return;
     };
 
+    let just_entered = !state.mouse_inside;
+    if just_entered {
+        state.mouse_inside = true;
+    }
+    unsafe {
+        SetTimer(hwnd, TIMER_HOVER_VISIBILITY, 120, None);
+    }
+
     let toolbar_h = if state.settings.show_toolbar {
         TOOLBAR_HEIGHT
     } else {
@@ -1613,7 +1772,7 @@ fn handle_hover(hwnd: HWND, x: i32, y: i32) {
         None
     };
 
-    if new_hover != state.hover_index {
+    if new_hover != state.hover_index || (just_entered && max_scroll_for_state(state) > 0) {
         state.hover_index = new_hover;
         // SAFETY: valid `HWND` for the main window.
         unsafe {
@@ -1645,10 +1804,7 @@ fn handle_window_menu_action(hwnd: HWND, info: &WindowInfo, action: WindowMenuAc
             });
         }
         WindowMenuAction::CreateTagFromApp => {
-            update_settings(hwnd, |settings| {
-                let _ = settings.create_tag_from_app(&info.app_id, &info.app_label());
-            });
-            refresh_and_repaint(hwnd);
+            open_create_tag_dialog(hwnd, info);
         }
         WindowMenuAction::ToggleTag(tag) => {
             update_settings(hwnd, |settings| {
@@ -1675,7 +1831,7 @@ fn show_window_context_menu(
         let hide_label = wide("Hide from layout");
         let aspect_label = wide("Respect aspect ratio");
         let hide_after_open_label = wide("Hide Panopticon after opening this app");
-        let create_tag_label = wide("Create tag from this app");
+        let create_tag_label = wide("Create custom tag…");
         let tags_title = wide("Assign existing tags");
         let known_tags = app_from_hwnd(hwnd)
             .map(|state| state.settings.known_tags())
@@ -1822,6 +1978,7 @@ fn update_window_previews(state: &mut AppState) {
     let owner_hwnd = state.hwnd;
     let scroll_dir = state.current_layout.scroll_direction();
     let scroll_offset = state.scroll_offset;
+    let footer_height = footer_height_for(settings);
 
     let mut client_rect = RECT::default();
     unsafe {
@@ -1839,6 +1996,7 @@ fn update_window_previews(state: &mut AppState) {
                 scrolled,
                 managed_window.source_size,
                 preserve_aspect_ratio,
+                footer_height,
             );
             if thumbnail.update(destination, visible).is_err() {
                 tracing::warn!(title = %managed_window.info.title, "thumbnail update failed — dropping");
@@ -1875,8 +2033,9 @@ fn preview_destination_rect(
     card_rect: RECT,
     source_size: SIZE,
     preserve_aspect_ratio: bool,
+    footer_height: i32,
 ) -> RECT {
-    let preview_area = preview_area_for_card(card_rect);
+    let preview_area = preview_area_for_card(card_rect, footer_height);
     if !preserve_aspect_ratio || source_size.cx <= 0 || source_size.cy <= 0 {
         return preview_area;
     }
@@ -1897,12 +2056,12 @@ fn preview_destination_rect(
     }
 }
 
-fn preview_area_for_card(card_rect: RECT) -> RECT {
+fn preview_area_for_card(card_rect: RECT, footer_height: i32) -> RECT {
     RECT {
         left: card_rect.left + 1,
         top: card_rect.top + THUMBNAIL_ACCENT_HEIGHT,
         right: card_rect.right - 1,
-        bottom: card_rect.bottom - THUMBNAIL_FOOTER_HEIGHT,
+        bottom: card_rect.bottom - footer_height,
     }
 }
 
@@ -1936,6 +2095,348 @@ fn apply_topmost_mode(hwnd: HWND, always_on_top: bool) {
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
         );
     }
+}
+
+fn footer_height_for(settings: &AppSettings) -> i32 {
+    if settings.show_window_info {
+        THUMBNAIL_FOOTER_HEIGHT
+    } else {
+        0
+    }
+}
+
+fn open_or_focus_options_window(hwnd: HWND) {
+    unsafe {
+        let Some(state) = app_from_hwnd(hwnd) else {
+            return;
+        };
+
+        if let Some(existing) = state.options_window {
+            if IsWindow(existing).as_bool() {
+                let _ = ShowWindow(existing, SW_SHOW);
+                let _ = SetForegroundWindow(existing);
+                return;
+            }
+        }
+
+        match open_options_window(hwnd, &state.settings) {
+            Ok(options_hwnd) => state.options_window = Some(options_hwnd),
+            Err(error) => tracing::error!(%error, "failed to open settings window"),
+        }
+    }
+}
+
+fn open_create_tag_dialog(hwnd: HWND, info: &WindowInfo) {
+    let suggested_name = suggested_tag_name(&info.app_label());
+    let suggested_color = unsafe {
+        app_from_hwnd(hwnd)
+            .map(|state| state.settings.tag_color_hex(&suggested_name))
+            .unwrap_or_else(|| String::from("D29A5C"))
+    };
+
+    if let Err(error) = open_tag_dialog(
+        hwnd,
+        &info.app_id,
+        &info.app_label(),
+        &suggested_name,
+        &suggested_color,
+    ) {
+        tracing::error!(%error, "failed to open tag dialog");
+    }
+}
+
+fn suggested_tag_name(label: &str) -> String {
+    let lowered = label
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>();
+    lowered.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn apply_tag_creation(
+    hwnd: HWND,
+    app_id: &str,
+    display_name: &str,
+    tag_name: &str,
+    color_hex: &str,
+) {
+    update_settings(hwnd, |settings| {
+        let _ = settings.assign_tag_with_color(app_id, display_name, tag_name, color_hex);
+    });
+    refresh_and_repaint(hwnd);
+}
+
+fn apply_settings_snapshot(hwnd: HWND, new_settings: AppSettings) {
+    unsafe {
+        let Some(state) = app_from_hwnd(hwnd) else {
+            return;
+        };
+
+        let old_dock_edge = state.settings.dock_edge;
+        state.settings = new_settings.normalized();
+        state.current_layout = state.settings.initial_layout;
+
+        if let Err(error) = state.settings.save(state.profile_name.as_deref()) {
+            tracing::error!(%error, "failed to persist settings");
+        }
+
+        apply_window_appearance(hwnd, &state.settings);
+        apply_topmost_mode(hwnd, state.settings.always_on_top);
+
+        if old_dock_edge != state.settings.dock_edge {
+            if state.is_appbar {
+                unregister_appbar(hwnd);
+                state.is_appbar = false;
+            }
+
+            if state.settings.dock_edge.is_some() {
+                apply_dock_mode(state);
+            } else {
+                restore_floating_window_style(hwnd);
+                apply_fixed_window_size(hwnd, &state.settings);
+            }
+        } else if state.is_appbar {
+            reposition_appbar(state);
+        } else {
+            restore_floating_window_style(hwnd);
+            apply_fixed_window_size(hwnd, &state.settings);
+        }
+    }
+
+    reset_refresh_timer(hwnd);
+    recompute_layout(hwnd);
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, true);
+    }
+}
+
+fn restore_floating_window_style(hwnd: HWND) {
+    unsafe {
+        let _ = SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_OVERLAPPEDWINDOW | WS_VISIBLE).0 as isize);
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+    }
+}
+
+fn apply_fixed_window_size(hwnd: HWND, settings: &AppSettings) {
+    let Some(width) = settings.fixed_width.map(|value| value as i32) else {
+        if settings.fixed_height.is_none() {
+            return;
+        }
+        let mut window_rect = RECT::default();
+        unsafe {
+            let _ = GetWindowRect(hwnd, &mut window_rect);
+        }
+        let current_width = window_rect.right - window_rect.left;
+        let height = settings.fixed_height.map_or(window_rect.bottom - window_rect.top, |value| value as i32);
+        unsafe {
+            let _ = SetWindowPos(hwnd, None, 0, 0, current_width, height, SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
+        }
+        return;
+    };
+
+    let mut window_rect = RECT::default();
+    unsafe {
+        let _ = GetWindowRect(hwnd, &mut window_rect);
+    }
+    let height = settings
+        .fixed_height
+        .map_or(window_rect.bottom - window_rect.top, |value| value as i32);
+    unsafe {
+        let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
+    }
+}
+
+fn apply_window_appearance(hwnd: HWND, settings: &AppSettings) {
+    let dark_mode: i32 = 1;
+    let corner_preference = DWMWCP_ROUND;
+    let backdrop_type = if settings.use_system_backdrop {
+        DWMSBT_MAINWINDOW
+    } else {
+        DWMSBT_NONE
+    };
+
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &dark_mode as *const _ as *const c_void,
+            mem::size_of_val(&dark_mode) as u32,
+        );
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            &corner_preference as *const _ as *const c_void,
+            mem::size_of_val(&corner_preference) as u32,
+        );
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            &backdrop_type as *const _ as *const c_void,
+            mem::size_of_val(&backdrop_type) as u32,
+        );
+    }
+}
+
+fn update_mouse_presence(hwnd: HWND) {
+    let Some(state) = (unsafe { app_from_hwnd(hwnd) }) else {
+        return;
+    };
+
+    let was_inside = state.mouse_inside;
+    let mut cursor = POINT::default();
+    let mut window_rect = RECT::default();
+    let is_inside = unsafe {
+        let _ = GetCursorPos(&mut cursor);
+        let _ = GetWindowRect(hwnd, &mut window_rect);
+        point_in_rect(window_rect, cursor.x, cursor.y)
+    };
+
+    state.mouse_inside = is_inside;
+    if !is_inside {
+        state.hover_index = None;
+        unsafe {
+            let _ = KillTimer(hwnd, TIMER_HOVER_VISIBILITY);
+        }
+    }
+
+    if was_inside != is_inside && max_scroll_for_state(state) > 0 {
+        unsafe {
+            let _ = InvalidateRect(hwnd, None, false);
+        }
+    }
+}
+
+fn max_scroll_for_state(state: &AppState) -> i32 {
+    let mut client_rect = RECT::default();
+    unsafe {
+        let _ = GetClientRect(state.hwnd, &mut client_rect);
+    }
+
+    match state.current_layout.scroll_direction() {
+        ScrollDirection::Horizontal => (state.content_extent - client_rect.right).max(0),
+        ScrollDirection::Vertical => (state.content_extent - client_rect.bottom).max(0),
+        ScrollDirection::None => 0,
+    }
+}
+
+fn paint_overlay_scrollbar(hdc: HDC, state: &AppState, client_rect: RECT, accent_color: u32) {
+    let Some(thumb_rect) = scrollbar_thumb_rect(state, client_rect) else {
+        return;
+    };
+
+    unsafe {
+        let thumb_brush = CreateSolidBrush(COLORREF(blend_bgr(accent_color, 0x00FF_FFFF, 1, 5)));
+        let track_brush = CreateSolidBrush(COLORREF(blend_bgr(state.settings.background_color_bgr(), 0x00FF_FFFF, 1, 12)));
+        FillRect(hdc, &expand_rect(thumb_rect, 2), track_brush);
+        FillRect(hdc, &thumb_rect, thumb_brush);
+        let _ = DeleteObject(thumb_brush);
+        let _ = DeleteObject(track_brush);
+    }
+}
+
+fn scrollbar_thumb_rect(state: &AppState, client_rect: RECT) -> Option<RECT> {
+    if !state.mouse_inside {
+        return None;
+    }
+
+    let max_scroll = max_scroll_for_state(state);
+    if max_scroll <= 0 {
+        return None;
+    }
+
+    let toolbar_h = if state.settings.show_toolbar {
+        TOOLBAR_HEIGHT
+    } else {
+        0
+    };
+    let content_rect = RECT {
+        left: client_rect.left,
+        top: client_rect.top + toolbar_h,
+        right: client_rect.right,
+        bottom: client_rect.bottom,
+    };
+
+    match state.current_layout.scroll_direction() {
+        ScrollDirection::Horizontal => {
+            let track_len = (content_rect.right - content_rect.left - SCROLLBAR_MARGIN * 2).max(0);
+            let visible = (content_rect.right - content_rect.left).max(1);
+            let content = state.content_extent.max(visible);
+            let thumb_len = ((visible * track_len) / content).clamp(SCROLLBAR_MIN_THUMB, track_len.max(SCROLLBAR_MIN_THUMB));
+            let travel = (track_len - thumb_len).max(0);
+            let thumb_offset = if max_scroll == 0 { 0 } else { (state.scroll_offset * travel) / max_scroll };
+            Some(RECT {
+                left: content_rect.left + SCROLLBAR_MARGIN + thumb_offset,
+                top: content_rect.bottom - SCROLLBAR_MARGIN - SCROLLBAR_THICKNESS,
+                right: content_rect.left + SCROLLBAR_MARGIN + thumb_offset + thumb_len,
+                bottom: content_rect.bottom - SCROLLBAR_MARGIN,
+            })
+        }
+        ScrollDirection::Vertical => {
+            let track_len = (content_rect.bottom - content_rect.top - SCROLLBAR_MARGIN * 2).max(0);
+            let visible = (content_rect.bottom - content_rect.top).max(1);
+            let content = state.content_extent.max(visible);
+            let thumb_len = ((visible * track_len) / content).clamp(SCROLLBAR_MIN_THUMB, track_len.max(SCROLLBAR_MIN_THUMB));
+            let travel = (track_len - thumb_len).max(0);
+            let thumb_offset = if max_scroll == 0 { 0 } else { (state.scroll_offset * travel) / max_scroll };
+            Some(RECT {
+                left: content_rect.right - SCROLLBAR_MARGIN - SCROLLBAR_THICKNESS,
+                top: content_rect.top + SCROLLBAR_MARGIN + thumb_offset,
+                right: content_rect.right - SCROLLBAR_MARGIN,
+                bottom: content_rect.top + SCROLLBAR_MARGIN + thumb_offset + thumb_len,
+            })
+        }
+        ScrollDirection::None => None,
+    }
+}
+
+fn expand_rect(rect: RECT, amount: i32) -> RECT {
+    RECT {
+        left: rect.left - amount,
+        top: rect.top - amount,
+        right: rect.right + amount,
+        bottom: rect.bottom + amount,
+    }
+}
+
+fn blend_bgr(base: u32, overlay: u32, numerator: u32, denominator: u32) -> u32 {
+    let [base_b, base_g, base_r] = color_channels_bgr(base);
+    let [overlay_b, overlay_g, overlay_r] = color_channels_bgr(overlay);
+    compose_bgr(
+        blend_channel(base_b, overlay_b, numerator, denominator),
+        blend_channel(base_g, overlay_g, numerator, denominator),
+        blend_channel(base_r, overlay_r, numerator, denominator),
+    )
+}
+
+const fn color_channels_bgr(color: u32) -> [u8; 3] {
+    [
+        ((color >> 16) & 0xFF) as u8,
+        ((color >> 8) & 0xFF) as u8,
+        (color & 0xFF) as u8,
+    ]
+}
+
+const fn compose_bgr(blue: u8, green: u8, red: u8) -> u32 {
+    ((blue as u32) << 16) | ((green as u32) << 8) | red as u32
+}
+
+const fn blend_channel(base: u8, overlay: u8, numerator: u32, denominator: u32) -> u8 {
+    (((base as u32 * (denominator - numerator)) + (overlay as u32 * numerator)) / denominator)
+        as u8
 }
 
 fn point_in_rect(rect: RECT, x: i32, y: i32) -> bool {
@@ -1984,27 +2485,19 @@ fn handle_scroll(hwnd: HWND, wheel_delta: i32) {
         return;
     }
 
+    let max_scroll = max_scroll_for_state(state);
+    if max_scroll <= 0 {
+        return;
+    }
+
     // Negative delta → scroll toward higher offsets (down / right).
     let step = -(wheel_delta * SCROLL_STEP / WHEEL_DELTA);
-    state.scroll_offset += step;
-
-    let mut client_rect = RECT::default();
-    unsafe {
-        let _ = GetClientRect(state.hwnd, &mut client_rect);
+    let next_offset = (state.scroll_offset + step).clamp(0, max_scroll);
+    if next_offset == state.scroll_offset {
+        return;
     }
-    let toolbar_h = if state.settings.show_toolbar {
-        TOOLBAR_HEIGHT
-    } else {
-        0
-    };
-    let content_end = match scroll_dir {
-        ScrollDirection::Horizontal => client_rect.right,
-        ScrollDirection::Vertical => client_rect.bottom,
-        ScrollDirection::None => 0,
-    };
-    let _ = toolbar_h; // toolbar is already accounted for in content_extent
-    let max_scroll = (state.content_extent - content_end).max(0);
-    state.scroll_offset = state.scroll_offset.clamp(0, max_scroll);
+
+    state.scroll_offset = next_offset;
 
     update_window_previews(state);
     unsafe {

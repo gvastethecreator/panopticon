@@ -14,6 +14,24 @@ use crate::layout::LayoutType;
 
 const DEFAULT_REFRESH_INTERVAL_MS: u32 = 2_000;
 const REFRESH_INTERVALS_MS: [u32; 4] = [1_000, 2_000, 5_000, 10_000];
+const DEFAULT_BACKGROUND_COLOR_HEX: &str = "181513";
+const DEFAULT_TAG_COLOR_HEX: &str = "D29A5C";
+
+/// Visual styling persisted for a manual tag/group.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct TagStyle {
+    /// RGB hex string (`RRGGBB`) used to tint grouped content.
+    pub color_hex: String,
+}
+
+impl Default for TagStyle {
+    fn default() -> Self {
+        Self {
+            color_hex: DEFAULT_TAG_COLOR_HEX.to_owned(),
+        }
+    }
+}
 
 /// Persisted preferences for an individual application.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -100,6 +118,8 @@ pub struct AppSettings {
     pub active_app_filter: Option<String>,
     /// Per-application remembered behaviour.
     pub app_rules: BTreeMap<String, AppRule>,
+    /// Global styling associated with each known manual tag.
+    pub tag_styles: BTreeMap<String, TagStyle>,
     /// Fixed window width in pixels (`None` = automatic).
     pub fixed_width: Option<u32>,
     /// Fixed window height in pixels (`None` = automatic).
@@ -108,8 +128,14 @@ pub struct AppSettings {
     pub dock_edge: Option<DockEdge>,
     /// Target monitor name for docking (e.g. `DISPLAY1`).
     pub dock_monitor: Option<String>,
+    /// Base RGB background colour (`RRGGBB`) used for the client area.
+    pub background_color_hex: String,
+    /// Use Windows 11 backdrop / rounded-corner chrome when available.
+    pub use_system_backdrop: bool,
     /// Show the status toolbar at the top of the window.
     pub show_toolbar: bool,
+    /// Show per-window title/app information below thumbnails.
+    pub show_window_info: bool,
 }
 
 impl Default for AppSettings {
@@ -127,11 +153,15 @@ impl Default for AppSettings {
             active_tag_filter: None,
             active_app_filter: None,
             app_rules: BTreeMap::new(),
+            tag_styles: BTreeMap::new(),
             fixed_width: None,
             fixed_height: None,
             dock_edge: None,
             dock_monitor: None,
+            background_color_hex: DEFAULT_BACKGROUND_COLOR_HEX.to_owned(),
+            use_system_backdrop: true,
             show_toolbar: true,
+            show_window_info: true,
         }
     }
 }
@@ -260,6 +290,33 @@ impl AppSettings {
         tags
     }
 
+    /// Return the RGB hex string used for `tag`, or the default tag colour.
+    #[must_use]
+    pub fn tag_color_hex(&self, tag: &str) -> String {
+        let Some(tag) = normalize_tag(tag) else {
+            return DEFAULT_TAG_COLOR_HEX.to_owned();
+        };
+
+        self.tag_styles
+            .get(&tag)
+            .map_or_else(
+                || DEFAULT_TAG_COLOR_HEX.to_owned(),
+                |style| style.color_hex.clone(),
+            )
+    }
+
+    /// Return the tag colour encoded as a Windows `COLORREF`-compatible BGR value.
+    #[must_use]
+    pub fn tag_color_bgr(&self, tag: &str) -> u32 {
+        rgb_hex_to_bgr(&self.tag_color_hex(tag)).unwrap_or(0x005C_9AD2)
+    }
+
+    /// Return the configured application background colour as BGR.
+    #[must_use]
+    pub fn background_color_bgr(&self) -> u32 {
+        rgb_hex_to_bgr(&self.background_color_hex).unwrap_or(0x0018_1513)
+    }
+
     /// Return the remembered tags for an application.
     #[must_use]
     pub fn tags_for(&self, app_id: &str) -> Vec<String> {
@@ -360,6 +417,7 @@ impl AppSettings {
             return false;
         };
 
+        self.tag_styles.entry(tag.clone()).or_default();
         let rule = self.ensure_app_rule(app_id, display_name);
         if let Some(index) = rule.tags.iter().position(|existing| existing == &tag) {
             rule.tags.remove(index);
@@ -376,6 +434,28 @@ impl AppSettings {
     pub fn create_tag_from_app(&mut self, app_id: &str, display_name: &str) -> Option<String> {
         let tag = derive_tag_from_label(display_name)?;
         let _ = self.toggle_app_tag(app_id, display_name, &tag);
+        Some(tag)
+    }
+
+    /// Create or update a tag with a specific colour and assign it to an app.
+    pub fn assign_tag_with_color(
+        &mut self,
+        app_id: &str,
+        display_name: &str,
+        tag: &str,
+        color_hex: &str,
+    ) -> Option<String> {
+        let tag = normalize_tag(tag)?;
+        let color_hex = normalize_color_hex(color_hex)?;
+        self.tag_styles.insert(tag.clone(), TagStyle { color_hex });
+
+        let rule = self.ensure_app_rule(app_id, display_name);
+        if !rule.tags.iter().any(|existing| existing == &tag) {
+            rule.tags.push(tag.clone());
+            rule.tags.sort();
+            rule.tags.dedup();
+        }
+
         Some(tag)
     }
 
@@ -433,6 +513,29 @@ impl AppSettings {
             rule.tags.dedup();
         }
 
+        let known_tags: std::collections::BTreeSet<String> = app_rules
+            .values()
+            .flat_map(|rule| rule.tags.iter().cloned())
+            .collect();
+
+        let mut tag_styles = self
+            .tag_styles
+            .iter()
+            .filter_map(|(tag, style)| {
+                let tag = normalize_tag(tag)?;
+                if !known_tags.contains(&tag) {
+                    return None;
+                }
+
+                let color_hex = normalize_color_hex(&style.color_hex)?;
+                Some((tag, TagStyle { color_hex }))
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        for tag in &known_tags {
+            tag_styles.entry(tag.clone()).or_default();
+        }
+
         let active_monitor_filter = self
             .active_monitor_filter
             .as_deref()
@@ -459,6 +562,7 @@ impl AppSettings {
             active_tag_filter,
             active_app_filter,
             app_rules,
+            tag_styles,
             fixed_width: self.fixed_width,
             fixed_height: self.fixed_height,
             dock_edge: self.dock_edge,
@@ -466,7 +570,11 @@ impl AppSettings {
                 .dock_monitor
                 .as_deref()
                 .and_then(normalize_filter_value),
+            background_color_hex: normalize_color_hex(&self.background_color_hex)
+                .unwrap_or_else(|| DEFAULT_BACKGROUND_COLOR_HEX.to_owned()),
+            use_system_backdrop: self.use_system_backdrop,
             show_toolbar: self.show_toolbar,
+            show_window_info: self.show_window_info,
         }
     }
 
@@ -505,6 +613,24 @@ fn normalize_tag(tag: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_ascii_lowercase())
 }
 
+fn normalize_color_hex(color_hex: &str) -> Option<String> {
+    let trimmed = color_hex.trim().trim_start_matches('#');
+    if trimmed.len() != 6 || !trimmed.chars().all(|character| character.is_ascii_hexdigit()) {
+        return None;
+    }
+
+    Some(trimmed.to_ascii_uppercase())
+}
+
+fn rgb_hex_to_bgr(color_hex: &str) -> Option<u32> {
+    let normalized = normalize_color_hex(color_hex)?;
+    let value = u32::from_str_radix(&normalized, 16).ok()?;
+    let red = (value >> 16) & 0xFF;
+    let green = (value >> 8) & 0xFF;
+    let blue = value & 0xFF;
+    Some((blue << 16) | (green << 8) | red)
+}
+
 fn derive_tag_from_label(label: &str) -> Option<String> {
     let seed: String = label
         .chars()
@@ -523,7 +649,7 @@ fn derive_tag_from_label(label: &str) -> Option<String> {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{AppSettings, HiddenAppEntry};
+    use super::{AppSettings, HiddenAppEntry, TagStyle};
     use crate::layout::LayoutType;
 
     #[test]
@@ -541,11 +667,20 @@ mod tests {
             active_tag_filter: Some("work".to_owned()),
             active_app_filter: None,
             app_rules: std::collections::BTreeMap::default(),
+            tag_styles: std::collections::BTreeMap::from([(
+                "work".to_owned(),
+                TagStyle {
+                    color_hex: "3366FF".to_owned(),
+                },
+            )]),
             fixed_width: Some(120),
             fixed_height: None,
             dock_edge: Some(super::DockEdge::Left),
             dock_monitor: Some("DISPLAY1".to_owned()),
+            background_color_hex: "101820".to_owned(),
+            use_system_backdrop: true,
             show_toolbar: false,
+            show_window_info: false,
         };
 
         let encoded = toml::to_string_pretty(&settings).expect("serialize settings");
@@ -569,14 +704,19 @@ mod tests {
             active_tag_filter: None,
             active_app_filter: Some("exe:demo".to_owned()),
             app_rules: std::collections::BTreeMap::default(),
+            tag_styles: std::collections::BTreeMap::default(),
             fixed_width: None,
             fixed_height: None,
             dock_edge: None,
             dock_monitor: None,
+            background_color_hex: "ZZZZZZ".to_owned(),
+            use_system_backdrop: false,
             show_toolbar: true,
+            show_window_info: true,
         };
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);
+        assert_eq!(settings.normalized().background_color_hex, "181513");
     }
 
     #[test]
@@ -650,6 +790,22 @@ mod tests {
     }
 
     #[test]
+    fn assign_tag_with_color_persists_tag_style() {
+        let mut settings = AppSettings::default();
+
+        let created = settings.assign_tag_with_color(
+            "app:browser",
+            "Arc Browser",
+            " Focus ",
+            "#22AA88",
+        );
+
+        assert_eq!(created.as_deref(), Some("focus"));
+        assert!(settings.app_has_tag("app:browser", "focus"));
+        assert_eq!(settings.tag_color_hex("focus"), "22AA88");
+    }
+
+    #[test]
     fn selecting_tag_filter_clears_app_filter() {
         let mut settings = AppSettings::default();
         settings.set_app_filter(Some("exe:arc"));
@@ -683,5 +839,23 @@ mod tests {
             normalized.tags_for("app:one"),
             vec!["alpha team".to_owned()]
         );
+    }
+
+    #[test]
+    fn normalized_tag_styles_follow_known_tags_only() {
+        let mut settings = AppSettings::default();
+        let _ = settings.assign_tag_with_color("app:mail", "Mail", "Focus", "ff8844");
+        settings.tag_styles.insert(
+            "unused".to_owned(),
+            TagStyle {
+                color_hex: "00FF00".to_owned(),
+            },
+        );
+
+        let normalized = settings.normalized();
+
+        assert!(normalized.tag_styles.contains_key("focus"));
+        assert!(!normalized.tag_styles.contains_key("unused"));
+        assert_eq!(normalized.tag_color_hex("focus"), "FF8844");
     }
 }
