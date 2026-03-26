@@ -169,6 +169,10 @@ struct ManagedWindow {
     source_size: SIZE,
     /// Last time the DWM thumbnail was actually updated (for interval mode).
     last_thumb_update: Option<Instant>,
+    /// Last destination rectangle applied to the DWM thumbnail.
+    last_thumb_dest: Option<RECT>,
+    /// Last visibility flag applied to the DWM thumbnail.
+    last_thumb_visible: bool,
     /// Cached Slint image of the window's application icon.
     cached_icon: Option<slint::Image>,
 }
@@ -194,6 +198,8 @@ struct AppState {
     drag_separator: Option<DragState>,
     /// Index of the window targeted by the currently open Slint context menu.
     context_menu_target: Option<usize>,
+    /// Last background image path loaded into the main window.
+    loaded_background_path: Option<String>,
 }
 
 struct RuntimeUiOptions {
@@ -271,6 +277,7 @@ fn main() {
         separators: Vec::new(),
         drag_separator: None,
         context_menu_target: None,
+        loaded_background_path: None,
     }));
 
     // Show the window so the native HWND exists on next event-loop iteration.
@@ -984,6 +991,8 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
             animation_from_rect: RECT::default(),
             source_size: SIZE { cx: 800, cy: 600 },
             last_thumb_update: None,
+            last_thumb_dest: None,
+            last_thumb_visible: false,
             cached_icon: None,
         };
         if host_visible {
@@ -1003,6 +1012,7 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     if s.windows.is_empty() {
         s.animation_started_at = None;
         sync_settings_to_ui(win, &s.settings);
+        sync_background_image(&mut s, win);
         drop(s);
         sync_model_to_slint(state, win);
         return;
@@ -1103,6 +1113,7 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     );
 
     sync_settings_to_ui(win, &s.settings);
+    sync_background_image(&mut s, win);
 
     drop(s);
     sync_model_to_slint(state, win);
@@ -1118,13 +1129,29 @@ fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
     win.set_filters_label(SharedString::from(
         active_filter_summary(settings).unwrap_or_default(),
     ));
-    // Background image.
-    if let Some(path) = settings.background_image_path.as_deref() {
-        if let Ok(img) = slint::Image::load_from_path(std::path::Path::new(path)) {
-            win.set_background_image(img);
+}
+
+fn sync_background_image(state: &mut AppState, win: &MainWindow) {
+    let desired = state.settings.background_image_path.clone();
+    if state.loaded_background_path == desired {
+        return;
+    }
+
+    if let Some(path) = desired.as_deref() {
+        match slint::Image::load_from_path(std::path::Path::new(path)) {
+            Ok(image) => {
+                win.set_background_image(image);
+                state.loaded_background_path = desired;
+            }
+            Err(error) => {
+                tracing::warn!(%error, path, "failed to load background image");
+                win.set_background_image(slint::Image::default());
+                state.loaded_background_path = None;
+            }
         }
     } else {
         win.set_background_image(slint::Image::default());
+        state.loaded_background_path = None;
     }
 }
 
@@ -1356,7 +1383,7 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
             panopticon::settings::ThumbnailRefreshMode::Realtime => true,
         };
 
-        let _ = ensure_thumbnail(dest_hwnd, mw);
+        let registered_thumbnail = ensure_thumbnail(dest_hwnd, mw);
         if let Some(thumb) = mw.thumbnail.as_ref() {
             let raw_dest = compute_dwm_rect(
                 &mw.display_rect,
@@ -1376,7 +1403,12 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                 && dest.right > 0
                 && dest.top < phys.height as i32
                 && dest.bottom > 0;
-            if should_update {
+            let props_changed = registered_thumbnail
+                || mw.last_thumb_dest != Some(dest)
+                || mw.last_thumb_visible != visible;
+            let should_push_update = props_changed || should_update;
+
+            if should_push_update {
                 if let Err(error) = thumb.update(dest, visible) {
                     tracing::warn!(
                         %error,
@@ -1387,7 +1419,11 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                     );
                     mw.thumbnail = None;
                 } else {
-                    mw.last_thumb_update = Some(now);
+                    mw.last_thumb_dest = Some(dest);
+                    mw.last_thumb_visible = visible;
+                    if should_update {
+                        mw.last_thumb_update = Some(now);
+                    }
                 }
             }
         }
