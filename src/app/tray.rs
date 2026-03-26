@@ -14,8 +14,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, DestroyIcon, DestroyMenu, DrawIconEx,
     GetClassLongPtrW, GetCursorPos, LoadIconW, SendMessageW, SetForegroundWindow, TrackPopupMenu,
     DI_NORMAL, GCLP_HICON, GCLP_HICONSM, HICON, ICON_BIG, ICON_SMALL, ICON_SMALL2, IDI_APPLICATION,
-    IMAGE_FLAGS, MF_CHECKED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED, TPM_BOTTOMALIGN,
-    TPM_LEFTALIGN, TPM_NONOTIFY, TPM_RETURNCMD, WM_APP, WM_GETICON, WM_LBUTTONUP, WM_RBUTTONUP,
+    IMAGE_FLAGS, MF_CHECKED, MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
+    TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_NONOTIFY, TPM_RETURNCMD, WM_APP, WM_GETICON, WM_LBUTTONUP,
+    WM_RBUTTONUP,
 };
 
 /// Callback message sent by the tray icon.
@@ -48,6 +49,10 @@ const CMD_TRAY_DOCK_TOP: u16 = 503;
 const CMD_TRAY_DOCK_BOTTOM: u16 = 504;
 const CMD_TRAY_TOGGLE_TOOLBAR: u16 = 13;
 const CMD_TRAY_OPEN_SETTINGS: u16 = 14;
+const CMD_TRAY_TOGGLE_WINDOW_INFO: u16 = 15;
+const CMD_TRAY_TOGGLE_APP_ICONS: u16 = 16;
+const CMD_TRAY_TOGGLE_START_IN_TRAY: u16 = 17;
+const CMD_TRAY_TOGGLE_LOCKED_LAYOUT: u16 = 18;
 
 /// Snapshot of UI preferences needed to render the tray menu.
 #[derive(Debug, Clone)]
@@ -85,8 +90,18 @@ pub struct TrayMenuState {
     pub hidden_apps: Vec<HiddenAppEntry>,
     /// Current dock edge, if any.
     pub dock_edge: Option<DockEdge>,
+    /// Whether Panopticon is currently operating in dock/appbar mode.
+    pub is_docked: bool,
     /// Whether the toolbar is visible.
     pub show_toolbar: bool,
+    /// Whether the window footer / metadata is visible.
+    pub show_window_info: bool,
+    /// Whether app icons are rendered in thumbnail cells.
+    pub show_app_icons: bool,
+    /// Whether Panopticon should start hidden in the tray.
+    pub start_in_tray: bool,
+    /// Whether layout switching / resizing is locked.
+    pub locked_layout: bool,
 }
 
 /// Commands emitted by the tray icon.
@@ -126,6 +141,14 @@ pub enum TrayAction {
     SetDockEdge(Option<DockEdge>),
     /// Toggle the toolbar visibility.
     ToggleToolbar,
+    /// Toggle footer / window metadata visibility.
+    ToggleWindowInfo,
+    /// Toggle app-icon overlays in thumbnail cells.
+    ToggleAppIcons,
+    /// Toggle start-in-tray behavior.
+    ToggleStartInTray,
+    /// Toggle locked layout behavior.
+    ToggleLockedLayout,
     /// Open the dedicated settings window.
     OpenSettingsWindow,
     /// Exit the application.
@@ -156,6 +179,19 @@ impl AppIcons {
         })
     }
 
+    /// Create icons with a custom accent colour for differentiated instances.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the generated icon resource cannot be converted.
+    pub fn with_accent(r: u8, g: u8, b: u8) -> Result<Self> {
+        Ok(Self {
+            large: create_colored_icon(48, [r, g, b])?,
+            small: create_colored_icon(16, [r, g, b])?,
+            owns_handles: true,
+        })
+    }
+
     /// Fallback to the system application icon when custom icon generation
     /// fails.
     #[must_use]
@@ -169,6 +205,18 @@ impl AppIcons {
         }
     }
 }
+
+/// Predefined accent colours for instance differentiation.
+pub const INSTANCE_ACCENT_PALETTE: &[[u8; 3]] = &[
+    [0xD2, 0x9A, 0x5C], // Amber (default)
+    [0x5C, 0xA9, 0xFF], // Sky
+    [0x3C, 0xCF, 0x91], // Mint
+    [0xFF, 0x6B, 0x8A], // Rose
+    [0x9B, 0x7B, 0xFF], // Violet
+    [0xF4, 0xB7, 0x40], // Sun
+    [0xFF, 0x8C, 0x42], // Tangerine
+    [0x42, 0xD4, 0xD4], // Teal
+];
 
 impl Drop for AppIcons {
     fn drop(&mut self) {
@@ -254,9 +302,14 @@ pub fn handle_tray_message(
 ) -> Option<TrayAction> {
     match lparam.0 as u32 {
         WM_LBUTTONUP => Some(TrayAction::Toggle),
-        WM_RBUTTONUP => show_tray_menu(hwnd, state),
+        WM_RBUTTONUP => show_application_context_menu(hwnd, state),
         _ => None,
     }
+}
+
+#[must_use]
+pub fn show_application_context_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
+    show_application_context_menu_at(hwnd, state, None)
 }
 
 /// Draw a window icon inside `rect`, centered and scaled.
@@ -322,7 +375,11 @@ fn notify_data(hwnd: HWND, icon: HICON) -> NOTIFYICONDATAW {
 }
 
 #[allow(clippy::too_many_lines)]
-fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
+pub fn show_application_context_menu_at(
+    hwnd: HWND,
+    state: &TrayMenuState,
+    anchor: Option<POINT>,
+) -> Option<TrayAction> {
     // SAFETY: menu is created, populated, and destroyed on the same thread.
     unsafe {
         let menu = CreatePopupMenu().ok()?;
@@ -346,6 +403,10 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
         let default_hide_on_select = encode_wide("Default: hide after activation");
         let always_on_top = encode_wide("Keep Panopticon on top");
         let show_toolbar = encode_wide("Show header");
+        let show_window_info = encode_wide("Show window info");
+        let show_app_icons = encode_wide("Show app icons in cells");
+        let start_in_tray = encode_wide("Start hidden in tray");
+        let lock_layout = encode_wide("Lock layout changes");
         let open_settings = encode_wide("Open settings window");
         let dock_title = encode_wide("Dock position");
         let dock_none = encode_wide("Floating (no dock)");
@@ -434,7 +495,7 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
         );
         let _ = AppendMenuW(
             menu,
-            MF_STRING | checked_flag(state.hide_on_select),
+            MF_STRING | checked_flag(state.hide_on_select) | disabled_flag(state.is_docked),
             CMD_TRAY_TOGGLE_DEFAULT_HIDE_ON_SELECT as usize,
             PCWSTR(default_hide_on_select.as_ptr()),
         );
@@ -449,6 +510,30 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
             MF_STRING | checked_flag(state.show_toolbar),
             CMD_TRAY_TOGGLE_TOOLBAR as usize,
             PCWSTR(show_toolbar.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.show_window_info),
+            CMD_TRAY_TOGGLE_WINDOW_INFO as usize,
+            PCWSTR(show_window_info.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.show_app_icons),
+            CMD_TRAY_TOGGLE_APP_ICONS as usize,
+            PCWSTR(show_app_icons.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.start_in_tray),
+            CMD_TRAY_TOGGLE_START_IN_TRAY as usize,
+            PCWSTR(start_in_tray.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.locked_layout),
+            CMD_TRAY_TOGGLE_LOCKED_LAYOUT as usize,
+            PCWSTR(lock_layout.as_ptr()),
         );
         let _ = AppendMenuW(
             menu,
@@ -652,8 +737,10 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
             PCWSTR(exit.as_ptr()),
         );
 
-        let mut cursor = POINT::default();
-        let _ = GetCursorPos(&raw mut cursor);
+        let mut cursor = anchor.unwrap_or_default();
+        if anchor.is_none() {
+            let _ = GetCursorPos(&raw mut cursor);
+        }
         let _ = SetForegroundWindow(hwnd);
 
         let command = TrackPopupMenu(
@@ -680,6 +767,10 @@ fn show_tray_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
             CMD_TRAY_TOGGLE_DEFAULT_HIDE_ON_SELECT => Some(TrayAction::ToggleDefaultHideOnSelect),
             CMD_TRAY_TOGGLE_ALWAYS_ON_TOP => Some(TrayAction::ToggleAlwaysOnTop),
             CMD_TRAY_TOGGLE_TOOLBAR => Some(TrayAction::ToggleToolbar),
+            CMD_TRAY_TOGGLE_WINDOW_INFO => Some(TrayAction::ToggleWindowInfo),
+            CMD_TRAY_TOGGLE_APP_ICONS => Some(TrayAction::ToggleAppIcons),
+            CMD_TRAY_TOGGLE_START_IN_TRAY => Some(TrayAction::ToggleStartInTray),
+            CMD_TRAY_TOGGLE_LOCKED_LAYOUT => Some(TrayAction::ToggleLockedLayout),
             CMD_TRAY_OPEN_SETTINGS => Some(TrayAction::OpenSettingsWindow),
             CMD_TRAY_DOCK_NONE => Some(TrayAction::SetDockEdge(None)),
             CMD_TRAY_DOCK_LEFT => Some(TrayAction::SetDockEdge(Some(DockEdge::Left))),
@@ -725,6 +816,14 @@ const fn checked_flag(enabled: bool) -> windows::Win32::UI::WindowsAndMessaging:
     }
 }
 
+const fn disabled_flag(disabled: bool) -> windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS {
+    if disabled {
+        MF_GRAYED
+    } else {
+        windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS(0)
+    }
+}
+
 fn format_refresh_interval_label(interval_ms: u32) -> String {
     if interval_ms.is_multiple_of(1_000) {
         format!("{}s", interval_ms / 1_000)
@@ -751,6 +850,28 @@ fn create_generated_icon(size: u8) -> Result<HICON> {
 
     if icon.is_err() {
         Err(anyhow!("failed to create generated icon handle"))
+    } else {
+        Ok(icon?)
+    }
+}
+
+fn create_colored_icon(size: u8, accent_rgb: [u8; 3]) -> Result<HICON> {
+    let bytes = build_colored_icon_resource(size, accent_rgb);
+
+    // SAFETY: same as `create_generated_icon`.
+    let icon = unsafe {
+        CreateIconFromResourceEx(
+            &bytes,
+            BOOL(1),
+            0x0003_0000,
+            i32::from(size),
+            i32::from(size),
+            IMAGE_FLAGS(0),
+        )
+    };
+
+    if icon.is_err() {
+        Err(anyhow!("failed to create coloured icon handle"))
     } else {
         Ok(icon?)
     }
@@ -833,6 +954,110 @@ fn icon_pixel(x: f32, y: f32, size: f32) -> [u8; 4] {
         transparent
     } else if distance >= ring {
         accent_ring
+    } else if highlight {
+        near_white
+    } else if pupil {
+        pupil_color
+    } else if iris {
+        accent
+    } else if eye <= 1.0 {
+        slate
+    } else {
+        dark
+    }
+}
+
+fn build_colored_icon_resource(size: u8, accent_rgb: [u8; 3]) -> Vec<u8> {
+    let size_usize = usize::from(size);
+    let mask_stride = size_usize.div_ceil(32) * 4;
+    let image_size = 40 + (size_usize * size_usize * 4) + (mask_stride * size_usize);
+    let image_offset = 6 + 16;
+
+    let mut bytes = Vec::with_capacity(image_offset + image_size);
+
+    // ICONDIR
+    bytes.extend_from_slice(&0u16.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+
+    // ICONDIRENTRY
+    bytes.push(size);
+    bytes.push(size);
+    bytes.push(0);
+    bytes.push(0);
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&32u16.to_le_bytes());
+    bytes.extend_from_slice(&(image_size as u32).to_le_bytes());
+    bytes.extend_from_slice(&(image_offset as u32).to_le_bytes());
+
+    // BITMAPINFOHEADER
+    bytes.extend_from_slice(&40u32.to_le_bytes());
+    bytes.extend_from_slice(&(i32::from(size)).to_le_bytes());
+    bytes.extend_from_slice(&(i32::from(size) * 2).to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&32u16.to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    bytes.extend_from_slice(&((size_usize * size_usize * 4) as u32).to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+
+    // Lighten accent for the ring
+    let ring_rgb = [
+        accent_rgb[0].saturating_add(0x10),
+        accent_rgb[1].saturating_add(0x06),
+        accent_rgb[2].saturating_add(0x0B),
+    ];
+
+    // XOR bitmap (BGRA, bottom-up)
+    for y in (0..size_usize).rev() {
+        for x in 0..size_usize {
+            let pixel = icon_pixel_colored(x as f32, y as f32, size as f32, accent_rgb, ring_rgb);
+            bytes.extend_from_slice(&pixel);
+        }
+    }
+
+    // AND mask
+    bytes.resize(image_offset + image_size, 0);
+
+    bytes
+}
+
+fn icon_pixel_colored(
+    x: f32,
+    y: f32,
+    size: f32,
+    accent_rgb: [u8; 3],
+    ring_rgb: [u8; 3],
+) -> [u8; 4] {
+    let center = (size - 1.0) / 2.0;
+    let dx = x - center;
+    let dy = y - center;
+    let distance = (dx * dx + dy * dy).sqrt();
+
+    let outer = size * 0.47;
+    let ring = size * 0.41;
+    let eye_x = dx / (size * 0.36);
+    let eye_y = dy / (size * 0.22);
+    let eye = eye_x * eye_x + eye_y * eye_y;
+    let iris = distance <= size * 0.14;
+    let pupil = distance <= size * 0.07;
+    let highlight = (x - size * 0.62).powi(2) + (y - size * 0.36).powi(2) <= (size * 0.05).powi(2);
+
+    let transparent = [0, 0, 0, 0];
+    let dark = [0x19, 0x1A, 0x20, 0xFF];
+    let slate = [0x2D, 0x31, 0x3B, 0xFF];
+    // BGRA order
+    let accent = [accent_rgb[2], accent_rgb[1], accent_rgb[0], 0xFF];
+    let accent_ring_color = [ring_rgb[2], ring_rgb[1], ring_rgb[0], 0xFF];
+    let near_white = [0xF4, 0xF6, 0xFA, 0xFF];
+    let pupil_color = [0x08, 0x0A, 0x0E, 0xFF];
+
+    if distance > outer {
+        transparent
+    } else if distance >= ring {
+        accent_ring_color
     } else if highlight {
         near_white
     } else if pupil {
