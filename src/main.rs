@@ -14,16 +14,17 @@ mod app;
 
 use app::settings_ui::{apply_settings_window_changes, populate_settings_window};
 use app::tray::{
-    handle_tray_message, resolve_window_icon, show_application_context_menu_at, AppIcons,
-    TrayAction, TrayIcon, TrayMenuState, INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
+    handle_tray_message, resolve_window_icon, resolve_window_icon_sized,
+    show_application_context_menu_at, AppIcons, TrayAction, TrayIcon, TrayMenuState,
+    INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
 };
 use app::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
 use panopticon::constants::{
     ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TOOLBAR_HEIGHT,
 };
 use panopticon::layout::{
-    apply_separator_drag, compute_layout_custom, default_ratios, AspectHint, LayoutType,
-    ScrollDirection, Separator,
+    apply_separator_drag, apply_separator_drag_grouped, compute_layout_custom, default_ratios,
+    AspectHint, LayoutType, ScrollDirection, Separator,
 };
 use panopticon::settings::{AppSelectionEntry, AppSettings, DockEdge, HiddenAppEntry};
 use panopticon::theme as theme_catalog;
@@ -107,6 +108,7 @@ const APP_MENU_RESTORE_ALL_HIDDEN: i32 = 400;
 const APP_MENU_RESTORE_HIDDEN_BASE: i32 = 401;
 
 const OPTION_SEPARATOR: &str = " — ";
+const THUMBNAIL_OVERLAY_STRIP_HEIGHT: i32 = 28;
 
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
@@ -774,6 +776,7 @@ fn flash_scrollbar(win: &MainWindow) {
 
 // ───────────────────────── Slint Callbacks ─────────────────────────
 
+#[allow(clippy::too_many_lines)]
 fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
     main_window.on_thumbnail_clicked({
         let state = state.clone();
@@ -1290,6 +1293,11 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     } else {
         0
     };
+    let overlay_top_h = if s.settings.show_app_icons {
+        THUMBNAIL_OVERLAY_STRIP_HEIGHT
+    } else {
+        0
+    };
     let viewport_x = win.get_viewport_x();
     let viewport_y = win.get_viewport_y();
 
@@ -1331,6 +1339,7 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                 &mw.display_rect,
                 mw.source_size,
                 preserve,
+                overlay_top_h,
                 footer_h,
                 toolbar_h,
                 viewport_x,
@@ -1384,6 +1393,7 @@ fn compute_dwm_rect(
     card_rect: &RECT,
     source_size: SIZE,
     preserve_aspect: bool,
+    overlay_top_h: i32,
     footer_h: i32,
     toolbar_h: f32,
     viewport_x: f32,
@@ -1391,7 +1401,7 @@ fn compute_dwm_rect(
     scale: f32,
 ) -> RECT {
     let l = card_rect.left as f32 + 1.0;
-    let t = card_rect.top as f32 + THUMBNAIL_ACCENT_HEIGHT as f32;
+    let t = card_rect.top as f32 + THUMBNAIL_ACCENT_HEIGHT as f32 + overlay_top_h as f32;
     let r = card_rect.right as f32 - 1.0;
     let b = card_rect.bottom as f32 - footer_h as f32;
 
@@ -1463,10 +1473,10 @@ fn populate_cached_icon(mw: &mut ManagedWindow) {
     mw.cached_icon = hicon_to_slint_image(mw.info.hwnd);
 }
 
-/// Convert a window's HICON to a 32×32 Slint RGBA image.
+/// Convert a window's HICON to a high-resolution Slint RGBA image.
 fn hicon_to_slint_image(hwnd: HWND) -> Option<slint::Image> {
-    let icon = resolve_window_icon(hwnd)?;
-    let size: i32 = 32;
+    let icon = resolve_window_icon_sized(hwnd, true).or_else(|| resolve_window_icon(hwnd))?;
+    let size: i32 = 64;
     // SAFETY: GDI drawing operations on a temporary memory DC; all resources
     // are released before returning.
     unsafe {
@@ -2192,9 +2202,15 @@ fn handle_resize_drag_start(
     let logical_h = phys.map_or(720, |p| (p.height as f32 / scale).round() as i32) - toolbar_h;
 
     let axis_extent = if sep.horizontal {
-        logical_h as f64
+        match s.current_layout.scroll_direction() {
+            ScrollDirection::Vertical => f64::from(s.content_extent.max(logical_h)),
+            _ => logical_h as f64,
+        }
     } else {
-        logical_w as f64
+        match s.current_layout.scroll_direction() {
+            ScrollDirection::Horizontal => f64::from(s.content_extent.max(logical_w)),
+            _ => logical_w as f64,
+        }
     };
 
     // x, y are now absolute coordinates in content-frame space.
@@ -2249,7 +2265,12 @@ fn handle_resize_drag_move(
             &mut custom.col_ratios
         };
         if ratio_index + 1 < ratios.len() {
-            apply_separator_drag(ratios, ratio_index, delta_frac, min_frac);
+            match layout {
+                LayoutType::Columns | LayoutType::Row | LayoutType::Column => {
+                    apply_separator_drag_grouped(ratios, ratio_index, delta_frac, min_frac);
+                }
+                _ => apply_separator_drag(ratios, ratio_index, delta_frac, min_frac),
+            }
         }
     }
 

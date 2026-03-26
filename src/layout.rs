@@ -786,6 +786,49 @@ pub fn apply_separator_drag(
     ratios[ratio_index + 1] = new_b;
 }
 
+/// Apply a drag delta to a separator while redistributing the remaining space
+/// proportionally across *all* items on each side of the split.
+///
+/// This feels more natural for scrollable strip layouts (`Row` / `Column`) and
+/// proportional column layouts because the rest of the items accommodate the
+/// change instead of only shifting position.
+pub fn apply_separator_drag_grouped(
+    ratios: &mut [f64],
+    ratio_index: usize,
+    delta_fraction: f64,
+    min_fraction: f64,
+) {
+    if ratio_index + 1 >= ratios.len() {
+        return;
+    }
+
+    let left_len = ratio_index + 1;
+    let right_len = ratios.len() - left_len;
+    if right_len == 0 {
+        return;
+    }
+
+    let left_sum: f64 = ratios[..left_len].iter().sum();
+    let right_sum: f64 = ratios[left_len..].iter().sum();
+    if left_sum <= 0.0 || right_sum <= 0.0 {
+        return;
+    }
+
+    let min_left = min_fraction * left_len as f64;
+    let min_right = min_fraction * right_len as f64;
+    let new_left_sum = (left_sum + delta_fraction).clamp(min_left, 1.0 - min_right);
+    let new_right_sum = 1.0 - new_left_sum;
+    let left_scale = new_left_sum / left_sum;
+    let right_scale = new_right_sum / right_sum;
+
+    for ratio in &mut ratios[..left_len] {
+        *ratio *= left_scale;
+    }
+    for ratio in &mut ratios[left_len..] {
+        *ratio *= right_scale;
+    }
+}
+
 /// Build default equal ratios for `n` slots.
 #[must_use]
 pub fn default_ratios(n: usize) -> Vec<f64> {

@@ -77,6 +77,8 @@ component ThumbnailCard inherits Rectangle {
     border-radius: 4px;
     clip: true;
     property <bool> has-icon: root.show-icon && root.icon-image.width > 0;
+    property <length> footer-height: root.show-footer ? 34px : 0px;
+    property <length> overlay-strip-height: root.has-icon && !root.is-minimized ? 28px : 0px;
 
     // Accent strip
     Rectangle {
@@ -91,9 +93,9 @@ component ThumbnailCard inherits Rectangle {
     // can overlay the live window preview on top.
     Rectangle {
         x: 1px;
-        y: 3px;
+        y: 3px + root.overlay-strip-height;
         width: parent.width - 2px;
-        height: parent.height - 3px - (root.show-footer ? 34px : 0px);
+        height: parent.height - 3px - root.overlay-strip-height - root.footer-height;
         background: Theme.placeholder;
     }
 
@@ -102,7 +104,7 @@ component ThumbnailCard inherits Rectangle {
         x: 1px;
         y: 3px;
         width: parent.width - 2px;
-        height: parent.height - 3px - (root.show-footer ? 34px : 0px);
+        height: parent.height - 3px - root.footer-height;
         background: Theme.panel-bg;
 
         VerticalLayout {
@@ -134,14 +136,14 @@ component ThumbnailCard inherits Rectangle {
         }
     }
 
-    // App icon in bottom-left corner; when the footer is visible we keep the
-    // icon inside that reserved bar so it never fights with the DWM thumbnail.
+    // App icon in a reserved top-right strip so it never fights with the DWM
+    // thumbnail composition layer.
     if root.has-icon && !root.is-minimized: Rectangle {
-        x: 4px;
-        y: root.show-footer ? (parent.height - 30px) : (parent.height - 28px);
+        x: parent.width - 30px;
+        y: 7px;
         width: 24px;
         height: 24px;
-        background: Theme.footer-bg.with-alpha(0.85);
+        background: Theme.footer-bg.with-alpha(0.88);
         border-radius: 4px;
 
         Image {
