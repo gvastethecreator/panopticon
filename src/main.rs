@@ -14,10 +14,10 @@ mod app;
 
 use app::settings_ui::{apply_settings_window_changes, populate_settings_window};
 use app::tray::{
-    handle_tray_message, resolve_window_icon, AppIcons, TrayAction, TrayIcon, TrayMenuState,
-    WM_TRAYICON,
+    handle_tray_message, resolve_window_icon, show_application_context_menu_at, AppIcons,
+    TrayAction, TrayIcon, TrayMenuState, INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
 };
-use app::window_menu::{show_window_context_menu, WindowMenuAction};
+use app::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
 use panopticon::constants::{
     ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TOOLBAR_HEIGHT,
 };
@@ -25,7 +25,8 @@ use panopticon::layout::{
     apply_separator_drag, compute_layout_custom, default_ratios, AspectHint, LayoutType,
     ScrollDirection, Separator,
 };
-use panopticon::settings::{AppSelectionEntry, AppSettings, DockEdge};
+use panopticon::settings::{AppSelectionEntry, AppSettings, DockEdge, HiddenAppEntry};
+use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 
@@ -33,6 +34,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::c_void;
 use std::mem;
+use std::process::Command;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
@@ -43,14 +45,16 @@ use slint::{
 };
 
 use windows::core::w;
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, SIZE, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows::Win32::Graphics::Dwm::{
     DwmQueryThumbnailSourceSize, DwmSetWindowAttribute, DWMSBT_MAINWINDOW, DWMSBT_NONE,
     DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE,
     DWMWCP_ROUND,
 };
 use windows::Win32::Graphics::Gdi::{
-    GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
+    CreateCompatibleDC, CreateDIBSection, DeleteDC, GetDC, GetMonitorInfoW, MonitorFromWindow,
+    ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
+    MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
 };
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
@@ -68,6 +72,42 @@ slint::include_modules!();
 /// Callback message posted by the shell when the app-bar needs repositioning.
 const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
 
+const APP_MENU_TOGGLE_VISIBILITY: i32 = 1;
+const APP_MENU_REFRESH: i32 = 2;
+const APP_MENU_NEXT_LAYOUT: i32 = 3;
+const APP_MENU_OPEN_SETTINGS: i32 = 4;
+const APP_MENU_EXIT: i32 = 5;
+
+const APP_MENU_TOGGLE_MINIMIZE_TO_TRAY: i32 = 20;
+const APP_MENU_TOGGLE_CLOSE_TO_TRAY: i32 = 21;
+const APP_MENU_CYCLE_REFRESH: i32 = 22;
+const APP_MENU_TOGGLE_ANIMATIONS: i32 = 23;
+const APP_MENU_TOGGLE_DEFAULT_ASPECT: i32 = 24;
+const APP_MENU_TOGGLE_DEFAULT_HIDE_ON_SELECT: i32 = 25;
+const APP_MENU_TOGGLE_ALWAYS_ON_TOP: i32 = 26;
+const APP_MENU_TOGGLE_TOOLBAR: i32 = 27;
+const APP_MENU_TOGGLE_WINDOW_INFO: i32 = 28;
+const APP_MENU_TOGGLE_APP_ICONS: i32 = 29;
+const APP_MENU_TOGGLE_START_IN_TRAY: i32 = 30;
+const APP_MENU_TOGGLE_LOCKED_LAYOUT: i32 = 31;
+
+const APP_MENU_DOCK_NONE: i32 = 40;
+const APP_MENU_DOCK_LEFT: i32 = 41;
+const APP_MENU_DOCK_RIGHT: i32 = 42;
+const APP_MENU_DOCK_TOP: i32 = 43;
+const APP_MENU_DOCK_BOTTOM: i32 = 44;
+
+const APP_MENU_MONITOR_ALL: i32 = 100;
+const APP_MENU_MONITOR_BASE: i32 = 101;
+const APP_MENU_TAG_ALL: i32 = 200;
+const APP_MENU_TAG_BASE: i32 = 201;
+const APP_MENU_APP_ALL: i32 = 300;
+const APP_MENU_APP_BASE: i32 = 301;
+const APP_MENU_RESTORE_ALL_HIDDEN: i32 = 400;
+const APP_MENU_RESTORE_HIDDEN_BASE: i32 = 401;
+
+const OPTION_SEPARATOR: &str = " — ";
+
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
 // ───────────────────────── Thread-local subclass state ─────────────────────────
@@ -80,6 +120,9 @@ thread_local! {
     static SETTINGS_WIN: RefCell<Option<SettingsWindow>> = const { RefCell::new(None) };
     static TAG_DIALOG_WIN: RefCell<Option<TagDialogWindow>> = const { RefCell::new(None) };
     static PAN_STATE: RefCell<MiddlePanState> = const { RefCell::new(MiddlePanState { active: false, last_x: 0, last_y: 0 }) };
+    /// Instant when the last scroll event occurred; used by the scrollbar
+    /// auto-hide timer to determine when to fade out.
+    static SCROLL_LAST_ACTIVITY: Cell<Option<Instant>> = const { Cell::new(None) };
 }
 
 /// Tracks middle-button pan drag state.
@@ -122,6 +165,10 @@ struct ManagedWindow {
     display_rect: RECT,
     animation_from_rect: RECT,
     source_size: SIZE,
+    /// Last time the DWM thumbnail was actually updated (for interval mode).
+    last_thumb_update: Option<Instant>,
+    /// Cached Slint image of the window's application icon.
+    cached_icon: Option<slint::Image>,
 }
 
 /// Root application state shared via `Rc<RefCell<…>>`.
@@ -143,6 +190,23 @@ struct AppState {
     separators: Vec<Separator>,
     /// Active drag state: separator index being dragged.
     drag_separator: Option<DragState>,
+    /// Index of the window targeted by the currently open Slint context menu.
+    context_menu_target: Option<usize>,
+}
+
+struct RuntimeUiOptions {
+    monitors: Vec<String>,
+    tags: Vec<String>,
+    apps: Vec<AppSelectionEntry>,
+    hidden_apps: Vec<HiddenAppEntry>,
+}
+
+enum AppMenuAction {
+    Tray(TrayAction),
+    ToggleWindowInfo,
+    ToggleAppIcons,
+    ToggleStartInTray,
+    ToggleLockedLayout,
 }
 
 // ───────────────────────── Entry Point ─────────────────────────
@@ -160,14 +224,28 @@ fn main() {
         TASKBAR_CREATED_MSG.store(taskbar_msg, Ordering::Relaxed);
     }
 
-    let icons = AppIcons::new().unwrap_or_else(|error| {
-        tracing::error!(%error, "icon generation failed; falling back");
-        AppIcons::fallback_system()
-    });
+    let icons = match profile.as_deref() {
+        Some(name) => {
+            let idx = name.bytes().fold(0u32, |a, b| a.wrapping_add(u32::from(b))) as usize
+                % INSTANCE_ACCENT_PALETTE.len();
+            let [r, g, b] = INSTANCE_ACCENT_PALETTE[idx];
+            AppIcons::with_accent(r, g, b).unwrap_or_else(|_| {
+                AppIcons::new().unwrap_or_else(|error| {
+                    tracing::error!(%error, "icon generation failed; falling back");
+                    AppIcons::fallback_system()
+                })
+            })
+        }
+        None => AppIcons::new().unwrap_or_else(|error| {
+            tracing::error!(%error, "icon generation failed; falling back");
+            AppIcons::fallback_system()
+        }),
+    };
     let settings = AppSettings::load_or_default(profile.as_deref()).unwrap_or_else(|error| {
         tracing::error!(%error, "settings load failed; using defaults");
         AppSettings::default()
     });
+    ensure_default_profiles_exist(&settings);
 
     let main_window = MainWindow::new().unwrap();
 
@@ -190,6 +268,7 @@ fn main() {
         last_size: (0, 0),
         separators: Vec::new(),
         drag_separator: None,
+        context_menu_target: None,
     }));
 
     // Show the window so the native HWND exists on next event-loop iteration.
@@ -295,6 +374,22 @@ fn main() {
         },
     );
 
+    // Scrollbar auto-hide timer: checks every 200 ms and hides after inactivity.
+    let scrollbar_timer = Timer::default();
+    scrollbar_timer.start(TimerMode::Repeated, Duration::from_millis(200), {
+        let weak = main_window.as_weak();
+        move || {
+            let should_hide = SCROLL_LAST_ACTIVITY
+                .with(|c| c.get().is_some_and(|t| t.elapsed() >= SCROLLBAR_HIDE_DELAY));
+            if should_hide {
+                SCROLL_LAST_ACTIVITY.with(|c| c.set(None));
+                if let Some(win) = weak.upgrade() {
+                    win.set_scroll_active(false);
+                }
+            }
+        }
+    });
+
     tracing::info!("entering Slint event loop");
     slint::run_event_loop_until_quit().unwrap();
     let hwnd = state.borrow().hwnd;
@@ -339,6 +434,7 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
     // DWM appearance.
     apply_window_appearance(hwnd, &settings_snapshot);
     apply_topmost_mode(hwnd, settings_snapshot.always_on_top);
+    sync_dock_system_menu(hwnd, settings_snapshot.dock_edge.is_some());
 
     // System tray.
     {
@@ -368,6 +464,15 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
     if settings_snapshot.dock_edge.is_some() {
         let mut s = state.borrow_mut();
         apply_dock_mode(&mut s);
+    }
+
+    // Start minimized to tray when the setting is active.
+    if settings_snapshot.start_in_tray {
+        tracing::info!("start_in_tray is active — hiding main window");
+        for mw in &mut state.borrow_mut().windows {
+            mw.thumbnail = None;
+        }
+        win.hide().ok();
     }
 
     true
@@ -406,6 +511,7 @@ fn forward_to_original(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> 
     unsafe { CallWindowProcW(mem::transmute(original), hwnd, msg, wparam, lparam) }
 }
 
+#[allow(clippy::too_many_lines)]
 unsafe extern "system" fn subclass_proc(
     hwnd: HWND,
     msg: u32,
@@ -433,11 +539,32 @@ unsafe extern "system" fn subclass_proc(
             handle_tray_subclass(hwnd, lparam);
             LRESULT(0)
         }
+        WM_SYSKEYDOWN => {
+            if wparam.0 as u32 == 0x12 && (lparam.0 & 0x4000_0000) == 0 {
+                toggle_toolbar_from_alt_hotkey();
+                LRESULT(0)
+            } else {
+                forward_to_original(hwnd, msg, wparam, lparam)
+            }
+        }
         WM_APPBAR_CALLBACK => {
             if wparam.0 as u32 == ABN_POSCHANGED {
                 PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Reposition));
             }
             LRESULT(0)
+        }
+        WM_WINDOWPOSCHANGED | WM_DISPLAYCHANGE | WM_DPICHANGED | WM_SETTINGCHANGE => {
+            if docked_mode_active() {
+                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Reposition));
+            }
+            forward_to_original(hwnd, msg, wparam, lparam)
+        }
+        WM_SYSCOMMAND => {
+            if docked_mode_active() && is_blocked_dock_syscommand(wparam.0) {
+                LRESULT(0)
+            } else {
+                forward_to_original(hwnd, msg, wparam, lparam)
+            }
         }
         WM_CLOSE => {
             let should_hide = UI_STATE.with(|s| {
@@ -566,6 +693,7 @@ fn handle_wheel_scroll(wparam: WPARAM) -> bool {
             let max_scroll = (cw - visible).max(0.0);
             let new_vx = (win.get_viewport_x() + scroll_px).clamp(-max_scroll, 0.0);
             win.set_viewport_x(new_vx);
+            flash_scrollbar(&win);
             true
         } else if scroll_v {
             let scale = win.window().scale_factor();
@@ -580,6 +708,7 @@ fn handle_wheel_scroll(wparam: WPARAM) -> bool {
             let max_scroll = (ch - visible).max(0.0);
             let new_vy = (win.get_viewport_y() + scroll_px).clamp(-max_scroll, 0.0);
             win.set_viewport_y(new_vy);
+            flash_scrollbar(&win);
             true
         } else {
             false
@@ -602,6 +731,7 @@ fn handle_middle_pan_move(lparam: LPARAM) {
                 let scale = win.window().scale_factor();
                 let scroll_h = win.get_scroll_horizontal();
                 let scroll_v = win.get_scroll_vertical();
+                let mut scrolled = false;
                 if scroll_h {
                     let phys = win.window().size();
                     let cw = win.get_content_width();
@@ -609,6 +739,7 @@ fn handle_middle_pan_move(lparam: LPARAM) {
                     let max_scroll = (cw - visible).max(0.0);
                     let new_vx = (win.get_viewport_x() + dx as f32 / scale).clamp(-max_scroll, 0.0);
                     win.set_viewport_x(new_vx);
+                    scrolled = true;
                 }
                 if scroll_v {
                     let phys = win.window().size();
@@ -622,10 +753,23 @@ fn handle_middle_pan_move(lparam: LPARAM) {
                     let max_scroll = (ch - visible).max(0.0);
                     let new_vy = (win.get_viewport_y() + dy as f32 / scale).clamp(-max_scroll, 0.0);
                     win.set_viewport_y(new_vy);
+                    scrolled = true;
+                }
+                if scrolled {
+                    flash_scrollbar(&win);
                 }
             }
         });
     });
+}
+
+/// Duration after which the scrollbar overlay auto-hides.
+const SCROLLBAR_HIDE_DELAY: Duration = Duration::from_millis(1500);
+
+/// Mark the scrollbar as visible and record activity time for auto-hide.
+fn flash_scrollbar(win: &MainWindow) {
+    win.set_scroll_active(true);
+    SCROLL_LAST_ACTIVITY.with(|c| c.set(Some(Instant::now())));
 }
 
 // ───────────────────────── Slint Callbacks ─────────────────────────
@@ -642,8 +786,8 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
     main_window.on_thumbnail_right_clicked({
         let state = state.clone();
         let weak = main_window.as_weak();
-        move |index, _x, _y| {
-            handle_thumbnail_right_click(&state, &weak, index as usize);
+        move |index, x, y| {
+            handle_thumbnail_right_click(&state, &weak, index as usize, x, y);
         }
     });
 
@@ -674,6 +818,12 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         }
     });
 
+    main_window.on_app_context_menu_requested({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move |x, y| open_application_context_menu(&state, &weak, Some((x, y)))
+    });
+
     main_window.on_resize_drag_started({
         let state = state.clone();
         let weak = main_window.as_weak();
@@ -702,6 +852,44 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         move |key_text| handle_key(&state, &weak, &key_text)
+    });
+
+    // Per-window Slint context menu action.
+    main_window.on_context_menu_action({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move |action_id| {
+            let (target_idx, known_tags) = {
+                let s = state.borrow();
+                (s.context_menu_target, s.settings.known_tags())
+            };
+            let Some(idx) = target_idx else { return };
+            let info = {
+                let s = state.borrow();
+                s.windows.get(idx).map(|mw| mw.info.clone())
+            };
+            let Some(info) = info else { return };
+            if let Some(action) = window_menu_action_from_id(action_id, &known_tags) {
+                handle_window_menu_action(&state, &weak, &info, action);
+            }
+        }
+    });
+
+    main_window.on_app_menu_action({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move |action_id| {
+            let action = {
+                let mut s = state.borrow_mut();
+                let menu_state = build_tray_menu_state(&mut s);
+                let runtime = collect_runtime_ui_options(&s);
+                app_menu_action_from_id(action_id, &menu_state, &runtime)
+            };
+
+            if let Some(action) = action {
+                handle_app_menu_action_selected(&state, &weak, action);
+            }
+        }
     });
 }
 
@@ -791,6 +979,8 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
             display_rect: RECT::default(),
             animation_from_rect: RECT::default(),
             source_size: SIZE { cx: 800, cy: 600 },
+            last_thumb_update: None,
+            cached_icon: None,
         };
         if host_visible {
             let _ = ensure_thumbnail(host_hwnd, &mut mw);
@@ -915,6 +1105,7 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
 }
 
 fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
+    apply_main_window_theme(win, settings);
     win.set_show_toolbar(settings.show_toolbar);
     win.set_show_window_info(settings.show_window_info);
     win.set_is_always_on_top(settings.always_on_top);
@@ -923,6 +1114,14 @@ fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
     win.set_filters_label(SharedString::from(
         active_filter_summary(settings).unwrap_or_default(),
     ));
+    // Background image.
+    if let Some(path) = settings.background_image_path.as_deref() {
+        if let Ok(img) = slint::Image::load_from_path(std::path::Path::new(path)) {
+            win.set_background_image(img);
+        }
+    } else {
+        win.set_background_image(slint::Image::default());
+    }
 }
 
 fn clamp_viewport_offsets(
@@ -951,25 +1150,43 @@ fn clamp_viewport_offsets(
 }
 
 fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let s = state.borrow();
-    let accent = tag_accent_color(&s.settings);
+    let mut s = state.borrow_mut();
+    let default_accent = tag_accent_color(&s.settings);
     let show_footer = s.settings.show_window_info;
+    let show_icons = s.settings.show_app_icons;
+
+    // Populate cached icons lazily.
+    if show_icons {
+        for mw in &mut s.windows {
+            populate_cached_icon(mw);
+        }
+    }
 
     let data: Vec<ThumbnailData> = s
         .windows
         .iter()
         .enumerate()
-        .map(|(i, mw)| ThumbnailData {
-            x: mw.display_rect.left as f32,
-            y: mw.display_rect.top as f32,
-            width: (mw.display_rect.right - mw.display_rect.left) as f32,
-            height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
-            title: SharedString::from(truncate_title(&mw.info.title)),
-            app_label: SharedString::from(mw.info.app_label()),
-            is_hovered: s.hover_index == Some(i),
-            is_active: s.active_hwnd == Some(mw.info.hwnd),
-            accent_color: accent,
-            show_footer,
+        .map(|(i, mw)| {
+            let accent = s
+                .settings
+                .app_color_hex(&mw.info.app_id)
+                .map_or(default_accent, hex_to_slint_color);
+            let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
+            ThumbnailData {
+                x: mw.display_rect.left as f32,
+                y: mw.display_rect.top as f32,
+                width: (mw.display_rect.right - mw.display_rect.left) as f32,
+                height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
+                title: SharedString::from(truncate_title(&mw.info.title)),
+                app_label: SharedString::from(mw.info.app_label()),
+                is_hovered: s.hover_index == Some(i),
+                is_active: s.active_hwnd == Some(mw.info.hwnd),
+                accent_color: accent,
+                show_footer,
+                is_minimized,
+                icon: mw.cached_icon.clone().unwrap_or_default(),
+                show_icon: show_icons,
+            }
         })
         .collect();
 
@@ -1002,6 +1219,7 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         })
         .collect();
 
+    let dragging = s.drag_separator.is_some();
     let active_drag = s
         .drag_separator
         .as_ref()
@@ -1013,7 +1231,20 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
 
     drop(s);
     win.set_thumbnails(ModelRc::new(VecModel::from(data)));
-    win.set_resize_handles(ModelRc::new(VecModel::from(handles)));
+
+    // During a drag, update handle positions in-place via set_row_data so that
+    // the Slint component instances (and their pointer capture) survive.
+    if dragging {
+        let model = win.get_resize_handles();
+        let existing = model.row_count();
+        for (idx, handle_data) in handles.into_iter().enumerate() {
+            if idx < existing {
+                model.set_row_data(idx, handle_data);
+            }
+        }
+    } else {
+        win.set_resize_handles(ModelRc::new(VecModel::from(handles)));
+    }
     win.set_active_drag_index(active_drag);
 }
 
@@ -1068,8 +1299,32 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         .iter()
         .map(|mw| s.settings.preserve_aspect_ratio_for(&mw.info.app_id))
         .collect();
+    let refresh_modes: Vec<(panopticon::settings::ThumbnailRefreshMode, u32)> = s
+        .windows
+        .iter()
+        .map(|mw| {
+            let mode = s.settings.thumbnail_refresh_mode_for(&mw.info.app_id);
+            let interval = s
+                .settings
+                .thumbnail_refresh_interval_ms_for(&mw.info.app_id);
+            (mode, interval)
+        })
+        .collect();
+    let now = Instant::now();
     for (i, mw) in s.windows.iter_mut().enumerate() {
         let preserve = preserve_flags[i];
+        let (refresh_mode, interval_ms) = refresh_modes[i];
+        let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
+
+        // Frozen: register once but never update afterwards.
+        let should_update = match refresh_mode {
+            panopticon::settings::ThumbnailRefreshMode::Frozen => mw.thumbnail.is_none(),
+            panopticon::settings::ThumbnailRefreshMode::Interval => mw
+                .last_thumb_update
+                .is_none_or(|t| now.duration_since(t).as_millis() >= u128::from(interval_ms)),
+            panopticon::settings::ThumbnailRefreshMode::Realtime => true,
+        };
+
         let _ = ensure_thumbnail(dest_hwnd, mw);
         if let Some(thumb) = mw.thumbnail.as_ref() {
             let raw_dest = compute_dwm_rect(
@@ -1084,19 +1339,24 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
             );
             let (dest, has_valid_area) = sanitize_thumbnail_rect(raw_dest);
             let visible = has_valid_area
+                && !is_minimized
                 && dest.left < phys.width as i32
                 && dest.right > 0
                 && dest.top < phys.height as i32
                 && dest.bottom > 0;
-            if let Err(error) = thumb.update(dest, visible) {
-                tracing::warn!(
-                    %error,
-                    title = %mw.info.title,
-                    visible,
-                    dest = ?dest,
-                    "thumbnail update failed — dropping"
-                );
-                mw.thumbnail = None;
+            if should_update {
+                if let Err(error) = thumb.update(dest, visible) {
+                    tracing::warn!(
+                        %error,
+                        title = %mw.info.title,
+                        visible,
+                        dest = ?dest,
+                        "thumbnail update failed — dropping"
+                    );
+                    mw.thumbnail = None;
+                } else {
+                    mw.last_thumb_update = Some(now);
+                }
             }
         }
     }
@@ -1193,6 +1453,144 @@ fn query_source_size(handle: isize) -> SIZE {
     size
 }
 
+// ───────────────────────── Icon Extraction ─────────────────────────
+
+/// Extract and cache the application icon for a managed window.
+fn populate_cached_icon(mw: &mut ManagedWindow) {
+    if mw.cached_icon.is_some() {
+        return;
+    }
+    mw.cached_icon = hicon_to_slint_image(mw.info.hwnd);
+}
+
+/// Convert a window's HICON to a 32×32 Slint RGBA image.
+fn hicon_to_slint_image(hwnd: HWND) -> Option<slint::Image> {
+    let icon = resolve_window_icon(hwnd)?;
+    let size: i32 = 32;
+    // SAFETY: GDI drawing operations on a temporary memory DC; all resources
+    // are released before returning.
+    unsafe {
+        let screen_dc = GetDC(HWND::default());
+        let mem_dc = CreateCompatibleDC(screen_dc);
+
+        let mut bmi: BITMAPINFO = mem::zeroed();
+        bmi.bmiHeader.biSize = mem::size_of::<BITMAPINFOHEADER>() as u32;
+        bmi.bmiHeader.biWidth = size;
+        bmi.bmiHeader.biHeight = -size; // top-down DIB
+        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.biBitCount = 32;
+        bmi.bmiHeader.biCompression = BI_RGB.0;
+
+        let mut bits_ptr: *mut c_void = std::ptr::null_mut();
+        let Ok(dib) = CreateDIBSection(
+            mem_dc,
+            &raw const bmi,
+            DIB_RGB_COLORS,
+            &raw mut bits_ptr,
+            None,
+            0,
+        ) else {
+            let _ = DeleteDC(mem_dc);
+            let _ = ReleaseDC(HWND::default(), screen_dc);
+            return None;
+        };
+        if bits_ptr.is_null() {
+            let _ = DeleteDC(mem_dc);
+            let _ = ReleaseDC(HWND::default(), screen_dc);
+            return None;
+        }
+
+        let old = SelectObject(mem_dc, HGDIOBJ(dib.0.cast()));
+        let _ = DrawIconEx(mem_dc, 0, 0, icon, size, size, 0, None, DI_NORMAL);
+        SelectObject(mem_dc, old);
+
+        let pixel_count = (size * size) as usize;
+        let src = std::slice::from_raw_parts(bits_ptr.cast::<u8>(), pixel_count * 4);
+        let mut rgba = vec![0u8; pixel_count * 4];
+
+        let mut has_alpha = false;
+        for (i, chunk) in src.chunks_exact(4).enumerate() {
+            let o = i * 4;
+            rgba[o] = chunk[2];
+            rgba[o + 1] = chunk[1];
+            rgba[o + 2] = chunk[0];
+            rgba[o + 3] = chunk[3];
+            if chunk[3] != 0 {
+                has_alpha = true;
+            }
+        }
+
+        // Icons without an alpha channel: set all non-black pixels to opaque.
+        if !has_alpha {
+            for chunk in rgba.chunks_exact_mut(4) {
+                if chunk[0] != 0 || chunk[1] != 0 || chunk[2] != 0 {
+                    chunk[3] = 255;
+                }
+            }
+        }
+
+        let rgba = normalize_icon_canvas(&rgba, size as usize, 2);
+
+        let _ = SelectObject(mem_dc, HGDIOBJ(dib.0.cast()));
+        let _ = DeleteDC(mem_dc);
+        let _ = ReleaseDC(HWND::default(), screen_dc);
+
+        let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+            &rgba,
+            u32::try_from(size).unwrap_or(32),
+            u32::try_from(size).unwrap_or(32),
+        );
+        Some(slint::Image::from_rgba8(buffer))
+    }
+}
+
+fn normalize_icon_canvas(source: &[u8], size: usize, padding: usize) -> Vec<u8> {
+    let mut min_x = size;
+    let mut min_y = size;
+    let mut max_x = 0usize;
+    let mut max_y = 0usize;
+    let mut found = false;
+
+    for y in 0..size {
+        for x in 0..size {
+            let alpha = source[(y * size + x) * 4 + 3];
+            if alpha > 8 {
+                min_x = min_x.min(x);
+                min_y = min_y.min(y);
+                max_x = max_x.max(x);
+                max_y = max_y.max(y);
+                found = true;
+            }
+        }
+    }
+
+    if !found {
+        return source.to_vec();
+    }
+
+    let crop_w = max_x - min_x + 1;
+    let crop_h = max_y - min_y + 1;
+    let target_side = size.saturating_sub(padding * 2).max(1);
+    let scale = target_side as f32 / crop_w.max(crop_h) as f32;
+    let dest_w = ((crop_w as f32 * scale).round() as usize).max(1);
+    let dest_h = ((crop_h as f32 * scale).round() as usize).max(1);
+    let offset_x = (size.saturating_sub(dest_w)) / 2;
+    let offset_y = (size.saturating_sub(dest_h)) / 2;
+    let mut normalized = vec![0u8; source.len()];
+
+    for dy in 0..dest_h {
+        for dx in 0..dest_w {
+            let sx = min_x + ((dx as f32 / scale).floor() as usize).min(crop_w - 1);
+            let sy = min_y + ((dy as f32 / scale).floor() as usize).min(crop_h - 1);
+            let src_index = (sy * size + sx) * 4;
+            let dst_index = ((offset_y + dy) * size + (offset_x + dx)) * 4;
+            normalized[dst_index..dst_index + 4].copy_from_slice(&source[src_index..src_index + 4]);
+        }
+    }
+
+    normalized
+}
+
 // ───────────────────────── Click / Hover ─────────────────────────
 
 fn handle_thumbnail_click(
@@ -1226,26 +1624,199 @@ fn handle_thumbnail_right_click(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
     index: usize,
+    x: f32,
+    y: f32,
 ) {
-    let s = state.borrow();
+    let Some(win) = weak.upgrade() else { return };
+    let mut s = state.borrow_mut();
     if s.hwnd.0.is_null() {
         return;
     }
-    let Some(mw) = s.windows.get(index) else {
+    let viewport_x = win.get_viewport_x();
+    let viewport_y = win.get_viewport_y();
+    let toolbar_offset = if s.settings.show_toolbar {
+        TOOLBAR_HEIGHT as f32
+    } else {
+        0.0
+    };
+    let host_hwnd = s.hwnd;
+    let scale = win.window().scale_factor();
+    let Some((info, screen_point)) = s.windows.get_mut(index).map(|mw| {
+        populate_cached_icon(mw);
+        (
+            mw.info.clone(),
+            logical_to_screen_point(
+                host_hwnd,
+                (mw.display_rect.left as f32 + viewport_x + x) * scale,
+                (mw.display_rect.top as f32 + viewport_y + toolbar_offset + y) * scale,
+            ),
+        )
+    }) else {
         return;
     };
-    let info = mw.info.clone();
-    let preserve = s.settings.preserve_aspect_ratio_for(&info.app_id);
-    let hide_on = s.settings.hide_on_select_for(&info.app_id);
-    let known_tags = s.settings.known_tags();
-    let current_tags: HashSet<String> = s.settings.tags_for(&info.app_id).into_iter().collect();
-    let hwnd = s.hwnd;
+
+    let menu_state = WindowMenuState {
+        preserve_aspect_ratio: s.settings.preserve_aspect_ratio_for(&info.app_id),
+        hide_on_select: s.settings.hide_on_select_for(&info.app_id),
+        hide_on_select_enabled: s.settings.dock_edge.is_none(),
+        known_tags: s.settings.known_tags(),
+        current_tags: s.settings.tags_for(&info.app_id).into_iter().collect(),
+    };
     drop(s);
 
-    if let Some(action) =
-        show_window_context_menu(hwnd, preserve, hide_on, &known_tags, &current_tags)
-    {
+    if let Some(action) = show_window_context_menu(host_hwnd, &menu_state, Some(screen_point)) {
         handle_window_menu_action(state, weak, &info, action);
+    }
+}
+
+/// Map a context-menu action ID back to a [`WindowMenuAction`].
+fn window_menu_action_from_id(action_id: i32, known_tags: &[String]) -> Option<WindowMenuAction> {
+    match action_id {
+        1 => Some(WindowMenuAction::HideApp),
+        2 => Some(WindowMenuAction::ToggleAspectRatio),
+        3 => Some(WindowMenuAction::ToggleHideOnSelect),
+        4 => Some(WindowMenuAction::CreateTagFromApp),
+        10 => Some(WindowMenuAction::CloseWindow),
+        11 => Some(WindowMenuAction::KillProcess),
+        id if id >= 100 => {
+            let idx = (id - 100) as usize;
+            known_tags
+                .get(idx)
+                .map(|tag| WindowMenuAction::ToggleTag(tag.clone()))
+        }
+        _ => None,
+    }
+}
+
+fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
+    let windows: Vec<WindowInfo> = enumerate_windows()
+        .into_iter()
+        .filter(|window| window.hwnd != state.hwnd)
+        .collect();
+
+    RuntimeUiOptions {
+        monitors: collect_available_monitors(&windows),
+        tags: state.settings.known_tags(),
+        apps: collect_available_apps(&windows),
+        hidden_apps: state.settings.hidden_app_entries(),
+    }
+}
+
+fn app_menu_action_from_id(
+    action_id: i32,
+    menu_state: &TrayMenuState,
+    runtime: &RuntimeUiOptions,
+) -> Option<AppMenuAction> {
+    match action_id {
+        APP_MENU_TOGGLE_VISIBILITY => Some(AppMenuAction::Tray(TrayAction::Toggle)),
+        APP_MENU_REFRESH => Some(AppMenuAction::Tray(TrayAction::Refresh)),
+        APP_MENU_NEXT_LAYOUT => Some(AppMenuAction::Tray(TrayAction::NextLayout)),
+        APP_MENU_OPEN_SETTINGS => Some(AppMenuAction::Tray(TrayAction::OpenSettingsWindow)),
+        APP_MENU_EXIT => Some(AppMenuAction::Tray(TrayAction::Exit)),
+        APP_MENU_TOGGLE_MINIMIZE_TO_TRAY => {
+            Some(AppMenuAction::Tray(TrayAction::ToggleMinimizeToTray))
+        }
+        APP_MENU_TOGGLE_CLOSE_TO_TRAY => Some(AppMenuAction::Tray(TrayAction::ToggleCloseToTray)),
+        APP_MENU_CYCLE_REFRESH => Some(AppMenuAction::Tray(TrayAction::CycleRefreshInterval)),
+        APP_MENU_TOGGLE_ANIMATIONS => {
+            Some(AppMenuAction::Tray(TrayAction::ToggleAnimateTransitions))
+        }
+        APP_MENU_TOGGLE_DEFAULT_ASPECT => {
+            Some(AppMenuAction::Tray(TrayAction::ToggleDefaultAspectRatio))
+        }
+        APP_MENU_TOGGLE_DEFAULT_HIDE_ON_SELECT if !menu_state.is_docked => {
+            Some(AppMenuAction::Tray(TrayAction::ToggleDefaultHideOnSelect))
+        }
+        APP_MENU_TOGGLE_ALWAYS_ON_TOP => Some(AppMenuAction::Tray(TrayAction::ToggleAlwaysOnTop)),
+        APP_MENU_TOGGLE_TOOLBAR => Some(AppMenuAction::Tray(TrayAction::ToggleToolbar)),
+        APP_MENU_TOGGLE_WINDOW_INFO => Some(AppMenuAction::ToggleWindowInfo),
+        APP_MENU_TOGGLE_APP_ICONS => Some(AppMenuAction::ToggleAppIcons),
+        APP_MENU_TOGGLE_START_IN_TRAY => Some(AppMenuAction::ToggleStartInTray),
+        APP_MENU_TOGGLE_LOCKED_LAYOUT => Some(AppMenuAction::ToggleLockedLayout),
+        APP_MENU_DOCK_NONE => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(None))),
+        APP_MENU_DOCK_LEFT => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(Some(
+            DockEdge::Left,
+        )))),
+        APP_MENU_DOCK_RIGHT => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(Some(
+            DockEdge::Right,
+        )))),
+        APP_MENU_DOCK_TOP => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(Some(
+            DockEdge::Top,
+        )))),
+        APP_MENU_DOCK_BOTTOM => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(Some(
+            DockEdge::Bottom,
+        )))),
+        APP_MENU_MONITOR_ALL => Some(AppMenuAction::Tray(TrayAction::SetMonitorFilter(None))),
+        APP_MENU_TAG_ALL => Some(AppMenuAction::Tray(TrayAction::SetTagFilter(None))),
+        APP_MENU_APP_ALL => Some(AppMenuAction::Tray(TrayAction::SetAppFilter(None))),
+        APP_MENU_RESTORE_ALL_HIDDEN => Some(AppMenuAction::Tray(TrayAction::RestoreAllHidden)),
+        id if id >= APP_MENU_RESTORE_HIDDEN_BASE => {
+            let index = (id - APP_MENU_RESTORE_HIDDEN_BASE) as usize;
+            runtime
+                .hidden_apps
+                .get(index)
+                .cloned()
+                .map(|app| AppMenuAction::Tray(TrayAction::RestoreHidden(app.app_id)))
+        }
+        id if (APP_MENU_APP_BASE..APP_MENU_RESTORE_ALL_HIDDEN).contains(&id) => {
+            let index = (id - APP_MENU_APP_BASE) as usize;
+            runtime
+                .apps
+                .get(index)
+                .cloned()
+                .map(|app| AppMenuAction::Tray(TrayAction::SetAppFilter(Some(app.app_id))))
+        }
+        id if (APP_MENU_TAG_BASE..APP_MENU_APP_ALL).contains(&id) => {
+            let index = (id - APP_MENU_TAG_BASE) as usize;
+            runtime
+                .tags
+                .get(index)
+                .cloned()
+                .map(|tag| AppMenuAction::Tray(TrayAction::SetTagFilter(Some(tag))))
+        }
+        id if (APP_MENU_MONITOR_BASE..APP_MENU_TAG_ALL).contains(&id) => {
+            let index = (id - APP_MENU_MONITOR_BASE) as usize;
+            runtime
+                .monitors
+                .get(index)
+                .cloned()
+                .map(|monitor| AppMenuAction::Tray(TrayAction::SetMonitorFilter(Some(monitor))))
+        }
+        _ => None,
+    }
+}
+
+fn handle_app_menu_action_selected(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    action: AppMenuAction,
+) {
+    match action {
+        AppMenuAction::Tray(action) => handle_tray_action(state, weak, action),
+        AppMenuAction::ToggleWindowInfo => {
+            update_settings(state, |settings| {
+                settings.show_window_info = !settings.show_window_info;
+            });
+            refresh_ui(state, weak);
+        }
+        AppMenuAction::ToggleAppIcons => {
+            update_settings(state, |settings| {
+                settings.show_app_icons = !settings.show_app_icons;
+            });
+            refresh_ui(state, weak);
+        }
+        AppMenuAction::ToggleStartInTray => {
+            update_settings(state, |settings| {
+                settings.start_in_tray = !settings.start_in_tray;
+            });
+            refresh_ui(state, weak);
+        }
+        AppMenuAction::ToggleLockedLayout => {
+            update_settings(state, |settings| {
+                settings.locked_layout = !settings.locked_layout;
+            });
+            refresh_ui(state, weak);
+        }
     }
 }
 
@@ -1255,6 +1826,41 @@ fn activate_window(hwnd: HWND) {
             let _ = ShowWindow(hwnd, SW_RESTORE);
         }
         let _ = SetForegroundWindow(hwnd);
+    }
+}
+
+/// Send `WM_CLOSE` to the target window so it shuts down gracefully.
+fn close_target_window(hwnd: HWND) {
+    if hwnd.0.is_null() {
+        return;
+    }
+    // SAFETY: hwnd is a live window discovered through enumeration.
+    unsafe {
+        let _ = PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
+    }
+}
+
+/// Terminate the process that owns the target window.
+fn kill_target_process(hwnd: HWND) {
+    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+    if hwnd.0.is_null() {
+        return;
+    }
+    let mut pid: u32 = 0;
+    // SAFETY: hwnd is a live window handle.
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(&raw mut pid));
+    }
+    if pid == 0 {
+        return;
+    }
+    // SAFETY: we request limited access (PROCESS_TERMINATE) and close the
+    // handle immediately after use.
+    unsafe {
+        if let Ok(process) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+            let _ = TerminateProcess(process, 1);
+            let _ = windows::Win32::Foundation::CloseHandle(process);
+        }
     }
 }
 
@@ -1284,10 +1890,12 @@ fn handle_window_menu_action(
             needs_ui_refresh = true;
         }
         WindowMenuAction::ToggleHideOnSelect => {
-            update_settings(state, |settings| {
-                let _ = settings.toggle_app_hide_on_select(&info.app_id, &info.app_label());
-            });
-            needs_ui_refresh = true;
+            if state.borrow().settings.dock_edge.is_none() {
+                update_settings(state, |settings| {
+                    let _ = settings.toggle_app_hide_on_select(&info.app_id, &info.app_label());
+                });
+                needs_ui_refresh = true;
+            }
         }
         WindowMenuAction::CreateTagFromApp => {
             open_create_tag_dialog(state, weak, info);
@@ -1298,6 +1906,14 @@ fn handle_window_menu_action(
             });
             needs_window_refresh = true;
             needs_ui_refresh = true;
+        }
+        WindowMenuAction::CloseWindow => {
+            close_target_window(info.hwnd);
+            schedule_deferred_refresh(state, weak);
+        }
+        WindowMenuAction::KillProcess => {
+            kill_target_process(info.hwnd);
+            schedule_deferred_refresh(state, weak);
         }
     }
 
@@ -1319,6 +1935,10 @@ fn open_create_tag_dialog(
         let guard = dialog.borrow();
         if let Some(existing) = guard.as_ref() {
             existing.show().ok();
+            if let Some(dialog_hwnd) = get_hwnd(existing.window()) {
+                let state = state.borrow();
+                keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
+            }
             true
         } else {
             false
@@ -1377,7 +1997,10 @@ fn open_create_tag_dialog(
     }
 
     if let Some(dialog_hwnd) = get_hwnd(dialog.window()) {
-        apply_window_appearance(dialog_hwnd, &state.borrow().settings);
+        let state = state.borrow();
+        apply_window_appearance(dialog_hwnd, &state.settings);
+        apply_tag_dialog_theme(&dialog, &state.settings);
+        keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
     }
 
     TAG_DIALOG_WIN.with(|dialog_cell| *dialog_cell.borrow_mut() = Some(dialog));
@@ -1502,6 +2125,10 @@ fn handle_key(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, key
             refresh_ui(state, weak);
             true
         }
+        "m" | "M" => {
+            open_application_context_menu(state, weak, None);
+            true
+        }
         "o" | "O" => {
             open_settings_window(state, weak);
             true
@@ -1520,6 +2147,10 @@ fn handle_key(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, key
             if refresh_windows(state) {
                 refresh_ui(state, weak);
             }
+            true
+        }
+        "t" | "T" => {
+            cycle_theme(state, weak);
             true
         }
         "\t" => {
@@ -1745,7 +2376,12 @@ fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
         available_apps: collect_available_apps(&available_windows),
         hidden_apps: state.settings.hidden_app_entries(),
         dock_edge: state.settings.dock_edge,
+        is_docked: state.is_appbar || state.settings.dock_edge.is_some(),
         show_toolbar: state.settings.show_toolbar,
+        show_window_info: state.settings.show_window_info,
+        show_app_icons: state.settings.show_app_icons,
+        start_in_tray: state.settings.start_in_tray,
+        locked_layout: state.settings.locked_layout,
     }
 }
 
@@ -1792,10 +2428,12 @@ fn handle_tray_action(
             refresh_ui(state, weak);
         }
         TrayAction::ToggleDefaultHideOnSelect => {
-            update_settings(state, |s| {
-                s.hide_on_select = !s.hide_on_select;
-            });
-            refresh_ui(state, weak);
+            if state.borrow().settings.dock_edge.is_none() {
+                update_settings(state, |s| {
+                    s.hide_on_select = !s.hide_on_select;
+                });
+                refresh_ui(state, weak);
+            }
         }
         TrayAction::ToggleAlwaysOnTop => {
             update_settings(state, |s| {
@@ -1867,6 +2505,30 @@ fn handle_tray_action(
             });
             refresh_ui(state, weak);
         }
+        TrayAction::ToggleWindowInfo => {
+            update_settings(state, |s| {
+                s.show_window_info = !s.show_window_info;
+            });
+            refresh_ui(state, weak);
+        }
+        TrayAction::ToggleAppIcons => {
+            update_settings(state, |s| {
+                s.show_app_icons = !s.show_app_icons;
+            });
+            refresh_ui(state, weak);
+        }
+        TrayAction::ToggleStartInTray => {
+            update_settings(state, |s| {
+                s.start_in_tray = !s.start_in_tray;
+            });
+            refresh_ui(state, weak);
+        }
+        TrayAction::ToggleLockedLayout => {
+            update_settings(state, |s| {
+                s.locked_layout = !s.locked_layout;
+            });
+            refresh_ui(state, weak);
+        }
         TrayAction::OpenSettingsWindow => {
             open_settings_window(state, weak);
         }
@@ -1904,8 +2566,22 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
 
 // ───────────────────────── Settings Window ─────────────────────────
 
+#[allow(clippy::too_many_lines)]
 fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<MainWindow>) {
-    let already_open = SETTINGS_WIN.with(|h| h.borrow().is_some());
+    let already_open = SETTINGS_WIN.with(|h| {
+        let guard = h.borrow();
+        if let Some(existing) = guard.as_ref() {
+            existing.show().ok();
+            if let Some(hwnd) = get_hwnd(existing.window()) {
+                let state = state.borrow();
+                keep_dialog_above_owner(hwnd, state.hwnd, &state.settings);
+                center_window_on_screen(hwnd);
+            }
+            true
+        } else {
+            false
+        }
+    });
     if already_open {
         return;
     }
@@ -1918,7 +2594,135 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
         }
     };
 
-    populate_settings_window(&sw, &state.borrow().settings);
+    {
+        let state = state.borrow();
+        populate_settings_window(&sw, &state.settings);
+        populate_settings_window_runtime_fields(&sw, &state);
+        apply_settings_window_theme(&sw, &state.settings);
+    }
+
+    sw.on_save_profile({
+        let state = state.clone();
+        move || {
+            SETTINGS_WIN.with(|h| {
+                let guard = h.borrow();
+                let Some(sw) = guard.as_ref() else { return };
+                let requested =
+                    panopticon::settings::normalize_profile_name(&sw.get_profile_name());
+                let Some(profile_name) = requested else {
+                    tracing::warn!("ignoring empty/invalid profile save request");
+                    return;
+                };
+
+                let settings_snapshot = state.borrow().settings.normalized();
+                if save_settings_as_profile(&settings_snapshot, &profile_name) {
+                    sw.set_known_profiles_label(SharedString::from(known_profiles_label()));
+                }
+            });
+        }
+    });
+
+    sw.on_open_profile_instance({
+        let state = state.clone();
+        move || {
+            SETTINGS_WIN.with(|h| {
+                let guard = h.borrow();
+                let Some(sw) = guard.as_ref() else { return };
+
+                let current_profile = state.borrow().profile_name.clone();
+                let requested = panopticon::settings::normalize_profile_name(&sw.get_profile_name())
+                    .or(current_profile);
+
+                let settings_snapshot = state.borrow().settings.normalized();
+                if let Some(profile_name) = requested.as_deref() {
+                    let _ = save_settings_as_profile(&settings_snapshot, profile_name);
+                } else if let Err(error) = settings_snapshot.save(None) {
+                    tracing::error!(%error, "failed to save default profile before launching instance");
+                }
+
+                let _ = launch_additional_instance(requested.as_deref());
+                sw.set_known_profiles_label(SharedString::from(known_profiles_label()));
+            });
+        }
+    });
+
+    sw.on_reset_to_defaults({
+        let state = state.clone();
+        let main_weak = main_weak.clone();
+        move || {
+            {
+                let mut s = state.borrow_mut();
+                let profile = s.profile_name.clone();
+                s.settings = AppSettings::default();
+                s.settings = s.settings.normalized();
+                s.current_layout = s.settings.initial_layout;
+                let _ = s.settings.save(profile.as_deref());
+            }
+            SETTINGS_WIN.with(|h| {
+                let guard = h.borrow();
+                if let Some(sw) = guard.as_ref() {
+                    let st = state.borrow();
+                    populate_settings_window(sw, &st.settings);
+                    populate_settings_window_runtime_fields(sw, &st);
+                    apply_settings_window_theme(sw, &st.settings);
+                }
+            });
+            let s = state.borrow();
+            apply_window_appearance(s.hwnd, &s.settings);
+            apply_topmost_mode(s.hwnd, s.settings.always_on_top);
+            drop(s);
+            let _ = refresh_windows(&state);
+            if let Some(main) = main_weak.upgrade() {
+                recompute_and_update_ui(&state, &main);
+            }
+        }
+    });
+
+    sw.on_refresh_now({
+        let state = state.clone();
+        let main_weak = main_weak.clone();
+        move || {
+            let _ = refresh_windows(&state);
+            refresh_ui(&state, &main_weak);
+        }
+    });
+
+    sw.on_restore_hidden_selected({
+        let state = state.clone();
+        let main_weak = main_weak.clone();
+        move || {
+            SETTINGS_WIN.with(|h| {
+                let guard = h.borrow();
+                let Some(sw) = guard.as_ref() else { return };
+                let Some(option) =
+                    selected_model_value(&sw.get_hidden_app_options(), sw.get_hidden_app_index())
+                else {
+                    return;
+                };
+                let Some(app_id) = parse_option_value(&option) else {
+                    return;
+                };
+
+                update_settings(&state, |settings| {
+                    let _ = settings.restore_hidden_app(&app_id);
+                });
+                let _ = refresh_windows(&state);
+                refresh_ui(&state, &main_weak);
+            });
+        }
+    });
+
+    sw.on_restore_hidden_all({
+        let state = state.clone();
+        let main_weak = main_weak.clone();
+        move || {
+            update_settings(&state, |settings| {
+                let _ = settings.restore_all_hidden_apps();
+            });
+            let _ = refresh_windows(&state);
+            refresh_ui(&state, &main_weak);
+        }
+    });
 
     sw.on_apply({
         let state = state.clone();
@@ -1928,24 +2732,54 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
                 let guard = h.borrow();
                 let Some(sw) = guard.as_ref() else { return };
                 let mut s = state.borrow_mut();
+                let prev_dock_edge = s.settings.dock_edge;
                 let layout = apply_settings_window_changes(sw, &mut s.settings);
+                apply_runtime_settings_window_changes(sw, &mut s.settings);
                 s.current_layout = layout;
                 s.settings = s.settings.normalized();
                 let _ = s.settings.save(s.profile_name.as_deref());
                 let hwnd = s.hwnd;
                 let always_on_top = s.settings.always_on_top;
-                let should_reposition_appbar = s.is_appbar;
+                let new_dock_edge = s.settings.dock_edge;
                 let settings_clone = s.settings.clone();
-                drop(s);
-                apply_window_appearance(hwnd, &settings_clone);
-                apply_topmost_mode(hwnd, always_on_top);
-                if should_reposition_appbar {
-                    let mut s = state.borrow_mut();
+                let profile_name = s.profile_name.clone();
+
+                // Handle dock edge transitions.
+                if prev_dock_edge != new_dock_edge {
+                    if s.is_appbar {
+                        unregister_appbar(hwnd);
+                        s.is_appbar = false;
+                    }
+                    if new_dock_edge.is_some() {
+                        apply_dock_mode(&mut s);
+                    } else {
+                        restore_floating_style(hwnd);
+                    }
+                } else if s.is_appbar {
                     reposition_appbar(&mut s);
                 }
+
+                drop(s);
+                let _ = refresh_windows(&state);
+                apply_window_appearance(hwnd, &settings_clone);
+                apply_topmost_mode(hwnd, always_on_top);
+                apply_settings_window_theme(sw, &settings_clone);
+                sw.set_known_profiles_label(SharedString::from(known_profiles_label()));
+                sw.set_current_profile_label(SharedString::from(current_profile_label(
+                    profile_name.as_deref(),
+                )));
                 if let Some(main) = main_weak.upgrade() {
                     recompute_and_update_ui(&state, &main);
                 }
+
+                TAG_DIALOG_WIN.with(|dialog| {
+                    if let Some(dialog) = dialog.borrow().as_ref() {
+                        apply_tag_dialog_theme(dialog, &settings_clone);
+                        if let Some(dialog_hwnd) = get_hwnd(dialog.window()) {
+                            keep_dialog_above_owner(dialog_hwnd, hwnd, &settings_clone);
+                        }
+                    }
+                });
             });
         }
     });
@@ -1962,7 +2796,11 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
     // Apply DWM dark mode to the settings window.
     sw.show().unwrap();
     if let Some(sw_hwnd) = get_hwnd(sw.window()) {
-        apply_window_appearance(sw_hwnd, &state.borrow().settings);
+        let state = state.borrow();
+        apply_window_appearance(sw_hwnd, &state.settings);
+        apply_settings_window_theme(&sw, &state.settings);
+        keep_dialog_above_owner(sw_hwnd, state.hwnd, &state.settings);
+        center_window_on_screen(sw_hwnd);
     }
     SETTINGS_WIN.with(|h| *h.borrow_mut() = Some(sw));
 }
@@ -1971,15 +2809,41 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
 
 fn cycle_layout(state: &Rc<RefCell<AppState>>) {
     let mut s = state.borrow_mut();
+    if s.settings.locked_layout {
+        return;
+    }
     s.current_layout = s.current_layout.next();
     s.settings.initial_layout = s.current_layout;
     s.drag_separator = None;
     let _ = s.settings.save(s.profile_name.as_deref());
 }
 
+fn cycle_theme(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
+    let current_idx = {
+        let s = state.borrow();
+        theme_catalog::theme_index(s.settings.theme_id.as_deref())
+    };
+    let total = theme_catalog::theme_labels().len() as i32;
+    let next_idx = (current_idx + 1) % total;
+    let new_id = theme_catalog::theme_id_by_index(next_idx);
+
+    update_settings(state, |s| {
+        s.theme_id = new_id;
+    });
+
+    let s = state.borrow();
+    apply_window_appearance(s.hwnd, &s.settings);
+    drop(s);
+
+    refresh_ui(state, weak);
+}
+
 fn set_layout(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, layout: LayoutType) {
     {
         let mut s = state.borrow_mut();
+        if s.settings.locked_layout {
+            return;
+        }
         if s.current_layout == layout {
             return;
         }
@@ -2002,6 +2866,46 @@ fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
     if let Some(win) = weak.upgrade() {
         recompute_and_update_ui(state, &win);
     }
+    refresh_open_settings_window(state);
+}
+
+/// Schedule an immediate refresh + a deferred one (300 ms) so that
+/// closed/killed windows disappear promptly even if the process takes
+/// a moment to terminate.
+fn schedule_deferred_refresh(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
+    let _ = refresh_windows(state);
+    refresh_ui(state, weak);
+
+    let state2 = state.clone();
+    let weak2 = weak.clone();
+    let timer = Timer::default();
+    timer.start(
+        TimerMode::SingleShot,
+        Duration::from_millis(300),
+        move || {
+            if refresh_windows(&state2) {
+                if let Some(win) = weak2.upgrade() {
+                    recompute_and_update_ui(&state2, &win);
+                }
+            }
+        },
+    );
+    // The timer is kept alive by the Slint event loop until it fires.
+    std::mem::forget(timer);
+}
+
+fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
+    SETTINGS_WIN.with(|handle| {
+        let guard = handle.borrow();
+        let Some(window) = guard.as_ref() else { return };
+        let state = state.borrow();
+        populate_settings_window(window, &state.settings);
+        populate_settings_window_runtime_fields(window, &state);
+        apply_settings_window_theme(window, &state.settings);
+        if let Some(dialog_hwnd) = get_hwnd(window.window()) {
+            keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
+        }
+    });
 }
 
 fn preferred_tray_icon(hwnd: HWND, fallback: HICON) -> HICON {
@@ -2042,23 +2946,34 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     }
 
     // Update the Slint model with new positions.
-    let accent = tag_accent_color(&s.settings);
+    let default_accent = tag_accent_color(&s.settings);
     let show_footer = s.settings.show_window_info;
+    let show_icons = s.settings.show_app_icons;
     let data: Vec<ThumbnailData> = s
         .windows
         .iter()
         .enumerate()
-        .map(|(i, mw)| ThumbnailData {
-            x: mw.display_rect.left as f32,
-            y: mw.display_rect.top as f32,
-            width: (mw.display_rect.right - mw.display_rect.left) as f32,
-            height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
-            title: SharedString::from(truncate_title(&mw.info.title)),
-            app_label: SharedString::from(mw.info.app_label()),
-            is_hovered: s.hover_index == Some(i),
-            is_active: s.active_hwnd == Some(mw.info.hwnd),
-            accent_color: accent,
-            show_footer,
+        .map(|(i, mw)| {
+            let accent = s
+                .settings
+                .app_color_hex(&mw.info.app_id)
+                .map_or(default_accent, hex_to_slint_color);
+            let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
+            ThumbnailData {
+                x: mw.display_rect.left as f32,
+                y: mw.display_rect.top as f32,
+                width: (mw.display_rect.right - mw.display_rect.left) as f32,
+                height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
+                title: SharedString::from(truncate_title(&mw.info.title)),
+                app_label: SharedString::from(mw.info.app_label()),
+                is_hovered: s.hover_index == Some(i),
+                is_active: s.active_hwnd == Some(mw.info.hwnd),
+                accent_color: accent,
+                show_footer,
+                is_minimized,
+                icon: mw.cached_icon.clone().unwrap_or_default(),
+                show_icon: show_icons,
+            }
         })
         .collect();
     drop(s);
@@ -2168,6 +3083,7 @@ fn apply_dock_mode(state: &mut AppState) {
     unsafe {
         let _ = SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_POPUP | WS_VISIBLE).0 as isize);
     }
+    sync_dock_system_menu(hwnd, true);
     if register_appbar(hwnd) {
         state.is_appbar = true;
         reposition_appbar(state);
@@ -2254,6 +3170,7 @@ fn restore_floating_style(hwnd: HWND) {
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
         );
     }
+    sync_dock_system_menu(hwnd, false);
 }
 
 const fn dock_edge_to_abe(edge: DockEdge) -> u32 {
@@ -2285,6 +3202,366 @@ fn get_monitor_rect(hwnd: HWND) -> RECT {
     }
 }
 
+macro_rules! apply_runtime_theme {
+    ($window:expr, $settings:expr) => {{
+        let resolved = theme_catalog::resolve_ui_theme(
+            $settings.theme_id.as_deref(),
+            &$settings.background_color_hex,
+        );
+        let globals = $window.global::<Theme>();
+        globals.set_bg(hex_to_slint_color(&resolved.bg_hex));
+        globals.set_toolbar_bg(hex_to_slint_color(&resolved.toolbar_bg_hex));
+        globals.set_panel_bg(hex_to_slint_color(&resolved.panel_bg_hex));
+        globals.set_card_bg(hex_to_slint_color(&resolved.card_bg_hex));
+        globals.set_border(hex_to_slint_color(&resolved.border_hex));
+        globals.set_accent(hex_to_slint_color(&resolved.accent_hex));
+        globals.set_accent_soft(hex_to_slint_color(&resolved.accent_soft_hex));
+        globals.set_text(hex_to_slint_color(&resolved.text_hex));
+        globals.set_label(hex_to_slint_color(&resolved.label_hex));
+        globals.set_muted(hex_to_slint_color(&resolved.muted_hex));
+        globals.set_hover_border(hex_to_slint_color(&resolved.hover_border_hex));
+        globals.set_placeholder(hex_to_slint_color(&resolved.placeholder_hex));
+        globals.set_footer_bg(hex_to_slint_color(&resolved.footer_bg_hex));
+        globals.set_surface(hex_to_slint_color(&resolved.surface_hex));
+    }};
+}
+
+fn apply_main_window_theme(window: &MainWindow, settings: &AppSettings) {
+    apply_runtime_theme!(window, settings);
+}
+
+fn apply_settings_window_theme(window: &SettingsWindow, settings: &AppSettings) {
+    apply_runtime_theme!(window, settings);
+}
+
+fn apply_tag_dialog_theme(window: &TagDialogWindow, settings: &AppSettings) {
+    apply_runtime_theme!(window, settings);
+}
+
+fn current_profile_label(profile_name: Option<&str>) -> String {
+    profile_name.unwrap_or("default").to_owned()
+}
+
+fn ensure_default_profiles_exist(settings: &AppSettings) {
+    match AppSettings::list_profiles() {
+        Ok(profiles) if profiles.is_empty() => {
+            for profile_name in ["profile-1", "profile-2"] {
+                if let Err(error) = settings.save(Some(profile_name)) {
+                    tracing::error!(%error, profile = profile_name, "failed to seed default profile");
+                }
+            }
+        }
+        Ok(_) => {}
+        Err(error) => tracing::warn!(%error, "failed to inspect saved profiles"),
+    }
+}
+
+fn known_profiles_label() -> String {
+    match AppSettings::list_profiles() {
+        Ok(profiles) if profiles.is_empty() => "Perfiles guardados: default".to_owned(),
+        Ok(profiles) => format!("Perfiles guardados: default, {}", profiles.join(", ")),
+        Err(error) => {
+            tracing::warn!(%error, "failed to list saved profiles");
+            "Perfiles guardados: default".to_owned()
+        }
+    }
+}
+
+fn build_string_model(values: Vec<String>) -> ModelRc<SharedString> {
+    let values: Vec<SharedString> = values.into_iter().map(SharedString::from).collect();
+    ModelRc::new(VecModel::from(values))
+}
+
+fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
+    let runtime = collect_runtime_ui_options(state);
+    window.set_theme_options(build_string_model(theme_catalog::theme_labels()));
+    window.set_current_profile_label(SharedString::from(current_profile_label(
+        state.profile_name.as_deref(),
+    )));
+    window.set_profile_name(SharedString::from(
+        state.profile_name.clone().unwrap_or_default(),
+    ));
+    window.set_known_profiles_label(SharedString::from(known_profiles_label()));
+
+    let mut monitor_options = vec!["All monitors".to_owned()];
+    monitor_options.extend(runtime.monitors.iter().cloned());
+    let monitor_index = state
+        .settings
+        .active_monitor_filter
+        .as_deref()
+        .and_then(|current| {
+            runtime
+                .monitors
+                .iter()
+                .position(|monitor| monitor == current)
+        })
+        .map_or(0, |index| index as i32 + 1);
+    window.set_monitor_filter_options(build_string_model(monitor_options));
+    window.set_monitor_filter_index(monitor_index);
+
+    let mut tag_options = vec!["All tags".to_owned()];
+    tag_options.extend(runtime.tags.iter().cloned());
+    let tag_index = state
+        .settings
+        .active_tag_filter
+        .as_deref()
+        .and_then(|current| runtime.tags.iter().position(|tag| tag == current))
+        .map_or(0, |index| index as i32 + 1);
+    window.set_tag_filter_options(build_string_model(tag_options));
+    window.set_tag_filter_index(tag_index);
+
+    let mut app_options = vec!["All applications".to_owned()];
+    app_options.extend(runtime.apps.iter().map(app_option_label));
+    let app_index = state
+        .settings
+        .active_app_filter
+        .as_deref()
+        .and_then(|current| runtime.apps.iter().position(|app| app.app_id == current))
+        .map_or(0, |index| index as i32 + 1);
+    window.set_app_filter_options(build_string_model(app_options));
+    window.set_app_filter_index(app_index);
+
+    if runtime.hidden_apps.is_empty() {
+        window.set_hidden_app_options(build_string_model(vec!["No hidden apps".to_owned()]));
+        window.set_hidden_app_index(0);
+        window.set_can_restore_hidden(false);
+        window.set_hidden_apps_summary(SharedString::from("No hidden apps"));
+    } else {
+        let hidden_options: Vec<String> = runtime
+            .hidden_apps
+            .iter()
+            .map(hidden_app_option_label)
+            .collect();
+        let summary = if runtime.hidden_apps.len() == 1 {
+            "1 hidden app ready to restore".to_owned()
+        } else {
+            format!("{} hidden apps ready to restore", runtime.hidden_apps.len())
+        };
+        window.set_hidden_app_options(build_string_model(hidden_options));
+        window.set_hidden_app_index(0);
+        window.set_can_restore_hidden(true);
+        window.set_hidden_apps_summary(SharedString::from(summary));
+    }
+}
+
+fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut AppSettings) {
+    let monitor = selected_model_value(
+        &window.get_monitor_filter_options(),
+        window.get_monitor_filter_index(),
+    );
+    settings.set_monitor_filter(monitor.as_deref().filter(|value| *value != "All monitors"));
+
+    let tag = selected_model_value(
+        &window.get_tag_filter_options(),
+        window.get_tag_filter_index(),
+    );
+    settings.set_tag_filter(tag.as_deref().filter(|value| *value != "All tags"));
+
+    let app = selected_model_value(
+        &window.get_app_filter_options(),
+        window.get_app_filter_index(),
+    )
+    .and_then(|value| parse_option_value(&value));
+    settings.set_app_filter(app.as_deref());
+}
+
+fn selected_model_value(model: &ModelRc<SharedString>, index: i32) -> Option<String> {
+    usize::try_from(index)
+        .ok()
+        .and_then(|index| model.row_data(index))
+        .map(|value| value.to_string())
+}
+
+fn app_option_label(app: &AppSelectionEntry) -> String {
+    format!("{}{}{}", app.label, OPTION_SEPARATOR, app.app_id)
+}
+
+fn hidden_app_option_label(app: &HiddenAppEntry) -> String {
+    format!("{}{}{}", app.label, OPTION_SEPARATOR, app.app_id)
+}
+
+fn parse_option_value(value: &str) -> Option<String> {
+    value
+        .rsplit_once(OPTION_SEPARATOR)
+        .map(|(_, raw)| raw.trim().to_owned())
+        .filter(|raw| !raw.is_empty())
+}
+
+fn save_settings_as_profile(settings: &AppSettings, profile_name: &str) -> bool {
+    match settings.save(Some(profile_name)) {
+        Ok(()) => true,
+        Err(error) => {
+            tracing::error!(%error, profile = profile_name, "failed to save profile");
+            false
+        }
+    }
+}
+
+fn launch_additional_instance(profile_name: Option<&str>) -> bool {
+    let executable = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(error) => {
+            tracing::error!(%error, "failed to resolve executable path for new instance");
+            return false;
+        }
+    };
+
+    let mut command = Command::new(executable);
+    if let Some(profile_name) = profile_name {
+        command.arg("--profile").arg(profile_name);
+    }
+
+    match command.spawn() {
+        Ok(_) => true,
+        Err(error) => {
+            tracing::error!(%error, profile = ?profile_name, "failed to launch extra instance");
+            false
+        }
+    }
+}
+
+fn keep_dialog_above_owner(dialog_hwnd: HWND, owner_hwnd: HWND, settings: &AppSettings) {
+    if dialog_hwnd.0.is_null() || owner_hwnd.0.is_null() {
+        return;
+    }
+
+    // SAFETY: both HWNDs belong to live windows created by this process.
+    unsafe {
+        let _ = SetWindowLongPtrW(dialog_hwnd, GWLP_HWNDPARENT, owner_hwnd.0 as isize);
+        let _ = SetWindowPos(
+            dialog_hwnd,
+            if settings.always_on_top || settings.dock_edge.is_some() {
+                HWND_TOPMOST
+            } else {
+                HWND_TOP
+            },
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        );
+    }
+}
+
+/// Centers the given window on its current monitor.
+fn center_window_on_screen(hwnd: HWND) {
+    if hwnd.0.is_null() {
+        return;
+    }
+    // SAFETY: hwnd is a live window created by this process.
+    unsafe {
+        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
+        let mut mi = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if !GetMonitorInfoW(monitor, &raw mut mi).as_bool() {
+            return;
+        }
+        let mut rc = RECT::default();
+        if GetWindowRect(hwnd, &raw mut rc).is_err() {
+            return;
+        }
+        let win_w = rc.right - rc.left;
+        let win_h = rc.bottom - rc.top;
+        let work = mi.rcWork;
+        let cx = work.left + (work.right - work.left - win_w) / 2;
+        let cy = work.top + (work.bottom - work.top - win_h) / 2;
+        let _ = SetWindowPos(
+            hwnd,
+            HWND::default(),
+            cx,
+            cy,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER,
+        );
+    }
+}
+
+fn sync_dock_system_menu(hwnd: HWND, docked: bool) {
+    // SAFETY: system menu belongs to the live top-level window and the command IDs are standard SC_* items.
+    unsafe {
+        let menu = GetSystemMenu(hwnd, false);
+        if menu.0.is_null() {
+            return;
+        }
+
+        let flags = MF_BYCOMMAND | if docked { MF_GRAYED } else { MF_ENABLED };
+        for command in [SC_MOVE, SC_SIZE, SC_MINIMIZE, SC_MAXIMIZE, SC_CLOSE] {
+            let _ = EnableMenuItem(menu, command, flags);
+        }
+    }
+}
+
+const fn is_blocked_dock_syscommand(command: usize) -> bool {
+    matches!(
+        command & 0xFFF0,
+        value if value == SC_MOVE as usize
+            || value == SC_SIZE as usize
+            || value == SC_MINIMIZE as usize
+            || value == SC_MAXIMIZE as usize
+            || value == SC_CLOSE as usize
+    )
+}
+
+fn docked_mode_active() -> bool {
+    UI_STATE.with(|state| {
+        state.borrow().as_ref().is_some_and(|rc| {
+            rc.try_borrow()
+                .map(|state| state.settings.dock_edge.is_some())
+                .unwrap_or(false)
+        })
+    })
+}
+
+fn toggle_toolbar_from_alt_hotkey() {
+    UI_STATE.with(|state| {
+        UI_WINDOW.with(|window| {
+            let Some(state) = state.borrow().as_ref().cloned() else {
+                return;
+            };
+            let Some(window) = window.borrow().as_ref().and_then(slint::Weak::upgrade) else {
+                return;
+            };
+            {
+                let mut guard = state.borrow_mut();
+                guard.settings.show_toolbar = !guard.settings.show_toolbar;
+                let _ = guard.settings.save(guard.profile_name.as_deref());
+            }
+            recompute_and_update_ui(&state, &window);
+        });
+    });
+}
+
+fn open_application_context_menu(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    coords: Option<(f32, f32)>,
+) {
+    let Some(win) = weak.upgrade() else { return };
+
+    let (hwnd, anchor, menu_state) = {
+        let mut guard = state.borrow_mut();
+        if guard.hwnd.0.is_null() {
+            return;
+        }
+        let anchor = coords.map(|(x, y)| {
+            logical_to_screen_point(
+                guard.hwnd,
+                x * win.window().scale_factor(),
+                y * win.window().scale_factor(),
+            )
+        });
+        (guard.hwnd, anchor, build_tray_menu_state(&mut guard))
+    };
+
+    if let Some(action) = show_application_context_menu_at(hwnd, &menu_state, anchor) {
+        handle_tray_action(state, weak, action);
+    }
+}
+
 // ───────────────────────── Utility ─────────────────────────
 
 fn parse_profile_from_args() -> Option<String> {
@@ -2300,6 +3577,18 @@ fn parse_profile_from_args() -> Option<String> {
         i += 1;
     }
     None
+}
+
+fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT {
+    let mut window_rect = RECT::default();
+    unsafe {
+        let _ = GetWindowRect(hwnd, &raw mut window_rect);
+    }
+
+    POINT {
+        x: window_rect.left + logical_x.round() as i32,
+        y: window_rect.top + logical_y.round() as i32,
+    }
 }
 
 fn tag_accent_color(settings: &AppSettings) -> slint::Color {

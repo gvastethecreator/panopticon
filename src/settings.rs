@@ -17,6 +17,10 @@ const REFRESH_INTERVALS_MS: [u32; 4] = [1_000, 2_000, 5_000, 10_000];
 const DEFAULT_BACKGROUND_COLOR_HEX: &str = "181513";
 const DEFAULT_TAG_COLOR_HEX: &str = "D29A5C";
 
+const fn default_true() -> bool {
+    true
+}
+
 /// Visual styling persisted for a manual tag/group.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
@@ -30,6 +34,24 @@ impl Default for TagStyle {
         Self {
             color_hex: DEFAULT_TAG_COLOR_HEX.to_owned(),
         }
+    }
+}
+
+/// Thumbnail refresh strategy for individual applications.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThumbnailRefreshMode {
+    /// Default: real-time DWM mirroring (live preview).
+    Realtime,
+    /// Frozen: the thumbnail is captured once and not refreshed.
+    Frozen,
+    /// Interval: the thumbnail refreshes every N milliseconds.
+    Interval,
+}
+
+impl Default for ThumbnailRefreshMode {
+    fn default() -> Self {
+        Self::Realtime
     }
 }
 
@@ -51,6 +73,16 @@ pub struct AppRule {
     pub hide_on_select_override: Option<bool>,
     /// Manual tags used to build custom groups and filters.
     pub tags: Vec<String>,
+    /// Custom accent colour hex (`RRGGBB`) assigned directly to this app
+    /// (independent of any tag).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_hex: Option<String>,
+    /// Thumbnail refresh strategy for this application.
+    #[serde(default)]
+    pub thumbnail_refresh_mode: ThumbnailRefreshMode,
+    /// Thumbnail refresh interval in milliseconds (used when mode is `Interval`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thumbnail_refresh_interval_ms: Option<u32>,
 }
 
 impl Default for AppRule {
@@ -62,6 +94,9 @@ impl Default for AppRule {
             hide_on_select: true,
             hide_on_select_override: None,
             tags: Vec::new(),
+            color_hex: None,
+            thumbnail_refresh_mode: ThumbnailRefreshMode::default(),
+            thumbnail_refresh_interval_ms: None,
         }
     }
 }
@@ -133,6 +168,9 @@ pub struct AppSettings {
     pub dock_edge: Option<DockEdge>,
     /// Target monitor name for docking (e.g. `DISPLAY1`).
     pub dock_monitor: Option<String>,
+    /// Selected bundled UI theme; `None` = classic Panopticon theme.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_id: Option<String>,
     /// Base RGB background colour (`RRGGBB`) used for the client area.
     pub background_color_hex: String,
     /// Use Windows 11 backdrop / rounded-corner chrome when available.
@@ -141,9 +179,21 @@ pub struct AppSettings {
     pub show_toolbar: bool,
     /// Show per-window title/app information below thumbnails.
     pub show_window_info: bool,
+    /// Start the application hidden in the system tray.
+    #[serde(default)]
+    pub start_in_tray: bool,
+    /// Optional file path to a background image displayed behind thumbnails.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_image_path: Option<String>,
     /// Per-layout custom resize ratios (column/row proportions).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub layout_customizations: BTreeMap<String, LayoutCustomization>,
+    /// Prevent layout changes via keyboard shortcuts or toolbar clicks.
+    #[serde(default)]
+    pub locked_layout: bool,
+    /// Show the application icon overlay in each thumbnail cell.
+    #[serde(default = "default_true")]
+    pub show_app_icons: bool,
 }
 
 impl Default for AppSettings {
@@ -166,11 +216,16 @@ impl Default for AppSettings {
             fixed_height: None,
             dock_edge: None,
             dock_monitor: None,
+            theme_id: None,
             background_color_hex: DEFAULT_BACKGROUND_COLOR_HEX.to_owned(),
             use_system_backdrop: true,
             show_toolbar: true,
             show_window_info: true,
+            start_in_tray: false,
+            background_image_path: None,
             layout_customizations: BTreeMap::new(),
+            locked_layout: false,
+            show_app_icons: true,
         }
     }
 }
@@ -215,6 +270,38 @@ impl AppSettings {
     #[must_use]
     pub fn path() -> PathBuf {
         Self::path_for(None)
+    }
+
+    /// Return known saved profile names discovered on disk.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the profile directory exists but cannot be enumerated.
+    pub fn list_profiles() -> Result<Vec<String>> {
+        let profiles_dir = Self::path_for(Some("sample"))
+            .parent()
+            .map_or_else(|| Self::path().with_file_name("profiles"), PathBuf::from);
+
+        if !profiles_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut profiles = Vec::new();
+        for entry in std::fs::read_dir(profiles_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("toml") {
+                continue;
+            }
+            if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
+                if let Some(profile) = normalize_profile_name(stem) {
+                    profiles.push(profile);
+                }
+            }
+        }
+        profiles.sort();
+        profiles.dedup();
+        Ok(profiles)
     }
 
     /// Load settings from disk, returning defaults if the file does not exist.
@@ -289,9 +376,41 @@ impl AppSettings {
             })
     }
 
+    /// Returns the per-app custom colour hex, if one is assigned.
+    #[must_use]
+    pub fn app_color_hex(&self, app_id: &str) -> Option<&str> {
+        self.app_rules
+            .get(app_id)
+            .and_then(|rule| rule.color_hex.as_deref())
+    }
+
+    /// Returns the thumbnail refresh mode for the given application.
+    #[must_use]
+    pub fn thumbnail_refresh_mode_for(&self, app_id: &str) -> ThumbnailRefreshMode {
+        self.app_rules
+            .get(app_id)
+            .map_or(ThumbnailRefreshMode::Realtime, |rule| {
+                rule.thumbnail_refresh_mode
+            })
+    }
+
+    /// Returns the thumbnail refresh interval (ms) for the given application,
+    /// defaulting to 5 000 ms when the mode is `Interval` but no custom value
+    /// is set.
+    #[must_use]
+    pub fn thumbnail_refresh_interval_ms_for(&self, app_id: &str) -> u32 {
+        self.app_rules
+            .get(app_id)
+            .and_then(|rule| rule.thumbnail_refresh_interval_ms)
+            .unwrap_or(5_000)
+    }
+
     /// Returns the effective hide-on-select preference for `app_id`.
     #[must_use]
     pub fn hide_on_select_for(&self, app_id: &str) -> bool {
+        if self.dock_edge.is_some() {
+            return false;
+        }
         self.app_rules
             .get(app_id)
             .and_then(|rule| rule.hide_on_select_override)
@@ -437,6 +556,9 @@ impl AppSettings {
 
     /// Toggle hide-on-select for a specific application.
     pub fn toggle_app_hide_on_select(&mut self, app_id: &str, display_name: &str) -> bool {
+        if self.dock_edge.is_some() {
+            return false;
+        }
         let default_hide_on_select = self.hide_on_select;
         let next = !self.hide_on_select_for(app_id);
         let rule = self.ensure_app_rule(app_id, display_name);
@@ -608,12 +730,17 @@ impl AppSettings {
                 .dock_monitor
                 .as_deref()
                 .and_then(normalize_filter_value),
+            theme_id: self.theme_id.as_deref().and_then(normalize_profile_name),
             background_color_hex: normalize_color_hex(&self.background_color_hex)
                 .unwrap_or_else(|| DEFAULT_BACKGROUND_COLOR_HEX.to_owned()),
             use_system_backdrop: self.use_system_backdrop,
             show_toolbar: self.show_toolbar,
             show_window_info: self.show_window_info,
+            start_in_tray: self.start_in_tray,
+            background_image_path: self.background_image_path.clone(),
             layout_customizations: self.layout_customizations.clone(),
+            locked_layout: self.locked_layout,
+            show_app_icons: self.show_app_icons,
         }
     }
 
@@ -632,6 +759,9 @@ impl AppSettings {
                 hide_on_select,
                 hide_on_select_override: None,
                 tags: Vec::new(),
+                color_hex: None,
+                thumbnail_refresh_mode: ThumbnailRefreshMode::default(),
+                thumbnail_refresh_interval_ms: None,
             });
 
         if rule.display_name.trim().is_empty() && !display_name.is_empty() {
@@ -645,6 +775,20 @@ impl AppSettings {
 fn normalize_filter_value(value: &str) -> Option<String> {
     let trimmed = value.trim();
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
+}
+
+#[must_use]
+pub fn normalize_profile_name(value: &str) -> Option<String> {
+    let sanitized = value
+        .chars()
+        .filter_map(|character| match character {
+            ':' | '"' | '<' | '>' | '|' | '?' | '*' | '/' | '\\' => None,
+            character if character.is_control() => None,
+            character => Some(character),
+        })
+        .collect::<String>();
+
+    normalize_filter_value(&sanitized)
 }
 
 fn normalize_tag(tag: &str) -> Option<String> {
@@ -721,11 +865,16 @@ mod tests {
             fixed_height: None,
             dock_edge: Some(super::DockEdge::Left),
             dock_monitor: Some("DISPLAY1".to_owned()),
+            theme_id: Some("theme:demo".to_owned()),
             background_color_hex: "101820".to_owned(),
             use_system_backdrop: true,
             show_toolbar: false,
             show_window_info: false,
+            start_in_tray: false,
+            background_image_path: None,
             layout_customizations: std::collections::BTreeMap::default(),
+            locked_layout: false,
+            show_app_icons: true,
         };
 
         let encoded = toml::to_string_pretty(&settings).expect("serialize settings");
@@ -754,15 +903,21 @@ mod tests {
             fixed_height: None,
             dock_edge: None,
             dock_monitor: None,
+            theme_id: Some("  work  ".to_owned()),
             background_color_hex: "ZZZZZZ".to_owned(),
             use_system_backdrop: false,
             show_toolbar: true,
             show_window_info: true,
+            start_in_tray: false,
+            background_image_path: None,
             layout_customizations: std::collections::BTreeMap::default(),
+            locked_layout: false,
+            show_app_icons: true,
         };
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);
         assert_eq!(settings.normalized().background_color_hex, "181513");
+        assert_eq!(settings.normalized().theme_id.as_deref(), Some("work"));
     }
 
     #[test]
@@ -913,6 +1068,9 @@ mod tests {
                 hide_on_select: true,
                 hide_on_select_override: None,
                 tags: Vec::new(),
+                color_hex: None,
+                thumbnail_refresh_mode: super::ThumbnailRefreshMode::default(),
+                thumbnail_refresh_interval_ms: None,
             },
         );
 
@@ -937,6 +1095,9 @@ mod tests {
                 hide_on_select: true,
                 hide_on_select_override: None,
                 tags: Vec::new(),
+                color_hex: None,
+                thumbnail_refresh_mode: super::ThumbnailRefreshMode::default(),
+                thumbnail_refresh_interval_ms: None,
             },
         );
 
@@ -950,5 +1111,30 @@ mod tests {
                 .and_then(|rule| rule.hide_on_select_override),
             Some(true)
         );
+    }
+
+    #[test]
+    fn dock_mode_forces_effective_hide_on_select_off() {
+        let mut settings = AppSettings {
+            hide_on_select: true,
+            dock_edge: Some(super::DockEdge::Left),
+            ..AppSettings::default()
+        };
+        settings.app_rules.insert(
+            "app:docked".to_owned(),
+            AppRule {
+                display_name: "Docked".to_owned(),
+                hidden: false,
+                preserve_aspect_ratio: false,
+                hide_on_select: true,
+                hide_on_select_override: Some(true),
+                tags: Vec::new(),
+                color_hex: None,
+                thumbnail_refresh_mode: super::ThumbnailRefreshMode::default(),
+                thumbnail_refresh_interval_ms: None,
+            },
+        );
+
+        assert!(!settings.hide_on_select_for("app:docked"));
     }
 }

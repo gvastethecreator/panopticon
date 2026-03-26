@@ -29,5 +29,6 @@ pub mod error;
 pub mod layout;
 pub mod logging;
 pub mod settings;
+pub mod theme;
 pub mod thumbnail;
 pub mod window_enum;
