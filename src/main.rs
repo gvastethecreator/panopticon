@@ -984,37 +984,7 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         .retain(|mw| discovered_hwnds.contains(&(mw.info.hwnd.0 as isize)));
     let mut changed = s.windows.len() != prev_len;
 
-    for mw in &mut s.windows {
-        if let Some(fresh) = discovered_map.get(&(mw.info.hwnd.0 as isize)) {
-            let metadata_changed = fresh.title != mw.info.title
-                || fresh.app_id != mw.info.app_id
-                || fresh.process_name != mw.info.process_name
-                || fresh.process_path != mw.info.process_path
-                || fresh.class_name != mw.info.class_name
-                || fresh.monitor_name != mw.info.monitor_name;
-            if metadata_changed {
-                let icon_changed =
-                    fresh.app_id != mw.info.app_id || fresh.process_path != mw.info.process_path;
-                mw.info = fresh.clone();
-                if icon_changed {
-                    mw.cached_icon = None;
-                }
-                changed = true;
-            }
-            if host_visible {
-                if ensure_thumbnail(host_hwnd, mw) {
-                    changed = true;
-                }
-                if let Some(thumb) = mw.thumbnail.as_ref() {
-                    let fresh_size = query_source_size(thumb.handle());
-                    if fresh_size.cx != mw.source_size.cx || fresh_size.cy != mw.source_size.cy {
-                        mw.source_size = fresh_size;
-                        changed = true;
-                    }
-                }
-            }
-        }
-    }
+    changed |= update_existing_windows(&mut s.windows, &discovered_map, host_hwnd, host_visible);
 
     let existing: HashSet<isize> = s.windows.iter().map(|mw| mw.info.hwnd.0 as isize).collect();
 
@@ -1053,6 +1023,47 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         changed = true;
     }
 
+    changed
+}
+
+fn update_existing_windows(
+    windows: &mut [ManagedWindow],
+    discovered_map: &HashMap<isize, WindowInfo>,
+    host_hwnd: HWND,
+    host_visible: bool,
+) -> bool {
+    let mut changed = false;
+    for mw in windows.iter_mut() {
+        if let Some(fresh) = discovered_map.get(&(mw.info.hwnd.0 as isize)) {
+            let metadata_changed = fresh.title != mw.info.title
+                || fresh.app_id != mw.info.app_id
+                || fresh.process_name != mw.info.process_name
+                || fresh.process_path != mw.info.process_path
+                || fresh.class_name != mw.info.class_name
+                || fresh.monitor_name != mw.info.monitor_name;
+            if metadata_changed {
+                let icon_changed =
+                    fresh.app_id != mw.info.app_id || fresh.process_path != mw.info.process_path;
+                mw.info = fresh.clone();
+                if icon_changed {
+                    mw.cached_icon = None;
+                }
+                changed = true;
+            }
+            if host_visible {
+                if ensure_thumbnail(host_hwnd, mw) {
+                    changed = true;
+                }
+                if let Some(thumb) = mw.thumbnail.as_ref() {
+                    let fresh_size = query_source_size(thumb.handle());
+                    if fresh_size.cx != mw.source_size.cx || fresh_size.cy != mw.source_size.cy {
+                        mw.source_size = fresh_size;
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
     changed
 }
 
@@ -3104,7 +3115,9 @@ fn schedule_deferred_refresh(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<M
             }
         },
     );
-    // The timer is kept alive by the Slint event loop until it fires.
+    // Intentional: the Slint event loop owns the timer until it fires;
+    // dropping it here would cancel the callback. `forget` transfers
+    // ownership to the event loop (no real leak for SingleShot timers).
     std::mem::forget(timer);
 }
 
@@ -3974,9 +3987,10 @@ fn hex_to_slint_color(hex: &str) -> slint::Color {
 }
 
 fn truncate_title(title: &str) -> String {
+    use panopticon::constants::{MAX_TITLE_CHARS, TITLE_TRUNCATE_AT};
     let chars: Vec<char> = title.chars().collect();
-    if chars.len() > 40 {
-        let mut short: String = chars[..37].iter().collect();
+    if chars.len() > MAX_TITLE_CHARS {
+        let mut short: String = chars[..TITLE_TRUNCATE_AT].iter().collect();
         short.push_str("...");
         short
     } else {
