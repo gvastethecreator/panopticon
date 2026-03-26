@@ -14,9 +14,9 @@ mod app;
 
 use app::settings_ui::{apply_settings_window_changes, populate_settings_window};
 use app::tray::{
-    handle_tray_message, resolve_window_icon, resolve_window_icon_sized,
-    show_application_context_menu_at, AppIcons, TrayAction, TrayIcon, TrayMenuState,
-    INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
+    handle_tray_message, resolve_window_icon, resolve_window_icon_from_executable,
+    resolve_window_icon_sized, show_application_context_menu_at, AppIcons, TrayAction, TrayIcon,
+    TrayMenuState, INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
 };
 use app::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
 use panopticon::constants::{ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, TOOLBAR_HEIGHT};
@@ -40,8 +40,7 @@ use std::time::{Duration, Instant};
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{
-    BackendSelector, CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, Timer,
-    TimerMode, VecModel,
+    CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel,
 };
 
 use windows::core::w;
@@ -267,14 +266,6 @@ fn main() {
         AppSettings::default()
     });
     ensure_default_profiles_exist(&settings);
-
-    if let Err(error) = BackendSelector::new()
-        .backend_name("winit".to_owned())
-        .require_d3d()
-        .select()
-    {
-        tracing::warn!(%error, "failed to force Slint Direct3D backend; using default backend");
-    }
 
     let initial_theme = theme_catalog::resolve_ui_theme(
         settings.theme_id.as_deref(),
@@ -511,7 +502,7 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
     if settings_snapshot.start_in_tray {
         tracing::info!("start_in_tray is active — hiding main window");
         for mw in &mut state.borrow_mut().windows {
-            mw.thumbnail = None;
+            release_thumbnail(mw);
         }
         win.hide().ok();
     }
@@ -686,7 +677,7 @@ fn handle_show_window(wparam: WPARAM) {
             if let Some(rc) = s.borrow().as_ref() {
                 if let Ok(mut st) = rc.try_borrow_mut() {
                     for mw in &mut st.windows {
-                        mw.thumbnail = None;
+                        release_thumbnail(mw);
                     }
                 }
             }
@@ -988,10 +979,16 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
             let metadata_changed = fresh.title != mw.info.title
                 || fresh.app_id != mw.info.app_id
                 || fresh.process_name != mw.info.process_name
+                || fresh.process_path != mw.info.process_path
                 || fresh.class_name != mw.info.class_name
                 || fresh.monitor_name != mw.info.monitor_name;
             if metadata_changed {
+                let icon_changed =
+                    fresh.app_id != mw.info.app_id || fresh.process_path != mw.info.process_path;
                 mw.info = fresh.clone();
+                if icon_changed {
+                    mw.cached_icon = None;
+                }
                 changed = true;
             }
             if host_visible {
@@ -1396,6 +1393,10 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         let refresh_mode = settings.thumbnail_refresh_mode_for(&mw.info.app_id);
         let interval_ms = settings.thumbnail_refresh_interval_ms_for(&mw.info.app_id);
         let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
+        if is_minimized {
+            release_thumbnail(mw);
+            continue;
+        }
         let overlay_top_h = if is_minimized {
             0
         } else {
@@ -1451,7 +1452,7 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                         dest = ?dest,
                         "thumbnail update failed — dropping"
                     );
-                    mw.thumbnail = None;
+                    release_thumbnail(mw);
                 } else {
                     mw.last_thumb_dest = Some(dest);
                     mw.last_thumb_visible = visible;
@@ -1536,10 +1537,17 @@ fn ensure_thumbnail(owner: HWND, mw: &mut ManagedWindow) -> bool {
     }
 }
 
+fn release_thumbnail(mw: &mut ManagedWindow) {
+    mw.thumbnail = None;
+    mw.last_thumb_update = None;
+    mw.last_thumb_dest = None;
+    mw.last_thumb_visible = false;
+}
+
 fn release_all_thumbnails(state: &Rc<RefCell<AppState>>) {
     if let Ok(mut s) = state.try_borrow_mut() {
         for mw in &mut s.windows {
-            mw.thumbnail = None;
+            release_thumbnail(mw);
         }
     }
 }
@@ -1562,13 +1570,40 @@ fn populate_cached_icon(mw: &mut ManagedWindow) {
     if mw.cached_icon.is_some() {
         return;
     }
-    mw.cached_icon = hicon_to_slint_image(mw.info.hwnd);
+    mw.cached_icon = hicon_to_slint_image(&mw.info);
 }
 
 /// Convert a window's HICON to a high-resolution Slint RGBA image.
-fn hicon_to_slint_image(hwnd: HWND) -> Option<slint::Image> {
-    let icon = resolve_window_icon_sized(hwnd, true).or_else(|| resolve_window_icon(hwnd))?;
-    let size: i32 = 64;
+fn hicon_to_slint_image(info: &WindowInfo) -> Option<slint::Image> {
+    let (icon, owns_icon) = resolve_preview_icon(info)?;
+    let image = render_hicon_to_slint_image(icon);
+    if owns_icon {
+        // SAFETY: fallback icons extracted from executables are owned by this
+        // function and must be destroyed after rendering.
+        unsafe {
+            let _ = DestroyIcon(icon);
+        }
+    }
+    image
+}
+
+fn resolve_preview_icon(info: &WindowInfo) -> Option<(HICON, bool)> {
+    info.process_path
+        .as_deref()
+        .and_then(|path| resolve_window_icon_from_executable(path, true))
+        .map(|icon| (icon, true))
+        .or_else(|| resolve_window_icon_sized(info.hwnd, true).map(|icon| (icon, false)))
+        .or_else(|| {
+            info.process_path
+                .as_deref()
+                .and_then(|path| resolve_window_icon_from_executable(path, false))
+                .map(|icon| (icon, true))
+        })
+        .or_else(|| resolve_window_icon(info.hwnd).map(|icon| (icon, false)))
+}
+
+fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
+    let size: i32 = 128;
     // SAFETY: GDI drawing operations on a temporary memory DC; all resources
     // are released before returning.
     unsafe {

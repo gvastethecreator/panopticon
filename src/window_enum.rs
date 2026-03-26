@@ -32,6 +32,8 @@ pub struct WindowInfo {
     pub app_id: String,
     /// Best-effort friendly process / application name.
     pub process_name: String,
+    /// Full executable path when it can be queried.
+    pub process_path: Option<String>,
     /// Native window class name.
     pub class_name: String,
     /// Best-effort monitor name (for example `DISPLAY1`).
@@ -147,6 +149,7 @@ unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
         title: title.clone(),
         app_id: build_app_id(process_path.as_deref(), &class_name, &title),
         process_name,
+        process_path,
         class_name,
         monitor_name,
     });
