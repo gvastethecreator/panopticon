@@ -77,8 +77,8 @@ component ThumbnailCard inherits Rectangle {
     border-radius: 4px;
     clip: true;
     property <bool> has-icon: root.show-icon && root.icon-image.width > 0;
-    property <length> footer-height: root.show-footer ? 34px : 0px;
-    property <length> overlay-strip-height: root.has-icon && !root.is-minimized ? 28px : 0px;
+    property <bool> show-header-info: root.show-footer && !root.is-minimized;
+    property <length> info-strip-height: !root.is-minimized && (root.show-header-info || root.has-icon) ? 26px : 0px;
 
     // Accent strip
     Rectangle {
@@ -93,9 +93,9 @@ component ThumbnailCard inherits Rectangle {
     // can overlay the live window preview on top.
     Rectangle {
         x: 1px;
-        y: 3px + root.overlay-strip-height;
+        y: 3px + root.info-strip-height;
         width: parent.width - 2px;
-        height: parent.height - 3px - root.overlay-strip-height - root.footer-height;
+        height: parent.height - 3px - root.info-strip-height;
         background: Theme.placeholder;
     }
 
@@ -104,7 +104,7 @@ component ThumbnailCard inherits Rectangle {
         x: 1px;
         y: 3px;
         width: parent.width - 2px;
-        height: parent.height - 3px - root.footer-height;
+        height: parent.height - 3px;
         background: Theme.panel-bg;
 
         Rectangle {
@@ -161,62 +161,50 @@ component ThumbnailCard inherits Rectangle {
         }
     }
 
-    // App icon in a reserved top-right strip so it never fights with the DWM
-    // thumbnail composition layer.
-    if root.has-icon && !root.is-minimized: Rectangle {
-        x: parent.width - 30px;
-        y: 7px;
-        width: 24px;
-        height: 24px;
-        background: Theme.footer-bg.with-alpha(0.88);
-        border-width: 1px;
-        border-color: (root.is-active ? Theme.accent : Theme.border).with-alpha(0.9);
-        border-radius: 4px;
-        drop-shadow-blur: 8px;
-        drop-shadow-color: #00000033;
-        drop-shadow-offset-y: 1px;
-
-        Image {
-            x: 2px;
-            y: 2px;
-            width: 20px;
-            height: 20px;
-            source: root.icon-image;
-            image-fit: contain;
-        }
-    }
-
-    // Footer with title + app label
-    if root.show-footer: Rectangle {
+    // Compact top header: icon + info in a single row.
+    if root.info-strip-height > 0px: Rectangle {
         x: 0;
-        y: parent.height - 34px;
+        y: 3px;
         width: 100%;
-        height: 34px;
-        background: Theme.footer-bg;
+        height: root.info-strip-height;
+        background: Theme.footer-bg.with-alpha(0.92);
 
-        Text {
-            x: 10px;
-            y: 0;
-            width: parent.width * 55% - 15px;
-            height: 100%;
-            text: root.title;
-            color: Theme.label;
-            vertical-alignment: center;
-            font-size: 12px;
-            overflow: elide;
-        }
+        HorizontalLayout {
+            padding-left: 8px;
+            padding-right: 8px;
+            spacing: 6px;
 
-        Text {
-            x: parent.width * 55%;
-            y: 0;
-            width: parent.width * 45% - 10px;
-            height: 100%;
-            text: root.app-label;
-            color: Theme.muted;
-            horizontal-alignment: right;
-            vertical-alignment: center;
-            font-size: 11px;
-            overflow: elide;
+            if root.has-icon: Rectangle {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                background: Theme.surface.with-alpha(0.72);
+                border-width: 1px;
+                border-color: (root.is-active ? Theme.accent : Theme.border).with-alpha(0.7);
+
+                Image {
+                    x: 2px;
+                    y: 2px;
+                    width: 14px;
+                    height: 14px;
+                    source: root.icon-image;
+                    image-fit: contain;
+                }
+            }
+
+            if root.show-header-info: Text {
+                text: root.title + (root.app-label != "" ? ("  ·  " + root.app-label) : "");
+                color: Theme.label;
+                vertical-alignment: center;
+                font-size: 11.5px;
+                font-weight: 500;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+
+            if !root.show-header-info && root.has-icon: Rectangle {
+                horizontal-stretch: 1;
+            }
         }
     }
 
@@ -244,7 +232,7 @@ component ThumbnailCard inherits Rectangle {
     // Hover tooltip (shows full title when footer IS shown but title is long)
     if root.is-hovered && root.show-footer: Rectangle {
         x: 0;
-        y: parent.height - 34px - 24px;
+        y: parent.height - 24px;
         width: 100%;
         height: 24px;
         background: Theme.footer-bg.with-alpha(0.92);
@@ -257,7 +245,7 @@ component ThumbnailCard inherits Rectangle {
             text: root.title;
             color: Theme.text;
             vertical-alignment: center;
-            font-size: 11px;
+            font-size: 11.5px;
             overflow: elide;
         }
     }
@@ -281,27 +269,30 @@ component ResizeHandle inherits Rectangle {
     in property <bool> horizontal;
     in property <int> handle-index;
     in property <bool> is-dragging: false;
+    in property <bool> is-locked: false;
 
     callback drag-started(/* index */ int, /* x */ float, /* y */ float);
     callback drag-moved(/* index */ int, /* x */ float, /* y */ float);
     callback drag-ended(/* index */ int);
 
-    background: touch.has-hover || root.is-dragging ? Theme.accent.with-alpha(root.is-dragging ? 0.72 : 0.42) : transparent;
+    background: !root.is-locked && (touch.has-hover || root.is-dragging) ? Theme.accent.with-alpha(root.is-dragging ? 0.72 : 0.42) : transparent;
     border-radius: 3px;
 
     touch := TouchArea {
-        mouse-cursor: root.horizontal ? MouseCursor.row-resize : MouseCursor.col-resize;
+        mouse-cursor: root.is-locked ? MouseCursor.default : (root.horizontal ? MouseCursor.row-resize : MouseCursor.col-resize);
 
         pointer-event(event) => {
-            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+            if !root.is-locked && event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
                 root.drag-started(root.handle-index, root.x / 1px + touch.mouse-x / 1px, root.y / 1px + touch.mouse-y / 1px);
             }
-            if event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
+            if !root.is-locked && event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
                 root.drag-ended(root.handle-index);
             }
         }
         moved => {
-            root.drag-moved(root.handle-index, root.x / 1px + touch.mouse-x / 1px, root.y / 1px + touch.mouse-y / 1px);
+            if !root.is-locked {
+                root.drag-moved(root.handle-index, root.x / 1px + touch.mouse-x / 1px, root.y / 1px + touch.mouse-y / 1px);
+            }
         }
     }
 }
@@ -645,7 +636,7 @@ export component MainWindow inherits Window {
     background: Theme.bg;
     preferred-width: 1320px;
     preferred-height: 840px;
-    default-font-family: "Segoe UI";
+    default-font-family: "Segoe UI Variable Text";
     default-font-size: 13px;
 
     // ── Properties ───────────────────────────────
@@ -665,6 +656,7 @@ export component MainWindow inherits Window {
     in property <bool> scroll-horizontal: false;
     in property <bool> scroll-vertical: false;
     in property <int> active-drag-index: -1;
+    in property <bool> resize-locked: false;
     /// Whether to show the scrollbar overlay (auto-hides after inactivity).
     in property <bool> scroll-active: false;
     /// Optional background image behind thumbnail content.
@@ -773,6 +765,7 @@ export component MainWindow inherits Window {
                 horizontal: handle.horizontal;
                 handle-index: handle.index;
                 is-dragging: root.active-drag-index == handle.index;
+                is-locked: root.resize-locked;
 
                 drag-started(idx, x, y) => { root.resize-drag-started(idx, x, y); }
                 drag-moved(idx, x, y) => { root.resize-drag-moved(idx, x, y); }
@@ -860,7 +853,7 @@ export component SettingsWindow inherits Window {
     background: Theme.bg;
     preferred-width: 760px;
     preferred-height: 860px;
-    default-font-family: "Segoe UI";
+    default-font-family: "Segoe UI Variable Text";
     default-font-size: 13px;
 
     // ── Properties ───────────────────────────────
@@ -875,6 +868,7 @@ export component SettingsWindow inherits Window {
     in-out property <bool> use-system-backdrop-setting: true;
     in-out property <bool> start-in-tray-setting: false;
     in-out property <bool> locked-layout-setting: false;
+    in-out property <bool> lock-cell-resize-setting: false;
     in-out property <bool> show-app-icons-setting: true;
     in property <bool> hide-on-select-enabled: true;
     in-out property <int> refresh-index: 1;
@@ -952,6 +946,7 @@ export component SettingsWindow inherits Window {
                 }
                 CheckBox { text: "Start hidden in tray"; checked <=> root.start-in-tray-setting; }
                 CheckBox { text: "Lock layout (prevent changes)"; checked <=> root.locked-layout-setting; }
+                CheckBox { text: "Lock cell / column resizing"; checked <=> root.lock-cell-resize-setting; }
 
                 // ── Display ──
                 Rectangle { height: 8px; }
@@ -1223,7 +1218,7 @@ export component TagDialogWindow inherits Window {
     background: Theme.bg;
     preferred-width: 420px;
     preferred-height: 260px;
-    default-font-family: "Segoe UI";
+    default-font-family: "Segoe UI Variable Text";
     default-font-size: 13px;
 
     in property <string> app-label: "";

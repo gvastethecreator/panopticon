@@ -19,9 +19,7 @@ use app::tray::{
     INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
 };
 use app::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
-use panopticon::constants::{
-    ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, THUMBNAIL_FOOTER_HEIGHT, TOOLBAR_HEIGHT,
-};
+use panopticon::constants::{ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, TOOLBAR_HEIGHT};
 use panopticon::layout::{
     apply_separator_drag, apply_separator_drag_grouped, compute_layout_custom, default_ratios,
     AspectHint, LayoutType, ScrollDirection, Separator,
@@ -42,7 +40,8 @@ use std::time::{Duration, Instant};
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{
-    CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel,
+    BackendSelector, CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, Timer,
+    TimerMode, VecModel,
 };
 
 use windows::core::w;
@@ -91,6 +90,7 @@ const APP_MENU_TOGGLE_WINDOW_INFO: i32 = 28;
 const APP_MENU_TOGGLE_APP_ICONS: i32 = 29;
 const APP_MENU_TOGGLE_START_IN_TRAY: i32 = 30;
 const APP_MENU_TOGGLE_LOCKED_LAYOUT: i32 = 31;
+const APP_MENU_TOGGLE_LOCK_CELL_RESIZE: i32 = 32;
 
 const APP_MENU_DOCK_NONE: i32 = 40;
 const APP_MENU_DOCK_LEFT: i32 = 41;
@@ -108,7 +108,8 @@ const APP_MENU_RESTORE_ALL_HIDDEN: i32 = 400;
 const APP_MENU_RESTORE_HIDDEN_BASE: i32 = 401;
 
 const OPTION_SEPARATOR: &str = " — ";
-const THUMBNAIL_OVERLAY_STRIP_HEIGHT: i32 = 28;
+const THUMBNAIL_INFO_STRIP_HEIGHT: i32 = 26;
+const THEME_TRANSITION_DURATION_MS: u32 = 220;
 
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
@@ -159,6 +160,13 @@ struct DragState {
     last_pointer_offset: f64,
 }
 
+#[derive(Debug, Clone)]
+struct ThemeAnimation {
+    from: theme_catalog::UiTheme,
+    to: theme_catalog::UiTheme,
+    started_at: Instant,
+}
+
 /// A window tracked by Panopticon, including its DWM thumbnail handle.
 struct ManagedWindow {
     info: WindowInfo,
@@ -200,6 +208,10 @@ struct AppState {
     context_menu_target: Option<usize>,
     /// Last background image path loaded into the main window.
     loaded_background_path: Option<String>,
+    /// Last theme snapshot rendered into Slint globals.
+    current_theme: theme_catalog::UiTheme,
+    /// Optional animated transition between theme snapshots.
+    theme_animation: Option<ThemeAnimation>,
 }
 
 struct RuntimeUiOptions {
@@ -215,6 +227,7 @@ enum AppMenuAction {
     ToggleAppIcons,
     ToggleStartInTray,
     ToggleLockedLayout,
+    ToggleLockCellResize,
 }
 
 // ───────────────────────── Entry Point ─────────────────────────
@@ -255,7 +268,21 @@ fn main() {
     });
     ensure_default_profiles_exist(&settings);
 
+    if let Err(error) = BackendSelector::new()
+        .backend_name("winit".to_owned())
+        .require_d3d()
+        .select()
+    {
+        tracing::warn!(%error, "failed to force Slint Direct3D backend; using default backend");
+    }
+
+    let initial_theme = theme_catalog::resolve_ui_theme(
+        settings.theme_id.as_deref(),
+        &settings.background_color_hex,
+    );
+
     let main_window = MainWindow::new().unwrap();
+    apply_main_window_theme_snapshot(&main_window, &initial_theme);
 
     // Apply initial property values from settings.
     sync_settings_to_ui(&main_window, &settings);
@@ -278,6 +305,8 @@ fn main() {
         drag_separator: None,
         context_menu_target: None,
         loaded_background_path: None,
+        current_theme: initial_theme,
+        theme_animation: None,
     }));
 
     // Show the window so the native HWND exists on next event-loop iteration.
@@ -350,6 +379,9 @@ fn main() {
 
             // Advance animations.
             advance_animation(&state, &win);
+
+            // Smoothly interpolate theme changes.
+            advance_theme_animation(&state, &win);
 
             // Re-sync DWM thumbnails (scroll changes, animation frames, etc.).
             update_dwm_thumbnails(&state, &win);
@@ -1011,6 +1043,7 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let mut s = state.borrow_mut();
     if s.windows.is_empty() {
         s.animation_started_at = None;
+        sync_theme_target(&mut s);
         sync_settings_to_ui(win, &s.settings);
         sync_background_image(&mut s, win);
         drop(s);
@@ -1112,6 +1145,7 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         content_area.bottom,
     );
 
+    sync_theme_target(&mut s);
     sync_settings_to_ui(win, &s.settings);
     sync_background_image(&mut s, win);
 
@@ -1120,11 +1154,11 @@ fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
 }
 
 fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
-    apply_main_window_theme(win, settings);
     win.set_show_toolbar(settings.show_toolbar);
     win.set_show_window_info(settings.show_window_info);
     win.set_is_always_on_top(settings.always_on_top);
     win.set_animate_transitions(settings.animate_transitions);
+    win.set_resize_locked(settings.locked_layout || settings.lock_cell_resize);
     win.set_refresh_label(SharedString::from(settings.refresh_interval_label()));
     win.set_filters_label(SharedString::from(
         active_filter_summary(settings).unwrap_or_default(),
@@ -1185,6 +1219,7 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let default_accent = tag_accent_color(&s.settings);
     let show_footer = s.settings.show_window_info;
     let show_icons = s.settings.show_app_icons;
+    let resize_locked = s.settings.locked_layout || s.settings.lock_cell_resize;
 
     // Populate cached icons lazily.
     if show_icons {
@@ -1227,32 +1262,35 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
 
     // Build resize handle data from cached separators.
     let handle_thickness: f32 = 14.0;
-    let handles: Vec<ResizeHandleData> = s
-        .separators
-        .iter()
-        .enumerate()
-        .map(|(idx, sep)| {
-            if sep.horizontal {
-                ResizeHandleData {
-                    x: sep.extent_start as f32,
-                    y: sep.position as f32 - handle_thickness / 2.0,
-                    width: (sep.extent_end - sep.extent_start) as f32,
-                    height: handle_thickness,
-                    horizontal: true,
-                    index: idx as i32,
+    let handles: Vec<ResizeHandleData> = if resize_locked {
+        Vec::new()
+    } else {
+        s.separators
+            .iter()
+            .enumerate()
+            .map(|(idx, sep)| {
+                if sep.horizontal {
+                    ResizeHandleData {
+                        x: sep.extent_start as f32,
+                        y: sep.position as f32 - handle_thickness / 2.0,
+                        width: (sep.extent_end - sep.extent_start) as f32,
+                        height: handle_thickness,
+                        horizontal: true,
+                        index: idx as i32,
+                    }
+                } else {
+                    ResizeHandleData {
+                        x: sep.position as f32 - handle_thickness / 2.0,
+                        y: sep.extent_start as f32,
+                        width: handle_thickness,
+                        height: (sep.extent_end - sep.extent_start) as f32,
+                        horizontal: false,
+                        index: idx as i32,
+                    }
                 }
-            } else {
-                ResizeHandleData {
-                    x: sep.position as f32 - handle_thickness / 2.0,
-                    y: sep.extent_start as f32,
-                    width: handle_thickness,
-                    height: (sep.extent_end - sep.extent_start) as f32,
-                    horizontal: false,
-                    index: idx as i32,
-                }
-            }
-        })
-        .collect();
+            })
+            .collect()
+    };
 
     let dragging = s.drag_separator.is_some();
     let active_drag = s
@@ -1342,11 +1380,6 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     } else {
         0.0
     };
-    let footer_h = if s.settings.show_window_info {
-        THUMBNAIL_FOOTER_HEIGHT
-    } else {
-        0
-    };
     let viewport_x = win.get_viewport_x();
     let viewport_y = win.get_viewport_y();
     let now = Instant::now();
@@ -1363,15 +1396,17 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         let refresh_mode = settings.thumbnail_refresh_mode_for(&mw.info.app_id);
         let interval_ms = settings.thumbnail_refresh_interval_ms_for(&mw.info.app_id);
         let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
-        let overlay_top_h = if show_icons && !is_minimized {
-            populate_cached_icon(mw);
-            if mw.cached_icon.is_some() {
-                THUMBNAIL_OVERLAY_STRIP_HEIGHT
+        let overlay_top_h = if is_minimized {
+            0
+        } else {
+            if show_icons {
+                populate_cached_icon(mw);
+            }
+            if settings.show_window_info || (show_icons && mw.cached_icon.is_some()) {
+                THUMBNAIL_INFO_STRIP_HEIGHT
             } else {
                 0
             }
-        } else {
-            0
         };
 
         // Frozen: register once but never update afterwards.
@@ -1390,7 +1425,6 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                 mw.source_size,
                 preserve,
                 overlay_top_h,
-                footer_h,
                 toolbar_h,
                 viewport_x,
                 viewport_y,
@@ -1453,7 +1487,6 @@ fn compute_dwm_rect(
     source_size: SIZE,
     preserve_aspect: bool,
     overlay_top_h: i32,
-    footer_h: i32,
     toolbar_h: f32,
     viewport_x: f32,
     viewport_y: f32,
@@ -1462,7 +1495,7 @@ fn compute_dwm_rect(
     let l = card_rect.left as f32 + 1.0;
     let t = card_rect.top as f32 + THUMBNAIL_ACCENT_HEIGHT as f32 + overlay_top_h as f32;
     let r = card_rect.right as f32 - 1.0;
-    let b = card_rect.bottom as f32 - footer_h as f32;
+    let b = card_rect.bottom as f32;
 
     let (fl, ft, fr, fb) = if preserve_aspect && source_size.cx > 0 && source_size.cy > 0 {
         let aw = r - l;
@@ -1802,6 +1835,7 @@ fn app_menu_action_from_id(
         APP_MENU_TOGGLE_APP_ICONS => Some(AppMenuAction::ToggleAppIcons),
         APP_MENU_TOGGLE_START_IN_TRAY => Some(AppMenuAction::ToggleStartInTray),
         APP_MENU_TOGGLE_LOCKED_LAYOUT => Some(AppMenuAction::ToggleLockedLayout),
+        APP_MENU_TOGGLE_LOCK_CELL_RESIZE => Some(AppMenuAction::ToggleLockCellResize),
         APP_MENU_DOCK_NONE => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(None))),
         APP_MENU_DOCK_LEFT => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(Some(
             DockEdge::Left,
@@ -1883,6 +1917,12 @@ fn handle_app_menu_action_selected(
         AppMenuAction::ToggleLockedLayout => {
             update_settings(state, |settings| {
                 settings.locked_layout = !settings.locked_layout;
+            });
+            refresh_ui(state, weak);
+        }
+        AppMenuAction::ToggleLockCellResize => {
+            update_settings(state, |settings| {
+                settings.lock_cell_resize = !settings.lock_cell_resize;
             });
             refresh_ui(state, weak);
         }
@@ -2031,6 +2071,10 @@ fn open_create_tag_dialog(
     dialog.set_app_label(SharedString::from(info.app_label()));
     dialog.set_tag_name(SharedString::from(suggested_name));
     dialog.set_color_index(tag_color_index(&suggested_color));
+    {
+        let state = state.borrow();
+        apply_tag_dialog_theme_snapshot(&dialog, &state.current_theme);
+    }
 
     dialog.on_create({
         let state = state.clone();
@@ -2068,7 +2112,7 @@ fn open_create_tag_dialog(
     if let Some(dialog_hwnd) = get_hwnd(dialog.window()) {
         let state = state.borrow();
         apply_window_appearance(dialog_hwnd, &state.settings);
-        apply_tag_dialog_theme(&dialog, &state.settings);
+        apply_tag_dialog_theme_snapshot(&dialog, &state.current_theme);
         keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
     }
 
@@ -2246,6 +2290,10 @@ fn handle_resize_drag_start(
     y: f64,
 ) {
     let mut s = state.borrow_mut();
+    if s.settings.lock_cell_resize || s.settings.locked_layout {
+        s.drag_separator = None;
+        return;
+    }
     let Some(sep) = s.separators.get(separator_index).copied() else {
         return;
     };
@@ -2293,6 +2341,9 @@ fn handle_resize_drag_move(
 ) {
     let (horizontal, ratio_index, axis_extent, last_pointer_offset) = {
         let s = state.borrow();
+        if s.settings.lock_cell_resize || s.settings.locked_layout {
+            return;
+        }
         let Some(drag) = s.drag_separator.as_ref() else {
             return;
         };
@@ -2462,6 +2513,7 @@ fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
         show_app_icons: state.settings.show_app_icons,
         start_in_tray: state.settings.start_in_tray,
         locked_layout: state.settings.locked_layout,
+        lock_cell_resize: state.settings.lock_cell_resize,
     }
 }
 
@@ -2609,6 +2661,12 @@ fn handle_tray_action(
             });
             refresh_ui(state, weak);
         }
+        TrayAction::ToggleLockCellResize => {
+            update_settings(state, |s| {
+                s.lock_cell_resize = !s.lock_cell_resize;
+            });
+            refresh_ui(state, weak);
+        }
         TrayAction::OpenSettingsWindow => {
             open_settings_window(state, weak);
         }
@@ -2678,7 +2736,7 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
         let state = state.borrow();
         populate_settings_window(&sw, &state.settings);
         populate_settings_window_runtime_fields(&sw, &state);
-        apply_settings_window_theme(&sw, &state.settings);
+        apply_settings_window_theme_snapshot(&sw, &state.current_theme);
     }
 
     sw.on_save_profile({
@@ -2744,7 +2802,7 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
                     let st = state.borrow();
                     populate_settings_window(sw, &st.settings);
                     populate_settings_window_runtime_fields(sw, &st);
-                    apply_settings_window_theme(sw, &st.settings);
+                    apply_settings_window_theme_snapshot(sw, &st.current_theme);
                 }
             });
             let s = state.borrow();
@@ -2843,7 +2901,6 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
                 let _ = refresh_windows(&state);
                 apply_window_appearance(hwnd, &settings_clone);
                 apply_topmost_mode(hwnd, always_on_top);
-                apply_settings_window_theme(sw, &settings_clone);
                 sw.set_known_profiles_label(SharedString::from(known_profiles_label()));
                 sw.set_current_profile_label(SharedString::from(current_profile_label(
                     profile_name.as_deref(),
@@ -2854,7 +2911,6 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
 
                 TAG_DIALOG_WIN.with(|dialog| {
                     if let Some(dialog) = dialog.borrow().as_ref() {
-                        apply_tag_dialog_theme(dialog, &settings_clone);
                         if let Some(dialog_hwnd) = get_hwnd(dialog.window()) {
                             keep_dialog_above_owner(dialog_hwnd, hwnd, &settings_clone);
                         }
@@ -2878,7 +2934,7 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
     if let Some(sw_hwnd) = get_hwnd(sw.window()) {
         let state = state.borrow();
         apply_window_appearance(sw_hwnd, &state.settings);
-        apply_settings_window_theme(&sw, &state.settings);
+        apply_settings_window_theme_snapshot(&sw, &state.current_theme);
         keep_dialog_above_owner(sw_hwnd, state.hwnd, &state.settings);
         center_window_on_screen(sw_hwnd);
     }
@@ -2945,6 +3001,7 @@ fn update_settings(state: &Rc<RefCell<AppState>>, mutate: impl FnOnce(&mut AppSe
 fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
     if let Some(win) = weak.upgrade() {
         recompute_and_update_ui(state, &win);
+        advance_theme_animation(state, &win);
     }
     refresh_open_settings_window(state);
 }
@@ -2981,7 +3038,7 @@ fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
         let state = state.borrow();
         populate_settings_window(window, &state.settings);
         populate_settings_window_runtime_fields(window, &state);
-        apply_settings_window_theme(window, &state.settings);
+        apply_settings_window_theme_snapshot(window, &state.current_theme);
         if let Some(dialog_hwnd) = get_hwnd(window.window()) {
             keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
         }
@@ -3313,39 +3370,96 @@ fn get_monitor_rect(hwnd: HWND) -> RECT {
 }
 
 macro_rules! apply_runtime_theme {
-    ($window:expr, $settings:expr) => {{
-        let resolved = theme_catalog::resolve_ui_theme(
-            $settings.theme_id.as_deref(),
-            &$settings.background_color_hex,
-        );
+    ($window:expr, $resolved:expr) => {{
         let globals = $window.global::<Theme>();
-        globals.set_bg(hex_to_slint_color(&resolved.bg_hex));
-        globals.set_toolbar_bg(hex_to_slint_color(&resolved.toolbar_bg_hex));
-        globals.set_panel_bg(hex_to_slint_color(&resolved.panel_bg_hex));
-        globals.set_card_bg(hex_to_slint_color(&resolved.card_bg_hex));
-        globals.set_border(hex_to_slint_color(&resolved.border_hex));
-        globals.set_accent(hex_to_slint_color(&resolved.accent_hex));
-        globals.set_accent_soft(hex_to_slint_color(&resolved.accent_soft_hex));
-        globals.set_text(hex_to_slint_color(&resolved.text_hex));
-        globals.set_label(hex_to_slint_color(&resolved.label_hex));
-        globals.set_muted(hex_to_slint_color(&resolved.muted_hex));
-        globals.set_hover_border(hex_to_slint_color(&resolved.hover_border_hex));
-        globals.set_placeholder(hex_to_slint_color(&resolved.placeholder_hex));
-        globals.set_footer_bg(hex_to_slint_color(&resolved.footer_bg_hex));
-        globals.set_surface(hex_to_slint_color(&resolved.surface_hex));
+        globals.set_bg(hex_to_slint_color(&$resolved.bg_hex));
+        globals.set_toolbar_bg(hex_to_slint_color(&$resolved.toolbar_bg_hex));
+        globals.set_panel_bg(hex_to_slint_color(&$resolved.panel_bg_hex));
+        globals.set_card_bg(hex_to_slint_color(&$resolved.card_bg_hex));
+        globals.set_border(hex_to_slint_color(&$resolved.border_hex));
+        globals.set_accent(hex_to_slint_color(&$resolved.accent_hex));
+        globals.set_accent_soft(hex_to_slint_color(&$resolved.accent_soft_hex));
+        globals.set_text(hex_to_slint_color(&$resolved.text_hex));
+        globals.set_label(hex_to_slint_color(&$resolved.label_hex));
+        globals.set_muted(hex_to_slint_color(&$resolved.muted_hex));
+        globals.set_hover_border(hex_to_slint_color(&$resolved.hover_border_hex));
+        globals.set_placeholder(hex_to_slint_color(&$resolved.placeholder_hex));
+        globals.set_footer_bg(hex_to_slint_color(&$resolved.footer_bg_hex));
+        globals.set_surface(hex_to_slint_color(&$resolved.surface_hex));
     }};
 }
 
-fn apply_main_window_theme(window: &MainWindow, settings: &AppSettings) {
-    apply_runtime_theme!(window, settings);
+fn apply_main_window_theme_snapshot(window: &MainWindow, resolved: &theme_catalog::UiTheme) {
+    apply_runtime_theme!(window, resolved);
 }
 
-fn apply_settings_window_theme(window: &SettingsWindow, settings: &AppSettings) {
-    apply_runtime_theme!(window, settings);
+fn apply_settings_window_theme_snapshot(
+    window: &SettingsWindow,
+    resolved: &theme_catalog::UiTheme,
+) {
+    apply_runtime_theme!(window, resolved);
 }
 
-fn apply_tag_dialog_theme(window: &TagDialogWindow, settings: &AppSettings) {
-    apply_runtime_theme!(window, settings);
+fn apply_tag_dialog_theme_snapshot(window: &TagDialogWindow, resolved: &theme_catalog::UiTheme) {
+    apply_runtime_theme!(window, resolved);
+}
+
+fn sync_theme_target(state: &mut AppState) {
+    let desired = theme_catalog::resolve_ui_theme(
+        state.settings.theme_id.as_deref(),
+        &state.settings.background_color_hex,
+    );
+    let already_targeting = state
+        .theme_animation
+        .as_ref()
+        .is_some_and(|animation| animation.to == desired);
+
+    if already_targeting || state.current_theme == desired {
+        return;
+    }
+
+    state.theme_animation = Some(ThemeAnimation {
+        from: state.current_theme.clone(),
+        to: desired,
+        started_at: Instant::now(),
+    });
+}
+
+fn apply_theme_snapshot_everywhere(win: &MainWindow, resolved: &theme_catalog::UiTheme) {
+    apply_main_window_theme_snapshot(win, resolved);
+    SETTINGS_WIN.with(|handle| {
+        if let Some(window) = handle.borrow().as_ref() {
+            apply_settings_window_theme_snapshot(window, resolved);
+        }
+    });
+    TAG_DIALOG_WIN.with(|handle| {
+        if let Some(window) = handle.borrow().as_ref() {
+            apply_tag_dialog_theme_snapshot(window, resolved);
+        }
+    });
+}
+
+fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
+    let mut s = state.borrow_mut();
+    let Some(animation) = s.theme_animation.clone() else {
+        let current = s.current_theme.clone();
+        drop(s);
+        apply_theme_snapshot_everywhere(win, &current);
+        return;
+    };
+
+    let elapsed_ms = animation.started_at.elapsed().as_millis() as u32;
+    let progress = (elapsed_ms as f32 / THEME_TRANSITION_DURATION_MS as f32).clamp(0.0, 1.0);
+    let eased = 1.0 - (1.0 - progress).powi(3);
+    let resolved = theme_catalog::interpolate_ui_theme(&animation.from, &animation.to, eased);
+    s.current_theme = resolved;
+    if progress >= 1.0 {
+        s.current_theme = animation.to;
+        s.theme_animation = None;
+    }
+    let current = s.current_theme.clone();
+    drop(s);
+    apply_theme_snapshot_everywhere(win, &current);
 }
 
 fn current_profile_label(profile_name: Option<&str>) -> String {
