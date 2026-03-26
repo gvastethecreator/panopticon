@@ -100,6 +100,29 @@ pub fn resolve_ui_theme(theme_id: Option<&str>, fallback_background_hex: &str) -
         )
 }
 
+#[must_use]
+pub fn interpolate_ui_theme(from: &UiTheme, to: &UiTheme, t: f32) -> UiTheme {
+    let t = t.clamp(0.0, 1.0);
+    UiTheme {
+        id: to.id.clone(),
+        label: to.label.clone(),
+        bg_hex: interpolate_hex(&from.bg_hex, &to.bg_hex, t),
+        toolbar_bg_hex: interpolate_hex(&from.toolbar_bg_hex, &to.toolbar_bg_hex, t),
+        panel_bg_hex: interpolate_hex(&from.panel_bg_hex, &to.panel_bg_hex, t),
+        card_bg_hex: interpolate_hex(&from.card_bg_hex, &to.card_bg_hex, t),
+        border_hex: interpolate_hex(&from.border_hex, &to.border_hex, t),
+        accent_hex: interpolate_hex(&from.accent_hex, &to.accent_hex, t),
+        accent_soft_hex: interpolate_hex(&from.accent_soft_hex, &to.accent_soft_hex, t),
+        text_hex: interpolate_hex(&from.text_hex, &to.text_hex, t),
+        label_hex: interpolate_hex(&from.label_hex, &to.label_hex, t),
+        muted_hex: interpolate_hex(&from.muted_hex, &to.muted_hex, t),
+        hover_border_hex: interpolate_hex(&from.hover_border_hex, &to.hover_border_hex, t),
+        placeholder_hex: interpolate_hex(&from.placeholder_hex, &to.placeholder_hex, t),
+        footer_bg_hex: interpolate_hex(&from.footer_bg_hex, &to.footer_bg_hex, t),
+        surface_hex: interpolate_hex(&from.surface_hex, &to.surface_hex, t),
+    }
+}
+
 impl ThemePreset {
     fn from_catalog(entry: &ThemeCatalogEntry) -> Self {
         let id = theme_catalog_id(&entry.name, &entry.variant);
@@ -247,6 +270,17 @@ fn parse_hex_rgb(hex: &str) -> Option<Rgb> {
     })
 }
 
+fn interpolate_hex(from: &str, to: &str, t: f32) -> String {
+    let Some(from_rgb) = parse_hex_rgb(from) else {
+        return to.to_owned();
+    };
+    let Some(to_rgb) = parse_hex_rgb(to) else {
+        return from.to_owned();
+    };
+
+    to_hex(mix(from_rgb, to_rgb, t))
+}
+
 fn to_hex(rgb: Rgb) -> String {
     format!("{:02X}{:02X}{:02X}", rgb.r, rgb.g, rgb.b)
 }
@@ -313,7 +347,10 @@ fn contrast_ratio(left: Rgb, right: Rgb) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_ui_theme, theme_id_by_index, theme_index, theme_labels, theme_presets};
+    use super::{
+        interpolate_ui_theme, resolve_ui_theme, theme_id_by_index, theme_index, theme_labels,
+        theme_presets,
+    };
 
     #[test]
     fn bundled_theme_catalog_is_available() {
@@ -335,5 +372,18 @@ mod tests {
         let theme = resolve_ui_theme(Some("missing"), "181513");
         assert_eq!(theme.label, "Classic Panopticon");
         assert_eq!(theme.bg_hex, "181513");
+    }
+
+    #[test]
+    fn ui_theme_interpolation_respects_endpoints() {
+        let from = resolve_ui_theme(None, "181513");
+        let to = resolve_ui_theme(None, "223344");
+
+        assert_eq!(interpolate_ui_theme(&from, &to, 0.0), from);
+        assert_eq!(interpolate_ui_theme(&from, &to, 1.0).bg_hex, to.bg_hex);
+        assert_eq!(
+            interpolate_ui_theme(&from, &to, 1.0).accent_hex,
+            to.accent_hex
+        );
     }
 }

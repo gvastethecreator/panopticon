@@ -20,6 +20,7 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_use_system_backdrop_setting(settings.use_system_backdrop);
     window.set_start_in_tray_setting(settings.start_in_tray);
     window.set_locked_layout_setting(settings.locked_layout);
+    window.set_lock_cell_resize_setting(settings.lock_cell_resize);
     window.set_show_app_icons_setting(settings.show_app_icons);
     window.set_theme_index(theme::theme_index(settings.theme_id.as_deref()));
     window.set_bg_color_hex(SharedString::from(&settings.background_color_hex));
@@ -53,6 +54,7 @@ pub fn apply_settings_window_changes(
     settings.use_system_backdrop = window.get_use_system_backdrop_setting();
     settings.start_in_tray = window.get_start_in_tray_setting();
     settings.locked_layout = window.get_locked_layout_setting();
+    settings.lock_cell_resize = window.get_lock_cell_resize_setting();
     settings.show_app_icons = window.get_show_app_icons_setting();
     settings.theme_id = theme::theme_id_by_index(window.get_theme_index());
     settings.background_color_hex = window.get_bg_color_hex().to_string();

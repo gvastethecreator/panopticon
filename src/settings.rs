@@ -191,6 +191,9 @@ pub struct AppSettings {
     /// Prevent layout changes via keyboard shortcuts or toolbar clicks.
     #[serde(default)]
     pub locked_layout: bool,
+    /// Prevent dragging separators that resize cells / columns.
+    #[serde(default)]
+    pub lock_cell_resize: bool,
     /// Show the application icon overlay in each thumbnail cell.
     #[serde(default = "default_true")]
     pub show_app_icons: bool,
@@ -225,6 +228,7 @@ impl Default for AppSettings {
             background_image_path: None,
             layout_customizations: BTreeMap::new(),
             locked_layout: false,
+            lock_cell_resize: false,
             show_app_icons: true,
         }
     }
@@ -740,6 +744,7 @@ impl AppSettings {
             background_image_path: self.background_image_path.clone(),
             layout_customizations: self.layout_customizations.clone(),
             locked_layout: self.locked_layout,
+            lock_cell_resize: self.lock_cell_resize,
             show_app_icons: self.show_app_icons,
         }
     }
@@ -874,6 +879,7 @@ mod tests {
             background_image_path: None,
             layout_customizations: std::collections::BTreeMap::default(),
             locked_layout: false,
+            lock_cell_resize: false,
             show_app_icons: true,
         };
 
@@ -912,6 +918,7 @@ mod tests {
             background_image_path: None,
             layout_customizations: std::collections::BTreeMap::default(),
             locked_layout: false,
+            lock_cell_resize: false,
             show_app_icons: true,
         };
 

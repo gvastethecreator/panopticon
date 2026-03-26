@@ -53,6 +53,7 @@ const CMD_TRAY_TOGGLE_WINDOW_INFO: u16 = 15;
 const CMD_TRAY_TOGGLE_APP_ICONS: u16 = 16;
 const CMD_TRAY_TOGGLE_START_IN_TRAY: u16 = 17;
 const CMD_TRAY_TOGGLE_LOCKED_LAYOUT: u16 = 18;
+const CMD_TRAY_TOGGLE_LOCK_CELL_RESIZE: u16 = 19;
 
 /// Snapshot of UI preferences needed to render the tray menu.
 #[derive(Debug, Clone)]
@@ -102,6 +103,8 @@ pub struct TrayMenuState {
     pub start_in_tray: bool,
     /// Whether layout switching / resizing is locked.
     pub locked_layout: bool,
+    /// Whether separator dragging is locked.
+    pub lock_cell_resize: bool,
 }
 
 /// Commands emitted by the tray icon.
@@ -149,6 +152,8 @@ pub enum TrayAction {
     ToggleStartInTray,
     /// Toggle locked layout behavior.
     ToggleLockedLayout,
+    /// Toggle cell / column resize locking.
+    ToggleLockCellResize,
     /// Open the dedicated settings window.
     OpenSettingsWindow,
     /// Exit the application.
@@ -414,7 +419,8 @@ pub fn show_application_context_menu_at(
         let refresh = encode_wide("Refresh windows");
         let open_settings = encode_wide("Open settings window");
         let next_layout = encode_wide("Next layout");
-        let lock_layout = encode_wide("Lock layout changes");
+        let lock_layout = encode_wide("Lock layout switching");
+        let lock_cell_resize = encode_wide("Lock cell / column resizing");
         let dock_title = encode_wide("Dock position");
         let minimize_to_tray = encode_wide("Hide on minimize");
         let close_to_tray = encode_wide("Hide on close");
@@ -498,6 +504,12 @@ pub fn show_application_context_menu_at(
             MF_STRING | checked_flag(state.locked_layout),
             CMD_TRAY_TOGGLE_LOCKED_LAYOUT as usize,
             PCWSTR(lock_layout.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.lock_cell_resize),
+            CMD_TRAY_TOGGLE_LOCK_CELL_RESIZE as usize,
+            PCWSTR(lock_cell_resize.as_ptr()),
         );
 
         // ── Dock submenu ───
@@ -835,6 +847,7 @@ pub fn show_application_context_menu_at(
             CMD_TRAY_TOGGLE_APP_ICONS => Some(TrayAction::ToggleAppIcons),
             CMD_TRAY_TOGGLE_START_IN_TRAY => Some(TrayAction::ToggleStartInTray),
             CMD_TRAY_TOGGLE_LOCKED_LAYOUT => Some(TrayAction::ToggleLockedLayout),
+            CMD_TRAY_TOGGLE_LOCK_CELL_RESIZE => Some(TrayAction::ToggleLockCellResize),
             CMD_TRAY_OPEN_SETTINGS => Some(TrayAction::OpenSettingsWindow),
             CMD_TRAY_DOCK_NONE => Some(TrayAction::SetDockEdge(None)),
             CMD_TRAY_DOCK_LEFT => Some(TrayAction::SetDockEdge(Some(DockEdge::Left))),
