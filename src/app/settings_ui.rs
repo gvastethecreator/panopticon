@@ -1,7 +1,7 @@
 //! Helpers for synchronizing the Slint settings window with persisted settings.
 
 use panopticon::layout::LayoutType;
-use panopticon::settings::{AppSettings, DockEdge};
+use panopticon::settings::{AppSettings, DockEdge, WindowGrouping};
 use panopticon::theme;
 use slint::SharedString;
 
@@ -32,6 +32,7 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_refresh_index(refresh_to_index(settings.refresh_interval_ms));
     window.set_layout_index(layout_to_index(settings.initial_layout));
     window.set_dock_edge_index(dock_edge_to_index(settings.dock_edge));
+    window.set_group_windows_index(grouping_to_index(settings.group_windows_by));
 
     let resolved_theme =
         theme::resolve_ui_theme(settings.theme_id.as_deref(), &settings.background_color_hex);
@@ -80,6 +81,7 @@ pub fn apply_settings_window_changes(
     };
 
     settings.dock_edge = index_to_dock_edge(window.get_dock_edge_index());
+    settings.group_windows_by = index_to_grouping(window.get_group_windows_index());
     settings.refresh_interval_ms = index_to_refresh(window.get_refresh_index());
     let layout = index_to_layout(window.get_layout_index());
     settings.initial_layout = layout;
@@ -145,6 +147,26 @@ fn index_to_dock_edge(index: i32) -> Option<DockEdge> {
         3 => Some(DockEdge::Top),
         4 => Some(DockEdge::Bottom),
         _ => None,
+    }
+}
+
+fn grouping_to_index(grouping: WindowGrouping) -> i32 {
+    match grouping {
+        WindowGrouping::None => 0,
+        WindowGrouping::Application => 1,
+        WindowGrouping::Monitor => 2,
+        WindowGrouping::WindowTitle => 3,
+        WindowGrouping::ClassName => 4,
+    }
+}
+
+fn index_to_grouping(index: i32) -> WindowGrouping {
+    match index {
+        1 => WindowGrouping::Application,
+        2 => WindowGrouping::Monitor,
+        3 => WindowGrouping::WindowTitle,
+        4 => WindowGrouping::ClassName,
+        _ => WindowGrouping::None,
     }
 }
 

@@ -79,6 +79,7 @@ component ThumbnailCard inherits Rectangle {
     property <bool> has-icon: root.show-icon && root.icon-image.width > 0;
     property <bool> show-header-info: root.show-footer && !root.is-minimized;
     property <length> info-strip-height: !root.is-minimized && (root.show-header-info || root.has-icon) ? 26px : 0px;
+    property <length> content-padding: 6px;
 
     // Accent strip
     Rectangle {
@@ -92,19 +93,19 @@ component ThumbnailCard inherits Rectangle {
     // DWM thumbnail area — intentionally empty/dark so the compositor
     // can overlay the live window preview on top.
     Rectangle {
-        x: 1px;
-        y: 3px + root.info-strip-height;
-        width: parent.width - 2px;
-        height: parent.height - 3px - root.info-strip-height;
+        x: root.content-padding;
+        y: 3px + root.info-strip-height + root.content-padding;
+        width: parent.width - root.content-padding * 2;
+        height: parent.height - 3px - root.info-strip-height - root.content-padding * 2;
         background: Theme.placeholder;
     }
 
     // Minimized overlay: show app label + icon when window is minimized
     if root.is-minimized: Rectangle {
-        x: 1px;
-        y: 3px;
-        width: parent.width - 2px;
-        height: parent.height - 3px;
+        x: root.content-padding;
+        y: 3px + root.content-padding;
+        width: parent.width - root.content-padding * 2;
+        height: parent.height - 3px - root.content-padding * 2;
         background: Theme.panel-bg;
 
         Rectangle {
@@ -225,27 +226,6 @@ component ThumbnailCard inherits Rectangle {
             color: Theme.label;
             vertical-alignment: center;
             font-size: 12px;
-            overflow: elide;
-        }
-    }
-
-    // Hover tooltip (shows full title when footer IS shown but title is long)
-    if root.is-hovered && root.show-footer: Rectangle {
-        x: 0;
-        y: parent.height - 24px;
-        width: 100%;
-        height: 24px;
-        background: Theme.footer-bg.with-alpha(0.92);
-
-        Text {
-            x: 10px;
-            y: 0;
-            width: parent.width - 20px;
-            height: 100%;
-            text: root.title;
-            color: Theme.text;
-            vertical-alignment: center;
-            font-size: 11.5px;
             overflow: elide;
         }
     }
@@ -895,6 +875,7 @@ export component SettingsWindow inherits Window {
     in-out property <int> fixed-width-value: 0;
     in-out property <int> fixed-height-value: 0;
     in-out property <int> dock-edge-index: 0;
+    in-out property <int> group-windows-index: 0;
 
     // ── Callbacks ────────────────────────────────
     callback apply();
@@ -953,7 +934,7 @@ export component SettingsWindow inherits Window {
                 Text { text: "Display"; color: Theme.accent; font-size: 14px; font-weight: 600; }
 
                 CheckBox { text: "Show toolbar"; checked <=> root.show-toolbar-setting; }
-                CheckBox { text: "Show window info below thumbnails"; checked <=> root.show-info-setting; }
+                CheckBox { text: "Show window info above thumbnails"; checked <=> root.show-info-setting; }
                 CheckBox { text: "Show app icons in cells"; checked <=> root.show-app-icons-setting; }
                 CheckBox { text: "Use system backdrop (Win11)"; checked <=> root.use-system-backdrop-setting; }
 
@@ -1055,8 +1036,14 @@ export component SettingsWindow inherits Window {
                     current-index <=> root.app-filter-index;
                 }
 
+                Text { text: "Group windows by"; color: Theme.muted; font-size: 13px; }
+                ComboBox {
+                    model: ["No grouping", "Application", "Monitor", "Window title", "Window class"];
+                    current-index <=> root.group-windows-index;
+                }
+
                 Text {
-                    text: "Los filtros también se reflejan en el header y en el menú contextual de la app.";
+                    text: "Los filtros y el agrupado también se reflejan en el header y reordenan las celdas visibles.";
                     color: Theme.muted;
                     font-size: 12px;
                     wrap: word-wrap;

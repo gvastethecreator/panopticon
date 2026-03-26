@@ -24,7 +24,9 @@ use panopticon::layout::{
     apply_separator_drag, apply_separator_drag_grouped, compute_layout_custom, default_ratios,
     AspectHint, LayoutType, ScrollDirection, Separator,
 };
-use panopticon::settings::{AppSelectionEntry, AppSettings, DockEdge, HiddenAppEntry};
+use panopticon::settings::{
+    AppSelectionEntry, AppSettings, DockEdge, HiddenAppEntry, WindowGrouping,
+};
 use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
@@ -108,6 +110,7 @@ const APP_MENU_RESTORE_HIDDEN_BASE: i32 = 401;
 
 const OPTION_SEPARATOR: &str = " — ";
 const THUMBNAIL_INFO_STRIP_HEIGHT: i32 = 26;
+const THUMBNAIL_CONTENT_PADDING: i32 = 6;
 const THEME_TRANSITION_DURATION_MS: u32 = 220;
 
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
@@ -950,7 +953,7 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     let tag_f = s.settings.active_tag_filter.clone();
     let app_f = s.settings.active_app_filter.clone();
 
-    let discovered: Vec<WindowInfo> = discovered_all
+    let mut discovered: Vec<WindowInfo> = discovered_all
         .into_iter()
         .filter(|w| monitor_f.as_deref().is_none_or(|m| w.monitor_name == m))
         .filter(|w| {
@@ -962,12 +965,19 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         .filter(|w| !s.settings.is_hidden(&w.app_id))
         .collect();
 
+    sort_windows_for_grouping(&mut discovered, &s.settings);
+
     let discovered_map: HashMap<isize, WindowInfo> = discovered
         .iter()
         .cloned()
         .map(|w| (w.hwnd.0 as isize, w))
         .collect();
     let discovered_hwnds: HashSet<isize> = discovered_map.keys().copied().collect();
+    let discovered_order: HashMap<isize, usize> = discovered
+        .iter()
+        .enumerate()
+        .map(|(index, window)| (window.hwnd.0 as isize, index))
+        .collect();
 
     let prev_len = s.windows.len();
     s.windows
@@ -1028,6 +1038,18 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
             let _ = ensure_thumbnail(host_hwnd, &mut mw);
         }
         s.windows.push(mw);
+        changed = true;
+    }
+
+    let order_before: Vec<isize> = s.windows.iter().map(|mw| mw.info.hwnd.0 as isize).collect();
+    s.windows.sort_by_key(|mw| {
+        discovered_order
+            .get(&(mw.info.hwnd.0 as isize))
+            .copied()
+            .unwrap_or(usize::MAX)
+    });
+    let order_after: Vec<isize> = s.windows.iter().map(|mw| mw.info.hwnd.0 as isize).collect();
+    if order_before != order_after {
         changed = true;
     }
 
@@ -1213,7 +1235,6 @@ fn clamp_viewport_offsets(
 
 fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let mut s = state.borrow_mut();
-    let default_accent = tag_accent_color(&s.settings);
     let show_footer = s.settings.show_window_info;
     let show_icons = s.settings.show_app_icons;
     let resize_locked = s.settings.locked_layout || s.settings.lock_cell_resize;
@@ -1234,10 +1255,7 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         .iter()
         .enumerate()
         .map(|(i, mw)| {
-            let accent = s
-                .settings
-                .app_color_hex(&mw.info.app_id)
-                .map_or(default_accent, hex_to_slint_color);
+            let accent = thumbnail_accent_color(&s.settings, &s.current_theme, &mw.info.app_id);
             let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
             ThumbnailData {
                 x: mw.display_rect.left as f32,
@@ -1493,10 +1511,11 @@ fn compute_dwm_rect(
     viewport_y: f32,
     scale: f32,
 ) -> RECT {
-    let l = card_rect.left as f32 + 1.0;
-    let t = card_rect.top as f32 + THUMBNAIL_ACCENT_HEIGHT as f32 + overlay_top_h as f32;
-    let r = card_rect.right as f32 - 1.0;
-    let b = card_rect.bottom as f32;
+    let inset = THUMBNAIL_CONTENT_PADDING as f32;
+    let l = card_rect.left as f32 + inset;
+    let t = card_rect.top as f32 + THUMBNAIL_ACCENT_HEIGHT as f32 + overlay_top_h as f32 + inset;
+    let r = card_rect.right as f32 - inset;
+    let b = card_rect.bottom as f32 - inset;
 
     let (fl, ft, fr, fb) = if preserve_aspect && source_size.cx > 0 && source_size.cy > 0 {
         let aw = r - l;
@@ -1796,6 +1815,7 @@ fn handle_thumbnail_right_click(
         preserve_aspect_ratio: s.settings.preserve_aspect_ratio_for(&info.app_id),
         hide_on_select: s.settings.hide_on_select_for(&info.app_id),
         hide_on_select_enabled: s.settings.dock_edge.is_none(),
+        current_color_hex: s.settings.app_color_hex(&info.app_id).map(str::to_owned),
         known_tags: s.settings.known_tags(),
         current_tags: s.settings.tags_for(&info.app_id).into_iter().collect(),
     };
@@ -1813,8 +1833,12 @@ fn window_menu_action_from_id(action_id: i32, known_tags: &[String]) -> Option<W
         2 => Some(WindowMenuAction::ToggleAspectRatio),
         3 => Some(WindowMenuAction::ToggleHideOnSelect),
         4 => Some(WindowMenuAction::CreateTagFromApp),
+        200 => Some(WindowMenuAction::SetColor(None)),
         10 => Some(WindowMenuAction::CloseWindow),
         11 => Some(WindowMenuAction::KillProcess),
+        id if (210..300).contains(&id) => {
+            preset_color_hex(id - 210).map(|hex| WindowMenuAction::SetColor(Some(hex.to_owned())))
+        }
         id if id >= 100 => {
             let idx = (id - 100) as usize;
             known_tags
@@ -2043,6 +2067,16 @@ fn handle_window_menu_action(
         }
         WindowMenuAction::CreateTagFromApp => {
             open_create_tag_dialog(state, weak, info);
+        }
+        WindowMenuAction::SetColor(color_hex) => {
+            update_settings(state, |settings| {
+                let _ = settings.set_app_color_hex(
+                    &info.app_id,
+                    &info.app_label(),
+                    color_hex.as_deref(),
+                );
+            });
+            needs_ui_refresh = true;
         }
         WindowMenuAction::ToggleTag(tag) => {
             update_settings(state, |settings| {
@@ -3118,7 +3152,6 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     }
 
     // Update the Slint model with new positions.
-    let default_accent = tag_accent_color(&s.settings);
     let show_footer = s.settings.show_window_info;
     let show_icons = s.settings.show_app_icons;
     let model = win.get_thumbnails();
@@ -3127,10 +3160,7 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     if row_count == s.windows.len() {
         for (i, mw) in s.windows.iter().enumerate() {
             if let Some(mut item) = model.row_data(i) {
-                let accent = s
-                    .settings
-                    .app_color_hex(&mw.info.app_id)
-                    .map_or(default_accent, hex_to_slint_color);
+                let accent = thumbnail_accent_color(&s.settings, &s.current_theme, &mw.info.app_id);
                 let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
                 item.x = mw.display_rect.left as f32;
                 item.y = mw.display_rect.top as f32;
@@ -3155,10 +3185,7 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
             .iter()
             .enumerate()
             .map(|(i, mw)| {
-                let accent = s
-                    .settings
-                    .app_color_hex(&mw.info.app_id)
-                    .map_or(default_accent, hex_to_slint_color);
+                let accent = thumbnail_accent_color(&s.settings, &s.current_theme, &mw.info.app_id);
                 let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
                 ThumbnailData {
                     x: mw.display_rect.left as f32,
@@ -3480,6 +3507,7 @@ fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         let current = s.current_theme.clone();
         drop(s);
         apply_theme_snapshot_everywhere(win, &current);
+        refresh_thumbnail_accent_rows(state, win);
         return;
     };
 
@@ -3495,6 +3523,7 @@ fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let current = s.current_theme.clone();
     drop(s);
     apply_theme_snapshot_everywhere(win, &current);
+    refresh_thumbnail_accent_rows(state, win);
 }
 
 fn current_profile_label(profile_name: Option<&str>) -> String {
@@ -3850,13 +3879,83 @@ fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT 
     }
 }
 
-fn tag_accent_color(settings: &AppSettings) -> slint::Color {
-    settings
-        .active_tag_filter
-        .as_deref()
-        .map_or(slint::Color::from_rgb_u8(0xD2, 0x9A, 0x5C), |tag| {
-            hex_to_slint_color(&settings.tag_color_hex(tag))
-        })
+fn default_thumbnail_accent_color(
+    settings: &AppSettings,
+    theme: &theme_catalog::UiTheme,
+) -> slint::Color {
+    settings.active_tag_filter.as_deref().map_or_else(
+        || hex_to_slint_color(&theme.accent_hex),
+        |tag| hex_to_slint_color(&settings.tag_color_hex(tag)),
+    )
+}
+
+fn thumbnail_accent_color(
+    settings: &AppSettings,
+    theme: &theme_catalog::UiTheme,
+    app_id: &str,
+) -> slint::Color {
+    settings.app_color_hex(app_id).map_or_else(
+        || default_thumbnail_accent_color(settings, theme),
+        hex_to_slint_color,
+    )
+}
+
+fn refresh_thumbnail_accent_rows(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
+    let s = state.borrow();
+    let model = win.get_thumbnails();
+    if model.row_count() != s.windows.len() {
+        return;
+    }
+
+    for (index, managed_window) in s.windows.iter().enumerate() {
+        if let Some(mut item) = model.row_data(index) {
+            item.accent_color =
+                thumbnail_accent_color(&s.settings, &s.current_theme, &managed_window.info.app_id);
+            model.set_row_data(index, item);
+        }
+    }
+}
+
+fn sort_windows_for_grouping(windows: &mut [WindowInfo], settings: &AppSettings) {
+    if settings.group_windows_by == WindowGrouping::None {
+        return;
+    }
+
+    windows.sort_by_cached_key(|window| {
+        (
+            grouping_sort_key(window, settings.group_windows_by),
+            normalize_sort_value(&window.app_label()),
+            normalize_sort_value(&window.title),
+            normalize_sort_value(&window.monitor_name),
+            window.hwnd.0 as isize,
+        )
+    });
+}
+
+fn grouping_sort_key(window: &WindowInfo, grouping: WindowGrouping) -> String {
+    match grouping {
+        WindowGrouping::None => String::new(),
+        WindowGrouping::Application => normalize_sort_value(&window.app_label()),
+        WindowGrouping::Monitor => normalize_sort_value(&window.monitor_name),
+        WindowGrouping::WindowTitle => normalize_sort_value(&window.title),
+        WindowGrouping::ClassName => normalize_sort_value(&window.class_name),
+    }
+}
+
+fn normalize_sort_value(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+fn preset_color_hex(index: i32) -> Option<&'static str> {
+    match index {
+        0 => Some("D29A5C"),
+        1 => Some("5CA9FF"),
+        2 => Some("3CCF91"),
+        3 => Some("FF6B8A"),
+        4 => Some("9B7BFF"),
+        5 => Some("F4B740"),
+        _ => None,
+    }
 }
 
 fn hex_to_slint_color(hex: &str) -> slint::Color {
@@ -3884,6 +3983,9 @@ fn active_filter_summary(settings: &AppSettings) -> Option<String> {
     }
     if let Some(g) = settings.active_group_filter_label() {
         parts.push(g);
+    }
+    if let Some(grouping) = settings.grouping_label() {
+        parts.push(grouping);
     }
     (!parts.is_empty()).then(|| parts.join(" · "))
 }

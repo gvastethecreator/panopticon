@@ -55,6 +55,37 @@ impl Default for ThumbnailRefreshMode {
     }
 }
 
+/// Strategy used to keep related windows visually grouped together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WindowGrouping {
+    None,
+    Application,
+    Monitor,
+    WindowTitle,
+    ClassName,
+}
+
+impl Default for WindowGrouping {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl WindowGrouping {
+    /// User-facing label for the current grouping mode.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::None => "sin agrupar",
+            Self::Application => "aplicación",
+            Self::Monitor => "monitor",
+            Self::WindowTitle => "título",
+            Self::ClassName => "clase",
+        }
+    }
+}
+
 /// Persisted preferences for an individual application.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
@@ -156,6 +187,9 @@ pub struct AppSettings {
     pub active_tag_filter: Option<String>,
     /// Optional global filter limiting windows to a single application.
     pub active_app_filter: Option<String>,
+    /// Preferred grouping mode for ordering windows in the layout.
+    #[serde(default)]
+    pub group_windows_by: WindowGrouping,
     /// Per-application remembered behaviour.
     pub app_rules: BTreeMap<String, AppRule>,
     /// Global styling associated with each known manual tag.
@@ -213,6 +247,7 @@ impl Default for AppSettings {
             active_monitor_filter: None,
             active_tag_filter: None,
             active_app_filter: None,
+            group_windows_by: WindowGrouping::None,
             app_rules: BTreeMap::new(),
             tag_styles: BTreeMap::new(),
             fixed_width: None,
@@ -521,6 +556,13 @@ impl AppSettings {
         })
     }
 
+    /// Return a user-friendly label for the current grouping mode.
+    #[must_use]
+    pub fn grouping_label(&self) -> Option<String> {
+        (self.group_windows_by != WindowGrouping::None)
+            .then(|| format!("agrupar:{}", self.group_windows_by.label()))
+    }
+
     /// Toggle hidden state for `app_id`, creating a remembered app rule if necessary.
     pub fn toggle_hidden(&mut self, app_id: &str, display_name: &str) -> bool {
         let rule = self.ensure_app_rule(app_id, display_name);
@@ -619,6 +661,22 @@ impl AppSettings {
         Some(tag)
     }
 
+    /// Assign or clear a direct per-app accent colour.
+    pub fn set_app_color_hex(
+        &mut self,
+        app_id: &str,
+        display_name: &str,
+        color_hex: Option<&str>,
+    ) -> bool {
+        let normalized = color_hex.and_then(normalize_color_hex);
+        let rule = self.ensure_app_rule(app_id, display_name);
+        if rule.color_hex == normalized {
+            return false;
+        }
+        rule.color_hex = normalized;
+        true
+    }
+
     /// Update the label stored for a remembered application without changing its behaviour.
     pub fn refresh_app_label(&mut self, app_id: &str, display_name: &str) {
         if let Some(rule) = self.app_rules.get_mut(app_id) {
@@ -668,6 +726,7 @@ impl AppSettings {
                 (rule.hide_on_select != self.hide_on_select).then_some(rule.hide_on_select)
             });
             rule.hide_on_select = rule.hide_on_select_override.unwrap_or(self.hide_on_select);
+            rule.color_hex = rule.color_hex.as_deref().and_then(normalize_color_hex);
             rule.tags = rule
                 .tags
                 .iter()
@@ -725,6 +784,7 @@ impl AppSettings {
             active_monitor_filter,
             active_tag_filter,
             active_app_filter,
+            group_windows_by: self.group_windows_by,
             app_rules,
             tag_styles,
             fixed_width: self.fixed_width,
@@ -859,6 +919,7 @@ mod tests {
             active_monitor_filter: Some("DISPLAY1".to_owned()),
             active_tag_filter: Some("work".to_owned()),
             active_app_filter: None,
+            group_windows_by: super::WindowGrouping::Application,
             app_rules: std::collections::BTreeMap::default(),
             tag_styles: std::collections::BTreeMap::from([(
                 "work".to_owned(),
@@ -903,6 +964,7 @@ mod tests {
             active_monitor_filter: Some("DISPLAY2".to_owned()),
             active_tag_filter: None,
             active_app_filter: Some("exe:demo".to_owned()),
+            group_windows_by: super::WindowGrouping::Monitor,
             app_rules: std::collections::BTreeMap::default(),
             tag_styles: std::collections::BTreeMap::default(),
             fixed_width: None,
@@ -1007,6 +1069,17 @@ mod tests {
         assert_eq!(created.as_deref(), Some("focus"));
         assert!(settings.app_has_tag("app:browser", "focus"));
         assert_eq!(settings.tag_color_hex("focus"), "22AA88");
+    }
+
+    #[test]
+    fn app_color_hex_can_be_assigned_and_cleared() {
+        let mut settings = AppSettings::default();
+
+        assert!(settings.set_app_color_hex("app:browser", "Arc Browser", Some("#5CA9FF")));
+        assert_eq!(settings.app_color_hex("app:browser"), Some("5CA9FF"));
+
+        assert!(settings.set_app_color_hex("app:browser", "Arc Browser", None));
+        assert_eq!(settings.app_color_hex("app:browser"), None);
     }
 
     #[test]
