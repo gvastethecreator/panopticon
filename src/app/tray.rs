@@ -3,7 +3,7 @@
 use std::mem;
 
 use anyhow::{anyhow, Result};
-use panopticon::settings::{AppSelectionEntry, DockEdge, HiddenAppEntry};
+use panopticon::settings::{AppSelectionEntry, DockEdge, HiddenAppEntry, WindowGrouping};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Shell::{
@@ -47,6 +47,11 @@ const CMD_TRAY_DOCK_LEFT: u16 = 501;
 const CMD_TRAY_DOCK_RIGHT: u16 = 502;
 const CMD_TRAY_DOCK_TOP: u16 = 503;
 const CMD_TRAY_DOCK_BOTTOM: u16 = 504;
+const CMD_TRAY_GROUP_NONE: u16 = 520;
+const CMD_TRAY_GROUP_APPLICATION: u16 = 521;
+const CMD_TRAY_GROUP_MONITOR: u16 = 522;
+const CMD_TRAY_GROUP_WINDOW_TITLE: u16 = 523;
+const CMD_TRAY_GROUP_CLASS_NAME: u16 = 524;
 const CMD_TRAY_TOGGLE_TOOLBAR: u16 = 13;
 const CMD_TRAY_OPEN_SETTINGS: u16 = 14;
 const CMD_TRAY_TOGGLE_WINDOW_INFO: u16 = 15;
@@ -105,6 +110,8 @@ pub struct TrayMenuState {
     pub locked_layout: bool,
     /// Whether separator dragging is locked.
     pub lock_cell_resize: bool,
+    /// Preferred grouping mode for ordering visible windows.
+    pub group_windows_by: WindowGrouping,
 }
 
 /// Commands emitted by the tray icon.
@@ -142,6 +149,8 @@ pub enum TrayAction {
     RestoreAllHidden,
     /// Dock the window to a screen edge (or undock).
     SetDockEdge(Option<DockEdge>),
+    /// Order visible windows according to the chosen grouping mode.
+    SetWindowGrouping(WindowGrouping),
     /// Toggle the toolbar visibility.
     ToggleToolbar,
     /// Toggle footer / window metadata visibility.
@@ -422,6 +431,7 @@ pub fn show_application_context_menu_at(
         let lock_layout = encode_wide("Lock layout switching");
         let lock_cell_resize = encode_wide("Lock cell / column resizing");
         let dock_title = encode_wide("Dock position");
+        let grouping_title = encode_wide("Group windows by");
         let minimize_to_tray = encode_wide("Hide on minimize");
         let close_to_tray = encode_wide("Hide on close");
         let refresh_interval = encode_wide(&format!(
@@ -441,6 +451,11 @@ pub fn show_application_context_menu_at(
         let dock_right = encode_wide("Right");
         let dock_top = encode_wide("Top");
         let dock_bottom = encode_wide("Bottom");
+        let group_none = encode_wide("No grouping");
+        let group_application = encode_wide("Application");
+        let group_monitor = encode_wide("Monitor");
+        let group_window_title = encode_wide("Window title");
+        let group_class_name = encode_wide("Window class");
         let restore_hidden_title = encode_wide("Restore hidden apps");
         let restore_all_hidden = encode_wide("Restore all hidden apps");
         let monitor_filter_title = encode_wide("Filter by monitor");
@@ -550,6 +565,46 @@ pub fn show_application_context_menu_at(
                 MF_POPUP,
                 dock_menu.0 as usize,
                 PCWSTR(dock_title.as_ptr()),
+            );
+        }
+
+        {
+            let grouping_menu = CreatePopupMenu().ok()?;
+            let _ = AppendMenuW(
+                grouping_menu,
+                MF_STRING | checked_flag(state.group_windows_by == WindowGrouping::None),
+                CMD_TRAY_GROUP_NONE as usize,
+                PCWSTR(group_none.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                grouping_menu,
+                MF_STRING | checked_flag(state.group_windows_by == WindowGrouping::Application),
+                CMD_TRAY_GROUP_APPLICATION as usize,
+                PCWSTR(group_application.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                grouping_menu,
+                MF_STRING | checked_flag(state.group_windows_by == WindowGrouping::Monitor),
+                CMD_TRAY_GROUP_MONITOR as usize,
+                PCWSTR(group_monitor.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                grouping_menu,
+                MF_STRING | checked_flag(state.group_windows_by == WindowGrouping::WindowTitle),
+                CMD_TRAY_GROUP_WINDOW_TITLE as usize,
+                PCWSTR(group_window_title.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                grouping_menu,
+                MF_STRING | checked_flag(state.group_windows_by == WindowGrouping::ClassName),
+                CMD_TRAY_GROUP_CLASS_NAME as usize,
+                PCWSTR(group_class_name.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                menu,
+                MF_POPUP,
+                grouping_menu.0 as usize,
+                PCWSTR(grouping_title.as_ptr()),
             );
         }
 
@@ -854,6 +909,17 @@ pub fn show_application_context_menu_at(
             CMD_TRAY_DOCK_RIGHT => Some(TrayAction::SetDockEdge(Some(DockEdge::Right))),
             CMD_TRAY_DOCK_TOP => Some(TrayAction::SetDockEdge(Some(DockEdge::Top))),
             CMD_TRAY_DOCK_BOTTOM => Some(TrayAction::SetDockEdge(Some(DockEdge::Bottom))),
+            CMD_TRAY_GROUP_NONE => Some(TrayAction::SetWindowGrouping(WindowGrouping::None)),
+            CMD_TRAY_GROUP_APPLICATION => {
+                Some(TrayAction::SetWindowGrouping(WindowGrouping::Application))
+            }
+            CMD_TRAY_GROUP_MONITOR => Some(TrayAction::SetWindowGrouping(WindowGrouping::Monitor)),
+            CMD_TRAY_GROUP_WINDOW_TITLE => {
+                Some(TrayAction::SetWindowGrouping(WindowGrouping::WindowTitle))
+            }
+            CMD_TRAY_GROUP_CLASS_NAME => {
+                Some(TrayAction::SetWindowGrouping(WindowGrouping::ClassName))
+            }
             CMD_TRAY_MONITOR_ALL => Some(TrayAction::SetMonitorFilter(None)),
             CMD_TRAY_TAG_FILTER_ALL => Some(TrayAction::SetTagFilter(None)),
             CMD_TRAY_APP_FILTER_ALL => Some(TrayAction::SetAppFilter(None)),

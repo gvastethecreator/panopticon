@@ -2583,6 +2583,7 @@ fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
         start_in_tray: state.settings.start_in_tray,
         locked_layout: state.settings.locked_layout,
         lock_cell_resize: state.settings.lock_cell_resize,
+        group_windows_by: state.settings.group_windows_by,
     }
 }
 
@@ -2697,6 +2698,13 @@ fn handle_tray_action(
                     apply_topmost_mode(s.hwnd, s.settings.always_on_top);
                 }
             }
+            refresh_windows(state);
+            refresh_ui(state, weak);
+        }
+        TrayAction::SetWindowGrouping(grouping) => {
+            update_settings(state, |s| {
+                s.group_windows_by = grouping;
+            });
             refresh_windows(state);
             refresh_ui(state, weak);
         }

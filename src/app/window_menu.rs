@@ -19,6 +19,7 @@ const CMD_KILL_PROCESS: u16 = 11;
 const CMD_TAG_BASE: u16 = 100;
 const CMD_USE_THEME_COLOR: u16 = 200;
 const CMD_SET_COLOR_BASE: u16 = 210;
+const CMD_SET_COLOR_END: u16 = CMD_SET_COLOR_BASE + COLOR_PRESETS.len() as u16;
 
 const COLOR_PRESETS: [(&str, &str); 6] = [
     ("Usar ámbar", "D29A5C"),
@@ -185,7 +186,7 @@ pub fn show_window_context_menu(
             CMD_USE_THEME_COLOR => Some(WindowMenuAction::SetColor(None)),
             CMD_CLOSE_WINDOW => Some(WindowMenuAction::CloseWindow),
             CMD_KILL_PROCESS => Some(WindowMenuAction::KillProcess),
-            id if (CMD_SET_COLOR_BASE..CMD_TAG_BASE).contains(&id) => COLOR_PRESETS
+            id if (CMD_SET_COLOR_BASE..CMD_SET_COLOR_END).contains(&id) => COLOR_PRESETS
                 .get((id - CMD_SET_COLOR_BASE) as usize)
                 .map(|(_, hex)| WindowMenuAction::SetColor(Some((*hex).to_owned()))),
             id if id >= CMD_TAG_BASE => state
