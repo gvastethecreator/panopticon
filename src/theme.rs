@@ -83,7 +83,7 @@ pub fn theme_presets() -> &'static [ThemePreset] {
         .get_or_init(|| {
             serde_json::from_str::<Vec<ThemeCatalogEntry>>(include_str!("../assets/themes.json"))
                 .unwrap_or_default()
-                .into_iter()
+                .iter()
                 .map(ThemePreset::from_catalog)
                 .collect()
         })
@@ -101,7 +101,7 @@ pub fn resolve_ui_theme(theme_id: Option<&str>, fallback_background_hex: &str) -
 }
 
 impl ThemePreset {
-    fn from_catalog(entry: ThemeCatalogEntry) -> Self {
+    fn from_catalog(entry: &ThemeCatalogEntry) -> Self {
         let id = theme_catalog_id(&entry.name, &entry.variant);
         let bg = parse_hex_rgb(&entry.background).unwrap_or(Rgb {
             r: 0x18,

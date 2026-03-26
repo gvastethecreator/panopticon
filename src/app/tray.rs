@@ -320,7 +320,7 @@ pub fn draw_window_icon(
     rect: windows::Win32::Foundation::RECT,
     size: i32,
 ) {
-    if let Some(icon) = resolve_window_icon(hwnd) {
+    if let Some(icon) = resolve_window_icon_sized(hwnd, size >= 32) {
         let x = rect.left + ((rect.right - rect.left - size) / 2);
         let y = rect.top + ((rect.bottom - rect.top - size) / 2);
 
@@ -336,24 +336,40 @@ pub fn draw_window_icon(
 #[allow(dead_code)]
 #[must_use]
 pub fn resolve_window_icon(hwnd: HWND) -> Option<HICON> {
+    resolve_window_icon_sized(hwnd, false)
+}
+
+/// Resolve the best available icon for a source window, preferring either the
+/// large or the small handle depending on the intended render size.
+#[must_use]
+pub fn resolve_window_icon_sized(hwnd: HWND, prefer_large: bool) -> Option<HICON> {
     // SAFETY: message send / class queries are read-only operations on a live
     // window handle. Returned icons are borrowed; callers must not destroy them.
     unsafe {
-        for icon_type in [ICON_SMALL2, ICON_SMALL, ICON_BIG] {
+        let icon_order = if prefer_large {
+            [ICON_BIG, ICON_SMALL2, ICON_SMALL]
+        } else {
+            [ICON_SMALL2, ICON_SMALL, ICON_BIG]
+        };
+
+        for icon_type in icon_order {
             let icon = SendMessageW(hwnd, WM_GETICON, WPARAM(icon_type as usize), LPARAM(0));
             if icon.0 != 0 {
                 return Some(HICON(icon.0 as *mut _));
             }
         }
 
-        let class_small = GetClassLongPtrW(hwnd, GCLP_HICONSM);
-        if class_small != 0 {
-            return Some(HICON(class_small as *mut _));
-        }
+        let class_order = if prefer_large {
+            [GCLP_HICON, GCLP_HICONSM]
+        } else {
+            [GCLP_HICONSM, GCLP_HICON]
+        };
 
-        let class_big = GetClassLongPtrW(hwnd, GCLP_HICON);
-        if class_big != 0 {
-            return Some(HICON(class_big as *mut _));
+        for class_index in class_order {
+            let class_icon = GetClassLongPtrW(hwnd, class_index);
+            if class_icon != 0 {
+                return Some(HICON(class_icon as *mut _));
+            }
         }
     }
 
@@ -389,9 +405,17 @@ pub fn show_application_context_menu_at(
             "Show Panopticon"
         };
 
+        let visibility_title = encode_wide("Visibility");
+        let layout_title = encode_wide("Layout");
+        let display_title = encode_wide("Display");
+        let behaviour_title = encode_wide("Behaviour");
+        let filters_title = encode_wide("Filters");
         let toggle = encode_wide(toggle_label);
         let refresh = encode_wide("Refresh windows");
+        let open_settings = encode_wide("Open settings window");
         let next_layout = encode_wide("Next layout");
+        let lock_layout = encode_wide("Lock layout changes");
+        let dock_title = encode_wide("Dock position");
         let minimize_to_tray = encode_wide("Hide on minimize");
         let close_to_tray = encode_wide("Hide on close");
         let refresh_interval = encode_wide(&format!(
@@ -406,9 +430,6 @@ pub fn show_application_context_menu_at(
         let show_window_info = encode_wide("Show window info");
         let show_app_icons = encode_wide("Show app icons in cells");
         let start_in_tray = encode_wide("Start hidden in tray");
-        let lock_layout = encode_wide("Lock layout changes");
-        let open_settings = encode_wide("Open settings window");
-        let dock_title = encode_wide("Dock position");
         let dock_none = encode_wide("Floating (no dock)");
         let dock_left = encode_wide("Left");
         let dock_right = encode_wide("Right");
@@ -436,6 +457,12 @@ pub fn show_application_context_menu_at(
 
         let _ = AppendMenuW(
             menu,
+            MF_STRING | MF_GRAYED,
+            0,
+            PCWSTR(visibility_title.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
             MF_STRING,
             CMD_TRAY_TOGGLE as usize,
             PCWSTR(toggle.as_ptr()),
@@ -449,10 +476,110 @@ pub fn show_application_context_menu_at(
         let _ = AppendMenuW(
             menu,
             MF_STRING,
+            CMD_TRAY_OPEN_SETTINGS as usize,
+            PCWSTR(open_settings.as_ptr()),
+        );
+
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | MF_GRAYED,
+            0,
+            PCWSTR(layout_title.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
             CMD_TRAY_NEXT_LAYOUT as usize,
             PCWSTR(next_layout.as_ptr()),
         );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.locked_layout),
+            CMD_TRAY_TOGGLE_LOCKED_LAYOUT as usize,
+            PCWSTR(lock_layout.as_ptr()),
+        );
+
+        // ── Dock submenu ───
+        {
+            let dock_menu = CreatePopupMenu().ok()?;
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge.is_none()),
+                CMD_TRAY_DOCK_NONE as usize,
+                PCWSTR(dock_none.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Left)),
+                CMD_TRAY_DOCK_LEFT as usize,
+                PCWSTR(dock_left.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Right)),
+                CMD_TRAY_DOCK_RIGHT as usize,
+                PCWSTR(dock_right.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Top)),
+                CMD_TRAY_DOCK_TOP as usize,
+                PCWSTR(dock_top.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                dock_menu,
+                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Bottom)),
+                CMD_TRAY_DOCK_BOTTOM as usize,
+                PCWSTR(dock_bottom.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                menu,
+                MF_POPUP,
+                dock_menu.0 as usize,
+                PCWSTR(dock_title.as_ptr()),
+            );
+        }
+
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | MF_GRAYED,
+            0,
+            PCWSTR(display_title.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.show_toolbar),
+            CMD_TRAY_TOGGLE_TOOLBAR as usize,
+            PCWSTR(show_toolbar.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.show_window_info),
+            CMD_TRAY_TOGGLE_WINDOW_INFO as usize,
+            PCWSTR(show_window_info.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.show_app_icons),
+            CMD_TRAY_TOGGLE_APP_ICONS as usize,
+            PCWSTR(show_app_icons.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | checked_flag(state.always_on_top),
+            CMD_TRAY_TOGGLE_ALWAYS_ON_TOP as usize,
+            PCWSTR(always_on_top.as_ptr()),
+        );
+
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING | MF_GRAYED,
+            0,
+            PCWSTR(behaviour_title.as_ptr()),
+        );
         let _ = AppendMenuW(
             menu,
             MF_STRING
@@ -501,85 +628,21 @@ pub fn show_application_context_menu_at(
         );
         let _ = AppendMenuW(
             menu,
-            MF_STRING | checked_flag(state.always_on_top),
-            CMD_TRAY_TOGGLE_ALWAYS_ON_TOP as usize,
-            PCWSTR(always_on_top.as_ptr()),
-        );
-        let _ = AppendMenuW(
-            menu,
-            MF_STRING | checked_flag(state.show_toolbar),
-            CMD_TRAY_TOGGLE_TOOLBAR as usize,
-            PCWSTR(show_toolbar.as_ptr()),
-        );
-        let _ = AppendMenuW(
-            menu,
-            MF_STRING | checked_flag(state.show_window_info),
-            CMD_TRAY_TOGGLE_WINDOW_INFO as usize,
-            PCWSTR(show_window_info.as_ptr()),
-        );
-        let _ = AppendMenuW(
-            menu,
-            MF_STRING | checked_flag(state.show_app_icons),
-            CMD_TRAY_TOGGLE_APP_ICONS as usize,
-            PCWSTR(show_app_icons.as_ptr()),
-        );
-        let _ = AppendMenuW(
-            menu,
             MF_STRING | checked_flag(state.start_in_tray),
             CMD_TRAY_TOGGLE_START_IN_TRAY as usize,
             PCWSTR(start_in_tray.as_ptr()),
         );
-        let _ = AppendMenuW(
-            menu,
-            MF_STRING | checked_flag(state.locked_layout),
-            CMD_TRAY_TOGGLE_LOCKED_LAYOUT as usize,
-            PCWSTR(lock_layout.as_ptr()),
-        );
-        let _ = AppendMenuW(
-            menu,
-            MF_STRING,
-            CMD_TRAY_OPEN_SETTINGS as usize,
-            PCWSTR(open_settings.as_ptr()),
-        );
 
-        // ── Dock submenu ───
-        {
-            let dock_menu = CreatePopupMenu().ok()?;
-            let _ = AppendMenuW(
-                dock_menu,
-                MF_STRING | checked_flag(state.dock_edge.is_none()),
-                CMD_TRAY_DOCK_NONE as usize,
-                PCWSTR(dock_none.as_ptr()),
-            );
-            let _ = AppendMenuW(
-                dock_menu,
-                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Left)),
-                CMD_TRAY_DOCK_LEFT as usize,
-                PCWSTR(dock_left.as_ptr()),
-            );
-            let _ = AppendMenuW(
-                dock_menu,
-                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Right)),
-                CMD_TRAY_DOCK_RIGHT as usize,
-                PCWSTR(dock_right.as_ptr()),
-            );
-            let _ = AppendMenuW(
-                dock_menu,
-                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Top)),
-                CMD_TRAY_DOCK_TOP as usize,
-                PCWSTR(dock_top.as_ptr()),
-            );
-            let _ = AppendMenuW(
-                dock_menu,
-                MF_STRING | checked_flag(state.dock_edge == Some(DockEdge::Bottom)),
-                CMD_TRAY_DOCK_BOTTOM as usize,
-                PCWSTR(dock_bottom.as_ptr()),
-            );
+        let has_filter_section = !state.available_monitors.is_empty()
+            || !state.available_tags.is_empty()
+            || !state.available_apps.is_empty();
+        if has_filter_section {
+            let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
             let _ = AppendMenuW(
                 menu,
-                MF_POPUP,
-                dock_menu.0 as usize,
-                PCWSTR(dock_title.as_ptr()),
+                MF_STRING | MF_GRAYED,
+                0,
+                PCWSTR(filters_title.as_ptr()),
             );
         }
 
@@ -695,6 +758,7 @@ pub fn show_application_context_menu_at(
         }
 
         if !state.hidden_apps.is_empty() {
+            let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
             let hidden_menu = CreatePopupMenu().ok()?;
             let _ = AppendMenuW(
                 hidden_menu,
