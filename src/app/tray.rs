@@ -911,12 +911,13 @@ fn format_refresh_interval_label(interval_ms: u32) -> String {
 
 fn create_generated_icon(size: u8) -> Result<HICON> {
     let bytes = build_icon_resource(size);
+    let image_data = &bytes[22..];
 
     // SAFETY: `bytes` contains a valid in-memory ICO resource with a single
     // 32-bit image; the buffer outlives the call.
     let icon = unsafe {
         CreateIconFromResourceEx(
-            &bytes,
+            image_data,
             BOOL(1),
             0x0003_0000,
             i32::from(size),
@@ -934,11 +935,12 @@ fn create_generated_icon(size: u8) -> Result<HICON> {
 
 fn create_colored_icon(size: u8, accent_rgb: [u8; 3]) -> Result<HICON> {
     let bytes = build_colored_icon_resource(size, accent_rgb);
+    let image_data = &bytes[22..];
 
     // SAFETY: same as `create_generated_icon`.
     let icon = unsafe {
         CreateIconFromResourceEx(
-            &bytes,
+            image_data,
             BOOL(1),
             0x0003_0000,
             i32::from(size),
@@ -1099,6 +1101,51 @@ fn build_colored_icon_resource(size: u8, accent_rgb: [u8; 3]) -> Vec<u8> {
     bytes.resize(image_offset + image_size, 0);
 
     bytes
+}
+
+/// Extract the executable icon from a file path.
+///
+/// The returned handle is owned by the caller and must be destroyed with
+/// [`DestroyIcon`] when no longer needed.
+#[must_use]
+pub fn resolve_window_icon_from_executable(path: &str, prefer_large: bool) -> Option<HICON> {
+    use windows::Win32::UI::Shell::ExtractIconExW;
+
+    let wide = encode_wide(path);
+    let mut large = [HICON::default(); 1];
+    let mut small = [HICON::default(); 1];
+
+    // SAFETY: `wide` is a valid, nul-terminated UTF-16 path and both icon
+    // buffers outlive the call.
+    let extracted = unsafe {
+        ExtractIconExW(
+            PCWSTR(wide.as_ptr()),
+            0,
+            Some(large.as_mut_ptr()),
+            Some(small.as_mut_ptr()),
+            1,
+        )
+    };
+    if extracted == 0 {
+        return None;
+    }
+
+    let preferred = if prefer_large { large[0] } else { small[0] };
+    let secondary = if prefer_large { small[0] } else { large[0] };
+
+    if !preferred.0.is_null() {
+        if !secondary.0.is_null() && secondary != preferred {
+            // SAFETY: `secondary` is an extracted icon handle owned by us.
+            unsafe {
+                let _ = DestroyIcon(secondary);
+            }
+        }
+        Some(preferred)
+    } else if !secondary.0.is_null() {
+        Some(secondary)
+    } else {
+        None
+    }
 }
 
 fn icon_pixel_colored(
