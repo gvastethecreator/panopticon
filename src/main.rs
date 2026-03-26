@@ -800,11 +800,12 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         move |index| {
             let mut s = state.borrow_mut();
             let new_index = Some(index as usize);
-            if s.hover_index != new_index {
+            let previous_index = s.hover_index;
+            if previous_index != new_index {
                 s.hover_index = new_index;
                 drop(s);
                 if let Some(win) = weak.upgrade() {
-                    update_hover_in_model(&state, &win);
+                    update_hover_rows_in_model(&state, &win, previous_index, new_index);
                 }
             }
         }
@@ -1163,6 +1164,10 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         for mw in &mut s.windows {
             populate_cached_icon(mw);
         }
+    } else {
+        for mw in &mut s.windows {
+            mw.cached_icon = None;
+        }
     }
 
     let data: Vec<ThumbnailData> = s
@@ -1271,6 +1276,28 @@ fn update_hover_in_model(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     }
 }
 
+fn update_hover_rows_in_model(
+    state: &Rc<RefCell<AppState>>,
+    win: &MainWindow,
+    previous_index: Option<usize>,
+    new_index: Option<usize>,
+) {
+    let s = state.borrow();
+    let model = win.get_thumbnails();
+
+    for index in [previous_index, new_index].into_iter().flatten() {
+        if let Some(mut item) = model.row_data(index) {
+            let is_active = s
+                .windows
+                .get(index)
+                .is_some_and(|mw| s.active_hwnd == Some(mw.info.hwnd));
+            item.is_hovered = s.hover_index == Some(index);
+            item.is_active = is_active;
+            model.set_row_data(index, item);
+        }
+    }
+}
+
 // ───────────────────────── DWM Thumbnails ─────────────────────────
 
 fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
@@ -1293,36 +1320,32 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     } else {
         0
     };
-    let overlay_top_h = if s.settings.show_app_icons {
-        THUMBNAIL_OVERLAY_STRIP_HEIGHT
-    } else {
-        0
-    };
     let viewport_x = win.get_viewport_x();
     let viewport_y = win.get_viewport_y();
+    let now = Instant::now();
 
     let dest_hwnd = s.hwnd;
-    let preserve_flags: Vec<bool> = s
-        .windows
-        .iter()
-        .map(|mw| s.settings.preserve_aspect_ratio_for(&mw.info.app_id))
-        .collect();
-    let refresh_modes: Vec<(panopticon::settings::ThumbnailRefreshMode, u32)> = s
-        .windows
-        .iter()
-        .map(|mw| {
-            let mode = s.settings.thumbnail_refresh_mode_for(&mw.info.app_id);
-            let interval = s
-                .settings
-                .thumbnail_refresh_interval_ms_for(&mw.info.app_id);
-            (mode, interval)
-        })
-        .collect();
-    let now = Instant::now();
-    for (i, mw) in s.windows.iter_mut().enumerate() {
-        let preserve = preserve_flags[i];
-        let (refresh_mode, interval_ms) = refresh_modes[i];
+    let (settings, windows) = {
+        let state = &mut *s;
+        (&state.settings, &mut state.windows)
+    };
+    let show_icons = settings.show_app_icons;
+
+    for mw in windows.iter_mut() {
+        let preserve = settings.preserve_aspect_ratio_for(&mw.info.app_id);
+        let refresh_mode = settings.thumbnail_refresh_mode_for(&mw.info.app_id);
+        let interval_ms = settings.thumbnail_refresh_interval_ms_for(&mw.info.app_id);
         let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
+        let overlay_top_h = if show_icons && !is_minimized {
+            populate_cached_icon(mw);
+            if mw.cached_icon.is_some() {
+                THUMBNAIL_OVERLAY_STRIP_HEIGHT
+            } else {
+                0
+            }
+        } else {
+            0
+        };
 
         // Frozen: register once but never update afterwards.
         let should_update = match refresh_mode {
@@ -2970,35 +2993,65 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let default_accent = tag_accent_color(&s.settings);
     let show_footer = s.settings.show_window_info;
     let show_icons = s.settings.show_app_icons;
-    let data: Vec<ThumbnailData> = s
-        .windows
-        .iter()
-        .enumerate()
-        .map(|(i, mw)| {
-            let accent = s
-                .settings
-                .app_color_hex(&mw.info.app_id)
-                .map_or(default_accent, hex_to_slint_color);
-            let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
-            ThumbnailData {
-                x: mw.display_rect.left as f32,
-                y: mw.display_rect.top as f32,
-                width: (mw.display_rect.right - mw.display_rect.left) as f32,
-                height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
-                title: SharedString::from(truncate_title(&mw.info.title)),
-                app_label: SharedString::from(mw.info.app_label()),
-                is_hovered: s.hover_index == Some(i),
-                is_active: s.active_hwnd == Some(mw.info.hwnd),
-                accent_color: accent,
-                show_footer,
-                is_minimized,
-                icon: mw.cached_icon.clone().unwrap_or_default(),
-                show_icon: show_icons,
+    let model = win.get_thumbnails();
+    let row_count = model.row_count();
+
+    if row_count == s.windows.len() {
+        for (i, mw) in s.windows.iter().enumerate() {
+            if let Some(mut item) = model.row_data(i) {
+                let accent = s
+                    .settings
+                    .app_color_hex(&mw.info.app_id)
+                    .map_or(default_accent, hex_to_slint_color);
+                let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
+                item.x = mw.display_rect.left as f32;
+                item.y = mw.display_rect.top as f32;
+                item.width = (mw.display_rect.right - mw.display_rect.left) as f32;
+                item.height = (mw.display_rect.bottom - mw.display_rect.top) as f32;
+                item.title = SharedString::from(truncate_title(&mw.info.title));
+                item.app_label = SharedString::from(mw.info.app_label());
+                item.is_hovered = s.hover_index == Some(i);
+                item.is_active = s.active_hwnd == Some(mw.info.hwnd);
+                item.accent_color = accent;
+                item.show_footer = show_footer;
+                item.is_minimized = is_minimized;
+                item.icon = mw.cached_icon.clone().unwrap_or_default();
+                item.show_icon = show_icons;
+                model.set_row_data(i, item);
             }
-        })
-        .collect();
-    drop(s);
-    win.set_thumbnails(ModelRc::new(VecModel::from(data)));
+        }
+        drop(s);
+    } else {
+        let data: Vec<ThumbnailData> = s
+            .windows
+            .iter()
+            .enumerate()
+            .map(|(i, mw)| {
+                let accent = s
+                    .settings
+                    .app_color_hex(&mw.info.app_id)
+                    .map_or(default_accent, hex_to_slint_color);
+                let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
+                ThumbnailData {
+                    x: mw.display_rect.left as f32,
+                    y: mw.display_rect.top as f32,
+                    width: (mw.display_rect.right - mw.display_rect.left) as f32,
+                    height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
+                    title: SharedString::from(truncate_title(&mw.info.title)),
+                    app_label: SharedString::from(mw.info.app_label()),
+                    is_hovered: s.hover_index == Some(i),
+                    is_active: s.active_hwnd == Some(mw.info.hwnd),
+                    accent_color: accent,
+                    show_footer,
+                    is_minimized,
+                    icon: mw.cached_icon.clone().unwrap_or_default(),
+                    show_icon: show_icons,
+                }
+            })
+            .collect();
+        drop(s);
+        win.set_thumbnails(ModelRc::new(VecModel::from(data)));
+    }
 }
 
 // ───────────────────────── Visibility ─────────────────────────
