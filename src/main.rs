@@ -895,10 +895,10 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         .collect();
 
     sort_windows_for_grouping(&mut discovered, &s.settings);
+    apply_pinned_positions(&mut discovered, &s.settings);
 
-    let discovered_map: HashMap<isize, WindowInfo> = discovered
+    let discovered_map: HashMap<isize, &WindowInfo> = discovered
         .iter()
-        .cloned()
         .map(|w| (w.hwnd.0 as isize, w))
         .collect();
     let discovered_hwnds: HashSet<isize> = discovered_map.keys().copied().collect();
@@ -957,7 +957,7 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
 
 fn update_existing_windows(
     windows: &mut [ManagedWindow],
-    discovered_map: &HashMap<isize, WindowInfo>,
+    discovered_map: &HashMap<isize, &WindowInfo>,
     host_hwnd: HWND,
     host_visible: bool,
 ) -> bool {
@@ -973,7 +973,7 @@ fn update_existing_windows(
             if metadata_changed {
                 let icon_changed =
                     fresh.app_id != mw.info.app_id || fresh.process_path != mw.info.process_path;
-                mw.info = fresh.clone();
+                mw.info = (*fresh).clone();
                 if icon_changed {
                     mw.cached_icon = None;
                 }
@@ -1835,6 +1835,7 @@ fn handle_thumbnail_right_click(
         preserve_aspect_ratio: s.settings.preserve_aspect_ratio_for(&info.app_id),
         hide_on_select: s.settings.hide_on_select_for(&info.app_id),
         hide_on_select_enabled: s.settings.dock_edge.is_none(),
+        pin_position: s.settings.is_pinned_position(&info.app_id),
         current_color_hex: s.settings.app_color_hex(&info.app_id).map(str::to_owned),
         known_tags: s.settings.known_tags(),
         current_tags: s.settings.tags_for(&info.app_id).into_iter().collect(),
@@ -1842,7 +1843,7 @@ fn handle_thumbnail_right_click(
     drop(s);
 
     if let Some(action) = show_window_context_menu(host_hwnd, &menu_state, Some(screen_point)) {
-        handle_window_menu_action(state, weak, &info, action);
+        handle_window_menu_action(state, weak, &info, index, action);
     }
 }
 
@@ -1928,6 +1929,7 @@ fn handle_window_menu_action(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
     info: &WindowInfo,
+    index: usize,
     action: WindowMenuAction,
 ) {
     let mut needs_window_refresh = false;
@@ -1937,6 +1939,13 @@ fn handle_window_menu_action(
         WindowMenuAction::HideApp => {
             update_settings(state, |settings| {
                 let _ = settings.toggle_hidden(&info.app_id, &info.app_label());
+            });
+            needs_window_refresh = true;
+            needs_ui_refresh = true;
+        }
+        WindowMenuAction::TogglePinPosition => {
+            update_settings(state, |settings| {
+                let _ = settings.toggle_app_pinned_position(&info.app_id, &info.app_label(), index);
             });
             needs_window_refresh = true;
             needs_ui_refresh = true;
@@ -3832,6 +3841,72 @@ fn sort_windows_for_grouping(windows: &mut [WindowInfo], settings: &AppSettings)
     });
 }
 
+fn apply_pinned_positions(windows: &mut Vec<WindowInfo>, settings: &AppSettings) {
+    if windows.len() < 2 {
+        return;
+    }
+
+    let total = windows.len();
+    let mut pinned = Vec::new();
+    let mut remaining = Vec::new();
+
+    for window in windows.drain(..) {
+        if let Some(position) = settings.pinned_position_for(&window.app_id) {
+            pinned.push((position, window));
+        } else {
+            remaining.push(window);
+        }
+    }
+
+    if pinned.is_empty() {
+        *windows = remaining;
+        return;
+    }
+
+    pinned.sort_by_key(|(position, window)| {
+        (
+            *position,
+            normalize_sort_value(&window.app_label()),
+            normalize_sort_value(&window.title),
+            window.hwnd.0 as isize,
+        )
+    });
+
+    let mut slots: Vec<Option<WindowInfo>> = std::iter::repeat_with(|| None).take(total).collect();
+
+    for (desired_position, window) in pinned {
+        let mut target = desired_position.min(total.saturating_sub(1));
+        while target < total && slots[target].is_some() {
+            target += 1;
+        }
+
+        if target >= total {
+            target = total.saturating_sub(1);
+            while slots[target].is_some() && target > 0 {
+                target -= 1;
+            }
+        }
+
+        if slots[target].is_none() {
+            slots[target] = Some(window);
+        } else {
+            remaining.push(window);
+        }
+    }
+
+    let mut reordered = Vec::with_capacity(total);
+    let mut remaining_iter = remaining.into_iter();
+    for slot in slots {
+        if let Some(window) = slot {
+            reordered.push(window);
+        } else if let Some(window) = remaining_iter.next() {
+            reordered.push(window);
+        }
+    }
+    reordered.extend(remaining_iter);
+    *windows = reordered;
+}
+
 fn grouping_sort_key(window: &WindowInfo, grouping: WindowGrouping) -> String {
     match grouping {
         WindowGrouping::None => String::new(),
@@ -3967,5 +4042,46 @@ mod tests {
         assert_eq!(sample, [255, 128, 64, 255]);
         let transparent = bilinear_sample_rgba(&source, size, 0.0, 0.0);
         assert_eq!(transparent[3], 0);
+    }
+
+    #[test]
+    fn apply_pinned_positions_keeps_pinned_app_in_reserved_slot() {
+        let mut settings = AppSettings::default();
+        let _ = settings.toggle_app_pinned_position("app:b", "B", 1);
+
+        let mut windows = vec![
+            WindowInfo {
+                hwnd: HWND(std::ptr::dangling_mut::<c_void>()),
+                title: "Alpha".to_owned(),
+                app_id: "app:a".to_owned(),
+                process_name: "A".to_owned(),
+                process_path: None,
+                class_name: "A".to_owned(),
+                monitor_name: "DISPLAY1".to_owned(),
+            },
+            WindowInfo {
+                hwnd: HWND(2usize as *mut c_void),
+                title: "Bravo".to_owned(),
+                app_id: "app:b".to_owned(),
+                process_name: "B".to_owned(),
+                process_path: None,
+                class_name: "B".to_owned(),
+                monitor_name: "DISPLAY1".to_owned(),
+            },
+            WindowInfo {
+                hwnd: HWND(3usize as *mut c_void),
+                title: "Charlie".to_owned(),
+                app_id: "app:c".to_owned(),
+                process_name: "C".to_owned(),
+                process_path: None,
+                class_name: "C".to_owned(),
+                monitor_name: "DISPLAY1".to_owned(),
+            },
+        ];
+
+        windows.swap(0, 1);
+        apply_pinned_positions(&mut windows, &settings);
+
+        assert_eq!(windows[1].app_id, "app:b");
     }
 }
