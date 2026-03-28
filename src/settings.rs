@@ -102,6 +102,9 @@ pub struct AppRule {
     /// the current global default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hide_on_select_override: Option<bool>,
+    /// Reserved slot index for this app in the visible layout.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pinned_position: Option<usize>,
     /// Manual tags used to build custom groups and filters.
     pub tags: Vec<String>,
     /// Custom accent colour hex (`RRGGBB`) assigned directly to this app
@@ -124,6 +127,7 @@ impl Default for AppRule {
             preserve_aspect_ratio: false,
             hide_on_select: true,
             hide_on_select_override: None,
+            pinned_position: None,
             tags: Vec::new(),
             color_hex: None,
             thumbnail_refresh_mode: ThumbnailRefreshMode::default(),
@@ -453,6 +457,20 @@ impl AppSettings {
             .unwrap_or(self.hide_on_select)
     }
 
+    /// Returns the reserved visible slot for `app_id`, if any.
+    #[must_use]
+    pub fn pinned_position_for(&self, app_id: &str) -> Option<usize> {
+        self.app_rules
+            .get(app_id)
+            .and_then(|rule| rule.pinned_position)
+    }
+
+    /// Returns `true` when the app is pinned to a fixed visible slot.
+    #[must_use]
+    pub fn is_pinned_position(&self, app_id: &str) -> bool {
+        self.pinned_position_for(app_id).is_some()
+    }
+
     /// Returns `true` when `app_id` belongs to `tag`.
     #[must_use]
     pub fn app_has_tag(&self, app_id: &str, tag: &str) -> bool {
@@ -610,6 +628,23 @@ impl AppSettings {
         next
     }
 
+    /// Toggle a fixed visible slot for the application.
+    pub fn toggle_app_pinned_position(
+        &mut self,
+        app_id: &str,
+        display_name: &str,
+        position: usize,
+    ) -> bool {
+        let rule = self.ensure_app_rule(app_id, display_name);
+        if rule.pinned_position.is_some() {
+            rule.pinned_position = None;
+            false
+        } else {
+            rule.pinned_position = Some(position);
+            true
+        }
+    }
+
     /// Toggle a manual tag for a specific application.
     pub fn toggle_app_tag(&mut self, app_id: &str, display_name: &str, tag: &str) -> bool {
         let Some(tag) = normalize_tag(tag) else {
@@ -723,6 +758,7 @@ impl AppSettings {
                 (rule.hide_on_select != self.hide_on_select).then_some(rule.hide_on_select)
             });
             rule.hide_on_select = rule.hide_on_select_override.unwrap_or(self.hide_on_select);
+            rule.pinned_position = rule.pinned_position.filter(|_| !rule.hidden);
             rule.color_hex = rule.color_hex.as_deref().and_then(normalize_color_hex);
             rule.tags = rule
                 .tags
@@ -816,6 +852,7 @@ impl AppSettings {
                 preserve_aspect_ratio,
                 hide_on_select,
                 hide_on_select_override: None,
+                pinned_position: None,
                 tags: Vec::new(),
                 color_hex: None,
                 thumbnail_refresh_mode: ThumbnailRefreshMode::default(),
@@ -1004,7 +1041,19 @@ mod tests {
         assert!(rule.hidden);
         assert!(rule.preserve_aspect_ratio);
         assert!(!rule.hide_on_select);
+        assert_eq!(rule.pinned_position, None);
         assert!(rule.tags.is_empty());
+    }
+
+    #[test]
+    fn pinning_app_position_toggles_reserved_slot() {
+        let mut settings = AppSettings::default();
+
+        assert!(settings.toggle_app_pinned_position("app:demo", "Demo App", 3));
+        assert_eq!(settings.pinned_position_for("app:demo"), Some(3));
+
+        assert!(!settings.toggle_app_pinned_position("app:demo", "Demo App", 3));
+        assert_eq!(settings.pinned_position_for("app:demo"), None);
     }
 
     #[test]
@@ -1138,6 +1187,7 @@ mod tests {
                 preserve_aspect_ratio: false,
                 hide_on_select: true,
                 hide_on_select_override: None,
+                pinned_position: None,
                 tags: Vec::new(),
                 color_hex: None,
                 thumbnail_refresh_mode: super::ThumbnailRefreshMode::default(),
@@ -1165,6 +1215,7 @@ mod tests {
                 preserve_aspect_ratio: false,
                 hide_on_select: true,
                 hide_on_select_override: None,
+                pinned_position: None,
                 tags: Vec::new(),
                 color_hex: None,
                 thumbnail_refresh_mode: super::ThumbnailRefreshMode::default(),
@@ -1199,6 +1250,7 @@ mod tests {
                 preserve_aspect_ratio: false,
                 hide_on_select: true,
                 hide_on_select_override: Some(true),
+                pinned_position: None,
                 tags: Vec::new(),
                 color_hex: None,
                 thumbnail_refresh_mode: super::ThumbnailRefreshMode::default(),

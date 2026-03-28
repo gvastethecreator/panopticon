@@ -14,6 +14,7 @@ const CMD_HIDE_APP: u16 = 1;
 const CMD_TOGGLE_ASPECT_RATIO: u16 = 2;
 const CMD_TOGGLE_HIDE_ON_SELECT: u16 = 3;
 const CMD_CREATE_TAG_FROM_APP: u16 = 4;
+const CMD_TOGGLE_PIN_POSITION: u16 = 5;
 const CMD_CLOSE_WINDOW: u16 = 10;
 const CMD_KILL_PROCESS: u16 = 11;
 const CMD_TAG_BASE: u16 = 100;
@@ -31,10 +32,12 @@ const COLOR_PRESETS: [(&str, &str); 6] = [
 ];
 
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct WindowMenuState {
     pub preserve_aspect_ratio: bool,
     pub hide_on_select: bool,
     pub hide_on_select_enabled: bool,
+    pub pin_position: bool,
     pub current_color_hex: Option<String>,
     pub known_tags: Vec<String>,
     pub current_tags: HashSet<String>,
@@ -45,6 +48,7 @@ pub enum WindowMenuAction {
     HideApp,
     ToggleAspectRatio,
     ToggleHideOnSelect,
+    TogglePinPosition,
     CreateTagFromApp,
     SetColor(Option<String>),
     ToggleTag(String),
@@ -94,6 +98,7 @@ unsafe fn populate_window_menu(
     state: &WindowMenuState,
 ) {
     let hide_app = encode_wide("Ocultar del layout");
+    let pin_position = encode_wide("Fijar app en esta ubicación");
     let preserve_aspect_ratio = encode_wide("Respetar relación de aspecto");
     let hide_on_select = encode_wide("Ocultar Panopticon al abrir esta app");
     let create_tag = encode_wide("Crear etiqueta personalizada…");
@@ -110,6 +115,12 @@ unsafe fn populate_window_menu(
         MF_STRING,
         CMD_HIDE_APP as usize,
         PCWSTR(hide_app.as_ptr()),
+    );
+    let _ = AppendMenuW(
+        menu,
+        MF_STRING | checked_flag(state.pin_position),
+        CMD_TOGGLE_PIN_POSITION as usize,
+        PCWSTR(pin_position.as_ptr()),
     );
     let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
     let _ = AppendMenuW(
@@ -194,6 +205,7 @@ unsafe fn populate_window_menu(
 fn dispatch_window_menu_command(id: u16, state: &WindowMenuState) -> Option<WindowMenuAction> {
     match id {
         CMD_HIDE_APP => Some(WindowMenuAction::HideApp),
+        CMD_TOGGLE_PIN_POSITION => Some(WindowMenuAction::TogglePinPosition),
         CMD_TOGGLE_ASPECT_RATIO => Some(WindowMenuAction::ToggleAspectRatio),
         CMD_TOGGLE_HIDE_ON_SELECT if state.hide_on_select_enabled => {
             Some(WindowMenuAction::ToggleHideOnSelect)

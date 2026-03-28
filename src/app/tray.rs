@@ -884,6 +884,13 @@ pub fn show_application_context_menu_at(
             None,
         );
 
+        let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
+            hwnd,
+            windows::Win32::UI::WindowsAndMessaging::WM_NULL,
+            windows::Win32::Foundation::WPARAM(0),
+            windows::Win32::Foundation::LPARAM(0),
+        );
+
         let _ = DestroyMenu(menu);
 
         match command.0 as u16 {

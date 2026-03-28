@@ -82,6 +82,11 @@ component ThumbnailCard inherits Rectangle {
     property <length> info-strip-height: root.show-header-info || root.has-icon ? 26px : 0px;
     property <length> content-padding: 6px;
     property <bool> show-close-button: root.is-hovered && root.width >= 72px && root.height >= 52px;
+    property <length> header-left-padding: 8px;
+    property <length> header-right-padding: root.show-close-button ? 34px : 8px;
+    property <length> icon-slot-width: root.has-icon ? 24px : 0px;
+    property <length> minimized-badge-width: root.is-minimized ? 78px : 0px;
+    property <length> minimized-badge-gap: root.is-minimized ? 8px : 0px;
     property <string> header-text: root.is-minimized
         ? (root.app-label != "" ? (root.app-label + "  ·  minimizada") : (root.title + "  ·  minimizada"))
         : (root.title + (root.app-label != "" ? ("  ·  " + root.app-label) : ""));
@@ -113,61 +118,58 @@ component ThumbnailCard inherits Rectangle {
         height: root.info-strip-height;
         background: Theme.footer-bg.with-alpha(0.92);
 
-        HorizontalLayout {
-            padding-left: 8px;
-            padding-right: root.show-close-button ? 34px : 8px;
-            spacing: 6px;
+        if root.has-icon: Rectangle {
+            x: root.header-left-padding;
+            y: (parent.height - self.height) / 2;
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            background: Theme.surface.with-alpha(0.72);
+            border-width: 1px;
+            border-color: (root.is-active ? Theme.accent : Theme.border).with-alpha(0.7);
 
-            if root.has-icon: Rectangle {
-                width: 18px;
-                height: 18px;
-                border-radius: 4px;
-                background: Theme.surface.with-alpha(0.72);
-                border-width: 1px;
-                border-color: (root.is-active ? Theme.accent : Theme.border).with-alpha(0.7);
-
-                Image {
-                    x: 2px;
-                    y: 2px;
-                    width: 14px;
-                    height: 14px;
-                    source: root.icon-image;
-                    image-fit: contain;
-                }
+            Image {
+                x: 2px;
+                y: 2px;
+                width: 14px;
+                height: 14px;
+                source: root.icon-image;
+                image-fit: contain;
             }
+        }
 
-            if root.show-header-info: Text {
-                text: root.header-text;
+        if root.show-header-info: Text {
+            x: root.header-left-padding + root.icon-slot-width;
+            y: 0;
+            width: max(parent.width - self.x - root.header-right-padding - root.minimized-badge-width - root.minimized-badge-gap, 0px);
+            height: parent.height;
+            text: root.header-text;
+            color: Theme.label;
+            vertical-alignment: center;
+            font-size: 11.5px;
+            font-weight: 500;
+            overflow: elide;
+        }
+
+        if root.is-minimized: Rectangle {
+            x: parent.width - root.header-right-padding - self.width;
+            y: (parent.height - self.height) / 2;
+            width: 78px;
+            height: 18px;
+            border-radius: 9px;
+            background: root.accent-color.with-alpha(0.16);
+            border-width: 1px;
+            border-color: root.accent-color.with-alpha(0.55);
+
+            Text {
+                width: 100%;
+                height: 100%;
+                text: "ÚLTIMA VISTA";
                 color: Theme.label;
+                font-size: 9px;
+                font-weight: 700;
+                horizontal-alignment: center;
                 vertical-alignment: center;
-                font-size: 11.5px;
-                font-weight: 500;
-                overflow: elide;
-                horizontal-stretch: 1;
-            }
-
-            if !root.show-header-info && root.has-icon: Rectangle {
-                horizontal-stretch: 1;
-            }
-
-            if root.is-minimized: Rectangle {
-                width: 78px;
-                height: 18px;
-                border-radius: 9px;
-                background: root.accent-color.with-alpha(0.16);
-                border-width: 1px;
-                border-color: root.accent-color.with-alpha(0.55);
-
-                Text {
-                    width: 100%;
-                    height: 100%;
-                    text: "ÚLTIMA VISTA";
-                    color: Theme.label;
-                    font-size: 9px;
-                    font-weight: 700;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
             }
         }
     }
@@ -194,9 +196,14 @@ component ThumbnailCard inherits Rectangle {
     }
 
     card-touch := TouchArea {
-        clicked => { root.clicked(); }
         pointer-event(event) => {
-            if event.kind == PointerEventKind.up && event.button == PointerEventButton.right {
+            let in-close-zone = root.show-close-button
+                && card-touch.mouse-x >= root.width - 30px
+                && card-touch.mouse-y <= 30px;
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.left && !in-close-zone {
+                root.clicked();
+            }
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.right && !in-close-zone {
                 root.right-clicked(card-touch.mouse-x / 1px, card-touch.mouse-y / 1px);
             }
         }
@@ -207,7 +214,7 @@ component ThumbnailCard inherits Rectangle {
 
     if root.show-close-button: Rectangle {
         x: parent.width - self.width - 8px;
-        y: 8px;
+        y: 3px + max((root.info-strip-height - self.height) / 2, 0px);
         width: 20px;
         height: 20px;
         border-radius: 10px;

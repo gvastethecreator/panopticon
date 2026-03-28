@@ -169,7 +169,7 @@ fn is_system_window(title: &str) -> bool {
 }
 
 fn get_class_name(hwnd: HWND) -> String {
-    let mut buffer = vec![0u16; 256];
+    let mut buffer = [0u16; 256];
     // SAFETY: `buffer` is writable and outlives the call.
     let len = unsafe { GetClassNameW(hwnd, &mut buffer) };
     if len == 0 {
@@ -193,7 +193,7 @@ fn get_process_image_path(hwnd: HWND) -> Option<String> {
     let process =
         unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id).ok()? };
 
-    let mut buffer = vec![0u16; 1_024];
+    let mut buffer = [0u16; 1_024];
     let mut len = buffer.len() as u32;
     // SAFETY: process handle is valid, output buffer is writable, and `len`
     // contains the initial buffer capacity as required by the API.
