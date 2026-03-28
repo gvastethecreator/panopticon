@@ -200,8 +200,6 @@ pub struct AppSettings {
     pub fixed_height: Option<u32>,
     /// Dock the window to a screen edge, reserving desktop space.
     pub dock_edge: Option<DockEdge>,
-    /// Target monitor name for docking (e.g. `DISPLAY1`).
-    pub dock_monitor: Option<String>,
     /// Selected bundled UI theme; `None` = classic Panopticon theme.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme_id: Option<String>,
@@ -253,7 +251,6 @@ impl Default for AppSettings {
             fixed_width: None,
             fixed_height: None,
             dock_edge: None,
-            dock_monitor: None,
             theme_id: None,
             background_color_hex: DEFAULT_BACKGROUND_COLOR_HEX.to_owned(),
             use_system_backdrop: true,
@@ -790,10 +787,6 @@ impl AppSettings {
             fixed_width: self.fixed_width,
             fixed_height: self.fixed_height,
             dock_edge: self.dock_edge,
-            dock_monitor: self
-                .dock_monitor
-                .as_deref()
-                .and_then(normalize_filter_value),
             theme_id: self.theme_id.as_deref().and_then(normalize_profile_name),
             background_color_hex: normalize_color_hex(&self.background_color_hex)
                 .unwrap_or_else(|| DEFAULT_BACKGROUND_COLOR_HEX.to_owned()),
@@ -930,7 +923,6 @@ mod tests {
             fixed_width: Some(120),
             fixed_height: None,
             dock_edge: Some(super::DockEdge::Left),
-            dock_monitor: Some("DISPLAY1".to_owned()),
             theme_id: Some("theme:demo".to_owned()),
             background_color_hex: "101820".to_owned(),
             use_system_backdrop: true,
@@ -970,7 +962,6 @@ mod tests {
             fixed_width: None,
             fixed_height: None,
             dock_edge: None,
-            dock_monitor: None,
             theme_id: Some("  work  ".to_owned()),
             background_color_hex: "ZZZZZZ".to_owned(),
             use_system_backdrop: false,

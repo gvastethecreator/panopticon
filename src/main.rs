@@ -48,14 +48,14 @@ use slint::{
 use windows::core::w;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows::Win32::Graphics::Dwm::{
-    DwmQueryThumbnailSourceSize, DwmSetWindowAttribute, DWMSBT_MAINWINDOW, DWMSBT_NONE,
-    DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE,
-    DWMWCP_ROUND,
+    DwmGetWindowAttribute, DwmQueryThumbnailSourceSize, DwmSetWindowAttribute, DWMSBT_MAINWINDOW,
+    DWMSBT_NONE, DWMWA_CLOAKED, DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE,
+    DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
 };
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, CreateDIBSection, DeleteDC, GetDC, GetMonitorInfoW, MonitorFromWindow,
-    ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
-    MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
+    CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetDC, GetMonitorInfoW,
+    MonitorFromWindow, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
+    DIB_RGB_COLORS, HGDIOBJ, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
 };
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
@@ -73,45 +73,16 @@ slint::include_modules!();
 /// Callback message posted by the shell when the app-bar needs repositioning.
 const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
 
-const APP_MENU_TOGGLE_VISIBILITY: i32 = 1;
-const APP_MENU_REFRESH: i32 = 2;
-const APP_MENU_NEXT_LAYOUT: i32 = 3;
-const APP_MENU_OPEN_SETTINGS: i32 = 4;
-const APP_MENU_EXIT: i32 = 5;
-
-const APP_MENU_TOGGLE_MINIMIZE_TO_TRAY: i32 = 20;
-const APP_MENU_TOGGLE_CLOSE_TO_TRAY: i32 = 21;
-const APP_MENU_CYCLE_REFRESH: i32 = 22;
-const APP_MENU_TOGGLE_ANIMATIONS: i32 = 23;
-const APP_MENU_TOGGLE_DEFAULT_ASPECT: i32 = 24;
-const APP_MENU_TOGGLE_DEFAULT_HIDE_ON_SELECT: i32 = 25;
-const APP_MENU_TOGGLE_ALWAYS_ON_TOP: i32 = 26;
-const APP_MENU_TOGGLE_TOOLBAR: i32 = 27;
-const APP_MENU_TOGGLE_WINDOW_INFO: i32 = 28;
-const APP_MENU_TOGGLE_APP_ICONS: i32 = 29;
-const APP_MENU_TOGGLE_START_IN_TRAY: i32 = 30;
-const APP_MENU_TOGGLE_LOCKED_LAYOUT: i32 = 31;
-const APP_MENU_TOGGLE_LOCK_CELL_RESIZE: i32 = 32;
-
-const APP_MENU_DOCK_NONE: i32 = 40;
-const APP_MENU_DOCK_LEFT: i32 = 41;
-const APP_MENU_DOCK_RIGHT: i32 = 42;
-const APP_MENU_DOCK_TOP: i32 = 43;
-const APP_MENU_DOCK_BOTTOM: i32 = 44;
-
-const APP_MENU_MONITOR_ALL: i32 = 100;
-const APP_MENU_MONITOR_BASE: i32 = 101;
-const APP_MENU_TAG_ALL: i32 = 200;
-const APP_MENU_TAG_BASE: i32 = 201;
-const APP_MENU_APP_ALL: i32 = 300;
-const APP_MENU_APP_BASE: i32 = 301;
-const APP_MENU_RESTORE_ALL_HIDDEN: i32 = 400;
-const APP_MENU_RESTORE_HIDDEN_BASE: i32 = 401;
-
 const OPTION_SEPARATOR: &str = " — ";
 const THUMBNAIL_INFO_STRIP_HEIGHT: i32 = 26;
 const THUMBNAIL_CONTENT_PADDING: i32 = 6;
 const THEME_TRANSITION_DURATION_MS: u32 = 220;
+const HIDDEN_THUMBNAIL_RECT: RECT = RECT {
+    left: 0,
+    top: 0,
+    right: 1,
+    bottom: 1,
+};
 
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
@@ -206,8 +177,6 @@ struct AppState {
     separators: Vec<Separator>,
     /// Active drag state: separator index being dragged.
     drag_separator: Option<DragState>,
-    /// Index of the window targeted by the currently open Slint context menu.
-    context_menu_target: Option<usize>,
     /// Last background image path loaded into the main window.
     loaded_background_path: Option<String>,
     /// Last theme snapshot rendered into Slint globals.
@@ -221,15 +190,6 @@ struct RuntimeUiOptions {
     tags: Vec<String>,
     apps: Vec<AppSelectionEntry>,
     hidden_apps: Vec<HiddenAppEntry>,
-}
-
-enum AppMenuAction {
-    Tray(TrayAction),
-    ToggleWindowInfo,
-    ToggleAppIcons,
-    ToggleStartInTray,
-    ToggleLockedLayout,
-    ToggleLockCellResize,
 }
 
 // ───────────────────────── Entry Point ─────────────────────────
@@ -297,7 +257,6 @@ fn main() {
         last_size: (0, 0),
         separators: Vec::new(),
         drag_separator: None,
-        context_menu_target: None,
         loaded_background_path: None,
         current_theme: initial_theme,
         theme_animation: None,
@@ -827,6 +786,14 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         }
     });
 
+    main_window.on_thumbnail_close_clicked({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move |index| {
+            handle_thumbnail_close(&state, &weak, index as usize);
+        }
+    });
+
     main_window.on_thumbnail_hovered({
         let state = state.clone();
         let weak = main_window.as_weak();
@@ -889,44 +856,6 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         move |key_text| handle_key(&state, &weak, &key_text)
-    });
-
-    // Per-window Slint context menu action.
-    main_window.on_context_menu_action({
-        let state = state.clone();
-        let weak = main_window.as_weak();
-        move |action_id| {
-            let (target_idx, known_tags) = {
-                let s = state.borrow();
-                (s.context_menu_target, s.settings.known_tags())
-            };
-            let Some(idx) = target_idx else { return };
-            let info = {
-                let s = state.borrow();
-                s.windows.get(idx).map(|mw| mw.info.clone())
-            };
-            let Some(info) = info else { return };
-            if let Some(action) = window_menu_action_from_id(action_id, &known_tags) {
-                handle_window_menu_action(&state, &weak, &info, action);
-            }
-        }
-    });
-
-    main_window.on_app_menu_action({
-        let state = state.clone();
-        let weak = main_window.as_weak();
-        move |action_id| {
-            let action = {
-                let mut s = state.borrow_mut();
-                let menu_state = build_tray_menu_state(&mut s);
-                let runtime = collect_runtime_ui_options(&s);
-                app_menu_action_from_id(action_id, &menu_state, &runtime)
-            };
-
-            if let Some(action) = action {
-                handle_app_menu_action_selected(&state, &weak, action);
-            }
-        }
     });
 }
 
@@ -1422,31 +1351,34 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         let refresh_mode = settings.thumbnail_refresh_mode_for(&mw.info.app_id);
         let interval_ms = settings.thumbnail_refresh_interval_ms_for(&mw.info.app_id);
         let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
-        if is_minimized {
+        let is_source_valid = unsafe { IsWindow(mw.info.hwnd).as_bool() };
+        let is_source_visible = unsafe { IsWindowVisible(mw.info.hwnd).as_bool() };
+        let is_cloaked = is_window_cloaked(mw.info.hwnd);
+        if !is_source_valid || (!is_source_visible && !is_minimized) || is_cloaked {
             release_thumbnail(mw);
             continue;
         }
-        let overlay_top_h = if is_minimized {
-            0
+        if show_icons {
+            populate_cached_icon(mw);
+        }
+        let overlay_top_h = if settings.show_window_info
+            || is_minimized
+            || (show_icons && mw.cached_icon.is_some())
+        {
+            THUMBNAIL_INFO_STRIP_HEIGHT
         } else {
-            if show_icons {
-                populate_cached_icon(mw);
-            }
-            if settings.show_window_info || (show_icons && mw.cached_icon.is_some()) {
-                THUMBNAIL_INFO_STRIP_HEIGHT
-            } else {
-                0
-            }
+            0
         };
 
-        // Frozen: register once but never update afterwards.
-        let should_update = match refresh_mode {
-            panopticon::settings::ThumbnailRefreshMode::Frozen => mw.thumbnail.is_none(),
-            panopticon::settings::ThumbnailRefreshMode::Interval => mw
-                .last_thumb_update
-                .is_none_or(|t| now.duration_since(t).as_millis() >= u128::from(interval_ms)),
-            panopticon::settings::ThumbnailRefreshMode::Realtime => true,
-        };
+        // Frozen: register once but never refresh bitmap contents afterwards.
+        let should_refresh_bitmap = !is_minimized
+            && match refresh_mode {
+                panopticon::settings::ThumbnailRefreshMode::Frozen => mw.thumbnail.is_none(),
+                panopticon::settings::ThumbnailRefreshMode::Interval => mw
+                    .last_thumb_update
+                    .is_none_or(|t| now.duration_since(t).as_millis() >= u128::from(interval_ms)),
+                panopticon::settings::ThumbnailRefreshMode::Realtime => true,
+            };
 
         let registered_thumbnail = ensure_thumbnail(dest_hwnd, mw);
         if let Some(thumb) = mw.thumbnail.as_ref() {
@@ -1460,17 +1392,12 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                 viewport_y,
                 scale,
             );
-            let (dest, has_valid_area) = sanitize_thumbnail_rect(raw_dest);
-            let visible = has_valid_area
-                && !is_minimized
-                && dest.left < phys.width as i32
-                && dest.right > 0
-                && dest.top < phys.height as i32
-                && dest.bottom > 0;
+            let (dest, visible) =
+                sanitize_thumbnail_rect(raw_dest, phys.width as i32, phys.height as i32);
             let props_changed = registered_thumbnail
                 || mw.last_thumb_dest != Some(dest)
                 || mw.last_thumb_visible != visible;
-            let should_push_update = props_changed || should_update;
+            let should_push_update = props_changed || should_refresh_bitmap;
 
             if should_push_update {
                 if let Err(error) = thumb.update(dest, visible) {
@@ -1478,6 +1405,8 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                         %error,
                         title = %mw.info.title,
                         visible,
+                        minimized = is_minimized,
+                        cloaked = is_cloaked,
                         dest = ?dest,
                         "thumbnail update failed — dropping"
                     );
@@ -1485,7 +1414,7 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                 } else {
                     mw.last_thumb_dest = Some(dest);
                     mw.last_thumb_visible = visible;
-                    if should_update {
+                    if should_refresh_bitmap {
                         mw.last_thumb_update = Some(now);
                     }
                 }
@@ -1494,19 +1423,42 @@ fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     }
 }
 
-fn sanitize_thumbnail_rect(dest: RECT) -> (RECT, bool) {
-    if dest.right <= dest.left || dest.bottom <= dest.top {
-        (
-            RECT {
-                left: 0,
-                top: 0,
-                right: 1,
-                bottom: 1,
-            },
-            false,
-        )
+fn sanitize_thumbnail_rect(dest: RECT, client_width: i32, client_height: i32) -> (RECT, bool) {
+    if client_width <= 0 || client_height <= 0 || dest.right <= dest.left || dest.bottom <= dest.top
+    {
+        return (HIDDEN_THUMBNAIL_RECT, false);
+    }
+
+    if dest.right <= 0 || dest.bottom <= 0 || dest.left >= client_width || dest.top >= client_height
+    {
+        return (HIDDEN_THUMBNAIL_RECT, false);
+    }
+
+    let clipped = RECT {
+        left: dest.left.clamp(0, client_width.saturating_sub(1)),
+        top: dest.top.clamp(0, client_height.saturating_sub(1)),
+        right: dest.right.clamp(1, client_width),
+        bottom: dest.bottom.clamp(1, client_height),
+    };
+
+    if clipped.right <= clipped.left || clipped.bottom <= clipped.top {
+        (HIDDEN_THUMBNAIL_RECT, false)
     } else {
-        (dest, true)
+        (clipped, true)
+    }
+}
+
+fn is_window_cloaked(hwnd: HWND) -> bool {
+    let mut cloaked: u32 = 0;
+    // SAFETY: querying a DWM attribute on a live top-level HWND is read-only.
+    unsafe {
+        DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_CLOAKED,
+            std::ptr::from_mut(&mut cloaked).cast::<c_void>(),
+            mem::size_of_val(&cloaked) as u32,
+        )
+        .is_ok_and(|()| cloaked != 0)
     }
 }
 
@@ -1633,12 +1585,19 @@ fn resolve_preview_icon(info: &WindowInfo) -> Option<(HICON, bool)> {
 }
 
 fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
-    let size: i32 = 128;
+    let size: i32 = 256;
     // SAFETY: GDI drawing operations on a temporary memory DC; all resources
     // are released before returning.
     unsafe {
         let screen_dc = GetDC(HWND::default());
+        if screen_dc.0.is_null() {
+            return None;
+        }
         let mem_dc = CreateCompatibleDC(screen_dc);
+        if mem_dc.0.is_null() {
+            let _ = ReleaseDC(HWND::default(), screen_dc);
+            return None;
+        }
 
         let mut bmi: BITMAPINFO = mem::zeroed();
         bmi.bmiHeader.biSize = mem::size_of::<BITMAPINFOHEADER>() as u32;
@@ -1662,6 +1621,7 @@ fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
             return None;
         };
         if bits_ptr.is_null() {
+            let _ = DeleteObject(HGDIOBJ(dib.0.cast()));
             let _ = DeleteDC(mem_dc);
             let _ = ReleaseDC(HWND::default(), screen_dc);
             return None;
@@ -1696,9 +1656,9 @@ fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
             }
         }
 
-        let rgba = normalize_icon_canvas(&rgba, size as usize, 2);
+        let rgba = normalize_icon_canvas(&rgba, size as usize, 4);
 
-        let _ = SelectObject(mem_dc, HGDIOBJ(dib.0.cast()));
+        let _ = DeleteObject(HGDIOBJ(dib.0.cast()));
         let _ = DeleteDC(mem_dc);
         let _ = ReleaseDC(HWND::default(), screen_dc);
 
@@ -1747,15 +1707,64 @@ fn normalize_icon_canvas(source: &[u8], size: usize, padding: usize) -> Vec<u8> 
 
     for dy in 0..dest_h {
         for dx in 0..dest_w {
-            let sx = min_x + ((dx as f32 / scale).floor() as usize).min(crop_w - 1);
-            let sy = min_y + ((dy as f32 / scale).floor() as usize).min(crop_h - 1);
-            let src_index = (sy * size + sx) * 4;
+            let sx = min_x as f32 + ((dx as f32 + 0.5) / scale) - 0.5;
+            let sy = min_y as f32 + ((dy as f32 + 0.5) / scale) - 0.5;
+            let sample = bilinear_sample_rgba(source, size, sx, sy);
             let dst_index = ((offset_y + dy) * size + (offset_x + dx)) * 4;
-            normalized[dst_index..dst_index + 4].copy_from_slice(&source[src_index..src_index + 4]);
+            normalized[dst_index..dst_index + 4].copy_from_slice(&sample);
         }
     }
 
     normalized
+}
+
+fn bilinear_sample_rgba(source: &[u8], size: usize, x: f32, y: f32) -> [u8; 4] {
+    let max = (size.saturating_sub(1)) as f32;
+    let x = x.clamp(0.0, max);
+    let y = y.clamp(0.0, max);
+    let x0 = x.floor() as usize;
+    let y0 = y.floor() as usize;
+    let x1 = (x0 + 1).min(size.saturating_sub(1));
+    let y1 = (y0 + 1).min(size.saturating_sub(1));
+    let tx = x - x0 as f32;
+    let ty = y - y0 as f32;
+
+    let sample = |sx: usize, sy: usize| {
+        let index = (sy * size + sx) * 4;
+        &source[index..index + 4]
+    };
+
+    let weights = [
+        ((1.0 - tx) * (1.0 - ty), sample(x0, y0)),
+        (tx * (1.0 - ty), sample(x1, y0)),
+        ((1.0 - tx) * ty, sample(x0, y1)),
+        (tx * ty, sample(x1, y1)),
+    ];
+
+    let mut accum_r = 0.0;
+    let mut accum_g = 0.0;
+    let mut accum_b = 0.0;
+    let mut accum_a = 0.0;
+
+    for (weight, pixel) in weights {
+        let alpha = f32::from(pixel[3]) / 255.0;
+        let weighted_alpha = weight * alpha;
+        accum_r += weight * f32::from(pixel[0]) * alpha;
+        accum_g += weight * f32::from(pixel[1]) * alpha;
+        accum_b += weight * f32::from(pixel[2]) * alpha;
+        accum_a += weighted_alpha;
+    }
+
+    if accum_a <= f32::EPSILON {
+        return [0, 0, 0, 0];
+    }
+
+    [
+        (accum_r / accum_a).round().clamp(0.0, 255.0) as u8,
+        (accum_g / accum_a).round().clamp(0.0, 255.0) as u8,
+        (accum_b / accum_a).round().clamp(0.0, 255.0) as u8,
+        (accum_a * 255.0).round().clamp(0.0, 255.0) as u8,
+    ]
 }
 
 // ───────────────────────── Click / Hover ─────────────────────────
@@ -1837,27 +1846,22 @@ fn handle_thumbnail_right_click(
     }
 }
 
-/// Map a context-menu action ID back to a [`WindowMenuAction`].
-fn window_menu_action_from_id(action_id: i32, known_tags: &[String]) -> Option<WindowMenuAction> {
-    match action_id {
-        1 => Some(WindowMenuAction::HideApp),
-        2 => Some(WindowMenuAction::ToggleAspectRatio),
-        3 => Some(WindowMenuAction::ToggleHideOnSelect),
-        4 => Some(WindowMenuAction::CreateTagFromApp),
-        200 => Some(WindowMenuAction::SetColor(None)),
-        10 => Some(WindowMenuAction::CloseWindow),
-        11 => Some(WindowMenuAction::KillProcess),
-        id if (210..300).contains(&id) => {
-            preset_color_hex(id - 210).map(|hex| WindowMenuAction::SetColor(Some(hex.to_owned())))
-        }
-        id if id >= 100 => {
-            let idx = (id - 100) as usize;
-            known_tags
-                .get(idx)
-                .map(|tag| WindowMenuAction::ToggleTag(tag.clone()))
-        }
-        _ => None,
-    }
+fn handle_thumbnail_close(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    index: usize,
+) {
+    let info = {
+        let s = state.borrow();
+        let Some(mw) = s.windows.get(index) else {
+            return;
+        };
+        mw.info.clone()
+    };
+
+    tracing::info!(title = %info.title, app_id = %info.app_id, "closing window from thumbnail button");
+    close_target_window(info.hwnd);
+    schedule_deferred_refresh(state, weak);
 }
 
 fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
@@ -1871,131 +1875,6 @@ fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
         tags: state.settings.known_tags(),
         apps: collect_available_apps(&windows),
         hidden_apps: state.settings.hidden_app_entries(),
-    }
-}
-
-fn app_menu_action_from_id(
-    action_id: i32,
-    menu_state: &TrayMenuState,
-    runtime: &RuntimeUiOptions,
-) -> Option<AppMenuAction> {
-    match action_id {
-        APP_MENU_TOGGLE_VISIBILITY => Some(AppMenuAction::Tray(TrayAction::Toggle)),
-        APP_MENU_REFRESH => Some(AppMenuAction::Tray(TrayAction::Refresh)),
-        APP_MENU_NEXT_LAYOUT => Some(AppMenuAction::Tray(TrayAction::NextLayout)),
-        APP_MENU_OPEN_SETTINGS => Some(AppMenuAction::Tray(TrayAction::OpenSettingsWindow)),
-        APP_MENU_EXIT => Some(AppMenuAction::Tray(TrayAction::Exit)),
-        APP_MENU_TOGGLE_MINIMIZE_TO_TRAY => {
-            Some(AppMenuAction::Tray(TrayAction::ToggleMinimizeToTray))
-        }
-        APP_MENU_TOGGLE_CLOSE_TO_TRAY => Some(AppMenuAction::Tray(TrayAction::ToggleCloseToTray)),
-        APP_MENU_CYCLE_REFRESH => Some(AppMenuAction::Tray(TrayAction::CycleRefreshInterval)),
-        APP_MENU_TOGGLE_ANIMATIONS => {
-            Some(AppMenuAction::Tray(TrayAction::ToggleAnimateTransitions))
-        }
-        APP_MENU_TOGGLE_DEFAULT_ASPECT => {
-            Some(AppMenuAction::Tray(TrayAction::ToggleDefaultAspectRatio))
-        }
-        APP_MENU_TOGGLE_DEFAULT_HIDE_ON_SELECT if !menu_state.is_docked => {
-            Some(AppMenuAction::Tray(TrayAction::ToggleDefaultHideOnSelect))
-        }
-        APP_MENU_TOGGLE_ALWAYS_ON_TOP => Some(AppMenuAction::Tray(TrayAction::ToggleAlwaysOnTop)),
-        APP_MENU_TOGGLE_TOOLBAR => Some(AppMenuAction::Tray(TrayAction::ToggleToolbar)),
-        APP_MENU_TOGGLE_WINDOW_INFO => Some(AppMenuAction::ToggleWindowInfo),
-        APP_MENU_TOGGLE_APP_ICONS => Some(AppMenuAction::ToggleAppIcons),
-        APP_MENU_TOGGLE_START_IN_TRAY => Some(AppMenuAction::ToggleStartInTray),
-        APP_MENU_TOGGLE_LOCKED_LAYOUT => Some(AppMenuAction::ToggleLockedLayout),
-        APP_MENU_TOGGLE_LOCK_CELL_RESIZE => Some(AppMenuAction::ToggleLockCellResize),
-        APP_MENU_DOCK_NONE => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(None))),
-        APP_MENU_DOCK_LEFT => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(Some(
-            DockEdge::Left,
-        )))),
-        APP_MENU_DOCK_RIGHT => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(Some(
-            DockEdge::Right,
-        )))),
-        APP_MENU_DOCK_TOP => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(Some(
-            DockEdge::Top,
-        )))),
-        APP_MENU_DOCK_BOTTOM => Some(AppMenuAction::Tray(TrayAction::SetDockEdge(Some(
-            DockEdge::Bottom,
-        )))),
-        APP_MENU_MONITOR_ALL => Some(AppMenuAction::Tray(TrayAction::SetMonitorFilter(None))),
-        APP_MENU_TAG_ALL => Some(AppMenuAction::Tray(TrayAction::SetTagFilter(None))),
-        APP_MENU_APP_ALL => Some(AppMenuAction::Tray(TrayAction::SetAppFilter(None))),
-        APP_MENU_RESTORE_ALL_HIDDEN => Some(AppMenuAction::Tray(TrayAction::RestoreAllHidden)),
-        id if id >= APP_MENU_RESTORE_HIDDEN_BASE => {
-            let index = (id - APP_MENU_RESTORE_HIDDEN_BASE) as usize;
-            runtime
-                .hidden_apps
-                .get(index)
-                .cloned()
-                .map(|app| AppMenuAction::Tray(TrayAction::RestoreHidden(app.app_id)))
-        }
-        id if (APP_MENU_APP_BASE..APP_MENU_RESTORE_ALL_HIDDEN).contains(&id) => {
-            let index = (id - APP_MENU_APP_BASE) as usize;
-            runtime
-                .apps
-                .get(index)
-                .cloned()
-                .map(|app| AppMenuAction::Tray(TrayAction::SetAppFilter(Some(app.app_id))))
-        }
-        id if (APP_MENU_TAG_BASE..APP_MENU_APP_ALL).contains(&id) => {
-            let index = (id - APP_MENU_TAG_BASE) as usize;
-            runtime
-                .tags
-                .get(index)
-                .cloned()
-                .map(|tag| AppMenuAction::Tray(TrayAction::SetTagFilter(Some(tag))))
-        }
-        id if (APP_MENU_MONITOR_BASE..APP_MENU_TAG_ALL).contains(&id) => {
-            let index = (id - APP_MENU_MONITOR_BASE) as usize;
-            runtime
-                .monitors
-                .get(index)
-                .cloned()
-                .map(|monitor| AppMenuAction::Tray(TrayAction::SetMonitorFilter(Some(monitor))))
-        }
-        _ => None,
-    }
-}
-
-fn handle_app_menu_action_selected(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    action: AppMenuAction,
-) {
-    match action {
-        AppMenuAction::Tray(action) => handle_tray_action(state, weak, action),
-        AppMenuAction::ToggleWindowInfo => {
-            update_settings(state, |settings| {
-                settings.show_window_info = !settings.show_window_info;
-            });
-            refresh_ui(state, weak);
-        }
-        AppMenuAction::ToggleAppIcons => {
-            update_settings(state, |settings| {
-                settings.show_app_icons = !settings.show_app_icons;
-            });
-            refresh_ui(state, weak);
-        }
-        AppMenuAction::ToggleStartInTray => {
-            update_settings(state, |settings| {
-                settings.start_in_tray = !settings.start_in_tray;
-            });
-            refresh_ui(state, weak);
-        }
-        AppMenuAction::ToggleLockedLayout => {
-            update_settings(state, |settings| {
-                settings.locked_layout = !settings.locked_layout;
-            });
-            refresh_ui(state, weak);
-        }
-        AppMenuAction::ToggleLockCellResize => {
-            update_settings(state, |settings| {
-                settings.lock_cell_resize = !settings.lock_cell_resize;
-            });
-            refresh_ui(state, weak);
-        }
     }
 }
 
@@ -3967,18 +3846,6 @@ fn normalize_sort_value(value: &str) -> String {
     value.trim().to_ascii_lowercase()
 }
 
-fn preset_color_hex(index: i32) -> Option<&'static str> {
-    match index {
-        0 => Some("D29A5C"),
-        1 => Some("5CA9FF"),
-        2 => Some("3CCF91"),
-        3 => Some("FF6B8A"),
-        4 => Some("9B7BFF"),
-        5 => Some("F4B740"),
-        _ => None,
-    }
-}
-
 fn hex_to_slint_color(hex: &str) -> slint::Color {
     let r = u8::from_str_radix(hex.get(0..2).unwrap_or("D2"), 16).unwrap_or(0xD2);
     let g = u8::from_str_radix(hex.get(2..4).unwrap_or("9A"), 16).unwrap_or(0x9A);
@@ -4045,4 +3912,60 @@ fn lerp_rect(from: RECT, to: RECT, t: f32) -> RECT {
 
 fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
     (from as f32 + (to - from) as f32 * t).round() as i32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_thumbnail_rect_clips_to_client_bounds() {
+        let (rect, visible) = sanitize_thumbnail_rect(
+            RECT {
+                left: -12,
+                top: 10,
+                right: 180,
+                bottom: 140,
+            },
+            120,
+            90,
+        );
+
+        assert!(visible);
+        assert_eq!(rect.left, 0);
+        assert_eq!(rect.top, 10);
+        assert_eq!(rect.right, 120);
+        assert_eq!(rect.bottom, 90);
+    }
+
+    #[test]
+    fn sanitize_thumbnail_rect_hides_rects_outside_client() {
+        let (rect, visible) = sanitize_thumbnail_rect(
+            RECT {
+                left: 300,
+                top: 50,
+                right: 360,
+                bottom: 110,
+            },
+            200,
+            120,
+        );
+
+        assert!(!visible);
+        assert_eq!(rect, HIDDEN_THUMBNAIL_RECT);
+    }
+
+    #[test]
+    fn bilinear_sample_rgba_preserves_transparent_edges() {
+        let size = 4usize;
+        let mut source = vec![0u8; size * size * 4];
+        let center = (size + 1) * 4;
+        source[center..center + 4].copy_from_slice(&[255, 128, 64, 255]);
+
+        let sample = bilinear_sample_rgba(&source, size, 1.0, 1.0);
+
+        assert_eq!(sample, [255, 128, 64, 255]);
+        let transparent = bilinear_sample_rgba(&source, size, 0.0, 0.0);
+        assert_eq!(transparent[3], 0);
+    }
 }

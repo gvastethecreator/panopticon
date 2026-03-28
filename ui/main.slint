@@ -70,6 +70,7 @@ component ThumbnailCard inherits Rectangle {
     callback clicked();
     callback right-clicked(/* x */ float, /* y */ float);
     callback pointer-moved(/* x */ float, /* y */ float);
+    callback close-requested();
 
     background: Theme.card-bg;
     border-width: is-hovered || is-active ? 2px : 1px;
@@ -77,9 +78,13 @@ component ThumbnailCard inherits Rectangle {
     border-radius: 4px;
     clip: true;
     property <bool> has-icon: root.show-icon && root.icon-image.width > 0;
-    property <bool> show-header-info: root.show-footer && !root.is-minimized;
-    property <length> info-strip-height: !root.is-minimized && (root.show-header-info || root.has-icon) ? 26px : 0px;
+    property <bool> show-header-info: root.show-footer || root.is-minimized;
+    property <length> info-strip-height: root.show-header-info || root.has-icon ? 26px : 0px;
     property <length> content-padding: 6px;
+    property <bool> show-close-button: root.is-hovered && root.width >= 72px && root.height >= 52px;
+    property <string> header-text: root.is-minimized
+        ? (root.app-label != "" ? (root.app-label + "  ·  minimizada") : (root.title + "  ·  minimizada"))
+        : (root.title + (root.app-label != "" ? ("  ·  " + root.app-label) : ""));
 
     // Accent strip
     Rectangle {
@@ -100,68 +105,6 @@ component ThumbnailCard inherits Rectangle {
         background: Theme.placeholder;
     }
 
-    // Minimized overlay: show app label + icon when window is minimized
-    if root.is-minimized: Rectangle {
-        x: root.content-padding;
-        y: 3px + root.content-padding;
-        width: parent.width - root.content-padding * 2;
-        height: parent.height - 3px - root.content-padding * 2;
-        background: Theme.panel-bg;
-
-        Rectangle {
-            x: 10px;
-            y: 10px;
-            width: parent.width - 20px;
-            height: parent.height - 20px;
-            background: Theme.surface.with-alpha(0.42);
-            border-width: 1px;
-            border-color: Theme.border.with-alpha(0.85);
-            border-radius: 10px;
-        }
-
-        VerticalLayout {
-            alignment: center;
-            spacing: 10px;
-            padding: 16px;
-
-            if root.icon-image.width > 0: Rectangle {
-                width: min(60px, parent.width - 32px);
-                height: self.width;
-                border-radius: 12px;
-                background: Theme.footer-bg.with-alpha(0.9);
-                border-width: 1px;
-                border-color: Theme.border.with-alpha(0.9);
-                drop-shadow-blur: 10px;
-                drop-shadow-color: #00000044;
-                drop-shadow-offset-y: 2px;
-
-                Image {
-                    x: 6px;
-                    y: 6px;
-                    width: parent.width - 12px;
-                    height: parent.height - 12px;
-                    source: root.icon-image;
-                    image-fit: contain;
-                }
-            }
-
-            Text {
-                text: root.app-label;
-                color: Theme.label;
-                font-size: 13px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                overflow: elide;
-            }
-            Text {
-                text: "Minimized";
-                color: Theme.muted.with-alpha(0.6);
-                font-size: 10px;
-                horizontal-alignment: center;
-            }
-        }
-    }
-
     // Compact top header: icon + info in a single row.
     if root.info-strip-height > 0px: Rectangle {
         x: 0;
@@ -172,7 +115,7 @@ component ThumbnailCard inherits Rectangle {
 
         HorizontalLayout {
             padding-left: 8px;
-            padding-right: 8px;
+            padding-right: root.show-close-button ? 34px : 8px;
             spacing: 6px;
 
             if root.has-icon: Rectangle {
@@ -194,7 +137,7 @@ component ThumbnailCard inherits Rectangle {
             }
 
             if root.show-header-info: Text {
-                text: root.title + (root.app-label != "" ? ("  ·  " + root.app-label) : "");
+                text: root.header-text;
                 color: Theme.label;
                 vertical-alignment: center;
                 font-size: 11.5px;
@@ -206,11 +149,31 @@ component ThumbnailCard inherits Rectangle {
             if !root.show-header-info && root.has-icon: Rectangle {
                 horizontal-stretch: 1;
             }
+
+            if root.is-minimized: Rectangle {
+                width: 78px;
+                height: 18px;
+                border-radius: 9px;
+                background: root.accent-color.with-alpha(0.16);
+                border-width: 1px;
+                border-color: root.accent-color.with-alpha(0.55);
+
+                Text {
+                    width: 100%;
+                    height: 100%;
+                    text: "ÚLTIMA VISTA";
+                    color: Theme.label;
+                    font-size: 9px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
         }
     }
 
     // Hover tooltip (shows title when footer is hidden)
-    if root.is-hovered && !root.show-footer: Rectangle {
+    if root.is-hovered && !root.show-footer && !root.is-minimized: Rectangle {
         x: 0;
         y: parent.height - 28px;
         width: 100%;
@@ -230,15 +193,42 @@ component ThumbnailCard inherits Rectangle {
         }
     }
 
-    touch := TouchArea {
+    card-touch := TouchArea {
         clicked => { root.clicked(); }
         pointer-event(event) => {
             if event.kind == PointerEventKind.up && event.button == PointerEventButton.right {
-                root.right-clicked(touch.mouse-x / 1px, touch.mouse-y / 1px);
+                root.right-clicked(card-touch.mouse-x / 1px, card-touch.mouse-y / 1px);
             }
         }
         moved => {
-            root.pointer-moved(touch.mouse-x / 1px, touch.mouse-y / 1px);
+            root.pointer-moved(card-touch.mouse-x / 1px, card-touch.mouse-y / 1px);
+        }
+    }
+
+    if root.show-close-button: Rectangle {
+        x: parent.width - self.width - 8px;
+        y: 8px;
+        width: 20px;
+        height: 20px;
+        border-radius: 10px;
+        background: Theme.footer-bg.with-alpha(0.96);
+        border-width: 1px;
+        border-color: Theme.border.with-alpha(0.92);
+
+        Text {
+            width: 100%;
+            height: 100%;
+            text: "×";
+            color: Theme.text;
+            font-size: 15px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        close-touch := TouchArea {
+            mouse-cursor: MouseCursor.pointer;
+            clicked => { root.close-requested(); }
         }
     }
 }
@@ -413,167 +403,6 @@ component EmptyState inherits Rectangle {
 
 // ── Overlay scrollbar ────────────────────────────────────────
 
-/// Data for a context menu item.
-export struct MenuItemData {
-    label: string,
-    checked: bool,
-    enabled: bool,
-    is-separator: bool,
-    action-id: int,
-}
-
-// ── Styled context menu ──────────────────────────────────────
-
-component ContextMenuOverlay inherits Rectangle {
-    in property <[MenuItemData]> items;
-    in property <float> menu-x;
-    in property <float> menu-y;
-    in property <bool> menu-visible: false;
-    in property <string> menu-title: "";
-    in property <string> menu-subtitle: "";
-    in property <image> menu-icon;
-
-    callback item-clicked(/* action-id */ int);
-    callback dismiss();
-
-    visible: root.menu-visible;
-    width: 100%;
-    height: 100%;
-    background: transparent;
-
-    // Dismiss layer
-    TouchArea {
-        clicked => { root.dismiss(); }
-    }
-
-    // Menu panel
-    Rectangle {
-        x: max(8px, min(root.menu-x * 1px, parent.width - self.width - 8px));
-        y: max(8px, min(root.menu-y * 1px, parent.height - self.height - 8px));
-        width: 340px;
-        height: menu-layout.preferred-height + (root.menu-title != "" ? 62px : 8px);
-        background: Theme.panel-bg;
-        border-width: 1px;
-        border-color: Theme.border;
-        border-radius: 8px;
-        clip: true;
-        drop-shadow-blur: 12px;
-        drop-shadow-color: #00000066;
-        drop-shadow-offset-y: 4px;
-
-        VerticalLayout {
-            spacing: 0px;
-
-            if root.menu-title != "": Rectangle {
-                height: 54px;
-                background: Theme.footer-bg;
-
-                HorizontalLayout {
-                    padding-left: 12px;
-                    padding-right: 12px;
-                    spacing: 10px;
-
-                    Rectangle {
-                        width: 30px;
-                        height: 30px;
-                        border-radius: 6px;
-                        background: Theme.surface;
-
-                        if root.menu-icon.width > 0: Image {
-                            x: 3px;
-                            y: 3px;
-                            width: 24px;
-                            height: 24px;
-                            source: root.menu-icon;
-                            image-fit: contain;
-                        }
-                    }
-
-                    VerticalLayout {
-                        spacing: 2px;
-                        alignment: center;
-
-                        Text {
-                            text: root.menu-title;
-                            color: Theme.text;
-                            font-size: 12px;
-                            font-weight: 600;
-                            overflow: elide;
-                        }
-
-                        if root.menu-subtitle != "": Text {
-                            text: root.menu-subtitle;
-                            color: Theme.muted;
-                            font-size: 10.5px;
-                            overflow: elide;
-                        }
-                    }
-                }
-            }
-
-            menu-layout := VerticalLayout {
-                padding: 4px;
-                spacing: 0px;
-
-                for item[i] in root.items: Rectangle {
-                    height: item.is-separator ? 9px : 30px;
-
-                    if item.is-separator: Rectangle {
-                        y: 4px;
-                        height: 1px;
-                        width: parent.width - 8px;
-                        x: 4px;
-                        background: Theme.border;
-                    }
-
-                    if !item.is-separator: Rectangle {
-                        background: item-touch.has-hover && item.enabled ? Theme.accent-soft : transparent;
-                        border-radius: 4px;
-
-                        HorizontalLayout {
-                            padding-left: 12px;
-                            padding-right: 12px;
-                            spacing: 8px;
-
-                            if item.checked: Text {
-                                text: "✓";
-                                color: Theme.accent;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                width: 16px;
-                            }
-
-                            if !item.checked: Rectangle {
-                                width: 16px;
-                            }
-
-                            Text {
-                                text: item.label;
-                                color: item.enabled ? Theme.text : Theme.muted;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                overflow: elide;
-                                horizontal-stretch: 1;
-                            }
-                        }
-
-                        item-touch := TouchArea {
-                            mouse-cursor: item.enabled ? MouseCursor.pointer : MouseCursor.default;
-                            clicked => {
-                                if item.enabled {
-                                    root.item-clicked(item.action-id);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ── Overlay scrollbar ────────────────────────────────────────
-
 component OverlayScrollbar inherits Rectangle {
     in property <float> viewport-offset;
     in property <float> content-extent;
@@ -648,6 +477,7 @@ export component MainWindow inherits Window {
 
     // ── Callbacks ────────────────────────────────
     callback thumbnail-clicked(/* index */ int);
+    callback thumbnail-close-clicked(/* index */ int);
     callback thumbnail-right-clicked(/* index */ int, /* x */ float, /* y */ float);
     callback thumbnail-hovered(/* index */ int);
     callback toolbar-clicked();
@@ -656,25 +486,6 @@ export component MainWindow inherits Window {
     callback resize-drag-started(/* index */ int, /* x */ float, /* y */ float);
     callback resize-drag-moved(/* index */ int, /* x */ float, /* y */ float);
     callback resize-drag-ended(/* index */ int);
-
-    // ── Context menu state ───────────────────────
-    in property <[MenuItemData]> context-menu-items;
-    in property <float> context-menu-x: 0;
-    in property <float> context-menu-y: 0;
-    in property <string> context-menu-title: "";
-    in property <string> context-menu-subtitle: "";
-    in property <image> context-menu-icon;
-    in-out property <bool> context-menu-visible: false;
-    callback context-menu-action(/* action-id */ int);
-
-    in property <[MenuItemData]> app-menu-items;
-    in property <float> app-menu-x: 0;
-    in property <float> app-menu-y: 0;
-    in property <string> app-menu-title: "";
-    in property <string> app-menu-subtitle: "";
-    in property <image> app-menu-icon;
-    in-out property <bool> app-menu-visible: false;
-    callback app-menu-action(/* action-id */ int);
 
     // ── Layout ───────────────────────────────────
     VerticalLayout {
@@ -731,6 +542,7 @@ export component MainWindow inherits Window {
                     show-icon: thumb.show-icon;
 
                     clicked => { root.thumbnail-clicked(i); }
+                    close-requested => { root.thumbnail-close-clicked(i); }
                     right-clicked(x, y) => { root.thumbnail-right-clicked(i, x, y); }
                     pointer-moved(x, y) => { root.thumbnail-hovered(i); }
                 }
@@ -778,39 +590,6 @@ export component MainWindow inherits Window {
                 mouse-inside: root.scroll-active;
             }
         }
-    }
-
-    // ── Context menu overlays ──────────────────
-    // Per-window context menu
-    ContextMenuOverlay {
-        items: root.context-menu-items;
-        menu-x: root.context-menu-x;
-        menu-y: root.context-menu-y;
-        menu-visible: root.context-menu-visible;
-        menu-title: root.context-menu-title;
-        menu-subtitle: root.context-menu-subtitle;
-        menu-icon: root.context-menu-icon;
-        item-clicked(action-id) => {
-            root.context-menu-visible = false;
-            root.context-menu-action(action-id);
-        }
-        dismiss => { root.context-menu-visible = false; }
-    }
-
-    // Application-level context menu
-    ContextMenuOverlay {
-        items: root.app-menu-items;
-        menu-x: root.app-menu-x;
-        menu-y: root.app-menu-y;
-        menu-visible: root.app-menu-visible;
-        menu-title: root.app-menu-title;
-        menu-subtitle: root.app-menu-subtitle;
-        menu-icon: root.app-menu-icon;
-        item-clicked(action-id) => {
-            root.app-menu-visible = false;
-            root.app-menu-action(action-id);
-        }
-        dismiss => { root.app-menu-visible = false; }
     }
 
     // ── Keyboard ─────────────────────────────────
@@ -995,7 +774,7 @@ export component SettingsWindow inherits Window {
 
                 // ── Fixed size ──
                 Rectangle { height: 8px; }
-                Text { text: "Fixed dimensions (0 = auto)"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+                Text { text: "Dock thickness (0 = auto)"; color: Theme.accent; font-size: 14px; font-weight: 600; }
 
                 HorizontalLayout {
                     spacing: 12px;
