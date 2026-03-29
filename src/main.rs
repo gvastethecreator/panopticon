@@ -788,7 +788,13 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         move |src_idx, drop_x, drop_y| {
-            handle_thumbnail_drag_ended(&state, &weak, src_idx as usize, drop_x as f64, drop_y as f64);
+            handle_thumbnail_drag_ended(
+                &state,
+                &weak,
+                src_idx as usize,
+                drop_x as f64,
+                drop_y as f64,
+            );
         }
     });
 
@@ -886,10 +892,8 @@ fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     sort_windows_for_grouping(&mut discovered, &s.settings);
     apply_pinned_positions(&mut discovered, &s.settings);
 
-    let discovered_map: HashMap<isize, &WindowInfo> = discovered
-        .iter()
-        .map(|w| (w.hwnd.0 as isize, w))
-        .collect();
+    let discovered_map: HashMap<isize, &WindowInfo> =
+        discovered.iter().map(|w| (w.hwnd.0 as isize, w)).collect();
     let discovered_hwnds: HashSet<isize> = discovered_map.keys().copied().collect();
     let discovered_order: HashMap<isize, usize> = discovered
         .iter()
@@ -1833,20 +1837,24 @@ fn handle_thumbnail_drag_ended(
             if target_idx == src_idx {
                 false
             } else {
-                let dragged_app = s.windows[src_idx].info.app_id.clone();
-                let dragged_label = s.windows[src_idx].info.app_label();
+                let moved_window = s.windows.remove(src_idx);
+                s.windows.insert(target_idx, moved_window);
 
-                let target_app = s.windows[target_idx].info.app_id.clone();
-                let target_label = s.windows[target_idx].info.app_label();
+                let mut seen_apps = std::collections::HashSet::new();
+                let mut rules_to_update = Vec::new();
+                for (i, w) in s.windows.iter().enumerate() {
+                    let app_id = w.info.app_id.clone();
+                    if !seen_apps.contains(&app_id) {
+                        seen_apps.insert(app_id.clone());
+                        let app_label = w.info.app_label();
+                        rules_to_update.push((app_id, app_label, i));
+                    }
+                }
 
-                {
-                    let rule_src = s.settings.app_rules.entry(dragged_app).or_default();
-                    rule_src.display_name = dragged_label;
-                    rule_src.pinned_position = Some(target_idx);
-
-                    let rule_tgt = s.settings.app_rules.entry(target_app).or_default();
-                    rule_tgt.display_name = target_label;
-                    rule_tgt.pinned_position = Some(src_idx);
+                for (app_id, app_label, i) in rules_to_update {
+                    let rule = s.settings.app_rules.entry(app_id).or_default();
+                    rule.display_name = app_label;
+                    rule.pinned_position = Some(i);
                 }
 
                 let profile = s.profile_name.clone();
