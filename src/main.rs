@@ -163,7 +163,6 @@ struct AppState {
     hwnd: HWND,
     windows: Vec<ManagedWindow>,
     current_layout: LayoutType,
-    hover_index: Option<usize>,
     active_hwnd: Option<HWND>,
     tray_icon: Option<TrayIcon>,
     icons: AppIcons,
@@ -245,7 +244,6 @@ fn main() {
         hwnd: HWND::default(),
         windows: Vec::new(),
         current_layout: settings.initial_layout,
-        hover_index: None,
         active_hwnd: None,
         tray_icon: None,
         icons,
@@ -794,23 +792,6 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         }
     });
 
-    main_window.on_thumbnail_hovered({
-        let state = state.clone();
-        let weak = main_window.as_weak();
-        move |index| {
-            let mut s = state.borrow_mut();
-            let new_index = Some(index as usize);
-            let previous_index = s.hover_index;
-            if previous_index != new_index {
-                s.hover_index = new_index;
-                drop(s);
-                if let Some(win) = weak.upgrade() {
-                    update_hover_rows_in_model(&state, &win, previous_index, new_index);
-                }
-            }
-        }
-    });
-
     main_window.on_toolbar_clicked({
         let state = state.clone();
         let weak = main_window.as_weak();
@@ -1193,8 +1174,7 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let data: Vec<ThumbnailData> = s
         .windows
         .iter()
-        .enumerate()
-        .map(|(i, mw)| {
+        .map(|mw| {
             let accent = thumbnail_accent_color(&s.settings, &s.current_theme, &mw.info.app_id);
             let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
             ThumbnailData {
@@ -1204,7 +1184,6 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                 height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
                 title: SharedString::from(truncate_title(&mw.info.title)),
                 app_label: SharedString::from(mw.info.app_label()),
-                is_hovered: s.hover_index == Some(i),
                 is_active: s.active_hwnd == Some(mw.info.hwnd),
                 accent_color: accent,
                 show_footer,
@@ -1274,48 +1253,6 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         win.set_resize_handles(ModelRc::new(VecModel::from(handles)));
     }
     win.set_active_drag_index(active_drag);
-}
-
-fn update_hover_in_model(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let s = state.borrow();
-    let model = win.get_thumbnails();
-    let count = model.row_count();
-    for i in 0..count {
-        if let Some(mut item) = model.row_data(i) {
-            let should_hover = s.hover_index == Some(i);
-            let should_active = s
-                .windows
-                .get(i)
-                .is_some_and(|mw| s.active_hwnd == Some(mw.info.hwnd));
-            if item.is_hovered != should_hover || item.is_active != should_active {
-                item.is_hovered = should_hover;
-                item.is_active = should_active;
-                model.set_row_data(i, item);
-            }
-        }
-    }
-}
-
-fn update_hover_rows_in_model(
-    state: &Rc<RefCell<AppState>>,
-    win: &MainWindow,
-    previous_index: Option<usize>,
-    new_index: Option<usize>,
-) {
-    let s = state.borrow();
-    let model = win.get_thumbnails();
-
-    for index in [previous_index, new_index].into_iter().flatten() {
-        if let Some(mut item) = model.row_data(index) {
-            let is_active = s
-                .windows
-                .get(index)
-                .is_some_and(|mw| s.active_hwnd == Some(mw.info.hwnd));
-            item.is_hovered = s.hover_index == Some(index);
-            item.is_active = is_active;
-            model.set_row_data(index, item);
-        }
-    }
 }
 
 // ───────────────────────── DWM Thumbnails ─────────────────────────
@@ -1791,8 +1728,6 @@ fn handle_thumbnail_click(
             release_all_thumbnails(state);
             win.hide().ok();
         }
-    } else if let Some(win) = weak.upgrade() {
-        update_hover_in_model(state, &win);
     }
 }
 
@@ -1975,6 +1910,7 @@ fn handle_window_menu_action(
                     color_hex.as_deref(),
                 );
             });
+            needs_window_refresh = true;
             needs_ui_refresh = true;
         }
         WindowMenuAction::ToggleTag(tag) => {
@@ -3077,7 +3013,6 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                 item.height = (mw.display_rect.bottom - mw.display_rect.top) as f32;
                 item.title = SharedString::from(truncate_title(&mw.info.title));
                 item.app_label = SharedString::from(mw.info.app_label());
-                item.is_hovered = s.hover_index == Some(i);
                 item.is_active = s.active_hwnd == Some(mw.info.hwnd);
                 item.accent_color = accent;
                 item.show_footer = show_footer;
@@ -3092,8 +3027,7 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         let data: Vec<ThumbnailData> = s
             .windows
             .iter()
-            .enumerate()
-            .map(|(i, mw)| {
+            .map(|mw| {
                 let accent = thumbnail_accent_color(&s.settings, &s.current_theme, &mw.info.app_id);
                 let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
                 ThumbnailData {
@@ -3103,7 +3037,6 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
                     height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
                     title: SharedString::from(truncate_title(&mw.info.title)),
                     app_label: SharedString::from(mw.info.app_label()),
-                    is_hovered: s.hover_index == Some(i),
                     is_active: s.active_hwnd == Some(mw.info.hwnd),
                     accent_color: accent,
                     show_footer,

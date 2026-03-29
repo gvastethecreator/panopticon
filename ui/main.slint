@@ -32,7 +32,6 @@ export struct ThumbnailData {
     height: float,
     title: string,
     app-label: string,
-    is-hovered: bool,
     is-active: bool,
     accent-color: color,
     show-footer: bool,
@@ -59,7 +58,7 @@ export struct ResizeHandleData {
 component ThumbnailCard inherits Rectangle {
     in property <string> title;
     in property <string> app-label;
-    in property <bool> is-hovered;
+    property <bool> is-hovered: card-touch.has-hover;
     in property <bool> is-active;
     in property <bool> show-footer: true;
     in property <color> accent-color: Theme.accent;
@@ -74,7 +73,7 @@ component ThumbnailCard inherits Rectangle {
 
     background: Theme.card-bg;
     border-width: is-hovered || is-active ? 2px : 1px;
-    border-color: is-active ? Theme.accent : (is-hovered ? Theme.hover-border : Theme.border);
+    border-color: is-active ? root.accent-color : (is-hovered ? root.accent-color : Theme.border);
     border-radius: 4px;
     clip: true;
     property <bool> has-icon: root.show-icon && root.icon-image.width > 0;
@@ -126,7 +125,7 @@ component ThumbnailCard inherits Rectangle {
             border-radius: 4px;
             background: Theme.surface.with-alpha(0.72);
             border-width: 1px;
-            border-color: (root.is-active ? Theme.accent : Theme.border).with-alpha(0.7);
+            border-color: (root.is-active ? root.accent-color : Theme.border).with-alpha(0.7);
 
             Image {
                 x: 2px;
@@ -206,9 +205,6 @@ component ThumbnailCard inherits Rectangle {
             if event.kind == PointerEventKind.up && event.button == PointerEventButton.right && !in-close-zone {
                 root.right-clicked(card-touch.mouse-x / 1px, card-touch.mouse-y / 1px);
             }
-        }
-        moved => {
-            root.pointer-moved(card-touch.mouse-x / 1px, card-touch.mouse-y / 1px);
         }
     }
 
@@ -486,7 +482,6 @@ export component MainWindow inherits Window {
     callback thumbnail-clicked(/* index */ int);
     callback thumbnail-close-clicked(/* index */ int);
     callback thumbnail-right-clicked(/* index */ int, /* x */ float, /* y */ float);
-    callback thumbnail-hovered(/* index */ int);
     callback toolbar-clicked();
     callback app-context-menu-requested(/* x */ float, /* y */ float);
     callback key-pressed(/* key */ string) -> bool;
@@ -540,7 +535,6 @@ export component MainWindow inherits Window {
                     height: thumb.height * 1px;
                     title: thumb.title;
                     app-label: thumb.app-label;
-                    is-hovered: thumb.is-hovered;
                     is-active: thumb.is-active;
                     accent-color: thumb.accent-color;
                     show-footer: thumb.show-footer;
@@ -551,7 +545,6 @@ export component MainWindow inherits Window {
                     clicked => { root.thumbnail-clicked(i); }
                     close-requested => { root.thumbnail-close-clicked(i); }
                     right-clicked(x, y) => { root.thumbnail-right-clicked(i, x, y); }
-                    pointer-moved(x, y) => { root.thumbnail-hovered(i); }
                 }
             }
 
