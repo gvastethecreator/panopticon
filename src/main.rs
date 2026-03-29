@@ -784,6 +784,14 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         }
     });
 
+    main_window.on_thumbnail_drag_ended({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move |src_idx, drop_x, drop_y| {
+            handle_thumbnail_drag_ended(&state, &weak, src_idx as usize, drop_x as f64, drop_y as f64);
+        }
+    });
+
     main_window.on_thumbnail_close_clicked({
         let state = state.clone();
         let weak = main_window.as_weak();
@@ -1798,6 +1806,65 @@ fn handle_thumbnail_close(
     tracing::info!(title = %info.title, app_id = %info.app_id, "closing window from thumbnail button");
     close_target_window(info.hwnd);
     schedule_deferred_refresh(state, weak);
+}
+
+fn handle_thumbnail_drag_ended(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    src_idx: usize,
+    drop_x: f64,
+    drop_y: f64,
+) {
+    let needs_refresh = {
+        let mut s = state.borrow_mut();
+        if src_idx >= s.windows.len() {
+            return;
+        }
+
+        let target_idx = s.windows.iter().position(|mw| {
+            let r = mw.target_rect;
+            drop_x >= r.left as f64
+                && drop_x <= r.right as f64
+                && drop_y >= r.top as f64
+                && drop_y <= r.bottom as f64
+        });
+
+        if let Some(target_idx) = target_idx {
+            if target_idx == src_idx {
+                false
+            } else {
+                let dragged_app = s.windows[src_idx].info.app_id.clone();
+                let dragged_label = s.windows[src_idx].info.app_label();
+
+                let target_app = s.windows[target_idx].info.app_id.clone();
+                let target_label = s.windows[target_idx].info.app_label();
+
+                {
+                    let rule_src = s.settings.app_rules.entry(dragged_app).or_default();
+                    rule_src.display_name = dragged_label;
+                    rule_src.pinned_position = Some(target_idx);
+
+                    let rule_tgt = s.settings.app_rules.entry(target_app).or_default();
+                    rule_tgt.display_name = target_label;
+                    rule_tgt.pinned_position = Some(src_idx);
+                }
+
+                let profile = s.profile_name.clone();
+                let _ = s.settings.save(profile.as_deref());
+
+                true
+            }
+        } else {
+            false
+        }
+    };
+
+    if needs_refresh {
+        refresh_windows(state);
+        if let Some(win) = weak.upgrade() {
+            recompute_and_update_ui(state, &win);
+        }
+    }
 }
 
 fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {

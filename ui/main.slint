@@ -70,12 +70,21 @@ component ThumbnailCard inherits Rectangle {
     callback right-clicked(/* x */ float, /* y */ float);
     callback pointer-moved(/* x */ float, /* y */ float);
     callback close-requested();
+    callback move-drag-ended(/* dx */ float, /* dy */ float);
+
+    property <float> drag-start-x: -1.0;
+    property <float> drag-start-y: -1.0;
+    property <bool> is-dragging-card: false;
 
     background: Theme.card-bg;
-    border-width: is-hovered || is-active ? 2px : 1px;
+    opacity: is-dragging-card ? 0.7 : 1.0;
+    border-width: is-hovered || is-active || is-dragging-card ? 2px : 1px;
     border-color: is-active ? root.accent-color : (is-hovered ? root.accent-color : Theme.border);
     border-radius: 4px;
     clip: true;
+    
+    animate border-width, border-color, background { duration: 200ms; easing: ease-in-out; }
+
     property <bool> has-icon: root.show-icon && root.icon-image.width > 0;
     property <bool> show-header-info: root.show-footer || root.is-minimized;
     property <length> info-strip-height: root.show-header-info || root.has-icon ? 26px : 0px;
@@ -97,6 +106,8 @@ component ThumbnailCard inherits Rectangle {
         width: 100%;
         height: 3px;
         background: root.accent-color;
+        
+        animate background { duration: 200ms; easing: ease-in-out; }
     }
 
     // DWM thumbnail area — intentionally empty/dark so the compositor
@@ -126,6 +137,8 @@ component ThumbnailCard inherits Rectangle {
             background: Theme.surface.with-alpha(0.72);
             border-width: 1px;
             border-color: (root.is-active ? root.accent-color : Theme.border).with-alpha(0.7);
+            
+            animate border-color { duration: 200ms; easing: ease-in-out; }
 
             Image {
                 x: 2px;
@@ -159,6 +172,8 @@ component ThumbnailCard inherits Rectangle {
             background: root.accent-color.with-alpha(0.16);
             border-width: 1px;
             border-color: root.accent-color.with-alpha(0.55);
+            
+            animate background, border-color { duration: 200ms; easing: ease-in-out; }
 
             Text {
                 width: 100%;
@@ -174,12 +189,15 @@ component ThumbnailCard inherits Rectangle {
     }
 
     // Hover tooltip (shows title when footer is hidden)
-    if root.is-hovered && !root.show-footer && !root.is-minimized: Rectangle {
+    Rectangle {
         x: 0;
         y: parent.height - 28px;
         width: 100%;
         height: 28px;
         background: Theme.footer-bg.with-alpha(0.92);
+        opacity: root.is-hovered && !root.show-footer && !root.is-minimized ? 1.0 : 0.0;
+        
+        animate opacity { duration: 200ms; easing: ease-in-out; }
 
         Text {
             x: 10px;
@@ -199,24 +217,51 @@ component ThumbnailCard inherits Rectangle {
             let in-close-zone = root.show-close-button
                 && card-touch.mouse-x >= root.width - 30px
                 && card-touch.mouse-y <= 30px;
-            if event.kind == PointerEventKind.up && event.button == PointerEventButton.left && !in-close-zone {
-                root.clicked();
+
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left && !in-close-zone {
+                root.drag-start-x = card-touch.mouse-x / 1px;
+                root.drag-start-y = card-touch.mouse-y / 1px;
+                root.is-dragging-card = false;
             }
+
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.left && !in-close-zone {
+                if root.is-dragging-card {
+                    root.move-drag-ended(card-touch.mouse-x / 1px - root.drag-start-x, card-touch.mouse-y / 1px - root.drag-start-y);
+                } else {
+                    root.clicked();
+                }
+                root.drag-start-x = -1.0;
+                root.drag-start-y = -1.0;
+                root.is-dragging-card = false;
+            }
+
             if event.kind == PointerEventKind.up && event.button == PointerEventButton.right && !in-close-zone {
                 root.right-clicked(card-touch.mouse-x / 1px, card-touch.mouse-y / 1px);
             }
         }
+        moved => {
+            if root.drag-start-x >= 0.0 {
+                let dx = card-touch.mouse-x / 1px - root.drag-start-x;
+                let dy = card-touch.mouse-y / 1px - root.drag-start-y;
+                if !root.is-dragging-card && (Math.abs(dx) > 6.0 || Math.abs(dy) > 6.0) {
+                    root.is-dragging-card = true;
+                }
+            }
+        }
     }
 
-    if root.show-close-button: Rectangle {
+    Rectangle {
         x: parent.width - self.width - 8px;
         y: 3px + max((root.info-strip-height - self.height) / 2, 0px);
         width: 20px;
         height: 20px;
         border-radius: 10px;
-        background: Theme.footer-bg.with-alpha(0.96);
+        background: close-touch.has-hover ? Theme.border : Theme.footer-bg.with-alpha(0.96);
         border-width: 1px;
         border-color: Theme.border.with-alpha(0.92);
+        opacity: root.show-close-button ? 1.0 : 0.0;
+
+        animate opacity, background { duration: 200ms; easing: ease-in-out; }
 
         Text {
             width: 100%;
@@ -230,6 +275,7 @@ component ThumbnailCard inherits Rectangle {
         }
 
         close-touch := TouchArea {
+            enabled: root.show-close-button;
             mouse-cursor: MouseCursor.pointer;
             clicked => { root.close-requested(); }
         }
@@ -250,6 +296,8 @@ component ResizeHandle inherits Rectangle {
 
     background: !root.is-locked && (touch.has-hover || root.is-dragging) ? Theme.accent.with-alpha(root.is-dragging ? 0.72 : 0.42) : transparent;
     border-radius: 3px;
+    
+    animate background { duration: 150ms; }
 
     touch := TouchArea {
         mouse-cursor: root.is-locked ? MouseCursor.default : (root.horizontal ? MouseCursor.row-resize : MouseCursor.col-resize);
@@ -482,6 +530,7 @@ export component MainWindow inherits Window {
     callback thumbnail-clicked(/* index */ int);
     callback thumbnail-close-clicked(/* index */ int);
     callback thumbnail-right-clicked(/* index */ int, /* x */ float, /* y */ float);
+    callback thumbnail-drag-ended(/* index */ int, /* drop_x */ float, /* drop_y */ float);
     callback toolbar-clicked();
     callback app-context-menu-requested(/* x */ float, /* y */ float);
     callback key-pressed(/* key */ string) -> bool;
@@ -545,6 +594,7 @@ export component MainWindow inherits Window {
                     clicked => { root.thumbnail-clicked(i); }
                     close-requested => { root.thumbnail-close-clicked(i); }
                     right-clicked(x, y) => { root.thumbnail-right-clicked(i, x, y); }
+                    move-drag-ended(dx, dy) => { root.thumbnail-drag-ended(i, thumb.x + dx, thumb.y + dy); }
                 }
             }
 
