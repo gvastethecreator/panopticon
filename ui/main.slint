@@ -74,7 +74,9 @@ component ThumbnailCard inherits Rectangle {
 
     property <float> drag-start-x: -1.0;
     property <float> drag-start-y: -1.0;
-    property <bool> is-dragging-card: false;
+    out property <float> drag-offset-x: 0.0;
+    out property <float> drag-offset-y: 0.0;
+    out property <bool> is-dragging-card: false;
 
     background: Theme.card-bg;
     opacity: is-dragging-card ? 0.7 : 1.0;
@@ -226,12 +228,14 @@ component ThumbnailCard inherits Rectangle {
 
             if event.kind == PointerEventKind.up && event.button == PointerEventButton.left && !in-close-zone {
                 if root.is-dragging-card {
-                    root.move-drag-ended(card-touch.mouse-x / 1px - root.drag-start-x, card-touch.mouse-y / 1px - root.drag-start-y);
+                    root.move-drag-ended(root.drag-offset-x, root.drag-offset-y);
                 } else {
                     root.clicked();
                 }
                 root.drag-start-x = -1.0;
                 root.drag-start-y = -1.0;
+                root.drag-offset-x = 0.0;
+                root.drag-offset-y = 0.0;
                 root.is-dragging-card = false;
             }
 
@@ -245,6 +249,10 @@ component ThumbnailCard inherits Rectangle {
                 let dy = card-touch.mouse-y / 1px - root.drag-start-y;
                 if !root.is-dragging-card && (Math.abs(dx) > 6.0 || Math.abs(dy) > 6.0) {
                     root.is-dragging-card = true;
+                }
+                if root.is-dragging-card {
+                    root.drag-offset-x += dx;
+                    root.drag-offset-y += dy;
                 }
             }
         }
@@ -578,8 +586,8 @@ export component MainWindow inherits Window {
                 interactive: false;
 
                 for thumb[i] in root.thumbnails: ThumbnailCard {
-                    x: thumb.x * 1px;
-                    y: thumb.y * 1px;
+                    x: thumb.x * 1px + self.drag-offset-x * 1px;
+                    y: thumb.y * 1px + self.drag-offset-y * 1px;
                     width: thumb.width * 1px;
                     height: thumb.height * 1px;
                     title: thumb.title;
