@@ -575,8 +575,13 @@ impl AppSettings {
     /// Return a user-friendly label for the current grouping mode.
     #[must_use]
     pub fn grouping_label(&self) -> Option<String> {
-        (self.group_windows_by != WindowGrouping::None)
-            .then(|| format!("{}{}", i18n::t("filter.grouped_by"), self.group_windows_by.label()))
+        (self.group_windows_by != WindowGrouping::None).then(|| {
+            format!(
+                "{}{}",
+                i18n::t("filter.grouped_by"),
+                self.group_windows_by.label()
+            )
+        })
     }
 
     /// Toggle hidden state for `app_id`, creating a remembered app rule if necessary.

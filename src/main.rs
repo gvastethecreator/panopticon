@@ -3776,14 +3776,12 @@ fn sync_dock_system_menu(hwnd: HWND, docked: bool) {
 }
 
 const fn is_blocked_dock_syscommand(command: usize) -> bool {
-    matches!(
-        command & 0xFFF0,
-        value if value == SC_MOVE as usize
-            || value == SC_SIZE as usize
-            || value == SC_MINIMIZE as usize
-            || value == SC_MAXIMIZE as usize
-            || value == SC_CLOSE as usize
-    )
+    let masked = command & 0xFFF0;
+    masked == SC_MOVE as usize
+        || masked == SC_SIZE as usize
+        || masked == SC_MINIMIZE as usize
+        || masked == SC_MAXIMIZE as usize
+        || masked == SC_CLOSE as usize
 }
 
 fn docked_mode_active() -> bool {

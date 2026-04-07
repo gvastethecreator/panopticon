@@ -15,10 +15,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, DestroyIcon, DestroyMenu, DrawIconEx,
     GetClassLongPtrW, GetCursorPos, LoadIconW, SendMessageW, SetForegroundWindow, TrackPopupMenu,
     DI_NORMAL, GCLP_HICON, GCLP_HICONSM, HICON, ICON_BIG, ICON_SMALL, ICON_SMALL2, IDI_APPLICATION,
-    IMAGE_FLAGS, MF_CHECKED, MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
-    TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_NONOTIFY, TPM_RETURNCMD, WM_APP, WM_GETICON, WM_LBUTTONUP,
-    WM_RBUTTONUP,
+    IMAGE_FLAGS, MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
+    TPM_NONOTIFY, TPM_RETURNCMD, WM_APP, WM_GETICON, WM_LBUTTONUP, WM_RBUTTONUP,
 };
+
+use crate::app::menu_utils::{checked_flag, disabled_flag, encode_wide};
 
 /// Callback message sent by the tray icon.
 pub const WM_TRAYICON: u32 = WM_APP + 1;
@@ -348,7 +349,6 @@ pub fn draw_window_icon(
 }
 
 /// Resolve the best available icon for a source window.
-#[allow(dead_code)]
 #[must_use]
 pub fn resolve_window_icon(hwnd: HWND) -> Option<HICON> {
     resolve_window_icon_sized(hwnd, false)
@@ -650,23 +650,13 @@ pub fn show_application_context_menu_at(
         );
         let _ = AppendMenuW(
             menu,
-            MF_STRING
-                | if state.minimize_to_tray {
-                    windows::Win32::UI::WindowsAndMessaging::MF_CHECKED
-                } else {
-                    windows::Win32::UI::WindowsAndMessaging::MF_UNCHECKED
-                },
+            MF_STRING | checked_flag(state.minimize_to_tray),
             CMD_TRAY_TOGGLE_MINIMIZE_TO_TRAY as usize,
             PCWSTR(minimize_to_tray.as_ptr()),
         );
         let _ = AppendMenuW(
             menu,
-            MF_STRING
-                | if state.close_to_tray {
-                    windows::Win32::UI::WindowsAndMessaging::MF_CHECKED
-                } else {
-                    windows::Win32::UI::WindowsAndMessaging::MF_UNCHECKED
-                },
+            MF_STRING | checked_flag(state.close_to_tray),
             CMD_TRAY_TOGGLE_CLOSE_TO_TRAY as usize,
             PCWSTR(close_to_tray.as_ptr()),
         );
@@ -959,22 +949,6 @@ pub fn show_application_context_menu_at(
     }
 }
 
-const fn checked_flag(enabled: bool) -> windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS {
-    if enabled {
-        MF_CHECKED
-    } else {
-        MF_UNCHECKED
-    }
-}
-
-const fn disabled_flag(disabled: bool) -> windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS {
-    if disabled {
-        MF_GRAYED
-    } else {
-        windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS(0)
-    }
-}
-
 fn format_refresh_interval_label(interval_ms: u32) -> String {
     if interval_ms.is_multiple_of(1_000) {
         format!("{}s", interval_ms / 1_000)
@@ -1219,8 +1193,4 @@ fn write_wide_string<const N: usize>(buffer: &mut [u16; N], text: &str) {
     for (slot, value) in buffer.iter_mut().zip(encoded.chain(std::iter::once(0))) {
         *slot = value;
     }
-}
-
-fn encode_wide(text: &str) -> Vec<u16> {
-    text.encode_utf16().chain(std::iter::once(0)).collect()
 }

@@ -2,13 +2,14 @@
 
 use std::collections::HashSet;
 
+use crate::app::menu_utils::{checked_flag, disabled_flag, encode_wide};
 use panopticon::i18n;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, SetForegroundWindow, TrackPopupMenu,
-    MF_CHECKED, MF_GRAYED, MF_SEPARATOR, MF_STRING, MF_UNCHECKED, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
-    TPM_NONOTIFY, TPM_RETURNCMD,
+    MF_GRAYED, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_NONOTIFY,
+    TPM_RETURNCMD,
 };
 
 const CMD_HIDE_APP: u16 = 1;
@@ -232,24 +233,4 @@ fn dispatch_window_menu_command(id: u16, state: &WindowMenuState) -> Option<Wind
             .map(WindowMenuAction::ToggleTag),
         _ => None,
     }
-}
-
-const fn checked_flag(enabled: bool) -> windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS {
-    if enabled {
-        MF_CHECKED
-    } else {
-        MF_UNCHECKED
-    }
-}
-
-const fn disabled_flag(disabled: bool) -> windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS {
-    if disabled {
-        MF_GRAYED
-    } else {
-        windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS(0)
-    }
-}
-
-fn encode_wide(text: &str) -> Vec<u16> {
-    text.encode_utf16().chain(std::iter::once(0)).collect()
 }
