@@ -4,9 +4,13 @@
 
 # ── IDE / editor ─────────────────────────────────────────────
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
+
+# ── Local AI agent skills (not for public repo) ──────────────
+.agents/
 
 # ── OS files ─────────────────────────────────────────────────
 Thumbs.db
