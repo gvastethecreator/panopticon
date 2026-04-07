@@ -1,24 +1,24 @@
 name: Feature request
-description: Propón una mejora para Panopticon.
+description: Suggest an improvement for Panopticon.
 title: "[Feature]: "
 labels: [enhancement]
 body:
   - type: textarea
     id: problem
     attributes:
-      label: Problema o necesidad
-      description: ¿Qué caso de uso quieres resolver?
+      label: Problem or need
+      description: What use case do you want to solve?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Propuesta
-      description: Describe la solución deseada.
+      label: Proposal
+      description: Describe the desired solution.
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternativas consideradas
-      description: Otras opciones o workarounds.
+      label: Alternatives considered
+      description: Other options or workarounds.

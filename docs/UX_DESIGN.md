@@ -1,66 +1,66 @@
-# Diseño UX/UI
+# UX/UI Design
 
-Este documento describe cómo está pensada la experiencia de uso de Panopticon, qué superficies visuales la componen y qué principios se perciben en la implementación actual.
+This document describes the intended user experience of Panopticon, what visual surfaces compose it, and what principles are reflected in the current implementation.
 
-## Intención de diseño
+## Design intent
 
-Panopticon no se comporta como una aplicación documental o de formularios. Está diseñado como una **herramienta visual de observación y cambio de contexto**. La UI debe permitir que el usuario:
+Panopticon does not behave like a document or form application. It is designed as a **visual observation and context-switching tool**. The UI must let the user:
 
-- vea muchas ventanas al mismo tiempo;
-- identifique rápidamente qué app es cada tarjeta;
-- active o descarte ventanas con pocos gestos;
-- mantenga contexto persistente entre sesiones.
+- see many windows at the same time;
+- quickly identify which app each card represents;
+- activate or dismiss windows with few gestures;
+- maintain persistent context across sessions.
 
-## Superficies principales
+## Main surfaces
 
-### 1. Ventana principal (`MainWindow`)
+### 1. Main window (`MainWindow`)
 
-Es el tablero del producto. Contiene:
+This is the product dashboard. It contains:
 
-- toolbar superior opcional;
-- área principal con thumbnails;
-- estado vacío cuando no hay ventanas;
-- overlay scrollbar en layouts con overflow;
-- handles de resize para layouts que soportan ratios persistentes.
+- optional upper toolbar;
+- main area with thumbnails;
+- empty state when there are no windows;
+- overlay scrollbar in layouts with overflow;
+- resize handles for layouts that support persistent ratios.
 
 ### 2. Toolbar
 
-La toolbar resume el estado operativo del tablero:
+The toolbar summarises the dashboard operational state:
 
-- layout actual;
-- número de ventanas visibles;
-- número de apps ocultas;
-- intervalo de refresco;
-- filtros activos y agrupación;
-- estado de topmost y animaciones.
+- current layout;
+- number of visible windows;
+- number of hidden apps;
+- refresh interval;
+- active filters and grouping;
+- topmost and animation state.
 
-Además funciona como superficie interactiva:
+It also works as an interactive surface:
 
-- click para ciclar layouts;
-- click derecho para abrir el menú principal.
+- click to cycle layouts;
+- right-click to open the main menu.
 
-### 3. Tarjetas de miniatura (`ThumbnailCard`)
+### 3. Thumbnail cards (`ThumbnailCard`)
 
-Cada ventana del sistema se representa como una tarjeta con:
+Each system window is represented as a card with:
 
-- franja superior de accent;
-- placeholder oscuro donde se dibuja encima la miniatura DWM;
-- información opcional de título y app;
-- icono opcional;
-- estados visuales de hover/active;
-- estado alternativo para ventana minimizada.
+- upper accent stripe;
+- dark placeholder where the DWM thumbnail is drawn on top;
+- optional title and app information;
+- optional icon;
+- hover/active visual states;
+- alternative state for minimised windows.
 
-#### Decisiones visibles
+#### Visible decisions
 
-- el borde cambia al hacer hover o cuando la tarjeta está activa;
-- la tarjeta no renderiza la miniatura por sí misma: deja una zona preparada para que DWM la superponga;
-- el diseño prioriza contraste oscuro con accent cálido o derivado del tema.
+- the border changes on hover or when the card is active;
+- the card does not render the thumbnail itself: it leaves a prepared area for DWM to overlay;
+- the design prioritises dark contrast with warm or theme-derived accent.
 
 ### 4. Settings window
 
-Es el panel declarativo de configuración. Está organizado por bloques:
+This is the declarative configuration panel. It is organised by blocks:
 
-- comportamiento;
+- behaviour;
 - display;
 - theme;
 - layout;
@@ -73,135 +73,135 @@ Es el panel declarativo de configuración. Está organizado por bloques:
 - hidden apps;
 - shortcuts.
 
-Su propósito UX es que el usuario pueda ajustar casi todo sin editar TOML manualmente.
+Its UX purpose is to let the user adjust almost everything without manually editing TOML.
 
 ### 5. Tag dialog
 
-Es un diálogo compacto para crear una tag y asignarla a una app concreta. Pide:
+A compact dialog for creating a tag and assigning it to a specific app. It asks for:
 
-- nombre de tag;
-- color preset;
-- confirmación de creación/asignación.
+- tag name;
+- colour preset;
+- create/assign confirmation.
 
-### 6. Tray icon y menús nativos
+### 6. Tray icon and native menus
 
-Panopticon adopta un modelo “tray-first”:
+Panopticon adopts a "tray-first" model:
 
-- puede permanecer vivo aunque la ventana principal esté escondida;
-- el tray permite reabrir, refrescar, filtrar y restaurar apps ocultas;
-- es el centro operativo cuando se usa la app de forma persistente durante toda la sesión.
+- it can remain alive even when the main window is hidden;
+- the tray allows reopening, refreshing, filtering, and restoring hidden apps;
+- it is the operational centre when using the app persistently throughout an entire session.
 
-## Lenguaje visual
+## Visual language
 
-### Paleta
+### Palette
 
-El tema clásico usa una base oscura con accent ámbar, pero el sistema de temas permite derivar paletas a partir de `assets/themes.json`.
+The classic theme uses a dark base with amber accent, but the theme system allows deriving palettes from `assets/themes.json`.
 
-Elementos cromáticos principales:
+Main chromatic elements:
 
-- **bg**: fondo general;
-- **toolbar-bg**: barra superior;
-- **card-bg / panel-bg / surface**: superficies escalonadas;
-- **accent**: color protagonista del estado activo o del grupo;
-- **muted / label / text**: niveles de jerarquía tipográfica.
+- **bg**: general background;
+- **toolbar-bg**: upper bar;
+- **card-bg / panel-bg / surface**: layered surfaces;
+- **accent**: protagonist colour for the active state or group;
+- **muted / label / text**: typographic hierarchy levels.
 
-### Contraste y profundidad
+### Contrast and depth
 
-La UI usa:
+The UI uses:
 
-- superficies oscuras apiladas;
-- bordes finos y discretos;
-- franja superior de accent;
-- sombras sutiles en overlays;
-- un lenguaje visual compatible con Windows 11 cuando `use_system_backdrop` está activo.
+- stacked dark surfaces;
+- thin, subtle borders;
+- upper accent stripe;
+- faint shadows on overlays;
+- a visual language compatible with Windows 11 when `use_system_backdrop` is active.
 
-### Temas
+### Themes
 
-Los temas no son solo cosméticos: afectan casi todas las superficies y se interpolan con animación, de forma que el cambio no sea brusco.
+Themes are not merely cosmetic: they affect almost every surface and are interpolated with animation, so the change is not abrupt.
 
-## Modos de layout y modelo mental
+## Layout modes and mental model
 
-| Layout | Modelo mental | Cuándo resulta más útil |
+| Layout | Mental model | When it is most useful |
 | --- | --- | --- |
-| `Grid` | cuadrícula regular | overview general, muchos elementos similares |
-| `Mosaic` | filas con ancho adaptado a ratio | mix de ventanas anchas y altas |
-| `Bento` | una ventana protagonista + secundarias | foco principal con contexto lateral |
-| `Fibonacci` | división progresiva del espacio | exploración visual y composiciones asimétricas |
-| `Columns` | columnas balanceadas | flujos tipo tablero o mampostería |
-| `Row` | tira horizontal scrollable | comparación secuencial de muchas ventanas |
-| `Column` | tira vertical scrollable | uso en formato panel o dock alto |
+| `Grid` | regular grid | general overview, many similar items |
+| `Mosaic` | rows with ratio-adapted width | mix of wide and tall windows |
+| `Bento` | one protagonist window + secondaries | primary focus with lateral context |
+| `Fibonacci` | progressive space division | visual exploration and asymmetric compositions |
+| `Columns` | balanced columns | dashboard-style or masonry flows |
+| `Row` | scrollable horizontal strip | sequential comparison of many windows |
+| `Column` | scrollable vertical strip | panel or tall-dock use |
 
-## Interacciones principales
+## Main interactions
 
 ### Mouse
 
-- click izquierdo en tarjeta: activa ventana;
-- click derecho en tarjeta: abre menú contextual por ventana;
-- drag en separadores: ajusta proporciones persistentes;
-- rueda / pan con botón central: desplaza layouts con overflow;
-- click izquierdo en tray: alterna visibilidad;
-- click derecho en tray: abre menú principal.
+- left-click on card: activate window;
+- right-click on card: open per-window context menu;
+- drag on separators: adjust persistent ratios;
+- wheel / middle-button pan: scroll layouts with overflow;
+- left-click on tray: toggle visibility;
+- right-click on tray: open main menu.
 
-### Teclado
+### Keyboard
 
-- `1` a `7`: cambio directo de layout;
-- `Tab`: siguiente layout;
-- `0`: reset de ratios;
+- `1` to `7`: direct layout change;
+- `Tab`: next layout;
+- `0`: reset ratios;
 - `R`: refresh;
-- `A`, `H`, `I`, `P`, `T`: toggles rápidos;
+- `A`, `H`, `I`, `P`, `T`: quick toggles;
 - `O`: settings;
-- `M`: menú principal;
+- `M`: main menu;
 - `Alt`: toolbar;
-- `Esc`: salida.
+- `Esc`: exit.
 
-## Estados especiales de la UI
+## Special UI states
 
-### Ventana minimizada
+### Minimised window
 
-Cuando la ventana origen está minimizada, la tarjeta no intenta sostener una miniatura útil y cambia a una presentación centrada en el icono y el nombre de la app.
+When the source window is minimised, the card does not try to sustain a useful thumbnail and switches to a presentation centred on the icon and app name.
 
-### Estado vacío
+### Empty state
 
-Si no hay ventanas elegibles, la UI presenta un panel vacío central con texto explicativo en lugar de dejar un lienzo muerto.
+If there are no eligible windows, the UI presents a central empty panel with explanatory text instead of leaving a dead canvas.
 
-### Scrollbar overlay
+### Overlay scrollbar
 
-En lugar de scrollbars permanentes, Panopticon usa overlays discretos que aparecen con actividad y se desvanecen después. Esto mantiene el tablero limpio cuando no hay overflow.
+Instead of permanent scrollbars, Panopticon uses subtle overlays that appear with activity and fade afterwards. This keeps the dashboard clean when there is no overflow.
 
-## Principios UX que se ven reflejados en la implementación
+## UX principles reflected in the implementation
 
-### 1. Prioridad a la observación
+### 1. Observation priority
 
-El contenido principal son las ventanas del usuario, no los controles de la app. La interfaz intenta ocupar poco “ruido” visual y deja protagonismo a las miniaturas.
+The main content is the user's windows, not the app's controls. The interface tries to occupy little "visual noise" and gives prominence to the thumbnails.
 
-### 2. Control inmediato
+### 2. Immediate control
 
-Casi todas las acciones frecuentes están a un gesto o tecla:
+Almost all frequent actions are a single gesture or keypress away:
 
-- activar;
-- ocultar;
-- refrescar;
-- cambiar layout;
-- filtrar;
-- abrir settings.
+- activate;
+- hide;
+- refresh;
+- change layout;
+- filter;
+- open settings.
 
-### 3. Persistencia del contexto
+### 3. Context persistence
 
-Panopticon recuerda filtros, agrupación, colores, tags, layouts y perfiles. La UX no trata cada arranque como una sesión nueva sin memoria.
+Panopticon remembers filters, grouping, colours, tags, layouts, and profiles. The UX does not treat each start as a new session without memory.
 
-### 4. Utilidad de escritorio, no documento
+### 4. Desktop utility, not a document
 
-La presencia de tray, dock/appbar, topmost y start-in-tray muestra claramente que la aplicación está pensada para convivir con el escritorio, no para abrirse y cerrarse puntualmente.
+The presence of tray, dock/appbar, topmost, and start-in-tray clearly shows that the application is designed to coexist with the desktop, not to be opened and closed on demand.
 
-## Observaciones de diseño/implementación
+## Design/implementation observations
 
-- la UI declarativa define overlays de menú, pero el flujo activo principal usa menús nativos Win32;
-- la sección de tamaño del settings está orientada al grosor del dock/appbar, no al tamaño libre de la ventana flotante;
-- el sistema de tags está bien integrado, pero todavía se apoya mucho en el menú contextual por ventana y menos en edición masiva desde settings.
+- the declarative UI defines menu overlays, but the active main flow uses native Win32 menus;
+- the size section in settings is aimed at dock/appbar thickness, not at free floating window size;
+- the tag system is well integrated, but still relies heavily on the per-window context menu rather than bulk editing from settings.
 
-## Oportunidades de evolución UX
+## UX evolution opportunities
 
-1. hacer más visible el concepto de perfiles y su impacto en el arranque;
-2. exponer en UI opciones avanzadas que hoy existen solo en TOML, como el modo de refresco por thumbnail;
-3. decidir si los overlays de menú declarativos deben activarse o eliminarse;
-4. mejorar la comunicación visual del modo dock y de los filtros activos complejos.
+1. make the profile concept and its startup impact more visible;
+2. expose in the UI advanced options that currently exist only in TOML, such as per-thumbnail refresh mode;
+3. decide whether declarative menu overlays should be activated or removed;
+4. improve visual communication of dock mode and complex active filters.

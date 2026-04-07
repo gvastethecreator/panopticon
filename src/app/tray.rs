@@ -3,6 +3,7 @@
 use std::mem;
 
 use anyhow::{anyhow, Result};
+use panopticon::i18n;
 use panopticon::settings::{AppSelectionEntry, DockEdge, HiddenAppEntry, WindowGrouping};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, POINT, WPARAM};
@@ -179,16 +180,16 @@ pub struct AppIcons {
 }
 
 impl AppIcons {
-    /// Create custom generated icons for Panopticon.
+    /// Load application icons from the embedded `assets/icon.ico` resource.
     ///
     /// # Errors
     ///
-    /// Returns an error if the generated icon resource cannot be converted
-    /// into a live [`HICON`].
+    /// Returns an error if the ICO data cannot be parsed or a live [`HICON`]
+    /// cannot be created.
     pub fn new() -> Result<Self> {
         Ok(Self {
-            large: create_generated_icon(48)?,
-            small: create_generated_icon(16)?,
+            large: load_icon_from_ico(48)?,
+            small: load_icon_from_ico(16)?,
             owns_handles: true,
         })
     }
@@ -400,7 +401,7 @@ fn notify_data(hwnd: HWND, icon: HICON) -> NOTIFYICONDATAW {
         hIcon: icon,
         ..Default::default()
     };
-    write_wide_string(&mut nid.szTip, "Panopticon — Live window overview");
+    write_wide_string(&mut nid.szTip, i18n::t("tray.tooltip"));
     nid
 }
 
@@ -414,57 +415,57 @@ pub fn show_application_context_menu_at(
     unsafe {
         let menu = CreatePopupMenu().ok()?;
         let toggle_label = if state.window_visible {
-            "Hide to tray"
+            i18n::t("tray.hide")
         } else {
-            "Show Panopticon"
+            i18n::t("tray.show")
         };
 
-        let visibility_title = encode_wide("Visibility");
-        let layout_title = encode_wide("Layout");
-        let display_title = encode_wide("Display");
-        let behaviour_title = encode_wide("Behaviour");
-        let filters_title = encode_wide("Filters");
+        let visibility_title = encode_wide(i18n::t("tray.visibility"));
+        let layout_title = encode_wide(i18n::t("tray.layout"));
+        let display_title = encode_wide(i18n::t("tray.display"));
+        let behaviour_title = encode_wide(i18n::t("tray.behaviour"));
+        let filters_title = encode_wide(i18n::t("tray.filters"));
         let toggle = encode_wide(toggle_label);
-        let refresh = encode_wide("Refresh windows");
-        let open_settings = encode_wide("Open settings window");
-        let next_layout = encode_wide("Next layout");
-        let lock_layout = encode_wide("Lock layout switching");
-        let lock_cell_resize = encode_wide("Lock cell / column resizing");
-        let dock_title = encode_wide("Dock position");
-        let grouping_title = encode_wide("Group windows by");
-        let minimize_to_tray = encode_wide("Hide on minimize");
-        let close_to_tray = encode_wide("Hide on close");
-        let refresh_interval = encode_wide(&format!(
-            "Cycle refresh interval ({})",
-            format_refresh_interval_label(state.refresh_interval_ms)
+        let refresh = encode_wide(i18n::t("tray.refresh"));
+        let open_settings = encode_wide(i18n::t("tray.open_settings"));
+        let next_layout = encode_wide(i18n::t("tray.next_layout"));
+        let lock_layout = encode_wide(i18n::t("tray.lock_layout"));
+        let lock_cell_resize = encode_wide(i18n::t("tray.lock_resize"));
+        let dock_title = encode_wide(i18n::t("tray.dock_position"));
+        let grouping_title = encode_wide(i18n::t("tray.group_by"));
+        let minimize_to_tray = encode_wide(i18n::t("tray.minimize_to_tray"));
+        let close_to_tray = encode_wide(i18n::t("tray.close_to_tray"));
+        let refresh_interval = encode_wide(&i18n::t_fmt(
+            "tray.cycle_refresh",
+            &format_refresh_interval_label(state.refresh_interval_ms),
         ));
-        let animations = encode_wide("Animate transitions");
-        let default_aspect_ratio = encode_wide("Default: preserve aspect ratio");
-        let default_hide_on_select = encode_wide("Default: hide after activation");
-        let always_on_top = encode_wide("Keep Panopticon on top");
-        let show_toolbar = encode_wide("Show header");
-        let show_window_info = encode_wide("Show window info");
-        let show_app_icons = encode_wide("Show app icons in cells");
-        let start_in_tray = encode_wide("Start hidden in tray");
-        let dock_none = encode_wide("Floating (no dock)");
-        let dock_left = encode_wide("Left");
-        let dock_right = encode_wide("Right");
-        let dock_top = encode_wide("Top");
-        let dock_bottom = encode_wide("Bottom");
-        let group_none = encode_wide("No grouping");
-        let group_application = encode_wide("Application");
-        let group_monitor = encode_wide("Monitor");
-        let group_window_title = encode_wide("Window title");
-        let group_class_name = encode_wide("Window class");
-        let restore_hidden_title = encode_wide("Restore hidden apps");
-        let restore_all_hidden = encode_wide("Restore all hidden apps");
-        let monitor_filter_title = encode_wide("Filter by monitor");
-        let monitor_all = encode_wide("All monitors");
-        let tag_filter_title = encode_wide("Filter by tag");
-        let tag_filter_all = encode_wide("All tags");
-        let app_filter_title = encode_wide("Filter by application");
-        let app_filter_all = encode_wide("All applications");
-        let exit = encode_wide("Exit");
+        let animations = encode_wide(i18n::t("tray.animate"));
+        let default_aspect_ratio = encode_wide(i18n::t("tray.default_aspect"));
+        let default_hide_on_select = encode_wide(i18n::t("tray.default_hide"));
+        let always_on_top = encode_wide(i18n::t("tray.always_on_top"));
+        let show_toolbar = encode_wide(i18n::t("tray.show_toolbar"));
+        let show_window_info = encode_wide(i18n::t("tray.show_info"));
+        let show_app_icons = encode_wide(i18n::t("tray.show_icons"));
+        let start_in_tray = encode_wide(i18n::t("tray.start_tray"));
+        let dock_none = encode_wide(i18n::t("dock.none"));
+        let dock_left = encode_wide(i18n::t("dock.left"));
+        let dock_right = encode_wide(i18n::t("dock.right"));
+        let dock_top = encode_wide(i18n::t("dock.top"));
+        let dock_bottom = encode_wide(i18n::t("dock.bottom"));
+        let group_none = encode_wide(i18n::t("group.none"));
+        let group_application = encode_wide(i18n::t("group.application"));
+        let group_monitor = encode_wide(i18n::t("group.monitor"));
+        let group_window_title = encode_wide(i18n::t("group.title"));
+        let group_class_name = encode_wide(i18n::t("group.class"));
+        let restore_hidden_title = encode_wide(i18n::t("tray.restore_hidden"));
+        let restore_all_hidden = encode_wide(i18n::t("tray.restore_all"));
+        let monitor_filter_title = encode_wide(i18n::t("tray.filter_monitor"));
+        let monitor_all = encode_wide(i18n::t("tray.all_monitors"));
+        let tag_filter_title = encode_wide(i18n::t("tray.filter_tag"));
+        let tag_filter_all = encode_wide(i18n::t("tray.all_tags"));
+        let app_filter_title = encode_wide(i18n::t("tray.filter_app"));
+        let app_filter_all = encode_wide(i18n::t("tray.all_apps"));
+        let exit = encode_wide(i18n::t("tray.exit"));
 
         let mut hidden_labels: Vec<Vec<u16>> = Vec::with_capacity(state.hidden_apps.len());
         let mut monitor_labels: Vec<Vec<u16>> = Vec::with_capacity(state.available_monitors.len());
@@ -982,13 +983,52 @@ fn format_refresh_interval_label(interval_ms: u32) -> String {
     }
 }
 
-fn create_generated_icon(size: u8) -> Result<HICON> {
-    let bytes = build_icon_resource(size);
-    let image_data = &bytes[22..];
+/// Application icon, statically compiled into the binary.
+static APP_ICON_ICO: &[u8] = include_bytes!("../../assets/icon.ico");
 
-    // SAFETY: `bytes` contains a valid in-memory ICO resource with a single
-    // 32-bit image; the buffer outlives the call.
-    let icon = unsafe {
+/// Load an [`HICON`] from the embedded `assets/icon.ico`, selecting the entry
+/// whose dimensions are closest to `size × size`.
+fn load_icon_from_ico(size: u8) -> Result<HICON> {
+    let ico = APP_ICON_ICO;
+    if ico.len() < 6 {
+        return Err(anyhow!("embedded ICO file is too small"));
+    }
+
+    let count = u16::from_le_bytes([ico[4], ico[5]]) as usize;
+    let mut best_offset: Option<(usize, usize)> = None; // (data_offset, data_len)
+    let mut best_diff: u16 = u16::MAX;
+
+    for i in 0..count {
+        let e = 6 + i * 16;
+        if e + 16 > ico.len() {
+            break;
+        }
+        // ICONDIRENTRY: width is byte 0 (0 encodes 256)
+        let img_w = ico[e];
+        let actual_w: u16 = if img_w == 0 { 256 } else { u16::from(img_w) };
+        let diff = actual_w.abs_diff(u16::from(size));
+
+        let img_bytes =
+            u32::from_le_bytes(ico[e + 8..e + 12].try_into().unwrap_or_default()) as usize;
+        let img_off =
+            u32::from_le_bytes(ico[e + 12..e + 16].try_into().unwrap_or_default()) as usize;
+
+        if diff < best_diff {
+            best_diff = diff;
+            best_offset = Some((img_off, img_bytes));
+        }
+    }
+
+    let (img_off, img_bytes) =
+        best_offset.ok_or_else(|| anyhow!("no entries found in embedded ICO"))?;
+    let image_data = ico
+        .get(img_off..img_off + img_bytes)
+        .ok_or_else(|| anyhow!("ICO entry data is out of bounds"))?;
+
+    // SAFETY: `image_data` points to a valid ICO image entry (BITMAPINFOHEADER
+    // or PNG header) inside a static buffer; `CreateIconFromResourceEx` copies
+    // the data so the pointer does not need to remain valid after the call.
+    unsafe {
         CreateIconFromResourceEx(
             image_data,
             BOOL(1),
@@ -997,20 +1037,16 @@ fn create_generated_icon(size: u8) -> Result<HICON> {
             i32::from(size),
             IMAGE_FLAGS(0),
         )
-    };
-
-    if icon.is_err() {
-        Err(anyhow!("failed to create generated icon handle"))
-    } else {
-        Ok(icon?)
     }
+    .map_err(|_| anyhow!("CreateIconFromResourceEx failed for size {size}"))
 }
 
 fn create_colored_icon(size: u8, accent_rgb: [u8; 3]) -> Result<HICON> {
     let bytes = build_colored_icon_resource(size, accent_rgb);
     let image_data = &bytes[22..];
 
-    // SAFETY: same as `create_generated_icon`.
+    // SAFETY: `bytes` contains a valid in-memory ICO resource with a single
+    // 32-bit BGRA image; the buffer outlives the call.
     let icon = unsafe {
         CreateIconFromResourceEx(
             image_data,
@@ -1026,96 +1062,6 @@ fn create_colored_icon(size: u8, accent_rgb: [u8; 3]) -> Result<HICON> {
         Err(anyhow!("failed to create coloured icon handle"))
     } else {
         Ok(icon?)
-    }
-}
-
-fn build_icon_resource(size: u8) -> Vec<u8> {
-    let size_usize = usize::from(size);
-    let mask_stride = size_usize.div_ceil(32) * 4;
-    let image_size = 40 + (size_usize * size_usize * 4) + (mask_stride * size_usize);
-    let image_offset = 6 + 16;
-
-    let mut bytes = Vec::with_capacity(image_offset + image_size);
-
-    // ICONDIR
-    bytes.extend_from_slice(&0u16.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-
-    // ICONDIRENTRY
-    bytes.push(size);
-    bytes.push(size);
-    bytes.push(0);
-    bytes.push(0);
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&32u16.to_le_bytes());
-    bytes.extend_from_slice(&(image_size as u32).to_le_bytes());
-    bytes.extend_from_slice(&(image_offset as u32).to_le_bytes());
-
-    // BITMAPINFOHEADER
-    bytes.extend_from_slice(&40u32.to_le_bytes());
-    bytes.extend_from_slice(&(i32::from(size)).to_le_bytes());
-    bytes.extend_from_slice(&(i32::from(size) * 2).to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&32u16.to_le_bytes());
-    bytes.extend_from_slice(&0u32.to_le_bytes());
-    bytes.extend_from_slice(&((size_usize * size_usize * 4) as u32).to_le_bytes());
-    bytes.extend_from_slice(&0u32.to_le_bytes());
-    bytes.extend_from_slice(&0u32.to_le_bytes());
-    bytes.extend_from_slice(&0u32.to_le_bytes());
-    bytes.extend_from_slice(&0u32.to_le_bytes());
-
-    // XOR bitmap (BGRA, bottom-up)
-    for y in (0..size_usize).rev() {
-        for x in 0..size_usize {
-            let pixel = icon_pixel(x as f32, y as f32, size as f32);
-            bytes.extend_from_slice(&pixel);
-        }
-    }
-
-    // AND mask (all zero = fully visible; alpha controls transparency)
-    bytes.resize(image_offset + image_size, 0);
-
-    bytes
-}
-
-fn icon_pixel(x: f32, y: f32, size: f32) -> [u8; 4] {
-    let center = (size - 1.0) / 2.0;
-    let dx = x - center;
-    let dy = y - center;
-    let distance = (dx * dx + dy * dy).sqrt();
-
-    let outer = size * 0.47;
-    let ring = size * 0.41;
-    let eye_x = dx / (size * 0.36);
-    let eye_y = dy / (size * 0.22);
-    let eye = eye_x * eye_x + eye_y * eye_y;
-    let iris = distance <= size * 0.14;
-    let pupil = distance <= size * 0.07;
-    let highlight = (x - size * 0.62).powi(2) + (y - size * 0.36).powi(2) <= (size * 0.05).powi(2);
-
-    let transparent = [0, 0, 0, 0];
-    let dark = [0x19, 0x1A, 0x20, 0xFF];
-    let slate = [0x2D, 0x31, 0x3B, 0xFF];
-    let accent = [0xC8, 0x89, 0x56, 0xFF];
-    let accent_ring = [0xE2, 0xA0, 0x61, 0xFF];
-    let near_white = [0xF4, 0xF6, 0xFA, 0xFF];
-    let pupil_color = [0x08, 0x0A, 0x0E, 0xFF];
-
-    if distance > outer {
-        transparent
-    } else if distance >= ring {
-        accent_ring
-    } else if highlight {
-        near_white
-    } else if pupil {
-        pupil_color
-    } else if iris {
-        accent
-    } else if eye <= 1.0 {
-        slate
-    } else {
-        dark
     }
 }
 

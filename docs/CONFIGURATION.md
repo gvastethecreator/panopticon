@@ -1,29 +1,29 @@
-# Configuración
+# Configuration
 
-Panopticon guarda sus preferencias en archivos TOML locales. No existe una base de datos ni sincronización remota: la configuración persistida es parte del propio proyecto/usuario en Windows.
+Panopticon stores its preferences in local TOML files. There is no database or remote synchronisation: the persisted configuration belongs to the local project/user on Windows.
 
-## Ubicaciones de configuración
+## Configuration locations
 
-### Perfil por defecto
+### Default profile
 
 ```text
 %APPDATA%\Panopticon\settings.toml
 ```
 
-### Perfiles nombrados
+### Named profiles
 
 ```text
-%APPDATA%\Panopticon\profiles\<perfil>.toml
+%APPDATA%\Panopticon\profiles\<profile>.toml
 ```
 
-### Fallback si `%APPDATA%` no existe
+### Fallback if `%APPDATA%` does not exist
 
 ```text
 %TEMP%\Panopticon\settings.toml
-%TEMP%\Panopticon\profiles\<perfil>.toml
+%TEMP%\Panopticon\profiles\<profile>.toml
 ```
 
-## Esquema general
+## General schema
 
 ```toml
 initial_layout = "grid"
@@ -71,42 +71,42 @@ col_ratios = [0.7, 0.3]
 row_ratios = [0.4, 0.6]
 ```
 
-## Claves globales
+## Global keys
 
-| Clave | Tipo | Default | Efecto real en runtime | Notas |
+| Key | Type | Default | Runtime effect | Notes |
 | --- | --- | --- | --- | --- |
-| `initial_layout` | `LayoutType` | `Grid` | layout activo al arrancar | también se actualiza al cambiar layout en runtime |
-| `refresh_interval_ms` | `u32` | `2000` | frecuencia de `refresh_windows()` | se normaliza a `1000`, `2000`, `5000` o `10000` |
-| `minimize_to_tray` | `bool` | `true` | minimizar esconde la app en tray | afecta `WM_SIZE` |
-| `close_to_tray` | `bool` | `true` | cerrar esconde la app en tray | afecta `WM_CLOSE` |
-| `preserve_aspect_ratio` | `bool` | `false` | default global para miniaturas | se puede sobrescribir por app |
-| `hide_on_select` | `bool` | `true` | oculta Panopticon al activar una app | en modo dock queda desactivado de forma efectiva |
-| `animate_transitions` | `bool` | `true` | anima cambios de layout | duración actual: `180 ms` |
-| `always_on_top` | `bool` | `false` | usa `SetWindowPos(HWND_TOPMOST)` | también afecta diálogos secundarios |
-| `active_monitor_filter` | `Option<String>` | `None` | filtra ventanas por monitor | persistente entre sesiones |
-| `active_tag_filter` | `Option<String>` | `None` | filtra ventanas por tag | excluyente con `active_app_filter` |
-| `active_app_filter` | `Option<String>` | `None` | filtra ventanas por app | excluyente con `active_tag_filter` |
-| `group_windows_by` | `WindowGrouping` | `None` | reordena ventanas visibles | no filtra; solo agrupa/ordena |
-| `fixed_width` | `Option<u32>` | `None` | grosor del dock lateral | hoy no fija el ancho de la ventana flotante |
-| `fixed_height` | `Option<u32>` | `None` | grosor del dock superior/inferior | hoy no fija la altura de la ventana flotante |
-| `dock_edge` | `Option<DockEdge>` | `None` | activa modo appbar | valores: `left`, `right`, `top`, `bottom` |
-| `theme_id` | `Option<String>` | `None` | selecciona preset de `assets/themes.json` | `None` = tema clásico |
-| `background_color_hex` | `String` | `181513` | color base del cliente | también participa en fallback del tema clásico |
-| `use_system_backdrop` | `bool` | `true` | backdrop + rounded corners en Windows 11 | vía `DwmSetWindowAttribute` |
-| `show_toolbar` | `bool` | `true` | muestra/oculta header superior | también altera espacio útil del viewport |
-| `show_window_info` | `bool` | `true` | muestra título/app sobre la miniatura | afecta el alto útil del thumbnail |
-| `start_in_tray` | `bool` | `false` | arranca escondido | libera thumbnails antes de ocultar |
-| `background_image_path` | `Option<String>` | `None` | dibuja imagen detrás del tablero | si falla la carga se limpia silenciosamente |
-| `locked_layout` | `bool` | `false` | bloquea cambios de layout | desactiva atajos y toolbar para layouts |
-| `lock_cell_resize` | `bool` | `false` | bloquea drag de separadores | puede coexistir con `locked_layout` |
-| `show_app_icons` | `bool` | `true` | muestra iconos en tarjetas | usa caché + rasterización GDI |
-| `layout_customizations` | `Map<String, LayoutCustomization>` | vacío | ratios personalizados por layout | se generan al arrastrar separadores |
-| `app_rules` | `Map<String, AppRule>` | vacío | reglas persistentes por app | clave = `app_id` |
-| `tag_styles` | `Map<String, TagStyle>` | vacío | color de tags manuales | se normaliza según tags realmente existentes |
+| `initial_layout` | `LayoutType` | `Grid` | active layout at startup | also updated when changing layout at runtime |
+| `refresh_interval_ms` | `u32` | `2000` | frequency of `refresh_windows()` | normalised to `1000`, `2000`, `5000`, or `10000` |
+| `minimize_to_tray` | `bool` | `true` | minimise hides the app to tray | affects `WM_SIZE` |
+| `close_to_tray` | `bool` | `true` | close hides the app to tray | affects `WM_CLOSE` |
+| `preserve_aspect_ratio` | `bool` | `false` | global default for thumbnails | can be overridden per app |
+| `hide_on_select` | `bool` | `true` | hides Panopticon when activating an app | effectively disabled in dock mode |
+| `animate_transitions` | `bool` | `true` | animates layout changes | current duration: `180 ms` |
+| `always_on_top` | `bool` | `false` | uses `SetWindowPos(HWND_TOPMOST)` | also affects secondary dialogs |
+| `active_monitor_filter` | `Option<String>` | `None` | filters windows by monitor | persistent across sessions |
+| `active_tag_filter` | `Option<String>` | `None` | filters windows by tag | mutually exclusive with `active_app_filter` |
+| `active_app_filter` | `Option<String>` | `None` | filters windows by app | mutually exclusive with `active_tag_filter` |
+| `group_windows_by` | `WindowGrouping` | `None` | reorders visible windows | does not filter; only groups/sorts |
+| `fixed_width` | `Option<u32>` | `None` | lateral dock thickness | does not set the floating window width today |
+| `fixed_height` | `Option<u32>` | `None` | top/bottom dock thickness | does not set the floating window height today |
+| `dock_edge` | `Option<DockEdge>` | `None` | activates appbar mode | values: `left`, `right`, `top`, `bottom` |
+| `theme_id` | `Option<String>` | `None` | selects a preset from `assets/themes.json` | `None` = classic theme |
+| `background_color_hex` | `String` | `181513` | base client colour | also participates in the classic theme fallback |
+| `use_system_backdrop` | `bool` | `true` | backdrop + rounded corners on Windows 11 | via `DwmSetWindowAttribute` |
+| `show_toolbar` | `bool` | `true` | show/hide upper header | also changes the usable viewport area |
+| `show_window_info` | `bool` | `true` | shows title/app on the thumbnail | affects the usable thumbnail height |
+| `start_in_tray` | `bool` | `false` | starts hidden | releases thumbnails before hiding |
+| `background_image_path` | `Option<String>` | `None` | draws an image behind the dashboard | silently cleared on load failure |
+| `locked_layout` | `bool` | `false` | locks layout changes | disables shortcuts and toolbar for layouts |
+| `lock_cell_resize` | `bool` | `false` | locks separator dragging | can coexist with `locked_layout` |
+| `show_app_icons` | `bool` | `true` | shows icons on cards | uses cache + GDI rasterisation |
+| `layout_customizations` | `Map<String, LayoutCustomization>` | empty | custom ratios per layout | generated when dragging separators |
+| `app_rules` | `Map<String, AppRule>` | empty | persistent per-app rules | key = `app_id` |
+| `tag_styles` | `Map<String, TagStyle>` | empty | manual tag colours | normalised against actually existing tags |
 
-## Reglas por aplicación
+## Per-application rules
 
-Cada entrada de `app_rules` está indexada por `app_id`. El formato más común es:
+Each `app_rules` entry is keyed by `app_id`. The most common format is:
 
 ```toml
 [app_rules."exe:c:\\program files\\arc\\arc.exe"]
@@ -121,23 +121,23 @@ thumbnail_refresh_mode = "interval"
 thumbnail_refresh_interval_ms = 5000
 ```
 
-### Campos de `AppRule`
+### `AppRule` fields
 
-| Campo | Tipo | Uso |
+| Field | Type | Usage |
 | --- | --- | --- |
-| `display_name` | `String` | etiqueta amigable en menús y restore |
-| `hidden` | `bool` | excluye la app del layout visible |
-| `preserve_aspect_ratio` | `bool` | sobrescribe el default global |
-| `hide_on_select` | `bool` | valor heredado/compatibilidad |
-| `hide_on_select_override` | `Option<bool>` | override explícito moderno |
-| `tags` | `Vec<String>` | tags manuales para agrupación/filtro |
-| `color_hex` | `Option<String>` | color fijo para la tarjeta |
+| `display_name` | `String` | friendly label in menus and restore |
+| `hidden` | `bool` | excludes the app from the visible layout |
+| `preserve_aspect_ratio` | `bool` | overrides the global default |
+| `hide_on_select` | `bool` | inherited/legacy value |
+| `hide_on_select_override` | `Option<bool>` | explicit modern override |
+| `tags` | `Vec<String>` | manual tags for grouping/filtering |
+| `color_hex` | `Option<String>` | fixed card colour |
 | `thumbnail_refresh_mode` | `ThumbnailRefreshMode` | `realtime`, `frozen`, `interval` |
-| `thumbnail_refresh_interval_ms` | `Option<u32>` | usado cuando el modo es `interval` |
+| `thumbnail_refresh_interval_ms` | `Option<u32>` | used when the mode is `interval` |
 
-## Tags y estilos
+## Tags and styles
 
-Los tags manuales se almacenan en `tag_styles` y se asignan a apps desde `app_rules.<app>.tags`.
+Manual tags are stored in `tag_styles` and assigned to apps via `app_rules.<app>.tags`.
 
 ```toml
 [tag_styles.work]
@@ -147,16 +147,16 @@ color_hex = "D29A5C"
 color_hex = "5CA9FF"
 ```
 
-### Comportamiento importante
+### Important behaviour
 
-- los tags se normalizan a minúsculas;
-- se eliminan duplicados y espacios sobrantes;
-- si un tag deja de usarse en `app_rules`, su estilo puede desaparecer tras normalización;
-- cuando `active_tag_filter` está activo, el color del tag se usa como accent por defecto del tablero filtrado.
+- tags are normalised to lowercase;
+- duplicates and extra whitespace are removed;
+- if a tag is no longer used in `app_rules`, its style may disappear after normalisation;
+- when `active_tag_filter` is active, the tag colour is used as the default dashboard accent.
 
-## Layout customizations
+## Layout customisations
 
-Los layouts con separadores persistibles escriben sus ratios bajo `layout_customizations`.
+Layouts with persistable separators write their ratios under `layout_customizations`.
 
 ```toml
 [layout_customizations.Columns]
@@ -166,53 +166,53 @@ col_ratios = [0.2, 0.5, 0.3]
 col_ratios = [0.15, 0.35, 0.2, 0.3]
 ```
 
-Notas:
+Notes:
 
-- `Grid` usa `col_ratios` y `row_ratios`.
-- `Mosaic` persiste principalmente `row_ratios`.
-- `Bento` usa una razón principal de columna y ratios para el sidebar.
-- `Columns` usa ratios de columnas.
-- `Row` y `Column` persisten ratios por item en el eje scrollable.
-- `Fibonacci` no usa customización persistente de separadores.
+- `Grid` uses `col_ratios` and `row_ratios`.
+- `Mosaic` primarily persists `row_ratios`.
+- `Bento` uses a main column ratio and sidebar ratios.
+- `Columns` uses column ratios.
+- `Row` and `Column` persist per-item ratios on the scrollable axis.
+- `Fibonacci` does not use persistent separator customisation.
 
-## Perfiles
+## Profiles
 
-Panopticon soporta perfiles separados por archivo.
+Panopticon supports separate per-file profiles.
 
-### Cómo se usan
+### How they work
 
-- la app puede arrancar con `--profile <nombre>`;
-- la ventana de settings permite guardar el estado actual en otro perfil;
-- también permite abrir otra instancia con otro perfil;
-- si no hay perfiles extra, el runtime intenta sembrar `profile-1` y `profile-2`.
+- the app can start with `--profile <name>`;
+- the settings window allows saving the current state to another profile;
+- it also allows opening another instance with a different profile;
+- if no extra profiles exist, the runtime seeds `profile-1` and `profile-2`.
 
-## Normalización automática
+## Automatic normalisation
 
-Antes de entrar al runtime, `AppSettings::normalized()` corrige varios casos:
+Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 
-- intervalos de refresco fuera del conjunto permitido;
-- filtros vacíos;
-- tags vacíos o duplicados;
-- colores hex inválidos;
-- nombres de perfil no válidos para Windows;
-- reglas con `app_id` vacío;
-- estilos de tags huérfanos;
-- herencia antigua de `hide_on_select` hacia el modelo moderno con override.
+- refresh intervals outside the allowed set;
+- empty filters;
+- empty or duplicate tags;
+- invalid hex colours;
+- profile names not valid for Windows;
+- rules with an empty `app_id`;
+- orphaned tag styles;
+- legacy `hide_on_select` inheritance towards the modern override model.
 
-## Relaciones y exclusiones importantes
+## Important relationships and exclusions
 
-### Filtros
+### Filters
 
-- activar `active_tag_filter` limpia `active_app_filter`;
-- activar `active_app_filter` limpia `active_tag_filter`;
-- `active_monitor_filter` puede coexistir con los anteriores.
+- activating `active_tag_filter` clears `active_app_filter`;
+- activating `active_app_filter` clears `active_tag_filter`;
+- `active_monitor_filter` can coexist with the above.
 
 ### Dock
 
-- si `dock_edge` está activo, `hide_on_select_for(app)` devuelve `false` en runtime aunque exista override;
-- `fixed_width` / `fixed_height` se interpretan como grosor del dock, no como tamaño libre de la ventana flotante.
+- if `dock_edge` is active, `hide_on_select_for(app)` returns `false` at runtime even if an override exists;
+- `fixed_width` / `fixed_height` are interpreted as dock thickness, not as free floating window size.
 
-### Temas
+### Themes
 
-- `theme_id = None` usa el tema clásico;
-- si `theme_id` no existe en `assets/themes.json`, el runtime hace fallback al tema clásico.
+- `theme_id = None` uses the classic theme;
+- if `theme_id` does not exist in `assets/themes.json`, the runtime falls back to the classic theme.

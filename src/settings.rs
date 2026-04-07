@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{PanopticonError, Result};
+use crate::i18n;
 use crate::layout::{LayoutCustomization, LayoutType};
 
 const DEFAULT_REFRESH_INTERVAL_MS: u32 = 2_000;
@@ -75,13 +76,13 @@ impl Default for WindowGrouping {
 impl WindowGrouping {
     /// User-facing label for the current grouping mode.
     #[must_use]
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
-            Self::None => "sin agrupar",
-            Self::Application => "aplicación",
-            Self::Monitor => "monitor",
-            Self::WindowTitle => "título",
-            Self::ClassName => "clase",
+            Self::None => i18n::t("group.none"),
+            Self::Application => i18n::t("group.application"),
+            Self::Monitor => i18n::t("group.monitor"),
+            Self::WindowTitle => i18n::t("group.title"),
+            Self::ClassName => i18n::t("group.class"),
         }
     }
 }
@@ -575,7 +576,7 @@ impl AppSettings {
     #[must_use]
     pub fn grouping_label(&self) -> Option<String> {
         (self.group_windows_by != WindowGrouping::None)
-            .then(|| format!("agrupar:{}", self.group_windows_by.label()))
+            .then(|| format!("{}{}", i18n::t("filter.grouped_by"), self.group_windows_by.label()))
     }
 
     /// Toggle hidden state for `app_id`, creating a remembered app rule if necessary.

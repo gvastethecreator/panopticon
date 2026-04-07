@@ -1,200 +1,202 @@
-# Estructura del proyecto
+# Project Structure
 
-Este documento describe cómo está organizado el repositorio, qué responsabilidad tiene cada carpeta y cuáles son las piezas que conviene tratar como código fuente, assets, documentación o artefactos generados.
+This document describes how the repository is organised, what each folder is responsible for, and which pieces should be treated as source code, assets, documentation, or generated artefacts.
 
-## Vista general
+## General view
 
 ```text
 panopticon/
-├── .agents/
-├── .github/
-├── assets/
-├── docs/
-├── src/
-├── tests/
-├── ui/
-├── build.rs
-├── Cargo.toml
-├── README.md
-├── PRD.md
-├── Justfile
-└── ...otros archivos de soporte
++-- .agents/
++-- .github/
++-- assets/
++-- docs/
++-- src/
++-- tests/
++-- ui/
++-- build.rs
++-- Cargo.toml
++-- README.md
++-- PRD.md
++-- Justfile
++-- ...other support files
 ```
 
-## Archivos raíz importantes
+## Important root files
 
-| Archivo | Propósito |
+| File | Purpose |
 | --- | --- |
-| `Cargo.toml` | manifiesto del crate, dependencias, perfiles y lints |
-| `build.rs` | compila `ui/main.slint` durante el build |
-| `README.md` | entrada principal del proyecto |
-| `PRD.md` | definición de producto actualizada |
-| `Justfile` | comandos auxiliares del proyecto |
-| `CHANGELOG.md` | historial de cambios visible |
-| `CONTRIBUTING.md` | guía de contribución |
-| `SECURITY.md` | política de seguridad |
-| `SUPPORT.md` | canales y alcance del soporte |
-| `rustfmt.toml` | estilo de formato Rust |
-| `LICENSE` | licencia del proyecto |
+| `Cargo.toml` | crate manifest, dependencies, profiles, and lints |
+| `build.rs` | compiles `ui/main.slint` during the build |
+| `README.md` | main project entry point |
+| `PRD.md` | updated product definition |
+| `Justfile` | auxiliary project commands |
+| `CHANGELOG.md` | visible change history |
+| `CONTRIBUTING.md` | contribution guide |
+| `SECURITY.md` | security policy |
+| `SUPPORT.md` | support channels and scope |
+| `rustfmt.toml` | Rust format style |
+| `LICENSE` | project licence |
 
-## Carpetas del repositorio
+## Repository folders
 
 ### `src/`
 
-Es la fuente principal del crate y del binario.
+The main source of the crate and binary.
 
-#### Archivos en `src/`
+#### Files in `src/`
 
-| Ruta | Rol |
+| Path | Role |
 | --- | --- |
-| `src/lib.rs` | índice del crate biblioteca; reexporta módulos base |
-| `src/main.rs` | binario principal; event loop, Win32 interop, tray, settings window, dock y sincronización total |
-| `src/constants.rs` | constantes de UI, animación y truncado |
-| `src/error.rs` | errores tipados del crate |
-| `src/layout.rs` | motor de layouts puro y testeable |
-| `src/logging.rs` | inicialización de `tracing` con archivos rolling |
-| `src/settings.rs` | persistencia TOML y normalización de configuración |
-| `src/theme.rs` | catálogo de temas e interpolación visual |
-| `src/thumbnail.rs` | wrapper RAII para thumbnails DWM |
-| `src/window_enum.rs` | enumeración de ventanas Win32 y extracción de metadatos |
+| `src/lib.rs` | crate library index; re-exports base modules |
+| `src/main.rs` | main binary; event loop, Win32 interop, tray, settings window, dock, and full synchronisation |
+| `src/constants.rs` | UI, animation, and truncation constants |
+| `src/error.rs` | typed crate errors |
+| `src/i18n.rs` | internationalisation (English / Spanish) |
+| `src/layout.rs` | pure, testable layout engine |
+| `src/logging.rs` | `tracing` initialisation with rolling files |
+| `src/settings.rs` | TOML persistence and configuration normalisation |
+| `src/theme.rs` | theme catalogue and visual interpolation |
+| `src/thumbnail.rs` | RAII wrapper for DWM thumbnails |
+| `src/window_enum.rs` | Win32 window enumeration and metadata extraction |
 
-#### Subcarpeta `src/app/`
+#### Subfolder `src/app/`
 
-Agrupa helpers orientados a la UX del binario.
+Groups helpers oriented towards the binary UX.
 
-| Ruta | Rol |
+| Path | Role |
 | --- | --- |
-| `src/app/mod.rs` | índice de helpers del binario |
-| `src/app/settings_ui.rs` | puente entre `AppSettings` y `SettingsWindow` |
-| `src/app/tray.rs` | iconos, tray icon, menús nativos y acciones del tray |
-| `src/app/window_menu.rs` | menú contextual por ventana |
+| `src/app/mod.rs` | binary helper index |
+| `src/app/settings_ui.rs` | bridge between `AppSettings` and `SettingsWindow` |
+| `src/app/tray.rs` | icons, tray icon, native menus, and tray actions |
+| `src/app/window_menu.rs` | per-window context menu |
 
 ### `ui/`
 
-Contiene la UI declarativa de Slint.
+Contains the declarative Slint UI.
 
-| Ruta | Rol |
+| Path | Role |
 | --- | --- |
-| `ui/main.slint` | definición de `MainWindow`, `SettingsWindow`, `TagDialogWindow`, tarjetas, toolbar, scrollbars y componentes visuales |
+| `ui/main.slint` | definition of `MainWindow`, `SettingsWindow`, `TagDialogWindow`, cards, toolbar, scrollbars, and visual components |
 
-Es una carpeta clave: cualquier cambio de estructura visual o bindings declarativos pasa por aquí.
+This is a key folder: any visual structure or declarative binding change goes through here.
 
 ### `tests/`
 
-Pruebas de integración del proyecto.
+Project integration tests.
 
-| Ruta | Rol |
+| Path | Role |
 | --- | --- |
-| `tests/layout_tests.rs` | valida el motor de layouts, overflow, counts, ratios y separadores |
+| `tests/layout_tests.rs` | validates the layout engine, overflow, counts, ratios, and separators |
 
-Además, hay tests unitarios embebidos en `src/settings.rs` y `src/theme.rs`.
+Additionally, there are unit tests embedded in `src/settings.rs` and `src/theme.rs`.
 
 ### `assets/`
 
-Assets consumidos en runtime o durante documentación visual.
+Assets consumed at runtime or during visual documentation.
 
-| Ruta | Rol |
+| Path | Role |
 | --- | --- |
-| `assets/themes.json` | catálogo de temas base usado por `src/theme.rs` |
+| `assets/themes.json` | base theme catalogue used by `src/theme.rs` |
 
 ### `docs/`
 
-Documentación técnica y de producto del proyecto.
+Technical and product documentation for the project.
 
-| Ruta | Enfoque |
+| Path | Focus |
 | --- | --- |
-| `docs/GETTING_STARTED.md` | instalación y flujo inicial |
-| `docs/ARCHITECTURE.md` | arquitectura, capas y diagramas |
-| `docs/CONFIGURATION.md` | configuración persistente y perfiles |
-| `docs/PROJECT_STRUCTURE.md` | mapa del repositorio |
-| `docs/IMPLEMENTATION.md` | detalles internos por módulo y runtime |
-| `docs/SYSTEM_INTEGRATIONS.md` | APIs, dependencias y servicios del sistema |
-| `docs/UX_DESIGN.md` | diseño de experiencia y componentes visuales |
-| `docs/assets/` | recursos gráficos usados por la documentación |
+| `docs/GETTING_STARTED.md` | installation and initial flow |
+| `docs/ARCHITECTURE.md` | architecture, layers, and diagrams |
+| `docs/CONFIGURATION.md` | persistent configuration and profiles |
+| `docs/PROJECT_STRUCTURE.md` | repository map |
+| `docs/IMPLEMENTATION.md` | internal details per module and runtime |
+| `docs/SYSTEM_INTEGRATIONS.md` | APIs, dependencies, and system services |
+| `docs/UX_DESIGN.md` | experience design and visual components |
+| `docs/assets/` | graphic resources used by the documentation |
 
 ### `.github/`
 
-Convenciones del proyecto para colaboración, CI y automatización.
+Project conventions for collaboration, CI, and automation.
 
-- workflows de CI;
-- plantillas de issues/PR si existen;
-- instrucciones específicas para agentes.
+- CI workflows;
+- issue/PR templates if present;
+- agent-specific instructions.
 
 ### `.agents/`
 
-Instrucciones y skills específicas del repositorio para asistentes/automatización. No forman parte del producto final, pero sí de su capa de mantenimiento asistido.
+Repository-specific instructions and skills for assistants/automation. They are not part of the final product, but rather part of its assisted maintenance layer.
 
 ### `target/`
 
-Artefactos generados por Cargo.
+Artefacts generated by Cargo.
 
-Incluye:
+Includes:
 
-- binarios de debug/release;
-- dependencias compiladas;
+- debug/release binaries;
+- compiled dependencies;
 - incremental builds;
-- cobertura si se ejecuta `tarpaulin`;
-- artefactos de tests y doc.
+- coverage if `tarpaulin` is run;
+- test and doc artefacts.
 
-**No debe editarse manualmente.**
+**Must not be edited manually.**
 
 ### `doc/`
 
-Documentación HTML generada por `cargo doc`. Es un artefacto generado, no una fuente primaria de mantenimiento.
+HTML documentation generated by `cargo doc`. This is a generated artefact, not a primary maintenance source.
 
 ### `temp/`
 
-Carpeta de trabajo auxiliar del repositorio. Por el estado actual contiene archivos temporales y notas operativas, por lo que conviene tratarla como material de soporte y no como código fuente central.
+Auxiliary workspace folder. Currently contains temporary files and operational notes, so it should be treated as support material rather than core source code.
 
-## Organización conceptual del código
+## Conceptual code organisation
 
-El proyecto puede entenderse en cinco grupos:
+The project can be understood in five groups:
 
-1. **Núcleo de dominio técnico**  
+1. **Technical domain core**  
    `layout.rs`, `settings.rs`, `theme.rs`
-2. **Interoperabilidad Win32/DWM**  
-   `window_enum.rs`, `thumbnail.rs`, partes grandes de `main.rs`, `tray.rs`, `window_menu.rs`
-3. **Capa de UI**  
+2. **Win32/DWM interop**  
+   `window_enum.rs`, `thumbnail.rs`, large parts of `main.rs`, `tray.rs`, `window_menu.rs`
+3. **UI layer**  
    `ui/main.slint`, `settings_ui.rs`
-4. **Orquestación runtime**  
+4. **Runtime orchestration**  
    `main.rs`
-5. **Calidad y soporte**  
+5. **Quality and support**  
    `tests/`, `docs/`, `logging.rs`, `error.rs`
 
-## Qué carpetas son fuente de verdad
+## Which folders are sources of truth
 
-### Sí: editar normalmente
+### Yes: edit normally
 
 - `src/`
 - `ui/`
 - `tests/`
 - `docs/`
 - `assets/`
-- archivos raíz como `Cargo.toml`, `README.md`, `PRD.md`
+- root files like `Cargo.toml`, `README.md`, `PRD.md`
 
-### No: generadas o transitorias
+### No: generated or transient
 
 - `target/`
 - `doc/`
-- parte del contenido de `temp/` si solo son salidas o notas de trabajo
+- some `temp/` content if only outputs or work notes
 
-## Rutas clave para distintos tipos de cambio
+## Key paths by type of change
 
-| Si quieres cambiar... | Empieza por... |
+| If you want to change... | Start with... |
 | --- | --- |
-| comportamiento de layouts | `src/layout.rs` + `tests/layout_tests.rs` |
-| persistencia o settings | `src/settings.rs` + `src/app/settings_ui.rs` |
-| UX visual principal | `ui/main.slint` |
-| enumeración de ventanas | `src/window_enum.rs` |
-| miniaturas DWM | `src/thumbnail.rs` + `src/main.rs` |
-| tray y menús rápidos | `src/app/tray.rs` |
-| menú por ventana | `src/app/window_menu.rs` |
+| layout behaviour | `src/layout.rs` + `tests/layout_tests.rs` |
+| persistence or settings | `src/settings.rs` + `src/app/settings_ui.rs` |
+| main visual UX | `ui/main.slint` |
+| window enumeration | `src/window_enum.rs` |
+| DWM thumbnails | `src/thumbnail.rs` + `src/main.rs` |
+| tray and quick menus | `src/app/tray.rs` |
+| per-window menu | `src/app/window_menu.rs` |
 | theming | `src/theme.rs` + `assets/themes.json` |
-| documentación | `README.md`, `PRD.md`, `docs/*.md` |
+| internationalisation | `src/i18n.rs` |
+| documentation | `README.md`, `PRD.md`, `docs/*.md` |
 
-## Observaciones estructurales importantes
+## Important structural observations
 
-- `main.rs` es el archivo más cargado de responsabilidad del proyecto.
-- `layout.rs` es la pieza más limpia y desacoplada.
-- la UI declarativa está centralizada en un único archivo Slint, lo cual simplifica la búsqueda, pero puede crecer bastante con el tiempo.
-- `target/` y `doc/` pueden ser voluminosos; no deben confundirse con código mantenible del producto.
+- `main.rs` is the file with the most concentrated responsibility in the project.
+- `layout.rs` is the cleanest and most decoupled piece.
+- the declarative UI is centralised in a single Slint file, which simplifies searching but can grow significantly over time.
+- `target/` and `doc/` can be voluminous; they should not be confused with maintainable product code.

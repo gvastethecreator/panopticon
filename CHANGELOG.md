@@ -4,15 +4,17 @@
 
 ### Added
 
-- filtros por monitor persistentes;
-- filtros por tag y por aplicación desde el tray;
-- tags manuales persistentes por aplicación;
-- creación de tags desde el menú contextual de cada app;
-- documentación open source y plantillas de colaboración;
-- icono SVG del proyecto;
-- job de documentación y `cargo audit` en GitHub Actions.
+- persistent per-monitor filters;
+- tag and application filters from the tray;
+- persistent manual tags per application;
+- tag creation from each app's context menu;
+- open-source documentation and collaboration templates;
+- project SVG icon;
+- documentation and `cargo audit` jobs in GitHub Actions;
+- i18n system with English (default) and Spanish support.
 
 ### Changed
 
-- README actualizado con enlaces reales del repositorio;
-- arquitectura documentada con el flujo de filtros y grupos.
+- README updated with real repository links;
+- architecture documented with filters and grouping flow;
+- version set to 0.1.0 for initial public release.

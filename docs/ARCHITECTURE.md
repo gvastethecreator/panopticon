@@ -1,66 +1,66 @@
-# Arquitectura de Panopticon
+# Panopticon Architecture
 
-## Resumen
+## Overview
 
-Panopticon es una aplicación nativa para Windows construida alrededor de cuatro piezas principales:
+Panopticon is a native Windows application built around four main pieces:
 
-1. **Enumeración Win32** para descubrir ventanas utilizables.
-2. **Miniaturas DWM** para renderizar previsualizaciones vivas sin copiar bitmaps.
-3. **Motor de layouts puro** para calcular geometría y separadores persistibles.
-4. **UI Slint** para presentar el tablero, settings y diálogos.
+1. **Win32 enumeration** to discover usable windows.
+2. **DWM thumbnails** to render live previews without copying bitmaps.
+3. **Pure layout engine** to compute geometry and persistable resize separators.
+4. **Slint UI** to present the dashboard, settings, and dialogs.
 
-El proyecto no utiliza backend, red, base de datos ni servicios externos. Toda la arquitectura es local y depende de APIs del sistema operativo.
+The project does not use a backend, network, database, or external services. The entire architecture is local and relies on operating-system APIs.
 
-## Vista por capas
+## Layer view
 
 ```mermaid
 flowchart TD
-    U[Usuario] --> UI[UI Slint\nMainWindow / SettingsWindow / TagDialogWindow]
-    UI --> CB[Callbacks y modelo UI\nmain.rs + app/settings_ui.rs]
-    CB --> ST[AppState\nventanas, thumbnails, settings, tema, tray]
+    U[User] --> UI[Slint UI\nMainWindow / SettingsWindow / TagDialogWindow]
+    UI --> CB[Callbacks and UI model\nmain.rs + app/settings_ui.rs]
+    CB --> ST[AppState\nwindows, thumbnails, settings, theme, tray]
     ST --> L[layout.rs\ncompute_layout_custom]
     ST --> E[window_enum.rs\nenumerate_windows]
     ST --> T[thumbnail.rs\nRAII DWM thumbnail]
-    ST --> S[settings.rs\nTOML + normalización]
-    ST --> TH[theme.rs\npresets y transición]
-    ST --> TR[app/tray.rs + app/window_menu.rs\nmenús y tray]
+    ST --> S[settings.rs\nTOML + normalisation]
+    ST --> TH[theme.rs\npresets and transition]
+    ST --> TR[app/tray.rs + app/window_menu.rs\nmenus and tray]
     E --> W32[Win32 / User32 / Process APIs]
     T --> DWM[Desktop Window Manager]
-    TR --> SH[Shell / AppBar / Menús]
-    S --> FS[Sistema de archivos\nAPPDATA / TEMP]
+    TR --> SH[Shell / AppBar / Menus]
+    S --> FS[File system\nAPPDATA / TEMP]
     CB --> LOG[logging.rs\ntracing]
 ```
 
-## Flujo de arranque
+## Startup flow
 
 ```mermaid
 sequenceDiagram
-    participant User as Usuario
+    participant User
     participant Main as main.rs
     participant Slint as Slint UI
     participant Win32 as Win32/DWM
     participant Settings as settings.toml
 
-    User->>Main: Ejecuta panopticon.exe
+    User->>Main: Run panopticon.exe
     Main->>Main: init logging
     Main->>Win32: SetProcessDpiAwarenessContext
     Main->>Settings: load_or_default(profile)
     Main->>Slint: MainWindow::new()
     Main->>Slint: show()
-    Main->>Main: timer de inicialización diferida
-    Main->>Win32: obtener HWND nativo
-    Main->>Win32: aplicar apariencia DWM
-    Main->>Win32: registrar tray icon
+    Main->>Main: deferred initialisation timer
+    Main->>Win32: acquire native HWND
+    Main->>Win32: apply DWM appearance
+    Main->>Win32: register tray icon
     Main->>Main: refresh_windows()
     Main->>Main: compute layout + sync model
-    Main->>Win32: registrar/update thumbnails DWM
+    Main->>Win32: register/update DWM thumbnails
 ```
 
-## Flujo de runtime
+## Runtime flow
 
-### 1. Descubrimiento de ventanas
+### 1. Window discovery
 
-`window_enum.rs` llama a `EnumWindows` y construye `WindowInfo` con:
+`window_enum.rs` calls `EnumWindows` and builds `WindowInfo` with:
 
 - `hwnd`
 - `title`
@@ -70,92 +70,93 @@ sequenceDiagram
 - `class_name`
 - `monitor_name`
 
-Las ventanas se filtran antes de entrar en el estado principal.
+Windows are filtered before entering the main state.
 
-### 2. Materialización del estado visible
+### 2. Visible state materialisation
 
-`main.rs` convierte `WindowInfo` en `ManagedWindow`, que añade:
+`main.rs` converts `WindowInfo` into `ManagedWindow`, which adds:
 
-- thumbnail DWM opcional;
-- rectángulo objetivo y rectángulo mostrado;
-- tamaño fuente del thumbnail;
-- timestamp de refresco del thumbnail;
-- icono caché para render secundario.
+- optional DWM thumbnail;
+- target and displayed rectangles;
+- thumbnail source size;
+- thumbnail refresh timestamps;
+- cached icon for secondary rendering.
 
 ### 3. Layout
 
-`layout.rs` recibe:
+`layout.rs` receives:
 
 ```text
 (layout, area, count, aspect_hints, custom_ratios)
 ```
 
-y devuelve:
+and returns:
 
 ```text
 LayoutResult { rects, separators }
 ```
 
-Esto permite separar con bastante limpieza la geometría pura de la integración Win32/Slint.
+This cleanly separates pure geometry from Win32/Slint integration.
 
-### 4. Sincronización con DWM
+### 4. DWM synchronisation
 
 `update_dwm_thumbnails()`:
 
-- asegura que el `Thumbnail` exista;
-- calcula el rectángulo de destino real dentro de la tarjeta;
-- aplica preserve-aspect si corresponde;
-- respeta viewport, toolbar, padding y footer;
-- maneja modos `Realtime`, `Frozen` e `Interval`;
-- libera thumbnails cuando la ventana fuente está minimizada o deja de ser válida.
+- ensures the `Thumbnail` exists;
+- computes the real destination rectangle inside the card;
+- applies preserve-aspect when appropriate;
+- respects viewport, toolbar, padding, and footer;
+- handles `Realtime`, `Frozen`, and `Interval` modes;
+- releases thumbnails when the source window is minimised or no longer valid.
 
-### 5. Sincronización con la UI
+### 5. UI synchronisation
 
-`sync_model_to_slint()` actualiza el modelo `ThumbnailData` y los `ResizeHandleData` que usa `ui/main.slint`.
+`sync_model_to_slint()` updates the `ThumbnailData` model and `ResizeHandleData` used by `ui/main.slint`.
 
-## Módulos principales
+## Main modules
 
-| Módulo | Rol arquitectónico |
+| Module | Architectural role |
 | --- | --- |
-| `src/main.rs` | orquestación principal, timers, AppState, callbacks, tray, dock, menús, settings window |
-| `src/layout.rs` | motor geométrico puro y testeable |
-| `src/window_enum.rs` | descubrimiento Win32 y filtrado inicial |
-| `src/thumbnail.rs` | wrapper RAII para `HTHUMBNAIL` |
-| `src/settings.rs` | persistencia, normalización y reglas por aplicación |
-| `src/theme.rs` | catálogo de temas, resolución e interpolación |
-| `src/app/tray.rs` | iconos, tray icon y menús de aplicación |
-| `src/app/window_menu.rs` | menú contextual por ventana |
-| `src/app/settings_ui.rs` | binding entre settings persistidos y ventana de configuración |
-| `ui/main.slint` | definición visual de ventanas, tarjetas, toolbar, overlays y diálogos |
+| `src/main.rs` | main orchestration, timers, AppState, callbacks, tray, dock, menus, settings window |
+| `src/layout.rs` | pure, testable geometry engine |
+| `src/window_enum.rs` | Win32 discovery and initial filtering |
+| `src/thumbnail.rs` | RAII wrapper for `HTHUMBNAIL` |
+| `src/settings.rs` | persistence, normalisation, and per-app rules |
+| `src/theme.rs` | theme catalogue, resolution, and interpolation |
+| `src/i18n.rs` | internationalisation (English / Spanish) |
+| `src/app/tray.rs` | icons, tray icon, and application menus |
+| `src/app/window_menu.rs` | per-window context menu |
+| `src/app/settings_ui.rs` | binding between persisted settings and the settings window |
+| `ui/main.slint` | visual definition for windows, cards, toolbar, overlays, and dialogs |
 
-## Estado central
+## Central state
 
-El runtime gira alrededor de `AppState`, que contiene al menos estas responsabilidades:
+The runtime revolves around `AppState`, which contains at least:
 
-- `hwnd` de la ventana principal;
-- colección de `ManagedWindow`;
-- layout actual;
-- settings cargados;
-- estado de hover/selección;
-- icono de tray;
-- tema actual y posible animación entre temas;
-- información de scroll, dock y separadores.
+- main window `hwnd`;
+- `ManagedWindow` collection;
+- current layout;
+- loaded settings;
+- hover/selection state;
+- tray icon;
+- current theme and possible theme animation;
+- scroll, dock, and separator information.
 
-Es un estado grande y muy centralizado. Esa centralización simplifica la coordinación del event loop, pero también convierte a `main.rs` en el archivo más denso del proyecto.
+It is a large and highly centralised state. This centralisation simplifies event-loop coordination but also makes `main.rs` the densest file in the project.
 
-## Timers y ciclos periódicos
+## Timers and periodic cycles
 
-Panopticon usa tres timers principales:
+Panopticon uses three main timers:
 
-| Timer | Frecuencia | Responsabilidad |
+| Timer | Frequency | Responsibility |
 | --- | --- | --- |
-| UI timer | ~16 ms | drenar acciones pendientes, detectar resize, animar layout, animar tema y re-sincronizar thumbnails |
-| Refresh timer | configurable (`1s`, `2s`, `5s`, `10s`) | re-enumerar ventanas y reconciliar estado |
-| Scrollbar timer | 200 ms | auto-ocultar overlay scrollbar tras inactividad |
+| UI timer | ~16 ms | drain pending actions, detect resize, animate layout, animate theme, re-sync thumbnails |
+| Refresh timer | configurable (`1s`, `2s`, `5s`, `10s`) | re-enumerate windows and reconcile state |
+| Scrollbar timer | 200 ms | auto-hide overlay scrollbar after inactivity |
 
 ## Win32 subclassing
 
-La ventana principal Slint se subclasifica para interceptar mensajes Win32 que la UI declarativa por sí sola no resuelve del todo bien:
+The main Slint window is subclassed to intercept Win32 messages that the declarative UI cannot resolve on its own:
 
 - `WM_TRAYICON`
 - `TaskbarCreated`
@@ -166,66 +167,66 @@ La ventana principal Slint se subclasifica para interceptar mensajes Win32 que l
 - `WM_MOUSEWHEEL`
 - `WM_MBUTTONDOWN` / `WM_MBUTTONUP` / `WM_MOUSEMOVE`
 
-Esto permite integrar tray, dock/appbar, cierre a tray, scroll manual y hotkeys concretas como `Alt`.
+This enables tray, dock/appbar, close-to-tray, manual scroll, and specific hotkeys like `Alt`.
 
-## Persistencia y perfiles
+## Persistence and profiles
 
-`settings.rs` es la capa de persistencia del proyecto. Mantiene:
+`settings.rs` is the project's persistence layer. It maintains:
 
-- configuración global;
-- reglas por app;
-- estilos de tags;
-- filtros activos;
-- agrupación;
-- customizaciones de layout;
-- nombre de tema;
-- opciones de tray, dock, fondo e iconos.
+- global configuration;
+- per-app rules;
+- tag styles;
+- active filters;
+- grouping;
+- layout customisations;
+- theme name;
+- tray, dock, background, and icon options.
 
-Además, soporta perfiles separados por archivo y normaliza entradas inválidas antes de que lleguen al runtime.
+It also supports separate per-file profiles and normalises invalid inputs before they reach the runtime.
 
-## Unsafe y fronteras de seguridad
+## Unsafe and security boundaries
 
-El proyecto usa `unsafe` principalmente para interoperar con Win32, DWM, Shell y GDI. Las reglas arquitectónicas visibles son:
+The project uses `unsafe` primarily to interoperate with Win32, DWM, Shell, and GDI. The visible architectural rules are:
 
-- mantener los bloques `unsafe` lo más pequeños posible;
-- acompañarlos con comentarios `SAFETY`;
-- encapsular handles sensibles dentro de wrappers o helpers cuando es viable;
-- dejar la lógica de negocio y la geometría fuera del código `unsafe`.
+- keep `unsafe` blocks as small as possible;
+- accompany them with `SAFETY` comments;
+- encapsulate sensitive handles inside wrappers or helpers when viable;
+- keep business logic and geometry outside `unsafe` code.
 
-Las zonas donde más aparece `unsafe` son:
+The areas where `unsafe` appears most:
 
-- enumeración Win32 y callbacks FFI;
-- subclassing de la ventana principal;
-- registro y actualización de thumbnails DWM;
-- icon generation con GDI;
-- tray icon, menús nativos y appbar.
+- Win32 enumeration and FFI callbacks;
+- main window subclassing;
+- DWM thumbnail registration and update;
+- icon generation with GDI;
+- tray icon, native menus, and appbar.
 
-## Decisiones de diseño relevantes
+## Relevant design decisions
 
-### DWM en vez de capturas manuales
+### DWM instead of manual captures
 
-Panopticon prioriza miniaturas vivas del sistema sobre screenshots propias. Esto reduce trabajo de CPU y aprovecha el compositor del sistema.
+Panopticon prioritises live system thumbnails over self-made screenshots. This reduces CPU work and leverages the system compositor.
 
-### Layout engine puro
+### Pure layout engine
 
-`layout.rs` está diseñado para ser calculable y testeable sin depender del resto del runtime. Esa separación es uno de los mejores puntos del proyecto.
+`layout.rs` is designed to be computable and testable without depending on the rest of the runtime. This separation is one of the strongest points of the project.
 
-### Settings persistidos como fuente de verdad
+### Persisted settings as source of truth
 
-Los filtros, grupos, temas y reglas por app no son solo UI state efímero: el usuario puede cerrar y abrir la app sin perder el contexto de trabajo.
+Filters, groups, themes, and per-app rules are not just ephemeral UI state: the user can close and reopen the application without losing context.
 
-### Tray como patrón operativo principal
+### Tray as the primary operating pattern
 
-Panopticon está pensado más como utilidad de escritorio persistente que como una ventana tradicional de abrir/cerrar una sola vez.
+Panopticon is designed more as a persistent desktop utility than as a traditional open-and-close window.
 
-## Limitaciones arquitectónicas actuales
+## Current architectural limitations
 
-1. `main.rs` concentra demasiadas responsabilidades.
-2. Algunas piezas declaradas en `ui/main.slint` parecen más amplias que el runtime activo actual.
-3. el modo dock/appbar sigue concentrado en `main.rs`, lo que complica su evolución y pruebas.
-4. La cobertura automática se centra en layout/settings/theme, no en integración Win32.
+1. `main.rs` concentrates too many responsibilities.
+2. Some declarative pieces in `ui/main.slint` appear broader than the currently active runtime.
+3. The dock/appbar mode is still concentrated in `main.rs`, complicating evolution and testing.
+4. Automated coverage focuses on layout/settings/theme, not on Win32 integration.
 
-## Lecturas recomendadas
+## Recommended reading
 
 - [`docs/IMPLEMENTATION.md`](IMPLEMENTATION.md)
 - [`docs/SYSTEM_INTEGRATIONS.md`](SYSTEM_INTEGRATIONS.md)

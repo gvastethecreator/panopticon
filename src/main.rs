@@ -101,6 +101,37 @@ thread_local! {
     static SCROLL_LAST_ACTIVITY: Cell<Option<Instant>> = const { Cell::new(None) };
 }
 
+/// Populate the `Tr` global on any Slint window with the current locale strings.
+macro_rules! populate_tr_global {
+    ($window:expr) => {{
+        use panopticon::i18n;
+        let tr = $window.global::<Tr>();
+        tr.set_minimized(SharedString::from(i18n::t("ui.minimized")));
+        tr.set_last_seen(SharedString::from(i18n::t("ui.last_seen")));
+        tr.set_visible_label(SharedString::from(i18n::t("ui.visible")));
+        tr.set_hidden_label(SharedString::from(i18n::t("ui.hidden")));
+        tr.set_always_on_top_label(SharedString::from(i18n::t("ui.always_on_top")));
+        tr.set_normal_window_label(SharedString::from(i18n::t("ui.normal_window")));
+        tr.set_toolbar_hint(SharedString::from(i18n::t("ui.toolbar_hint")));
+        tr.set_anim_on(SharedString::from(i18n::t("ui.anim_on")));
+        tr.set_anim_off(SharedString::from(i18n::t("ui.anim_off")));
+        tr.set_empty_message(SharedString::from(i18n::t("ui.empty_message")));
+        tr.set_empty_helper(SharedString::from(i18n::t("ui.empty_helper")));
+        tr.set_dock_mode_hint(SharedString::from(i18n::t("settings.dock_hint")));
+        tr.set_filters_hint(SharedString::from(i18n::t("settings.filters_hint")));
+        tr.set_current_profile_prefix(SharedString::from(i18n::t("settings.current_profile")));
+        tr.set_profile_input_label(SharedString::from(i18n::t("settings.profile_label")));
+        tr.set_save_profile_btn(SharedString::from(i18n::t("settings.save_profile")));
+        tr.set_open_instance_btn(SharedString::from(i18n::t("settings.open_instance")));
+        tr.set_no_hidden_hint(SharedString::from(i18n::t("settings.no_hidden_hint")));
+        tr.set_tag_title(SharedString::from(i18n::t("tag.title")));
+        tr.set_tag_app_label(SharedString::from(i18n::t("tag.app_label")));
+        tr.set_tag_name_label(SharedString::from(i18n::t("tag.name_label")));
+        tr.set_tag_preset_colour(SharedString::from(i18n::t("tag.preset_colour")));
+        tr.set_tag_create_assign(SharedString::from(i18n::t("tag.create_assign")));
+    }};
+}
+
 /// Tracks middle-button pan drag state.
 struct MiddlePanState {
     active: bool,
@@ -196,6 +227,7 @@ struct RuntimeUiOptions {
 #[allow(clippy::too_many_lines)]
 fn main() {
     let _log_guard = panopticon::logging::init().ok();
+    panopticon::i18n::init();
     let profile = parse_profile_from_args();
     tracing::info!(profile = ?profile, "Panopticon starting (Slint UI)");
 
@@ -235,6 +267,7 @@ fn main() {
     );
 
     let main_window = MainWindow::new().unwrap();
+    populate_tr_global!(main_window);
     apply_main_window_theme_snapshot(&main_window, &initial_theme);
 
     // Apply initial property values from settings.
@@ -476,9 +509,13 @@ fn setup_subclass(hwnd: HWND, state: &Rc<RefCell<AppState>>, main_window: &MainW
     UI_STATE.with(|s| *s.borrow_mut() = Some(state.clone()));
     UI_WINDOW.with(|w| *w.borrow_mut() = Some(main_window.as_weak()));
 
+    // SAFETY: hwnd is a live window created by winit; we read then replace
+    // the WndProc pointer on the same UI thread that owns the window.
     let original = unsafe { GetWindowLongPtrW(hwnd, GWL_WNDPROC) };
     ORIGINAL_WNDPROC.with(|p| p.set(original));
 
+    // SAFETY: same UI thread; we install our subclass proc and keep the
+    // original pointer in ORIGINAL_WNDPROC for forwarding.
     unsafe {
         let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, subclass_proc as usize as isize);
     }
@@ -487,6 +524,8 @@ fn setup_subclass(hwnd: HWND, state: &Rc<RefCell<AppState>>, main_window: &MainW
 fn teardown_subclass(hwnd: HWND) {
     let original = ORIGINAL_WNDPROC.with(Cell::get);
     if original != 0 {
+        // SAFETY: restoring the original WndProc saved during setup_subclass;
+        // called on the same UI thread that owns the window.
         unsafe {
             let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, original);
         }
@@ -1890,6 +1929,8 @@ fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
 }
 
 fn activate_window(hwnd: HWND) {
+    // SAFETY: hwnd was obtained from window enumeration; all calls are
+    // read-only queries or focus requests on the same thread.
     unsafe {
         if IsIconic(hwnd).as_bool() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
@@ -2046,6 +2087,7 @@ fn open_create_tag_dialog(
             return;
         }
     };
+    populate_tr_global!(dialog);
 
     dialog.set_app_label(SharedString::from(info.app_label()));
     dialog.set_tag_name(SharedString::from(suggested_name));
@@ -2718,6 +2760,7 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
             return;
         }
     };
+    populate_tr_global!(sw);
 
     {
         let state = state.borrow();
@@ -3145,6 +3188,7 @@ fn restore_from_tray(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindo
     if let Some(win) = weak.upgrade() {
         win.show().ok();
         let hwnd = state.borrow().hwnd;
+        // SAFETY: hwnd is our live main window; bringing it to the foreground.
         unsafe {
             let _ = SetForegroundWindow(hwnd);
         }
@@ -3182,6 +3226,8 @@ fn apply_window_appearance(hwnd: HWND, settings: &AppSettings) {
     } else {
         DWMSBT_NONE
     };
+    // SAFETY: hwnd is our live window; all values are stack-allocated with
+    // correct sizes. DwmSetWindowAttribute is a read-only DWM configuration call.
     unsafe {
         let _ = DwmSetWindowAttribute(
             hwnd,
@@ -3205,6 +3251,7 @@ fn apply_window_appearance(hwnd: HWND, settings: &AppSettings) {
 }
 
 fn apply_topmost_mode(hwnd: HWND, always_on_top: bool) {
+    // SAFETY: hwnd is our live window; toggling the topmost z-order flag.
     unsafe {
         let _ = SetWindowPos(
             hwnd,
@@ -3226,6 +3273,8 @@ fn apply_topmost_mode(hwnd: HWND, always_on_top: bool) {
 
 fn apply_dock_mode(state: &mut AppState) {
     let hwnd = state.hwnd;
+    // SAFETY: hwnd is our live main window; switching style to borderless popup
+    // on the UI thread before registering as an appbar.
     unsafe {
         let _ = SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_POPUP | WS_VISIBLE).0 as isize);
     }
@@ -3243,6 +3292,7 @@ fn register_appbar(hwnd: HWND) -> bool {
         uCallbackMessage: WM_APPBAR_CALLBACK,
         ..Default::default()
     };
+    // SAFETY: abd is stack-allocated with correct cbSize; hwnd is our window.
     unsafe { SHAppBarMessage(ABM_NEW, &raw mut abd) != 0 }
 }
 
@@ -3252,6 +3302,8 @@ fn unregister_appbar(hwnd: HWND) {
         hWnd: hwnd,
         ..Default::default()
     };
+    // SAFETY: abd is stack-allocated with correct cbSize; releasing the appbar
+    // registration for our window.
     unsafe {
         let _ = SHAppBarMessage(ABM_REMOVE, &raw mut abd);
     }
@@ -3278,6 +3330,9 @@ fn reposition_appbar(state: &mut AppState) {
         ..Default::default()
     };
 
+    // SAFETY: abd is stack-allocated with correct cbSize and valid hwnd.
+    // ABM_QUERYPOS, ABM_SETPOS and SetWindowPos are called sequentially on
+    // the UI thread to negotiate and apply the appbar position.
     unsafe {
         let _ = SHAppBarMessage(ABM_QUERYPOS, &raw mut abd);
         match edge {
@@ -3300,6 +3355,8 @@ fn reposition_appbar(state: &mut AppState) {
 }
 
 fn restore_floating_style(hwnd: HWND) {
+    // SAFETY: hwnd is our live window; restoring the normal overlapped style
+    // and refreshing the frame on the UI thread.
     unsafe {
         let _ = SetWindowLongPtrW(
             hwnd,
@@ -3329,6 +3386,8 @@ const fn dock_edge_to_abe(edge: DockEdge) -> u32 {
 }
 
 fn get_monitor_rect(hwnd: HWND) -> RECT {
+    // SAFETY: hwnd is a valid window; MonitorFromWindow and GetMonitorInfoW
+    // are read-only queries with stack-allocated output structs.
     unsafe {
         let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
         let mut info = MONITORINFO {
@@ -3462,12 +3521,13 @@ fn ensure_default_profiles_exist(settings: &AppSettings) {
 }
 
 fn known_profiles_label() -> String {
+    use panopticon::i18n;
     match AppSettings::list_profiles() {
-        Ok(profiles) if profiles.is_empty() => "Perfiles guardados: default".to_owned(),
-        Ok(profiles) => format!("Perfiles guardados: default, {}", profiles.join(", ")),
+        Ok(profiles) if profiles.is_empty() => i18n::t("settings.saved_profiles").to_owned(),
+        Ok(profiles) => i18n::t_fmt("settings.saved_profiles_fmt", &profiles.join(", ")),
         Err(error) => {
             tracing::warn!(%error, "failed to list saved profiles");
-            "Perfiles guardados: default".to_owned()
+            i18n::t("settings.saved_profiles").to_owned()
         }
     }
 }
@@ -3488,7 +3548,7 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
     ));
     window.set_known_profiles_label(SharedString::from(known_profiles_label()));
 
-    let mut monitor_options = vec!["All monitors".to_owned()];
+    let mut monitor_options = vec![panopticon::i18n::t("tray.all_monitors").to_owned()];
     monitor_options.extend(runtime.monitors.iter().cloned());
     let monitor_index = state
         .settings
@@ -3504,7 +3564,7 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
     window.set_monitor_filter_options(build_string_model(monitor_options));
     window.set_monitor_filter_index(monitor_index);
 
-    let mut tag_options = vec!["All tags".to_owned()];
+    let mut tag_options = vec![panopticon::i18n::t("tray.all_tags").to_owned()];
     tag_options.extend(runtime.tags.iter().cloned());
     let tag_index = state
         .settings
@@ -3515,7 +3575,7 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
     window.set_tag_filter_options(build_string_model(tag_options));
     window.set_tag_filter_index(tag_index);
 
-    let mut app_options = vec!["All applications".to_owned()];
+    let mut app_options = vec![panopticon::i18n::t("tray.all_apps").to_owned()];
     app_options.extend(runtime.apps.iter().map(app_option_label));
     let app_index = state
         .settings
@@ -3527,10 +3587,15 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
     window.set_app_filter_index(app_index);
 
     if runtime.hidden_apps.is_empty() {
-        window.set_hidden_app_options(build_string_model(vec!["No hidden apps".to_owned()]));
+        window.set_hidden_app_options(build_string_model(vec![panopticon::i18n::t(
+            "settings.no_hidden",
+        )
+        .to_owned()]));
         window.set_hidden_app_index(0);
         window.set_can_restore_hidden(false);
-        window.set_hidden_apps_summary(SharedString::from("No hidden apps"));
+        window.set_hidden_apps_summary(SharedString::from(panopticon::i18n::t(
+            "settings.no_hidden",
+        )));
     } else {
         let hidden_options: Vec<String> = runtime
             .hidden_apps
@@ -3538,9 +3603,12 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
             .map(hidden_app_option_label)
             .collect();
         let summary = if runtime.hidden_apps.len() == 1 {
-            "1 hidden app ready to restore".to_owned()
+            panopticon::i18n::t("settings.hidden_one").to_owned()
         } else {
-            format!("{} hidden apps ready to restore", runtime.hidden_apps.len())
+            panopticon::i18n::t_fmt(
+                "settings.hidden_many",
+                &runtime.hidden_apps.len().to_string(),
+            )
         };
         window.set_hidden_app_options(build_string_model(hidden_options));
         window.set_hidden_app_index(0);
@@ -3554,13 +3622,20 @@ fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut
         &window.get_monitor_filter_options(),
         window.get_monitor_filter_index(),
     );
-    settings.set_monitor_filter(monitor.as_deref().filter(|value| *value != "All monitors"));
+    settings.set_monitor_filter(
+        monitor
+            .as_deref()
+            .filter(|value| *value != panopticon::i18n::t("tray.all_monitors")),
+    );
 
     let tag = selected_model_value(
         &window.get_tag_filter_options(),
         window.get_tag_filter_index(),
     );
-    settings.set_tag_filter(tag.as_deref().filter(|value| *value != "All tags"));
+    settings.set_tag_filter(
+        tag.as_deref()
+            .filter(|value| *value != panopticon::i18n::t("tray.all_tags")),
+    );
 
     let app = selected_model_value(
         &window.get_app_filter_options(),
@@ -3786,6 +3861,7 @@ fn parse_profile_from_args() -> Option<String> {
 
 fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT {
     let mut window_rect = RECT::default();
+    // SAFETY: hwnd is our live window; window_rect is stack-allocated and valid.
     unsafe {
         let _ = GetWindowRect(hwnd, &raw mut window_rect);
     }

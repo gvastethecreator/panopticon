@@ -1,6 +1,0 @@
-
-thread 'main' panicked at src\main.rs:284:41:
-called `Result::unwrap()` on an `Err` value: Could not initialize backend.
-Error from Winit backend: Error initializing winit event loop: EventLoop can't be recreated
-No backends configured.
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
