@@ -1,0 +1,42 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package artefact
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          $dir = "panopticon-$version-x86_64-pc-windows-msvc"
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          Copy-Item target/release/panopticon.exe $dir/
+          Copy-Item README.md $dir/
+          Copy-Item LICENSE $dir/
+          Compress-Archive -Path $dir -DestinationPath "$dir.zip"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: "panopticon-*.zip"

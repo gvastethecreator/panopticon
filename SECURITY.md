@@ -1,26 +1,26 @@
-# Política de seguridad
+# Security Policy
 
-## Cómo reportar una vulnerabilidad
+## Reporting a vulnerability
 
-Si encuentras una vulnerabilidad o un problema serio relacionado con:
+If you find a vulnerability or serious issue related to:
 
-- ejecución de código,
-- manejo inseguro de memoria,
-- exposición involuntaria de datos,
-- abuso del proceso Win32 o de handles,
+- code execution,
+- unsafe memory handling,
+- unintended data exposure,
+- misuse of Win32 processes or handles,
 
-por favor **no abras una issue pública primero**.
+please **do not open a public issue first**.
 
-En su lugar, contacta al mantenedor mediante el canal privado que corresponda en GitHub o abre una security advisory del repositorio si está disponible.
+Instead, contact the maintainer through the appropriate private channel on GitHub, or open a security advisory on the repository if available.
 
-## Qué incluir
+## What to include
 
-- descripción del impacto,
-- versión/commit afectado,
-- pasos de reproducción,
-- workaround si existe,
-- prueba de concepto mínima.
+- description of the impact,
+- affected version/commit,
+- reproduction steps,
+- workaround if available,
+- minimal proof of concept.
 
-## Alcance
+## Scope
 
-El proyecto es una app local de escritorio para Windows. Los reportes más valiosos serán los relacionados con seguridad de memoria, persistencia local, integridad del proceso o interacciones inseguras con APIs Win32.
+This project is a local Windows desktop application. The most valuable reports are those related to memory safety, local persistence, process integrity, or unsafe interactions with Win32 APIs.

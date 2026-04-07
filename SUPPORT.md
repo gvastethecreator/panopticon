@@ -1,14 +1,14 @@
-# Soporte
+# Support
 
-## Dónde pedir ayuda
+## Where to ask for help
 
-- **Bug reproducible** → abre una issue con la plantilla de bug.
-- **Idea o mejora** → abre una issue de feature request.
-- **Pregunta de uso** → describe entorno, pasos y logs relevantes.
+- **Reproducible bug** → open an issue using the bug template.
+- **Idea or improvement** → open a feature request issue.
+- **Usage question** → describe your environment, steps, and relevant logs.
 
-## Información útil para soporte
+## Useful support information
 
 - Windows version
-- salida relevante de logs en `%TEMP%/panopticon/logs/`
-- contenido relevante de `%APPDATA%\Panopticon\settings.toml` (sin datos sensibles)
-- pasos exactos para reproducir
+- relevant log output from `%TEMP%/panopticon/logs/`
+- relevant content from `%APPDATA%\Panopticon\settings.toml` (without sensitive data)
+- exact reproduction steps

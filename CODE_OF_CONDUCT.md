@@ -1,21 +1,21 @@
-# Código de conducta
+# Code of Conduct
 
-Este proyecto adopta una política simple: colaboración respetuosa, técnica y útil.
+This project follows a simple policy: respectful, technical, and constructive collaboration.
 
-## Esperamos
+## We expect
 
-- respeto profesional,
-- feedback específico y accionable,
-- buena fe al revisar o reportar problemas,
-- apertura a correcciones técnicas.
+- professional respect,
+- specific and actionable feedback,
+- good faith when reviewing or reporting issues,
+- openness to technical corrections.
 
-## No toleramos
+## We do not tolerate
 
-- ataques personales,
-- acoso,
-- discriminación,
-- conductas hostiles repetidas.
+- personal attacks,
+- harassment,
+- discrimination,
+- repeated hostile behaviour.
 
-## Aplicación
+## Enforcement
 
-Si hay un problema de conducta, abre una issue privada o usa el canal indicado en `SECURITY.md`/`SUPPORT.md` según corresponda.
+If there is a conduct issue, open a private issue or use the channel indicated in `SECURITY.md` / `SUPPORT.md` as appropriate.

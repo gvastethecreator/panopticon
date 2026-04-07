@@ -27,3 +27,8 @@ lcov.info
 
 # ── Backup files from refactoring ────────────────────────────
 *.bak
+
+# ── Temporary / smoke-test outputs ──────────────────────────
+/temp/
+smoke_stdout.txt
+smoke_stderr.txt

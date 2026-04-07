@@ -4,6 +4,40 @@
 import { CheckBox, ComboBox, LineEdit, ScrollView, GroupBox, Button,
          VerticalBox, HorizontalBox, TabWidget, Slider, SpinBox } from "std-widgets.slint";
 
+// ── Translations ─────────────────────────────────────────────
+// Defaults are English; Rust sets locale-specific values at startup.
+
+export global Tr {
+    // ThumbnailCard
+    in property <string> minimized: "minimized";
+    in property <string> last-seen: "LAST SEEN";
+    // Toolbar
+    in property <string> visible-label: "visible";
+    in property <string> hidden-label: "hidden";
+    in property <string> always-on-top-label: "always on top";
+    in property <string> normal-window-label: "normal window";
+    in property <string> toolbar-hint: "right-click header / M: menu  ·  Esc exit";
+    in property <string> anim-on: "anim on";
+    in property <string> anim-off: "anim off";
+    // Empty state
+    in property <string> empty-message: "No windows available to preview";
+    in property <string> empty-helper: "Open or restore any desktop window.\nPanopticon will keep watching from the tray.";
+    // Settings hints
+    in property <string> dock-mode-hint: "In dock mode this option is automatically disabled.";
+    in property <string> filters-hint: "Filters and grouping are also reflected in the header and reorder visible cells.";
+    in property <string> current-profile-prefix: "Current profile: ";
+    in property <string> profile-input-label: "Profile:";
+    in property <string> save-profile-btn: "Save profile";
+    in property <string> open-instance-btn: "Open another instance";
+    in property <string> no-hidden-hint: "No hidden apps to restore right now.";
+    // Tag dialog
+    in property <string> tag-title: "Create custom tag";
+    in property <string> tag-app-label: "Application: ";
+    in property <string> tag-name-label: "Tag name";
+    in property <string> tag-preset-colour: "Preset colour";
+    in property <string> tag-create-assign: "Create and assign";
+}
+
 // ── Theme colours ────────────────────────────────────────────
 
 export global Theme {
@@ -98,8 +132,8 @@ component ThumbnailCard inherits Rectangle {
     property <length> minimized-badge-width: root.is-minimized ? 78px : 0px;
     property <length> minimized-badge-gap: root.is-minimized ? 8px : 0px;
     property <string> header-text: root.is-minimized
-        ? (root.app-label != "" ? (root.app-label + "  ·  minimizada") : (root.title + "  ·  minimizada"))
-        : (root.title + (root.app-label != "" ? ("  ·  " + root.app-label) : ""));
+        ? (root.app-label != "" ? (root.app-label + "  \u{00b7}  " + Tr.minimized) : (root.title + "  \u{00b7}  " + Tr.minimized))
+        : (root.title + (root.app-label != "" ? ("  \u{00b7}  " + root.app-label) : ""));
 
     // Accent strip
     Rectangle {
@@ -180,7 +214,7 @@ component ThumbnailCard inherits Rectangle {
             Text {
                 width: 100%;
                 height: 100%;
-                text: "ÚLTIMA VISTA";
+                text: Tr.last-seen;
                 color: Theme.label;
                 font-size: 9px;
                 font-weight: 700;
@@ -376,9 +410,9 @@ component Toolbar inherits Rectangle {
 
         // Centre: status
         Text {
-            text: root.layout-label + "  ·  " + root.window-count + " visibles  ·  "
-                  + root.hidden-count + " ocultas  ·  " + root.refresh-label
-                  + (root.filters-label != "" ? ("  ·  " + root.filters-label) : "");
+            text: root.layout-label + "  \u{00b7}  " + root.window-count + " " + Tr.visible-label + "  \u{00b7}  "
+                  + root.hidden-count + " " + Tr.hidden-label + "  \u{00b7}  " + root.refresh-label
+                  + (root.filters-label != "" ? ("  \u{00b7}  " + root.filters-label) : "");
             color: Theme.label;
             vertical-alignment: center;
             font-size: 12px;
@@ -389,9 +423,9 @@ component Toolbar inherits Rectangle {
 
         // Right: quick info
         Text {
-            text: (root.always-on-top ? "siempre visible" : "ventana normal") + "  ·  "
-                  + (root.animate-transitions ? "anim on" : "anim off")
-                  + "  ·  click der. header / M: menú  ·  Esc salir";
+            text: (root.always-on-top ? Tr.always-on-top-label : Tr.normal-window-label) + "  \u{00b7}  "
+                  + (root.animate-transitions ? Tr.anim-on : Tr.anim-off)
+                  + "  \u{00b7}  " + Tr.toolbar-hint;
             color: Theme.muted;
             vertical-alignment: center;
             font-size: 11px;
@@ -403,8 +437,8 @@ component Toolbar inherits Rectangle {
 // ── Empty state ──────────────────────────────────────────────
 
 component EmptyState inherits Rectangle {
-    in property <string> message: "No windows available to preview";
-    in property <string> helper: "Open or restore any desktop window.\nPanopticon will keep watching from the tray.";
+    in property <string> message: Tr.empty-message;
+    in property <string> helper: Tr.empty-helper;
 
     width: 100%;
     height: 100%;
@@ -704,7 +738,7 @@ export component SettingsWindow inherits Window {
     in property <string> hidden-apps-summary: "No hidden apps";
     in property <string> current-profile-label: "default";
     in-out property <string> profile-name: "";
-    in property <string> known-profiles-label: "Sin perfiles guardados";
+    in property <string> known-profiles-label: "No saved profiles";
     in-out property <color> bg-preview-color: Theme.accent;
     in-out property <color> theme-preview-color: Theme.accent;
     in-out property <string> bg-color-hex: "181513";
@@ -757,7 +791,7 @@ export component SettingsWindow inherits Window {
                     enabled: root.hide-on-select-enabled;
                 }
                 if !root.hide-on-select-enabled: Text {
-                    text: "En modo dock esta opción queda desactivada automáticamente.";
+                    text: Tr.dock-mode-hint;
                     color: Theme.muted;
                     font-size: 12px;
                     wrap: word-wrap;
@@ -880,7 +914,7 @@ export component SettingsWindow inherits Window {
                 }
 
                 Text {
-                    text: "Los filtros y el agrupado también se reflejan en el header y reordenan las celdas visibles.";
+                    text: Tr.filters-hint;
                     color: Theme.muted;
                     font-size: 12px;
                     wrap: word-wrap;
@@ -919,14 +953,14 @@ export component SettingsWindow inherits Window {
                 Text { text: "Profiles"; color: Theme.accent; font-size: 14px; font-weight: 600; }
 
                 Text {
-                    text: "Perfil actual: " + root.current-profile-label;
+                    text: Tr.current-profile-prefix + root.current-profile-label;
                     color: Theme.label;
                     font-size: 13px;
                 }
 
                 HorizontalLayout {
                     spacing: 8px;
-                    Text { text: "Perfil:"; color: Theme.muted; vertical-alignment: center; font-size: 13px; }
+                    Text { text: Tr.profile-input-label; color: Theme.muted; vertical-alignment: center; font-size: 13px; }
                     LineEdit {
                         text <=> root.profile-name;
                         horizontal-stretch: 1;
@@ -944,11 +978,11 @@ export component SettingsWindow inherits Window {
                 HorizontalLayout {
                     spacing: 10px;
                     Button {
-                        text: "Guardar perfil";
+                        text: Tr.save-profile-btn;
                         clicked => { root.save-profile(); }
                     }
                     Button {
-                        text: "Abrir otra instancia";
+                        text: Tr.open-instance-btn;
                         clicked => { root.open-profile-instance(); }
                     }
                 }
@@ -985,7 +1019,7 @@ export component SettingsWindow inherits Window {
                 }
 
                 if !root.can-restore-hidden: Text {
-                    text: "No hay apps ocultas para restaurar ahora mismo.";
+                    text: Tr.no-hidden-hint;
                     color: Theme.muted;
                     font-size: 12px;
                     wrap: word-wrap;
@@ -1063,14 +1097,14 @@ export component TagDialogWindow inherits Window {
         spacing: 12px;
 
         Text {
-            text: "Create custom tag";
+            text: Tr.tag-title;
             color: Theme.text;
             font-size: 18px;
             font-weight: 700;
         }
 
         Text {
-            text: "Application: " + root.app-label;
+            text: Tr.tag-app-label + root.app-label;
             color: Theme.label;
             font-size: 12px;
             wrap: word-wrap;
@@ -1079,7 +1113,7 @@ export component TagDialogWindow inherits Window {
         Rectangle { height: 4px; }
 
         Text {
-            text: "Tag name";
+            text: Tr.tag-name-label;
             color: Theme.accent;
             font-size: 13px;
             font-weight: 600;
@@ -1092,7 +1126,7 @@ export component TagDialogWindow inherits Window {
         }
 
         Text {
-            text: "Preset colour";
+            text: Tr.tag-preset-colour;
             color: Theme.accent;
             font-size: 13px;
             font-weight: 600;
@@ -1120,7 +1154,7 @@ export component TagDialogWindow inherits Window {
             alignment: end;
 
             Button {
-                text: "Create and assign";
+                text: Tr.tag-create-assign;
                 clicked => { root.create(); }
             }
 

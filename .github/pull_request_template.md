@@ -1,16 +1,16 @@
-# Resumen
+# Summary
 
-- ¿Qué cambia?
-- ¿Por qué era necesario?
+- What changed?
+- Why was it needed?
 
 ## Checklist
 
-- [ ] corrí `cargo fmt -- --check`
-- [ ] corrí `cargo clippy --all-targets -- -D warnings -W clippy::pedantic`
-- [ ] corrí `cargo test --all-targets`
-- [ ] actualicé documentación si aplica
-- [ ] añadí tests si el cambio lo requería
+- [ ] ran `cargo fmt -- --check`
+- [ ] ran `cargo clippy --all-targets -- -D warnings -W clippy::pedantic`
+- [ ] ran `cargo test --all-targets`
+- [ ] updated documentation if applicable
+- [ ] added tests if the change required them
 
-## Validación manual
+## Manual validation
 
-Describe cómo probaste el cambio en Windows.
+Describe how you tested the change on Windows.

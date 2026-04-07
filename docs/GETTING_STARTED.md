@@ -1,17 +1,17 @@
-# Primeros pasos
+# Getting Started
 
-Esta guía sirve para compilar, ejecutar y entender el flujo inicial de Panopticon sin tener que recorrer primero todo el código fuente.
+This guide covers how to compile, run, and understand the initial flow of Panopticon without having to read through the entire source code first.
 
-## Requisitos
+## Requirements
 
-- Windows 10 o Windows 11 (64-bit)
-- DWM habilitado
-- toolchain Rust estable
-- un escritorio real con ventanas de usuario abiertas para que Panopticon tenga algo que mostrar
+- Windows 10 or Windows 11 (64-bit)
+- DWM enabled
+- Stable Rust toolchain
+- A real desktop with user windows open so Panopticon has something to display
 
-## Clonado y ejecución
+## Cloning and running
 
-### Modo desarrollo
+### Development mode
 
 ```bash
 git clone https://github.com/gvastethecreator/panopticon.git
@@ -19,97 +19,97 @@ cd panopticon
 cargo run
 ```
 
-### Modo release
+### Release mode
 
 ```bash
 cargo run --release
 ```
 
-### Ejecutar con un perfil concreto
+### Running with a specific profile
 
 ```bash
-cargo run --release -- --profile trabajo
+cargo run --release -- --profile work
 ```
 
-Esto hace que la configuración se cargue desde `%APPDATA%\Panopticon\profiles\trabajo.toml`.
+This loads the configuration from `%APPDATA%\Panopticon\profiles\work.toml`.
 
-## Qué ocurre en el arranque
+## What happens at startup
 
-En una sesión normal, Panopticon hace lo siguiente:
+In a normal session, Panopticon does the following:
 
-1. inicializa logging en `%TEMP%\panopticon\logs\`;
-2. activa DPI awareness por monitor;
-3. carga settings y perfil activo desde TOML;
-4. crea la ventana principal Slint;
-5. adquiere el `HWND` nativo y aplica apariencia DWM;
-6. registra el icono de tray;
-7. enumera ventanas visibles del sistema;
-8. registra miniaturas DWM para las ventanas visibles;
-9. calcula el layout inicial y llena el modelo de thumbnails.
+1. initialises logging in `%TEMP%\panopticon\logs\`;
+2. activates per-monitor DPI awareness;
+3. loads settings and the active profile from TOML;
+4. creates the main Slint window;
+5. acquires the native `HWND` and applies DWM appearance;
+6. registers the tray icon;
+7. enumerates visible system windows;
+8. registers DWM thumbnails for the visible windows;
+9. computes the initial layout and fills the thumbnail model.
 
-Si `start_in_tray = true`, la aplicación termina el arranque escondida en tray.
+If `start_in_tray = true`, the application finishes startup hidden in the tray.
 
-## Qué deberías ver
+## What you should see
 
-En un primer arranque correcto:
+On a correct first start:
 
-- una ventana principal con toolbar superior;
-- tarjetas oscuras con una franja de color en la parte superior;
-- miniaturas vivas dentro de cada tarjeta;
-- icono en el system tray;
-- recuento de ventanas visibles y ocultas en la toolbar.
+- a main window with an upper toolbar;
+- dark cards with a colour stripe at the top;
+- live thumbnails inside each card;
+- an icon in the system tray;
+- visible and hidden window counts in the toolbar.
 
-Si no hay ventanas candidatas, la UI muestra un estado vacío.
+If there are no candidate windows, the UI shows an empty state.
 
-## Primer recorrido recomendado
+## Recommended first walkthrough
 
-1. Pulsa `Tab` para recorrer los layouts.
-2. Pulsa `1` a `7` para ver cada layout directamente.
-3. Haz click derecho sobre una miniatura para abrir el menú por ventana.
-4. Oculta una aplicación del layout y luego restáurala desde tray.
-5. Crea una tag desde una aplicación.
-6. Abre `Settings` con `O` y revisa filtros, tema y perfiles.
-7. Prueba `T` para alternar entre temas.
-8. Si usas `Row` o `Column`, navega con rueda o arrastre del botón central.
+1. Press `Tab` to cycle through layouts.
+2. Press `1` to `7` to jump to each layout directly.
+3. Right-click a thumbnail to open the per-window menu.
+4. Hide an application from the layout, then restore it from the tray.
+5. Create a tag from an application.
+6. Open `Settings` with `O` and review filters, theme, and profiles.
+7. Try `T` to toggle between themes.
+8. If using `Row` or `Column`, scroll with the wheel or middle-button drag.
 
-## Atajos útiles
+## Useful shortcuts
 
-| Tecla / gesto | Resultado |
+| Key / gesture | Result |
 | --- | --- |
-| `Tab` | siguiente layout |
-| `1`…`7` | layout específico |
-| `0` | limpiar ratios personalizados del layout actual |
-| `R` | refrescar ventanas |
-| `A` | alternar animaciones |
-| `H` | alternar toolbar |
-| `I` | alternar información de ventana |
-| `P` | alternar always-on-top |
-| `T` | cambiar tema |
-| `O` | abrir settings |
-| `M` | abrir menú de aplicación |
-| `Alt` | alternar toolbar |
-| click izquierdo miniatura | activar ventana |
-| click derecho miniatura | menú contextual por app/ventana |
-| click izquierdo tray | mostrar/ocultar ventana principal |
-| click derecho tray | abrir menú rápido |
-| `Esc` | salir |
+| `Tab` | next layout |
+| `1`...`7` | specific layout |
+| `0` | reset custom ratios for the current layout |
+| `R` | refresh windows |
+| `A` | toggle animations |
+| `H` | toggle toolbar |
+| `I` | toggle window info |
+| `P` | toggle always-on-top |
+| `T` | change theme |
+| `O` | open settings |
+| `M` | open application menu |
+| `Alt` | toggle toolbar |
+| left-click thumbnail | activate window |
+| right-click thumbnail | per-app/window context menu |
+| left-click tray | show/hide main window |
+| right-click tray | open quick menu |
+| `Esc` | exit |
 
-## Archivos que conviene mirar temprano
+## Files worth looking at early
 
-- `README.md` — resumen general del proyecto.
-- `PRD.md` — objetivos de producto actualizados.
-- `docs/ARCHITECTURE.md` — arquitectura y diagramas.
-- `docs/CONFIGURATION.md` — todas las claves de settings.
-- `docs/PROJECT_STRUCTURE.md` — mapa del repositorio.
-- `docs/IMPLEMENTATION.md` — detalle técnico por módulo.
+- `README.md` -- general project overview.
+- `PRD.md` -- updated product objectives.
+- `docs/ARCHITECTURE.md` -- architecture and diagrams.
+- `docs/CONFIGURATION.md` -- all settings keys.
+- `docs/PROJECT_STRUCTURE.md` -- repository map.
+- `docs/IMPLEMENTATION.md` -- technical details per module.
 
-## Rutas importantes
+## Important paths
 
-### Configuración
+### Configuration
 
 ```text
 %APPDATA%\Panopticon\settings.toml
-%APPDATA%\Panopticon\profiles\<perfil>.toml
+%APPDATA%\Panopticon\profiles\<profile>.toml
 ```
 
 ### Logs
@@ -118,45 +118,45 @@ Si no hay ventanas candidatas, la UI muestra un estado vacío.
 %TEMP%\panopticon\logs\panopticon.log.YYYY-MM-DD
 ```
 
-### UI y assets
+### UI and assets
 
 ```text
 ui/main.slint
 assets/themes.json
 ```
 
-## Desarrollo local
+## Local development
 
-Las comprobaciones más útiles durante trabajo diario son:
+The most useful checks during day-to-day work are:
 
 ```bash
 cargo check
 cargo test
-cargo clippy -- -- -D warnings -W clippy::pedantic
+cargo clippy -- -D warnings -W clippy::pedantic
 cargo fmt -- --check
 ```
 
-En el workspace ya existen tareas de VS Code para estos comandos.
+VS Code tasks already exist for these commands in the workspace.
 
-## Problemas habituales
+## Common issues
 
-### La app abre pero no veo miniaturas
+### The app opens but I see no thumbnails
 
-Revisa:
+Check:
 
-- que existan ventanas de usuario visibles;
-- que no hayas dejado un filtro activo por monitor, tag o app;
-- que DWM esté disponible;
-- que Panopticon no esté arrancando oculto en tray.
+- that visible user windows exist;
+- that you have not left an active filter by monitor, tag, or app;
+- that DWM is available;
+- that Panopticon is not starting hidden in the tray.
 
-### El tray desapareció después de reiniciar Explorer
+### The tray disappeared after restarting Explorer
 
-El runtime intenta re-registrarlo automáticamente cuando recibe `TaskbarCreated`.
+The runtime attempts to re-register it automatically when it receives `TaskbarCreated`.
 
-### Un perfil no parece cargar
+### A profile does not seem to load
 
-Lanza la app con `--profile <nombre>` y verifica si existe `%APPDATA%\Panopticon\profiles\<nombre>.toml`.
+Launch the app with `--profile <name>` and verify that `%APPDATA%\Panopticon\profiles\<name>.toml` exists.
 
-### En modo dock algunas acciones se comportan diferente
+### In dock mode some actions behave differently
 
-Es normal: el modo appbar modifica estilo de ventana, topmost y fuerza `hide_on_select` a `false` de forma efectiva.
+This is expected: appbar mode modifies window style, topmost, and effectively forces `hide_on_select` to `false`.

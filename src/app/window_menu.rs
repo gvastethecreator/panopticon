@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use panopticon::i18n;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -20,15 +21,17 @@ const CMD_KILL_PROCESS: u16 = 11;
 const CMD_TAG_BASE: u16 = 100;
 const CMD_USE_THEME_COLOR: u16 = 200;
 const CMD_SET_COLOR_BASE: u16 = 210;
-const CMD_SET_COLOR_END: u16 = CMD_SET_COLOR_BASE + COLOR_PRESETS.len() as u16;
+const NUM_COLOR_PRESETS: u16 = 6;
+const CMD_SET_COLOR_END: u16 = CMD_SET_COLOR_BASE + NUM_COLOR_PRESETS;
 
-const COLOR_PRESETS: [(&str, &str); 6] = [
-    ("Usar ámbar", "D29A5C"),
-    ("Usar cielo", "5CA9FF"),
-    ("Usar menta", "3CCF91"),
-    ("Usar rosa", "FF6B8A"),
-    ("Usar violeta", "9B7BFF"),
-    ("Usar sol", "F4B740"),
+const COLOR_PRESET_HEX: [&str; 6] = ["D29A5C", "5CA9FF", "3CCF91", "FF6B8A", "9B7BFF", "F4B740"];
+const COLOR_PRESET_KEYS: [&str; 6] = [
+    "color.amber",
+    "color.sky",
+    "color.mint",
+    "color.rose",
+    "color.violet",
+    "color.sun",
 ];
 
 #[derive(Debug, Clone)]
@@ -62,7 +65,7 @@ pub fn show_window_context_menu(
     state: &WindowMenuState,
     anchor: Option<POINT>,
 ) -> Option<WindowMenuAction> {
-    // SAFETY: el menú se crea, usa y destruye en el mismo hilo de UI.
+    // SAFETY: the menu is created, used, and destroyed on the same UI thread.
     unsafe {
         let menu = CreatePopupMenu().ok()?;
         populate_window_menu(menu, state);
@@ -93,22 +96,23 @@ pub fn show_window_context_menu(
 /// # Safety
 ///
 /// `menu` must be a valid `HMENU` created by `CreatePopupMenu`.
+#[allow(clippy::too_many_lines)]
 unsafe fn populate_window_menu(
     menu: windows::Win32::UI::WindowsAndMessaging::HMENU,
     state: &WindowMenuState,
 ) {
-    let hide_app = encode_wide("Ocultar del layout");
-    let pin_position = encode_wide("Fijar app en esta ubicación");
-    let preserve_aspect_ratio = encode_wide("Respetar relación de aspecto");
-    let hide_on_select = encode_wide("Ocultar Panopticon al abrir esta app");
-    let create_tag = encode_wide("Crear etiqueta personalizada…");
-    let color_title = encode_wide("Color de la celda");
-    let use_theme_color = encode_wide("Usar color del theme");
-    let close_window = encode_wide("Cerrar ventana");
-    let kill_process = encode_wide("Matar proceso");
+    let hide_app = encode_wide(i18n::t("menu.hide_from_layout"));
+    let pin_position = encode_wide(i18n::t("menu.pin_position"));
+    let preserve_aspect_ratio = encode_wide(i18n::t("menu.preserve_aspect"));
+    let hide_on_select = encode_wide(i18n::t("menu.hide_on_select"));
+    let create_tag = encode_wide(i18n::t("menu.create_tag"));
+    let color_title = encode_wide(i18n::t("menu.cell_color"));
+    let use_theme_color = encode_wide(i18n::t("menu.use_theme_color"));
+    let close_window = encode_wide(i18n::t("menu.close_window"));
+    let kill_process = encode_wide(i18n::t("menu.kill_process"));
 
     let mut tag_labels: Vec<Vec<u16>> = Vec::with_capacity(state.known_tags.len());
-    let mut color_labels: Vec<Vec<u16>> = Vec::with_capacity(COLOR_PRESETS.len());
+    let mut color_labels: Vec<Vec<u16>> = Vec::with_capacity(NUM_COLOR_PRESETS as usize);
 
     let _ = AppendMenuW(
         menu,
@@ -152,11 +156,15 @@ unsafe fn populate_window_menu(
         CMD_USE_THEME_COLOR as usize,
         PCWSTR(use_theme_color.as_ptr()),
     );
-    for (index, (label, hex)) in COLOR_PRESETS.iter().enumerate() {
+    for (index, (key, hex)) in COLOR_PRESET_KEYS
+        .iter()
+        .zip(COLOR_PRESET_HEX.iter())
+        .enumerate()
+    {
         let Some(command_id) = CMD_SET_COLOR_BASE.checked_add(index as u16) else {
             break;
         };
-        color_labels.push(encode_wide(label));
+        color_labels.push(encode_wide(i18n::t(key)));
         if let Some(color_label) = color_labels.last() {
             let checked = state.current_color_hex.as_deref() == Some(*hex);
             let _ = AppendMenuW(
@@ -214,9 +222,9 @@ fn dispatch_window_menu_command(id: u16, state: &WindowMenuState) -> Option<Wind
         CMD_USE_THEME_COLOR => Some(WindowMenuAction::SetColor(None)),
         CMD_CLOSE_WINDOW => Some(WindowMenuAction::CloseWindow),
         CMD_KILL_PROCESS => Some(WindowMenuAction::KillProcess),
-        id if (CMD_SET_COLOR_BASE..CMD_SET_COLOR_END).contains(&id) => COLOR_PRESETS
+        id if (CMD_SET_COLOR_BASE..CMD_SET_COLOR_END).contains(&id) => COLOR_PRESET_HEX
             .get((id - CMD_SET_COLOR_BASE) as usize)
-            .map(|(_, hex)| WindowMenuAction::SetColor(Some((*hex).to_owned()))),
+            .map(|hex| WindowMenuAction::SetColor(Some((*hex).to_owned()))),
         id if id >= CMD_TAG_BASE => state
             .known_tags
             .get((id - CMD_TAG_BASE) as usize)

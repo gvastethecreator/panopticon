@@ -1,24 +1,24 @@
 name: Bug report
-description: Reporta un fallo reproducible en Panopticon.
+description: Report a reproducible bug in Panopticon.
 title: "[Bug]: "
 labels: [bug]
 body:
   - type: textarea
     id: summary
     attributes:
-      label: Resumen
-      description: ¿Qué está fallando?
+      label: Summary
+      description: What is failing?
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Pasos para reproducir
-      description: Lista exacta de pasos.
+      label: Steps to reproduce
+      description: Exact list of steps.
       placeholder: |
-        1. Abrir...
-        2. Hacer click en...
-        3. Ver error...
+        1. Open...
+        2. Click on...
+        3. See error...
     validations:
       required: true
   - type: input
@@ -31,10 +31,10 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Logs relevantes
-      description: Pega extractos de `%TEMP%/panopticon/logs/` si existen.
+      label: Relevant logs
+      description: Paste excerpts from `%TEMP%/panopticon/logs/` if available.
   - type: textarea
     id: extra
     attributes:
-      label: Contexto adicional
-      description: Screenshots, settings.toml relevante, etc.
+      label: Additional context
+      description: Screenshots, relevant settings.toml content, etc.

@@ -1,6 +1,6 @@
 [package]
 name = "panopticon"
-version = "2.0.0"
+version = "0.1.0"
 edition = "2021"
 description = "Real-time window thumbnail viewer for Windows using the DWM API"
 readme = "README.md"
@@ -23,6 +23,7 @@ tracing-appender = "0.2"
 
 [build-dependencies]
 slint-build = "1.15"
+winres = "0.1"
 
 [dependencies.windows]
 version = "0.58"
