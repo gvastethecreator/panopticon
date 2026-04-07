@@ -519,7 +519,8 @@ fn setup_subclass(hwnd: HWND, state: &Rc<RefCell<AppState>>, main_window: &MainW
     // SAFETY: same UI thread; we install our subclass proc and keep the
     // original pointer in ORIGINAL_WNDPROC for forwarding.
     unsafe {
-        let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, subclass_proc as usize as isize);
+        let subclass_proc_ptr = subclass_proc as *const () as isize;
+        let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, subclass_proc_ptr);
     }
 }
 
