@@ -12,21 +12,33 @@
 
 mod app;
 
+use app::dock::{
+    apply_dock_mode, apply_topmost_mode, apply_window_appearance, center_window_on_screen,
+    docked_mode_active, is_blocked_dock_syscommand, keep_dialog_above_owner, reposition_appbar,
+    restore_floating_style, sync_dock_system_menu, unregister_appbar,
+};
+use app::dwm::{
+    ensure_thumbnail, query_source_size, release_all_thumbnails, release_thumbnail,
+    update_dwm_thumbnails,
+};
+use app::icon::populate_cached_icon;
 use app::settings_ui::{apply_settings_window_changes, populate_settings_window};
+use app::theme_ui::{
+    advance_theme_animation, apply_main_window_theme_snapshot,
+    apply_settings_window_theme_snapshot, apply_tag_dialog_theme_snapshot, sync_theme_target,
+    thumbnail_accent_color,
+};
 use app::tray::{
-    handle_tray_message, resolve_window_icon, resolve_window_icon_from_executable,
-    resolve_window_icon_sized, show_application_context_menu_at, AppIcons, TrayAction, TrayIcon,
-    TrayMenuState, INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
+    handle_tray_message, resolve_window_icon, show_application_context_menu_at, AppIcons,
+    TrayAction, TrayIcon, TrayMenuState, INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
 };
 use app::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
-use panopticon::constants::{ANIMATION_DURATION_MS, THUMBNAIL_ACCENT_HEIGHT, TOOLBAR_HEIGHT};
+use panopticon::constants::{ANIMATION_DURATION_MS, TOOLBAR_HEIGHT};
 use panopticon::layout::{
     apply_separator_drag, apply_separator_drag_grouped, compute_layout_custom, default_ratios,
     AspectHint, LayoutType, ScrollDirection, Separator,
 };
-use panopticon::settings::{
-    AppSelectionEntry, AppSettings, DockEdge, HiddenAppEntry, WindowGrouping,
-};
+use panopticon::settings::{AppSelectionEntry, AppSettings, HiddenAppEntry, WindowGrouping};
 use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
@@ -47,23 +59,11 @@ use slint::{
 
 use windows::core::w;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
-use windows::Win32::Graphics::Dwm::{
-    DwmGetWindowAttribute, DwmQueryThumbnailSourceSize, DwmSetWindowAttribute, DWMSBT_MAINWINDOW,
-    DWMSBT_NONE, DWMWA_CLOAKED, DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE,
-    DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
-};
-use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetDC, GetMonitorInfoW,
-    MonitorFromWindow, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
-    DIB_RGB_COLORS, HGDIOBJ, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
-};
+
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
-use windows::Win32::UI::Shell::{
-    SHAppBarMessage, ABE_BOTTOM, ABE_LEFT, ABE_RIGHT, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE,
-    ABM_SETPOS, ABN_POSCHANGED, APPBARDATA,
-};
+use windows::Win32::UI::Shell::ABN_POSCHANGED;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 slint::include_modules!();
@@ -71,13 +71,13 @@ slint::include_modules!();
 // ───────────────────────── Constants ─────────────────────────
 
 /// Callback message posted by the shell when the app-bar needs repositioning.
-const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
+pub(crate) const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
 
 const OPTION_SEPARATOR: &str = " — ";
-const THUMBNAIL_INFO_STRIP_HEIGHT: i32 = 26;
-const THUMBNAIL_CONTENT_PADDING: i32 = 6;
-const THEME_TRANSITION_DURATION_MS: u32 = 220;
-const HIDDEN_THUMBNAIL_RECT: RECT = RECT {
+pub(crate) const THUMBNAIL_INFO_STRIP_HEIGHT: i32 = 26;
+pub(crate) const THUMBNAIL_CONTENT_PADDING: i32 = 6;
+pub(crate) const THEME_TRANSITION_DURATION_MS: u32 = 220;
+pub(crate) const HIDDEN_THUMBNAIL_RECT: RECT = RECT {
     left: 0,
     top: 0,
     right: 1,
@@ -165,54 +165,54 @@ struct DragState {
 }
 
 #[derive(Debug, Clone)]
-struct ThemeAnimation {
-    from: theme_catalog::UiTheme,
-    to: theme_catalog::UiTheme,
-    started_at: Instant,
+pub(crate) struct ThemeAnimation {
+    pub(crate) from: theme_catalog::UiTheme,
+    pub(crate) to: theme_catalog::UiTheme,
+    pub(crate) started_at: Instant,
 }
 
 /// A window tracked by Panopticon, including its DWM thumbnail handle.
-struct ManagedWindow {
-    info: WindowInfo,
-    thumbnail: Option<Thumbnail>,
-    target_rect: RECT,
-    display_rect: RECT,
-    animation_from_rect: RECT,
-    source_size: SIZE,
+pub(crate) struct ManagedWindow {
+    pub(crate) info: WindowInfo,
+    pub(crate) thumbnail: Option<Thumbnail>,
+    pub(crate) target_rect: RECT,
+    pub(crate) display_rect: RECT,
+    pub(crate) animation_from_rect: RECT,
+    pub(crate) source_size: SIZE,
     /// Last time the DWM thumbnail was actually updated (for interval mode).
-    last_thumb_update: Option<Instant>,
+    pub(crate) last_thumb_update: Option<Instant>,
     /// Last destination rectangle applied to the DWM thumbnail.
-    last_thumb_dest: Option<RECT>,
+    pub(crate) last_thumb_dest: Option<RECT>,
     /// Last visibility flag applied to the DWM thumbnail.
-    last_thumb_visible: bool,
+    pub(crate) last_thumb_visible: bool,
     /// Cached Slint image of the window's application icon.
-    cached_icon: Option<slint::Image>,
+    pub(crate) cached_icon: Option<slint::Image>,
 }
 
 /// Root application state shared via `Rc<RefCell<…>>`.
-struct AppState {
-    hwnd: HWND,
-    windows: Vec<ManagedWindow>,
-    current_layout: LayoutType,
-    active_hwnd: Option<HWND>,
-    tray_icon: Option<TrayIcon>,
-    icons: AppIcons,
-    settings: AppSettings,
-    animation_started_at: Option<Instant>,
-    content_extent: i32,
-    is_appbar: bool,
-    profile_name: Option<String>,
-    last_size: (i32, i32),
+pub(crate) struct AppState {
+    pub(crate) hwnd: HWND,
+    pub(crate) windows: Vec<ManagedWindow>,
+    pub(crate) current_layout: LayoutType,
+    pub(crate) active_hwnd: Option<HWND>,
+    pub(crate) tray_icon: Option<TrayIcon>,
+    pub(crate) icons: AppIcons,
+    pub(crate) settings: AppSettings,
+    pub(crate) animation_started_at: Option<Instant>,
+    pub(crate) content_extent: i32,
+    pub(crate) is_appbar: bool,
+    pub(crate) profile_name: Option<String>,
+    pub(crate) last_size: (i32, i32),
     /// Cached separators from the last layout computation.
-    separators: Vec<Separator>,
+    pub(crate) separators: Vec<Separator>,
     /// Active drag state: separator index being dragged.
-    drag_separator: Option<DragState>,
+    pub(crate) drag_separator: Option<DragState>,
     /// Last background image path loaded into the main window.
-    loaded_background_path: Option<String>,
+    pub(crate) loaded_background_path: Option<String>,
     /// Last theme snapshot rendered into Slint globals.
-    current_theme: theme_catalog::UiTheme,
+    pub(crate) current_theme: theme_catalog::UiTheme,
     /// Optional animated transition between theme snapshots.
-    theme_animation: Option<ThemeAnimation>,
+    pub(crate) theme_animation: Option<ThemeAnimation>,
 }
 
 struct RuntimeUiOptions {
@@ -376,7 +376,7 @@ fn main() {
     let refresh_timer = Timer::default();
     refresh_timer.start(
         TimerMode::Repeated,
-        Duration::from_millis(state.borrow().settings.refresh_interval_ms as u64),
+        Duration::from_millis((state.borrow().settings.refresh_interval_ms as u64).max(50)),
         {
             let state = state.clone();
             let weak = main_window.as_weak();
@@ -416,7 +416,9 @@ fn main() {
     });
 
     tracing::info!("entering Slint event loop");
-    slint::run_event_loop_until_quit().unwrap();
+    if let Err(error) = slint::run_event_loop_until_quit() {
+        tracing::error!(%error, "Slint event loop failed");
+    }
     let hwnd = state.borrow().hwnd;
     if !hwnd.0.is_null() {
         teardown_subclass(hwnd);
@@ -538,6 +540,10 @@ fn teardown_subclass(hwnd: HWND) {
 #[allow(clippy::missing_transmute_annotations)]
 fn forward_to_original(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let original = ORIGINAL_WNDPROC.with(Cell::get);
+    if original == 0 {
+        // SAFETY: DefWindowProcW is always valid as a fallback.
+        return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
+    }
     // SAFETY: `original` points to winit's WndProc set during window creation.
     unsafe { CallWindowProcW(mem::transmute(original), hwnd, msg, wparam, lparam) }
 }
@@ -657,6 +663,12 @@ unsafe extern "system" fn subclass_proc(
         WM_MOUSEMOVE => {
             let pan_active = PAN_STATE.with(|p| p.borrow().active);
             if pan_active {
+                // MK_MBUTTON (0x0010) — reset stale pan if middle button was
+                // released outside the window (WM_MBUTTONUP never received).
+                if wparam.0 & 0x0010 == 0 {
+                    PAN_STATE.with(|p| p.borrow_mut().active = false);
+                    return forward_to_original(hwnd, msg, wparam, lparam);
+                }
                 handle_middle_pan_move(lparam);
                 LRESULT(0)
             } else {
@@ -1306,455 +1318,6 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     win.set_active_drag_index(active_drag);
 }
 
-// ───────────────────────── DWM Thumbnails ─────────────────────────
-
-fn update_dwm_thumbnails(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let Ok(mut s) = state.try_borrow_mut() else {
-        return;
-    };
-    if s.hwnd.0.is_null() || !unsafe { IsWindowVisible(s.hwnd).as_bool() } {
-        return;
-    }
-
-    let scale = win.window().scale_factor();
-    let phys = win.window().size();
-    let toolbar_h = if s.settings.show_toolbar {
-        TOOLBAR_HEIGHT as f32
-    } else {
-        0.0
-    };
-    let viewport_x = win.get_viewport_x();
-    let viewport_y = win.get_viewport_y();
-    let now = Instant::now();
-
-    let dest_hwnd = s.hwnd;
-    let (settings, windows) = {
-        let state = &mut *s;
-        (&state.settings, &mut state.windows)
-    };
-    let show_icons = settings.show_app_icons;
-
-    for mw in windows.iter_mut() {
-        let preserve = settings.preserve_aspect_ratio_for(&mw.info.app_id);
-        let refresh_mode = settings.thumbnail_refresh_mode_for(&mw.info.app_id);
-        let interval_ms = settings.thumbnail_refresh_interval_ms_for(&mw.info.app_id);
-        let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
-        let is_source_valid = unsafe { IsWindow(mw.info.hwnd).as_bool() };
-        let is_source_visible = unsafe { IsWindowVisible(mw.info.hwnd).as_bool() };
-        let is_cloaked = is_window_cloaked(mw.info.hwnd);
-        if !is_source_valid || (!is_source_visible && !is_minimized) || is_cloaked {
-            release_thumbnail(mw);
-            continue;
-        }
-        if show_icons {
-            populate_cached_icon(mw);
-        }
-        let overlay_top_h = if settings.show_window_info
-            || is_minimized
-            || (show_icons && mw.cached_icon.is_some())
-        {
-            THUMBNAIL_INFO_STRIP_HEIGHT
-        } else {
-            0
-        };
-
-        // Frozen: register once but never refresh bitmap contents afterwards.
-        let should_refresh_bitmap = !is_minimized
-            && match refresh_mode {
-                panopticon::settings::ThumbnailRefreshMode::Frozen => mw.thumbnail.is_none(),
-                panopticon::settings::ThumbnailRefreshMode::Interval => mw
-                    .last_thumb_update
-                    .is_none_or(|t| now.duration_since(t).as_millis() >= u128::from(interval_ms)),
-                panopticon::settings::ThumbnailRefreshMode::Realtime => true,
-            };
-
-        let registered_thumbnail = ensure_thumbnail(dest_hwnd, mw);
-        if let Some(thumb) = mw.thumbnail.as_ref() {
-            let raw_dest = compute_dwm_rect(
-                &mw.display_rect,
-                mw.source_size,
-                preserve,
-                overlay_top_h,
-                toolbar_h,
-                viewport_x,
-                viewport_y,
-                scale,
-            );
-            let (dest, visible) =
-                sanitize_thumbnail_rect(raw_dest, phys.width as i32, phys.height as i32);
-            let props_changed = registered_thumbnail
-                || mw.last_thumb_dest != Some(dest)
-                || mw.last_thumb_visible != visible;
-            let should_push_update = props_changed || should_refresh_bitmap;
-
-            if should_push_update {
-                if let Err(error) = thumb.update(dest, visible) {
-                    tracing::warn!(
-                        %error,
-                        title = %mw.info.title,
-                        visible,
-                        minimized = is_minimized,
-                        cloaked = is_cloaked,
-                        dest = ?dest,
-                        "thumbnail update failed — dropping"
-                    );
-                    release_thumbnail(mw);
-                } else {
-                    mw.last_thumb_dest = Some(dest);
-                    mw.last_thumb_visible = visible;
-                    if should_refresh_bitmap {
-                        mw.last_thumb_update = Some(now);
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn sanitize_thumbnail_rect(dest: RECT, client_width: i32, client_height: i32) -> (RECT, bool) {
-    if client_width <= 0 || client_height <= 0 || dest.right <= dest.left || dest.bottom <= dest.top
-    {
-        return (HIDDEN_THUMBNAIL_RECT, false);
-    }
-
-    if dest.right <= 0 || dest.bottom <= 0 || dest.left >= client_width || dest.top >= client_height
-    {
-        return (HIDDEN_THUMBNAIL_RECT, false);
-    }
-
-    let clipped = RECT {
-        left: dest.left.clamp(0, client_width.saturating_sub(1)),
-        top: dest.top.clamp(0, client_height.saturating_sub(1)),
-        right: dest.right.clamp(1, client_width),
-        bottom: dest.bottom.clamp(1, client_height),
-    };
-
-    if clipped.right <= clipped.left || clipped.bottom <= clipped.top {
-        (HIDDEN_THUMBNAIL_RECT, false)
-    } else {
-        (clipped, true)
-    }
-}
-
-fn is_window_cloaked(hwnd: HWND) -> bool {
-    let mut cloaked: u32 = 0;
-    // SAFETY: querying a DWM attribute on a live top-level HWND is read-only.
-    unsafe {
-        DwmGetWindowAttribute(
-            hwnd,
-            DWMWA_CLOAKED,
-            std::ptr::from_mut(&mut cloaked).cast::<c_void>(),
-            mem::size_of_val(&cloaked) as u32,
-        )
-        .is_ok_and(|()| cloaked != 0)
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::many_single_char_names)]
-fn compute_dwm_rect(
-    card_rect: &RECT,
-    source_size: SIZE,
-    preserve_aspect: bool,
-    overlay_top_h: i32,
-    toolbar_h: f32,
-    viewport_x: f32,
-    viewport_y: f32,
-    scale: f32,
-) -> RECT {
-    let inset = THUMBNAIL_CONTENT_PADDING as f32;
-    let l = card_rect.left as f32 + inset;
-    let t = card_rect.top as f32 + THUMBNAIL_ACCENT_HEIGHT as f32 + overlay_top_h as f32 + inset;
-    let r = card_rect.right as f32 - inset;
-    let b = card_rect.bottom as f32 - inset;
-
-    let (fl, ft, fr, fb) = if preserve_aspect && source_size.cx > 0 && source_size.cy > 0 {
-        let aw = r - l;
-        let ah = b - t;
-        let wr = aw / source_size.cx as f32;
-        let hr = ah / source_size.cy as f32;
-        let s = wr.min(hr);
-        let rw = source_size.cx as f32 * s;
-        let rh = source_size.cy as f32 * s;
-        (
-            l + (aw - rw) / 2.0,
-            t + (ah - rh) / 2.0,
-            l + (aw - rw) / 2.0 + rw,
-            t + (ah - rh) / 2.0 + rh,
-        )
-    } else {
-        (l, t, r, b)
-    };
-
-    RECT {
-        left: ((fl + viewport_x) * scale).round() as i32,
-        top: ((ft + toolbar_h + viewport_y) * scale).round() as i32,
-        right: ((fr + viewport_x) * scale).round() as i32,
-        bottom: ((fb + toolbar_h + viewport_y) * scale).round() as i32,
-    }
-}
-
-fn ensure_thumbnail(owner: HWND, mw: &mut ManagedWindow) -> bool {
-    if mw.thumbnail.is_some() {
-        return false;
-    }
-    if let Ok(thumb) = Thumbnail::register(owner, mw.info.hwnd) {
-        mw.source_size = query_source_size(thumb.handle());
-        mw.thumbnail = Some(thumb);
-        true
-    } else {
-        false
-    }
-}
-
-fn release_thumbnail(mw: &mut ManagedWindow) {
-    mw.thumbnail = None;
-    mw.last_thumb_update = None;
-    mw.last_thumb_dest = None;
-    mw.last_thumb_visible = false;
-}
-
-fn release_all_thumbnails(state: &Rc<RefCell<AppState>>) {
-    if let Ok(mut s) = state.try_borrow_mut() {
-        for mw in &mut s.windows {
-            release_thumbnail(mw);
-        }
-    }
-}
-
-fn query_source_size(handle: isize) -> SIZE {
-    let mut size = unsafe { DwmQueryThumbnailSourceSize(handle).unwrap_or_default() };
-    if size.cx == 0 {
-        size.cx = 800;
-    }
-    if size.cy == 0 {
-        size.cy = 600;
-    }
-    size
-}
-
-// ───────────────────────── Icon Extraction ─────────────────────────
-
-/// Extract and cache the application icon for a managed window.
-fn populate_cached_icon(mw: &mut ManagedWindow) {
-    if mw.cached_icon.is_some() {
-        return;
-    }
-    mw.cached_icon = hicon_to_slint_image(&mw.info);
-}
-
-/// Convert a window's HICON to a high-resolution Slint RGBA image.
-fn hicon_to_slint_image(info: &WindowInfo) -> Option<slint::Image> {
-    let (icon, owns_icon) = resolve_preview_icon(info)?;
-    let image = render_hicon_to_slint_image(icon);
-    if owns_icon {
-        // SAFETY: fallback icons extracted from executables are owned by this
-        // function and must be destroyed after rendering.
-        unsafe {
-            let _ = DestroyIcon(icon);
-        }
-    }
-    image
-}
-
-fn resolve_preview_icon(info: &WindowInfo) -> Option<(HICON, bool)> {
-    info.process_path
-        .as_deref()
-        .and_then(|path| resolve_window_icon_from_executable(path, true))
-        .map(|icon| (icon, true))
-        .or_else(|| resolve_window_icon_sized(info.hwnd, true).map(|icon| (icon, false)))
-        .or_else(|| {
-            info.process_path
-                .as_deref()
-                .and_then(|path| resolve_window_icon_from_executable(path, false))
-                .map(|icon| (icon, true))
-        })
-        .or_else(|| resolve_window_icon(info.hwnd).map(|icon| (icon, false)))
-}
-
-fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
-    let size: i32 = 256;
-    // SAFETY: GDI drawing operations on a temporary memory DC; all resources
-    // are released before returning.
-    unsafe {
-        let screen_dc = GetDC(HWND::default());
-        if screen_dc.0.is_null() {
-            return None;
-        }
-        let mem_dc = CreateCompatibleDC(screen_dc);
-        if mem_dc.0.is_null() {
-            let _ = ReleaseDC(HWND::default(), screen_dc);
-            return None;
-        }
-
-        let mut bmi: BITMAPINFO = mem::zeroed();
-        bmi.bmiHeader.biSize = mem::size_of::<BITMAPINFOHEADER>() as u32;
-        bmi.bmiHeader.biWidth = size;
-        bmi.bmiHeader.biHeight = -size; // top-down DIB
-        bmi.bmiHeader.biPlanes = 1;
-        bmi.bmiHeader.biBitCount = 32;
-        bmi.bmiHeader.biCompression = BI_RGB.0;
-
-        let mut bits_ptr: *mut c_void = std::ptr::null_mut();
-        let Ok(dib) = CreateDIBSection(
-            mem_dc,
-            &raw const bmi,
-            DIB_RGB_COLORS,
-            &raw mut bits_ptr,
-            None,
-            0,
-        ) else {
-            let _ = DeleteDC(mem_dc);
-            let _ = ReleaseDC(HWND::default(), screen_dc);
-            return None;
-        };
-        if bits_ptr.is_null() {
-            let _ = DeleteObject(HGDIOBJ(dib.0.cast()));
-            let _ = DeleteDC(mem_dc);
-            let _ = ReleaseDC(HWND::default(), screen_dc);
-            return None;
-        }
-
-        let old = SelectObject(mem_dc, HGDIOBJ(dib.0.cast()));
-        let _ = DrawIconEx(mem_dc, 0, 0, icon, size, size, 0, None, DI_NORMAL);
-        SelectObject(mem_dc, old);
-
-        let pixel_count = (size * size) as usize;
-        let src = std::slice::from_raw_parts(bits_ptr.cast::<u8>(), pixel_count * 4);
-        let mut rgba = vec![0u8; pixel_count * 4];
-
-        let mut has_alpha = false;
-        for (i, chunk) in src.chunks_exact(4).enumerate() {
-            let o = i * 4;
-            rgba[o] = chunk[2];
-            rgba[o + 1] = chunk[1];
-            rgba[o + 2] = chunk[0];
-            rgba[o + 3] = chunk[3];
-            if chunk[3] != 0 {
-                has_alpha = true;
-            }
-        }
-
-        // Icons without an alpha channel: set all non-black pixels to opaque.
-        if !has_alpha {
-            for chunk in rgba.chunks_exact_mut(4) {
-                if chunk[0] != 0 || chunk[1] != 0 || chunk[2] != 0 {
-                    chunk[3] = 255;
-                }
-            }
-        }
-
-        let rgba = normalize_icon_canvas(&rgba, size as usize, 4);
-
-        let _ = DeleteObject(HGDIOBJ(dib.0.cast()));
-        let _ = DeleteDC(mem_dc);
-        let _ = ReleaseDC(HWND::default(), screen_dc);
-
-        let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
-            &rgba,
-            u32::try_from(size).unwrap_or(32),
-            u32::try_from(size).unwrap_or(32),
-        );
-        Some(slint::Image::from_rgba8(buffer))
-    }
-}
-
-fn normalize_icon_canvas(source: &[u8], size: usize, padding: usize) -> Vec<u8> {
-    let mut min_x = size;
-    let mut min_y = size;
-    let mut max_x = 0usize;
-    let mut max_y = 0usize;
-    let mut found = false;
-
-    for y in 0..size {
-        for x in 0..size {
-            let alpha = source[(y * size + x) * 4 + 3];
-            if alpha > 8 {
-                min_x = min_x.min(x);
-                min_y = min_y.min(y);
-                max_x = max_x.max(x);
-                max_y = max_y.max(y);
-                found = true;
-            }
-        }
-    }
-
-    if !found {
-        return source.to_vec();
-    }
-
-    let crop_w = max_x - min_x + 1;
-    let crop_h = max_y - min_y + 1;
-    let target_side = size.saturating_sub(padding * 2).max(1);
-    let scale = target_side as f32 / crop_w.max(crop_h) as f32;
-    let dest_w = ((crop_w as f32 * scale).round() as usize).max(1);
-    let dest_h = ((crop_h as f32 * scale).round() as usize).max(1);
-    let offset_x = (size.saturating_sub(dest_w)) / 2;
-    let offset_y = (size.saturating_sub(dest_h)) / 2;
-    let mut normalized = vec![0u8; source.len()];
-
-    for dy in 0..dest_h {
-        for dx in 0..dest_w {
-            let sx = min_x as f32 + ((dx as f32 + 0.5) / scale) - 0.5;
-            let sy = min_y as f32 + ((dy as f32 + 0.5) / scale) - 0.5;
-            let sample = bilinear_sample_rgba(source, size, sx, sy);
-            let dst_index = ((offset_y + dy) * size + (offset_x + dx)) * 4;
-            normalized[dst_index..dst_index + 4].copy_from_slice(&sample);
-        }
-    }
-
-    normalized
-}
-
-fn bilinear_sample_rgba(source: &[u8], size: usize, x: f32, y: f32) -> [u8; 4] {
-    let max = (size.saturating_sub(1)) as f32;
-    let x = x.clamp(0.0, max);
-    let y = y.clamp(0.0, max);
-    let x0 = x.floor() as usize;
-    let y0 = y.floor() as usize;
-    let x1 = (x0 + 1).min(size.saturating_sub(1));
-    let y1 = (y0 + 1).min(size.saturating_sub(1));
-    let tx = x - x0 as f32;
-    let ty = y - y0 as f32;
-
-    let sample = |sx: usize, sy: usize| {
-        let index = (sy * size + sx) * 4;
-        &source[index..index + 4]
-    };
-
-    let weights = [
-        ((1.0 - tx) * (1.0 - ty), sample(x0, y0)),
-        (tx * (1.0 - ty), sample(x1, y0)),
-        ((1.0 - tx) * ty, sample(x0, y1)),
-        (tx * ty, sample(x1, y1)),
-    ];
-
-    let mut accum_r = 0.0;
-    let mut accum_g = 0.0;
-    let mut accum_b = 0.0;
-    let mut accum_a = 0.0;
-
-    for (weight, pixel) in weights {
-        let alpha = f32::from(pixel[3]) / 255.0;
-        let weighted_alpha = weight * alpha;
-        accum_r += weight * f32::from(pixel[0]) * alpha;
-        accum_g += weight * f32::from(pixel[1]) * alpha;
-        accum_b += weight * f32::from(pixel[2]) * alpha;
-        accum_a += weighted_alpha;
-    }
-
-    if accum_a <= f32::EPSILON {
-        return [0, 0, 0, 0];
-    }
-
-    [
-        (accum_r / accum_a).round().clamp(0.0, 255.0) as u8,
-        (accum_g / accum_a).round().clamp(0.0, 255.0) as u8,
-        (accum_b / accum_a).round().clamp(0.0, 255.0) as u8,
-        (accum_a * 255.0).round().clamp(0.0, 255.0) as u8,
-    ]
-}
-
 // ───────────────────────── Click / Hover ─────────────────────────
 
 fn handle_thumbnail_click(
@@ -1968,7 +1531,9 @@ fn kill_target_process(hwnd: HWND) {
     // handle immediately after use.
     unsafe {
         if let Ok(process) = OpenProcess(PROCESS_TERMINATE, false, pid) {
-            let _ = TerminateProcess(process, 1);
+            if let Err(error) = TerminateProcess(process, 1) {
+                tracing::warn!(%error, pid, "TerminateProcess failed");
+            }
             let _ = windows::Win32::Foundation::CloseHandle(process);
         }
     }
@@ -2960,7 +2525,10 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
     });
 
     // Apply DWM dark mode to the settings window.
-    sw.show().unwrap();
+    if let Err(error) = sw.show() {
+        tracing::error!(%error, "failed to show settings window");
+        return;
+    }
     if let Some(sw_hwnd) = get_hwnd(sw.window()) {
         let state = state.borrow();
         apply_window_appearance(sw_hwnd, &state.settings);
@@ -3205,6 +2773,9 @@ fn request_exit(state: &Rc<RefCell<AppState>>) {
             unregister_appbar(s.hwnd);
             s.is_appbar = false;
         }
+        for mw in &mut s.windows {
+            release_thumbnail(mw);
+        }
         s.windows.clear();
         if let Some(tray) = s.tray_icon.as_mut() {
             tray.remove();
@@ -3214,292 +2785,6 @@ fn request_exit(state: &Rc<RefCell<AppState>>) {
         h.borrow_mut().take();
     });
     slint::quit_event_loop().ok();
-}
-
-// ───────────────────────── Window Appearance ─────────────────────────
-
-fn apply_window_appearance(hwnd: HWND, settings: &AppSettings) {
-    let dark_mode: i32 = 1;
-    let corner = DWMWCP_ROUND;
-    let backdrop = if settings.use_system_backdrop {
-        DWMSBT_MAINWINDOW
-    } else {
-        DWMSBT_NONE
-    };
-    // SAFETY: hwnd is our live window; all values are stack-allocated with
-    // correct sizes. DwmSetWindowAttribute is a read-only DWM configuration call.
-    unsafe {
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_USE_IMMERSIVE_DARK_MODE,
-            std::ptr::from_ref(&dark_mode).cast::<c_void>(),
-            mem::size_of_val(&dark_mode) as u32,
-        );
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_WINDOW_CORNER_PREFERENCE,
-            std::ptr::from_ref(&corner).cast::<c_void>(),
-            mem::size_of_val(&corner) as u32,
-        );
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_SYSTEMBACKDROP_TYPE,
-            std::ptr::from_ref(&backdrop).cast::<c_void>(),
-            mem::size_of_val(&backdrop) as u32,
-        );
-    }
-}
-
-fn apply_topmost_mode(hwnd: HWND, always_on_top: bool) {
-    // SAFETY: hwnd is our live window; toggling the topmost z-order flag.
-    unsafe {
-        let _ = SetWindowPos(
-            hwnd,
-            if always_on_top {
-                HWND_TOPMOST
-            } else {
-                HWND_NOTOPMOST
-            },
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
-        );
-    }
-}
-
-// ───────────────────────── App-bar Docking ─────────────────────────
-
-fn apply_dock_mode(state: &mut AppState) {
-    let hwnd = state.hwnd;
-    // SAFETY: hwnd is our live main window; switching style to borderless popup
-    // on the UI thread before registering as an appbar.
-    unsafe {
-        let _ = SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_POPUP | WS_VISIBLE).0 as isize);
-    }
-    sync_dock_system_menu(hwnd, true);
-    if register_appbar(hwnd) {
-        state.is_appbar = true;
-        reposition_appbar(state);
-    }
-}
-
-fn register_appbar(hwnd: HWND) -> bool {
-    let mut abd = APPBARDATA {
-        cbSize: mem::size_of::<APPBARDATA>() as u32,
-        hWnd: hwnd,
-        uCallbackMessage: WM_APPBAR_CALLBACK,
-        ..Default::default()
-    };
-    // SAFETY: abd is stack-allocated with correct cbSize; hwnd is our window.
-    unsafe { SHAppBarMessage(ABM_NEW, &raw mut abd) != 0 }
-}
-
-fn unregister_appbar(hwnd: HWND) {
-    let mut abd = APPBARDATA {
-        cbSize: mem::size_of::<APPBARDATA>() as u32,
-        hWnd: hwnd,
-        ..Default::default()
-    };
-    // SAFETY: abd is stack-allocated with correct cbSize; releasing the appbar
-    // registration for our window.
-    unsafe {
-        let _ = SHAppBarMessage(ABM_REMOVE, &raw mut abd);
-    }
-}
-
-#[allow(clippy::similar_names)]
-fn reposition_appbar(state: &mut AppState) {
-    let Some(edge) = state.settings.dock_edge else {
-        return;
-    };
-    let hwnd = state.hwnd;
-    let monitor_rect = get_monitor_rect(hwnd);
-    let abe = dock_edge_to_abe(edge);
-    let thickness = match edge {
-        DockEdge::Left | DockEdge::Right => state.settings.fixed_width.unwrap_or(300) as i32,
-        DockEdge::Top | DockEdge::Bottom => state.settings.fixed_height.unwrap_or(200) as i32,
-    };
-
-    let mut abd = APPBARDATA {
-        cbSize: mem::size_of::<APPBARDATA>() as u32,
-        hWnd: hwnd,
-        uEdge: abe,
-        rc: monitor_rect,
-        ..Default::default()
-    };
-
-    // SAFETY: abd is stack-allocated with correct cbSize and valid hwnd.
-    // ABM_QUERYPOS, ABM_SETPOS and SetWindowPos are called sequentially on
-    // the UI thread to negotiate and apply the appbar position.
-    unsafe {
-        let _ = SHAppBarMessage(ABM_QUERYPOS, &raw mut abd);
-        match edge {
-            DockEdge::Left => abd.rc.right = abd.rc.left + thickness,
-            DockEdge::Right => abd.rc.left = abd.rc.right - thickness,
-            DockEdge::Top => abd.rc.bottom = abd.rc.top + thickness,
-            DockEdge::Bottom => abd.rc.top = abd.rc.bottom - thickness,
-        }
-        let _ = SHAppBarMessage(ABM_SETPOS, &raw mut abd);
-        let _ = SetWindowPos(
-            hwnd,
-            HWND_TOPMOST,
-            abd.rc.left,
-            abd.rc.top,
-            abd.rc.right - abd.rc.left,
-            abd.rc.bottom - abd.rc.top,
-            SWP_NOACTIVATE,
-        );
-    }
-}
-
-fn restore_floating_style(hwnd: HWND) {
-    // SAFETY: hwnd is our live window; restoring the normal overlapped style
-    // and refreshing the frame on the UI thread.
-    unsafe {
-        let _ = SetWindowLongPtrW(
-            hwnd,
-            GWL_STYLE,
-            (WS_OVERLAPPEDWINDOW | WS_VISIBLE).0 as isize,
-        );
-        let _ = SetWindowPos(
-            hwnd,
-            HWND_TOPMOST,
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-        );
-    }
-    sync_dock_system_menu(hwnd, false);
-}
-
-const fn dock_edge_to_abe(edge: DockEdge) -> u32 {
-    match edge {
-        DockEdge::Left => ABE_LEFT,
-        DockEdge::Right => ABE_RIGHT,
-        DockEdge::Top => ABE_TOP,
-        DockEdge::Bottom => ABE_BOTTOM,
-    }
-}
-
-fn get_monitor_rect(hwnd: HWND) -> RECT {
-    // SAFETY: hwnd is a valid window; MonitorFromWindow and GetMonitorInfoW
-    // are read-only queries with stack-allocated output structs.
-    unsafe {
-        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
-        let mut info = MONITORINFO {
-            cbSize: mem::size_of::<MONITORINFO>() as u32,
-            ..Default::default()
-        };
-        if GetMonitorInfoW(monitor, &raw mut info).as_bool() {
-            info.rcMonitor
-        } else {
-            RECT {
-                left: 0,
-                top: 0,
-                right: 1920,
-                bottom: 1080,
-            }
-        }
-    }
-}
-
-macro_rules! apply_runtime_theme {
-    ($window:expr, $resolved:expr) => {{
-        let globals = $window.global::<Theme>();
-        globals.set_bg(hex_to_slint_color(&$resolved.bg_hex));
-        globals.set_toolbar_bg(hex_to_slint_color(&$resolved.toolbar_bg_hex));
-        globals.set_panel_bg(hex_to_slint_color(&$resolved.panel_bg_hex));
-        globals.set_card_bg(hex_to_slint_color(&$resolved.card_bg_hex));
-        globals.set_border(hex_to_slint_color(&$resolved.border_hex));
-        globals.set_accent(hex_to_slint_color(&$resolved.accent_hex));
-        globals.set_accent_soft(hex_to_slint_color(&$resolved.accent_soft_hex));
-        globals.set_text(hex_to_slint_color(&$resolved.text_hex));
-        globals.set_label(hex_to_slint_color(&$resolved.label_hex));
-        globals.set_muted(hex_to_slint_color(&$resolved.muted_hex));
-        globals.set_hover_border(hex_to_slint_color(&$resolved.hover_border_hex));
-        globals.set_placeholder(hex_to_slint_color(&$resolved.placeholder_hex));
-        globals.set_footer_bg(hex_to_slint_color(&$resolved.footer_bg_hex));
-        globals.set_surface(hex_to_slint_color(&$resolved.surface_hex));
-    }};
-}
-
-fn apply_main_window_theme_snapshot(window: &MainWindow, resolved: &theme_catalog::UiTheme) {
-    apply_runtime_theme!(window, resolved);
-}
-
-fn apply_settings_window_theme_snapshot(
-    window: &SettingsWindow,
-    resolved: &theme_catalog::UiTheme,
-) {
-    apply_runtime_theme!(window, resolved);
-}
-
-fn apply_tag_dialog_theme_snapshot(window: &TagDialogWindow, resolved: &theme_catalog::UiTheme) {
-    apply_runtime_theme!(window, resolved);
-}
-
-fn sync_theme_target(state: &mut AppState) {
-    let desired = theme_catalog::resolve_ui_theme(
-        state.settings.theme_id.as_deref(),
-        &state.settings.background_color_hex,
-    );
-    let already_targeting = state
-        .theme_animation
-        .as_ref()
-        .is_some_and(|animation| animation.to == desired);
-
-    if already_targeting || state.current_theme == desired {
-        return;
-    }
-
-    state.theme_animation = Some(ThemeAnimation {
-        from: state.current_theme.clone(),
-        to: desired,
-        started_at: Instant::now(),
-    });
-}
-
-fn apply_theme_snapshot_everywhere(win: &MainWindow, resolved: &theme_catalog::UiTheme) {
-    apply_main_window_theme_snapshot(win, resolved);
-    SETTINGS_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_settings_window_theme_snapshot(window, resolved);
-        }
-    });
-    TAG_DIALOG_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_tag_dialog_theme_snapshot(window, resolved);
-        }
-    });
-}
-
-fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let mut s = state.borrow_mut();
-    let Some(animation) = s.theme_animation.clone() else {
-        let current = s.current_theme.clone();
-        drop(s);
-        apply_theme_snapshot_everywhere(win, &current);
-        refresh_thumbnail_accent_rows(state, win);
-        return;
-    };
-
-    let elapsed_ms = animation.started_at.elapsed().as_millis() as u32;
-    let progress = (elapsed_ms as f32 / THEME_TRANSITION_DURATION_MS as f32).clamp(0.0, 1.0);
-    let eased = 1.0 - (1.0 - progress).powi(3);
-    let resolved = theme_catalog::interpolate_ui_theme(&animation.from, &animation.to, eased);
-    s.current_theme = resolved;
-    if progress >= 1.0 {
-        s.current_theme = animation.to;
-        s.theme_animation = None;
-    }
-    let current = s.current_theme.clone();
-    drop(s);
-    apply_theme_snapshot_everywhere(win, &current);
-    refresh_thumbnail_accent_rows(state, win);
 }
 
 fn current_profile_label(profile_name: Option<&str>) -> String {
@@ -3700,100 +2985,6 @@ fn launch_additional_instance(profile_name: Option<&str>) -> bool {
     }
 }
 
-fn keep_dialog_above_owner(dialog_hwnd: HWND, owner_hwnd: HWND, settings: &AppSettings) {
-    if dialog_hwnd.0.is_null() || owner_hwnd.0.is_null() {
-        return;
-    }
-
-    // SAFETY: both HWNDs belong to live windows created by this process.
-    unsafe {
-        let _ = SetWindowLongPtrW(dialog_hwnd, GWLP_HWNDPARENT, owner_hwnd.0 as isize);
-        let _ = SetWindowPos(
-            dialog_hwnd,
-            if settings.always_on_top || settings.dock_edge.is_some() {
-                HWND_TOPMOST
-            } else {
-                HWND_TOP
-            },
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
-        );
-    }
-}
-
-/// Centers the given window on its current monitor.
-fn center_window_on_screen(hwnd: HWND) {
-    if hwnd.0.is_null() {
-        return;
-    }
-    // SAFETY: hwnd is a live window created by this process.
-    unsafe {
-        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
-        let mut mi = MONITORINFO {
-            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-            ..Default::default()
-        };
-        if !GetMonitorInfoW(monitor, &raw mut mi).as_bool() {
-            return;
-        }
-        let mut rc = RECT::default();
-        if GetWindowRect(hwnd, &raw mut rc).is_err() {
-            return;
-        }
-        let win_w = rc.right - rc.left;
-        let win_h = rc.bottom - rc.top;
-        let work = mi.rcWork;
-        let cx = work.left + (work.right - work.left - win_w) / 2;
-        let cy = work.top + (work.bottom - work.top - win_h) / 2;
-        let _ = SetWindowPos(
-            hwnd,
-            HWND::default(),
-            cx,
-            cy,
-            0,
-            0,
-            SWP_NOSIZE | SWP_NOZORDER,
-        );
-    }
-}
-
-fn sync_dock_system_menu(hwnd: HWND, docked: bool) {
-    // SAFETY: system menu belongs to the live top-level window and the command IDs are standard SC_* items.
-    unsafe {
-        let menu = GetSystemMenu(hwnd, false);
-        if menu.0.is_null() {
-            return;
-        }
-
-        let flags = MF_BYCOMMAND | if docked { MF_GRAYED } else { MF_ENABLED };
-        for command in [SC_MOVE, SC_SIZE, SC_MINIMIZE, SC_MAXIMIZE, SC_CLOSE] {
-            let _ = EnableMenuItem(menu, command, flags);
-        }
-    }
-}
-
-const fn is_blocked_dock_syscommand(command: usize) -> bool {
-    let masked = command & 0xFFF0;
-    masked == SC_MOVE as usize
-        || masked == SC_SIZE as usize
-        || masked == SC_MINIMIZE as usize
-        || masked == SC_MAXIMIZE as usize
-        || masked == SC_CLOSE as usize
-}
-
-fn docked_mode_active() -> bool {
-    UI_STATE.with(|state| {
-        state.borrow().as_ref().is_some_and(|rc| {
-            rc.try_borrow()
-                .map(|state| state.settings.dock_edge.is_some())
-                .unwrap_or(false)
-        })
-    })
-}
-
 fn toggle_toolbar_from_alt_hotkey() {
     UI_STATE.with(|state| {
         UI_WINDOW.with(|window| {
@@ -3867,43 +3058,6 @@ fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT 
     POINT {
         x: window_rect.left + logical_x.round() as i32,
         y: window_rect.top + logical_y.round() as i32,
-    }
-}
-
-fn default_thumbnail_accent_color(
-    settings: &AppSettings,
-    theme: &theme_catalog::UiTheme,
-) -> slint::Color {
-    settings.active_tag_filter.as_deref().map_or_else(
-        || hex_to_slint_color(&theme.accent_hex),
-        |tag| hex_to_slint_color(&settings.tag_color_hex(tag)),
-    )
-}
-
-fn thumbnail_accent_color(
-    settings: &AppSettings,
-    theme: &theme_catalog::UiTheme,
-    app_id: &str,
-) -> slint::Color {
-    settings.app_color_hex(app_id).map_or_else(
-        || default_thumbnail_accent_color(settings, theme),
-        hex_to_slint_color,
-    )
-}
-
-fn refresh_thumbnail_accent_rows(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let s = state.borrow();
-    let model = win.get_thumbnails();
-    if model.row_count() != s.windows.len() {
-        return;
-    }
-
-    for (index, managed_window) in s.windows.iter().enumerate() {
-        if let Some(mut item) = model.row_data(index) {
-            item.accent_color =
-                thumbnail_accent_color(&s.settings, &s.current_theme, &managed_window.info.app_id);
-            model.set_row_data(index, item);
-        }
     }
 }
 
@@ -4003,13 +3157,6 @@ fn normalize_sort_value(value: &str) -> String {
     value.trim().to_ascii_lowercase()
 }
 
-fn hex_to_slint_color(hex: &str) -> slint::Color {
-    let r = u8::from_str_radix(hex.get(0..2).unwrap_or("D2"), 16).unwrap_or(0xD2);
-    let g = u8::from_str_radix(hex.get(2..4).unwrap_or("9A"), 16).unwrap_or(0x9A);
-    let b = u8::from_str_radix(hex.get(4..6).unwrap_or("5C"), 16).unwrap_or(0x5C);
-    slint::Color::from_rgb_u8(r, g, b)
-}
-
 fn truncate_title(title: &str) -> String {
     use panopticon::constants::{MAX_TITLE_CHARS, TITLE_TRUNCATE_AT};
     let chars: Vec<char> = title.chars().collect();
@@ -4074,6 +3221,8 @@ fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::dwm::sanitize_thumbnail_rect;
+    use crate::app::icon::bilinear_sample_rgba;
 
     #[test]
     fn sanitize_thumbnail_rect_clips_to_client_bounds() {
