@@ -38,6 +38,10 @@ jobs:
           Copy-Item LICENSE $dir/
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
       - name: Build installer
         shell: pwsh
         run: |
