@@ -2,52 +2,49 @@
 
 ![Panopticon icon](docs/assets/icon.webp)
 
-**Native Windows viewer that displays real-time DWM thumbnails, organises windows with mathematical layouts, and lets you filter, group, and manage them from the system tray.**
+**A native Windows dashboard for viewing, organising, and activating your open windows through live DWM thumbnails.**
 
 [![CI](https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml/badge.svg)](https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2021-%23CE422B?logo=rust)](https://www.rust-lang.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4?logo=windows)](https://learn.microsoft.com/windows/)
 
-Panopticon is a desktop application written in Rust for Windows 10/11 that enumerates top-level windows, registers live thumbnails with the **Desktop Window Manager (DWM)** API, and presents them inside a **Slint**-based UI. The project is designed as a visual productivity utility: a "control room" to view, filter, reorder, and activate open windows without manual screenshots or an external backend.
+Panopticon is a local desktop utility built in Rust for Windows 10/11. It discovers real top-level windows, renders their live previews via **Desktop Window Manager (DWM)**, and lets you manage them in a single Slint-based control room.
 
-## What it does
+If you want the full guide instead of the quick landing page, jump to **[`docs/README.md`](docs/README.md)**.
 
-- **Discovers real system windows** using `EnumWindows` and filters out tool windows, system surfaces, and irrelevant windows.
-- **Renders live GPU-accelerated thumbnails** with `DwmRegisterThumbnail` and `DwmUpdateThumbnailProperties`.
-- **Offers 7 layouts**: `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, and `Column`.
-- **Supports persistent per-app customisation**: hide, preserve aspect ratio, hide Panopticon on activation, custom colour, tags, and thumbnail refresh strategy.
-- **Includes filters and grouping** by monitor, tag, application, and grouping criterion (`Application`, `Monitor`, `WindowTitle`, `ClassName`).
-- **Works as a tray utility** with a persistent icon, context menu, and hidden-app restoration.
-- **Includes a dedicated settings window** and multi-profile support via `--profile`.
-- **Supports dock/appbar** on screen edges using `SHAppBarMessage`.
-- **Applies dynamic theming** from `assets/themes.json`, with animated theme transitions.
-- **Writes structured logs** to `%TEMP%\panopticon\logs\`.
-- **Built-in i18n** with English (default) and Spanish.
+## Why use it?
 
-## Architecture at a glance
+Panopticon is useful when you want to:
 
-Panopticon does not use remote services or a backend: everything happens on the local machine.
+- see many windows at once without constantly alt-tabbing;
+- keep a persistent visual workspace with filters, grouping, and tags;
+- switch between several layout strategies depending on the task;
+- hide the app in the tray and bring it back instantly when needed;
+- stay fully local, with no backend, cloud sync, or external services.
 
-1. `main.rs` creates the main Slint window, configures DPI awareness, and acquires the native `HWND`.
-2. `window_enum.rs` enumerates windows and builds `WindowInfo` with persistable metadata (`app_id`, monitor, process, class, title).
-3. `layout.rs` computes pure rectangles and resize separators in memory.
-4. `thumbnail.rs` manages DWM thumbnails with RAII.
-5. `settings.rs` persists preferences and per-app rules in TOML.
-6. `app/tray.rs`, `app/window_menu.rs`, and `app/settings_ui.rs` connect Win32/Slint to the user experience.
+## What you get
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) for more detail.
+- **Live DWM thumbnails** instead of static screenshots.
+- **7 layout modes**: `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, and `Column`.
+- **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
+- **Grouping and filters** by app, monitor, title, class, and tag.
+- **Tray utility + appbar/dock mode** for always-available workflows.
+- **Themes, animations, profiles, and persistence** through local TOML files.
+- **Bilingual UI** with English and Spanish support.
 
-## Requirements
+## Quick start
+
+### Requirements
 
 | Requirement | Value |
 | --- | --- |
 | Operating system | Windows 10 / 11 (64-bit) |
-| Rust toolchain | recent stable |
-| DWM | enabled |
-| Platform | local desktop, no Linux/macOS support |
+| Rust toolchain | Recent stable |
+| DWM | Enabled |
+| Platform support | Windows only |
 
-## Build and run
+### Run it
 
 ```bash
 git clone https://github.com/gvastethecreator/panopticon.git
@@ -55,21 +52,28 @@ cd panopticon
 cargo run --release
 ```
 
-The resulting executable is at `target/release/panopticon.exe`.
+The executable is generated at `target/release/panopticon.exe`.
 
-To launch an instance tied to a specific profile:
+To run a named profile:
 
 ```bash
 cargo run --release -- --profile work
 ```
 
-## Quick usage
+## First minute with Panopticon
 
-### Main shortcuts
+1. Launch the app with a few normal desktop windows already open.
+2. Press `Tab` or `1` to `7` to explore the available layouts.
+3. Left-click a thumbnail to activate that window.
+4. Right-click a thumbnail to open per-window actions.
+5. Press `O` to open settings and review theme, filters, and profiles.
+6. Use the tray icon to hide/show the dashboard without closing it.
+
+### Handy shortcuts
 
 | Input | Action |
 | --- | --- |
-| `Tab` | Cycle to next layout |
+| `Tab` | Next layout |
 | `1` ... `7` | Select layout directly |
 | `0` | Reset custom ratios for the current layout |
 | `R` | Refresh windows |
@@ -83,32 +87,16 @@ cargo run --release -- --profile work
 | `Alt` | Toggle toolbar |
 | `Esc` | Exit |
 
-### Mouse interactions
+## Where things are stored
 
-| Action | Result |
-| --- | --- |
-| Left-click on thumbnail | Activate target window |
-| Right-click on thumbnail | Open per-window context menu |
-| Drag on separators | Adjust persistent layout ratios |
-| Wheel / middle button | Navigate layouts with overflow (`Row` / `Column`) |
-| Left-click on tray | Show/hide Panopticon |
-| Right-click on tray | Open quick actions, filters, and options |
-
-## Configuration and persistence
-
-Panopticon saves configuration in:
+Configuration is stored locally in:
 
 ```text
 %APPDATA%\Panopticon\settings.toml
-```
-
-Named profiles are saved in:
-
-```text
 %APPDATA%\Panopticon\profiles\<profile>.toml
 ```
 
-If `%APPDATA%` is not available, the project falls back to `%TEMP%\Panopticon\...`.
+If `%APPDATA%` is unavailable, Panopticon falls back to `%TEMP%\Panopticon\...`.
 
 Logs are written to:
 
@@ -116,22 +104,21 @@ Logs are written to:
 %TEMP%\panopticon\logs\panopticon.log.YYYY-MM-DD
 ```
 
-See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for the full TOML schema and its runtime effects.
+## Documentation
 
-## Project documentation
+The root README is intentionally short. The fuller handbook now lives in **[`docs/README.md`](docs/README.md)**.
 
-Documentation is split by focus so each file is easy to maintain:
+Useful entry points:
 
-- [`PRD.md`](PRD.md) — product requirements document aligned with the current implementation.
-- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — installation, first launch, and initial usage flow.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — technical architecture, layers, runtime, and diagrams.
-- [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) — repository structure and per-file responsibilities.
-- [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) — implementation details by module and internal flow.
-- [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — persistent configuration, profiles, and TOML examples.
-- [`docs/SYSTEM_INTEGRATIONS.md`](docs/SYSTEM_INTEGRATIONS.md) — APIs, libraries, and system services used.
-- [`docs/UX_DESIGN.md`](docs/UX_DESIGN.md) — UX/UI design, layouts, interactions, and visual decisions.
+- [`docs/README.md`](docs/README.md) — complete documentation hub and reading guide.
+- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — install, launch, first-run flow, common issues.
+- [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — settings, profiles, and TOML schema.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture, runtime layers, and diagrams.
+- [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) — deeper implementation details by module.
+- [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) — repository map and code ownership.
+- [`docs/PRD.md`](docs/PRD.md) — product goals, scope, and constraints.
 
-Additional community files:
+Project/community references:
 
 - [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - [`SECURITY.md`](SECURITY.md)
@@ -140,7 +127,7 @@ Additional community files:
 
 ## Development
 
-### Useful commands
+Most day-to-day checks are:
 
 ```bash
 cargo check
@@ -149,27 +136,16 @@ cargo clippy -- -D warnings -W clippy::pedantic
 cargo fmt -- --check
 ```
 
-You can also use the VS Code workspace tasks (`check`, `test`, `lint`, `fmt-check`, etc.).
+VS Code workspace tasks are also available for these commands.
 
-### What is covered by tests
+## Scope and status
 
-- layout engine integration tests in `tests/layout_tests.rs`;
-- settings unit tests in `src/settings.rs`;
-- theming unit tests in `src/theme.rs`;
-- i18n unit tests in `src/i18n.rs`.
+Panopticon is currently:
 
-There is no automated test suite for tray, DWM, native menus, or Win32 enumeration, which is a known and documented limitation.
-
-## Project status
-
-Panopticon has a fully functional base as a local Windows utility:
-
-- declarative UI with Slint;
-- native integration with Win32, DWM, Shell, GDI, and HiDPI;
-- per-profile persistence;
-- theming, tray, dock, filters, and tags;
-- i18n (English / Spanish);
-- expanded technical documentation.
+- a **local-first Windows utility**;
+- built with **Rust + Slint + Win32/DWM**;
+- focused on **desktop window observation and activation**;
+- not intended for Linux, macOS, web, or remote multi-user usage.
 
 ## License
 

@@ -96,12 +96,13 @@ If there are no candidate windows, the UI shows an empty state.
 
 ## Files worth looking at early
 
-- `README.md` -- general project overview.
-- `PRD.md` -- updated product objectives.
-- `docs/ARCHITECTURE.md` -- architecture and diagrams.
-- `docs/CONFIGURATION.md` -- all settings keys.
-- `docs/PROJECT_STRUCTURE.md` -- repository map.
-- `docs/IMPLEMENTATION.md` -- technical details per module.
+- [`../README.md`](../README.md) -- short public-facing overview.
+- [`README.md`](README.md) -- documentation hub and reading guide.
+- [`PRD.md`](PRD.md) -- updated product objectives.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) -- architecture and diagrams.
+- [`CONFIGURATION.md`](CONFIGURATION.md) -- all settings keys.
+- [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) -- repository map.
+- [`IMPLEMENTATION.md`](IMPLEMENTATION.md) -- technical details per module.
 
 ## Important paths
 
