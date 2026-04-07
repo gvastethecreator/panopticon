@@ -26,6 +26,7 @@ AllowNoIcons=yes
 LicenseFile=..\LICENSE
 OutputDir=..\dist
 OutputBaseFilename=panopticon-{#AppVersion}-setup
+SetupIconFile=..\assets\icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
