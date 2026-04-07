@@ -1,5 +1,5 @@
 fn main() {
-    slint_build::compile("ui/main.slint").unwrap();
+    slint_build::compile("ui/main.slint").expect("Slint UI compilation failed");
 
     // Embed the application icon and version metadata into the Windows
     // executable so that Explorer, the taskbar, and Alt-Tab show the correct
