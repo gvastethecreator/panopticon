@@ -39,10 +39,11 @@ impl Default for TagStyle {
 }
 
 /// Thumbnail refresh strategy for individual applications.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ThumbnailRefreshMode {
     /// Default: real-time DWM mirroring (live preview).
+    #[default]
     Realtime,
     /// Frozen: the thumbnail is captured once and not refreshed.
     Frozen,
@@ -50,27 +51,16 @@ pub enum ThumbnailRefreshMode {
     Interval,
 }
 
-impl Default for ThumbnailRefreshMode {
-    fn default() -> Self {
-        Self::Realtime
-    }
-}
-
 /// Strategy used to keep related windows visually grouped together.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum WindowGrouping {
+    #[default]
     None,
     Application,
     Monitor,
     WindowTitle,
     ClassName,
-}
-
-impl Default for WindowGrouping {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl WindowGrouping {
