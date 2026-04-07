@@ -16,7 +16,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetClassLongPtrW, GetCursorPos, LoadIconW, SendMessageW, SetForegroundWindow, TrackPopupMenu,
     DI_NORMAL, GCLP_HICON, GCLP_HICONSM, HICON, ICON_BIG, ICON_SMALL, ICON_SMALL2, IDI_APPLICATION,
     IMAGE_FLAGS, MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
-    TPM_NONOTIFY, TPM_RETURNCMD, WM_APP, WM_GETICON, WM_LBUTTONUP, WM_RBUTTONUP,
+    TPM_NONOTIFY, TPM_RETURNCMD, WM_APP, WM_GETICON, WM_LBUTTONUP, WM_RBUTTONUP, WM_SETICON,
 };
 
 use crate::app::menu_utils::{checked_flag, disabled_flag, encode_wide};
@@ -249,6 +249,35 @@ impl Drop for AppIcons {
                     let _ = DestroyIcon(self.small);
                 }
             }
+        }
+    }
+}
+
+/// Apply the Panopticon application icons to a live top-level window.
+pub fn apply_window_icons(hwnd: HWND, icons: &AppIcons) {
+    if hwnd.0.is_null() {
+        return;
+    }
+
+    // SAFETY: `hwnd` is a live top-level window handle owned by the UI thread.
+    // `WM_SETICON` borrows the provided icon handles; ownership stays in
+    // `AppIcons`, which outlives the windows that use them.
+    unsafe {
+        if !icons.large.0.is_null() {
+            let _ = SendMessageW(
+                hwnd,
+                WM_SETICON,
+                WPARAM(ICON_BIG as usize),
+                LPARAM(icons.large.0 as isize),
+            );
+        }
+        if !icons.small.0.is_null() {
+            let _ = SendMessageW(
+                hwnd,
+                WM_SETICON,
+                WPARAM(ICON_SMALL as usize),
+                LPARAM(icons.small.0 as isize),
+            );
         }
     }
 }

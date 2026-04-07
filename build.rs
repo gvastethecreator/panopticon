@@ -1,4 +1,7 @@
 fn main() {
+    println!("cargo:rerun-if-changed=ui/main.slint");
+    println!("cargo:rerun-if-changed=assets/icon.ico");
+
     slint_build::compile("ui/main.slint").expect("Slint UI compilation failed");
 
     // Embed the application icon and version metadata into the Windows

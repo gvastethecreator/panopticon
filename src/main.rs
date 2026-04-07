@@ -29,7 +29,7 @@ use app::theme_ui::{
     thumbnail_accent_color,
 };
 use app::tray::{
-    handle_tray_message, resolve_window_icon, show_application_context_menu_at, AppIcons,
+    apply_window_icons, handle_tray_message, show_application_context_menu_at, AppIcons,
     TrayAction, TrayIcon, TrayMenuState, INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
 };
 use app::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
@@ -458,6 +458,11 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
     let settings_snapshot = state.borrow().settings.clone();
     tracing::info!(hwnd = ?hwnd, "native HWND acquired");
 
+    {
+        let state = state.borrow();
+        apply_window_icons(hwnd, &state.icons);
+    }
+
     // DWM appearance.
     apply_window_appearance(hwnd, &settings_snapshot);
     apply_topmost_mode(hwnd, settings_snapshot.always_on_top);
@@ -466,7 +471,7 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
     // System tray.
     {
         let mut s = state.borrow_mut();
-        match TrayIcon::add(hwnd, preferred_tray_icon(hwnd, s.icons.small)) {
+        match TrayIcon::add(hwnd, s.icons.small) {
             Ok(tray) => {
                 tracing::info!("tray icon registered");
                 s.tray_icon = Some(tray);
@@ -564,7 +569,7 @@ unsafe extern "system" fn subclass_proc(
                 if let Ok(mut st) = rc.try_borrow_mut() {
                     let small = st.icons.small;
                     if let Some(tray) = st.tray_icon.as_mut() {
-                        tray.readd(preferred_tray_icon(hwnd, small));
+                        tray.readd(small);
                     }
                 }
             }
@@ -1632,6 +1637,7 @@ fn open_create_tag_dialog(
             existing.show().ok();
             if let Some(dialog_hwnd) = get_hwnd(existing.window()) {
                 let state = state.borrow();
+                apply_window_icons(dialog_hwnd, &state.icons);
                 keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
             }
             true
@@ -1698,6 +1704,7 @@ fn open_create_tag_dialog(
 
     if let Some(dialog_hwnd) = get_hwnd(dialog.window()) {
         let state = state.borrow();
+        apply_window_icons(dialog_hwnd, &state.icons);
         apply_window_appearance(dialog_hwnd, &state.settings);
         apply_tag_dialog_theme_snapshot(&dialog, &state.current_theme);
         keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
@@ -2307,6 +2314,7 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
             existing.show().ok();
             if let Some(hwnd) = get_hwnd(existing.window()) {
                 let state = state.borrow();
+                apply_window_icons(hwnd, &state.icons);
                 keep_dialog_above_owner(hwnd, state.hwnd, &state.settings);
                 center_window_on_screen(hwnd);
             }
@@ -2532,6 +2540,7 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
     }
     if let Some(sw_hwnd) = get_hwnd(sw.window()) {
         let state = state.borrow();
+        apply_window_icons(sw_hwnd, &state.icons);
         apply_window_appearance(sw_hwnd, &state.settings);
         apply_settings_window_theme_snapshot(&sw, &state.current_theme);
         keep_dialog_above_owner(sw_hwnd, state.hwnd, &state.settings);
@@ -2644,16 +2653,6 @@ fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
             keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
         }
     });
-}
-
-fn preferred_tray_icon(hwnd: HWND, fallback: HICON) -> HICON {
-    if let Some(icon) = resolve_window_icon(hwnd) {
-        tracing::info!("using main window icon for tray");
-        icon
-    } else {
-        tracing::warn!("main window icon unavailable; using fallback icon for tray");
-        fallback
-    }
 }
 
 fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
