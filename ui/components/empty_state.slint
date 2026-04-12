@@ -29,27 +29,27 @@ export component EmptyState inherits Rectangle {
                 border-radius: 24px;
                 background: Theme.accent-soft;
 
-                Text {
-                    width: 100%;
-                    height: 100%;
-                    text: "👁";
-                    font-size: 24px;
-                    vertical-alignment: center;
-                    horizontal-alignment: center;
+                Image {
+                    x: 10px;
+                    y: 10px;
+                    width: 28px;
+                    height: 28px;
+                    source: @image-url("../../assets/icon.svg");
+                    image-fit: contain;
                 }
             }
 
             Text {
                 text: root.message;
                 color: Theme.text;
-                font-size: 14px;
+                font-size: 15px;
                 horizontal-alignment: center;
             }
 
             Text {
                 text: root.helper;
                 color: Theme.muted;
-                font-size: 12px;
+                font-size: 13px;
                 horizontal-alignment: center;
                 wrap: word-wrap;
             }

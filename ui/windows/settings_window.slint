@@ -5,7 +5,7 @@ import { Tr, Theme } from "../common.slint";
 
 component SidebarItem inherits Rectangle {
     in property <string> label;
-    in property <string> icon-text;
+    in property <string> badge-text;
     in property <bool> active: false;
     callback clicked();
 
@@ -19,17 +19,30 @@ component SidebarItem inherits Rectangle {
         spacing: 10px;
         alignment: start;
 
-        Text {
-            text: root.icon-text;
-            color: root.active ? Theme.accent : Theme.muted;
-            font-size: 15px;
-            vertical-alignment: center;
+        Rectangle {
+            width: 28px;
+            height: 20px;
+            border-radius: 6px;
+            background: root.active ? Theme.accent-soft.with-alpha(78%) : Theme.surface.with-alpha(72%);
+            border-width: 1px;
+            border-color: root.active ? Theme.accent.with-alpha(68%) : Theme.border.with-alpha(72%);
+
+            Text {
+                width: 100%;
+                height: 100%;
+                text: root.badge-text;
+                color: root.active ? Theme.accent : Theme.muted;
+                font-size: 10px;
+                font-weight: 700;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
         }
 
         Text {
             text: root.label;
             color: root.active ? Theme.accent : Theme.label;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: root.active ? 600 : 400;
             vertical-alignment: center;
         }
@@ -74,7 +87,7 @@ component AccentButton inherits Rectangle {
         Text {
             text: root.text;
             color: Theme.bg;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 600;
             vertical-alignment: center;
             horizontal-alignment: center;
@@ -107,7 +120,7 @@ component GhostButton inherits Rectangle {
         Text {
             text: root.text;
             color: Theme.label;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 500;
             vertical-alignment: center;
             horizontal-alignment: center;
@@ -130,7 +143,7 @@ export component SettingsWindow inherits Window {
     preferred-width: 1080px;
     preferred-height: 720px;
     default-font-family: "Miranda Sans";
-    default-font-size: 13px;
+    default-font-size: 14px;
 
     // ─── Properties (API unchanged) ─────────────────────────
 
@@ -229,42 +242,42 @@ export component SettingsWindow inherits Window {
 
                     SidebarItem {
                         label: "Behaviour & Display";
-                        icon-text: "⚙";
+                        badge-text: "UI";
                         active: root.current-page == 0;
                         clicked => { root.current-page = 0; }
                     }
 
                     SidebarItem {
                         label: "Filters";
-                        icon-text: "≡";
+                        badge-text: "FLT";
                         active: root.current-page == 1;
                         clicked => { root.current-page = 1; }
                     }
 
                     SidebarItem {
                         label: "Theme & Background";
-                        icon-text: "◉";
+                        badge-text: "THM";
                         active: root.current-page == 2;
                         clicked => { root.current-page = 2; }
                     }
 
                     SidebarItem {
                         label: "Profiles";
-                        icon-text: "●";
+                        badge-text: "PRF";
                         active: root.current-page == 3;
                         clicked => { root.current-page = 3; }
                     }
 
                     SidebarItem {
                         label: "Keyboard Shortcuts";
-                        icon-text: "⌨";
+                        badge-text: "KEY";
                         active: root.current-page == 4;
                         clicked => { root.current-page = 4; }
                     }
 
                     SidebarItem {
                         label: "Advanced Options";
-                        icon-text: "⚡";
+                        badge-text: "ADV";
                         active: root.current-page == 5;
                         clicked => { root.current-page = 5; }
                     }
@@ -333,11 +346,12 @@ export component SettingsWindow inherits Window {
 
                         HorizontalLayout {
                             spacing: 8px;
-                            Text {
-                                text: "●";
-                                color: root.theme-preview-color;
-                                font-size: 18px;
-                                vertical-alignment: center;
+                            Rectangle {
+                                width: 14px;
+                                height: 14px;
+                                border-radius: 7px;
+                                background: root.theme-preview-color;
+                                y: 6px;
                             }
                             ComboBox {
                                 model: root.theme-options;
@@ -452,11 +466,12 @@ export component SettingsWindow inherits Window {
 
                         HorizontalLayout {
                             spacing: 8px;
-                            Text {
-                                text: "●";
-                                color: root.theme-preview-color;
-                                font-size: 18px;
-                                vertical-alignment: center;
+                            Rectangle {
+                                width: 14px;
+                                height: 14px;
+                                border-radius: 7px;
+                                background: root.theme-preview-color;
+                                y: 6px;
                             }
                             ComboBox {
                                 model: root.theme-options;
@@ -479,11 +494,12 @@ export component SettingsWindow inherits Window {
 
                         HorizontalLayout {
                             spacing: 8px;
-                            Text {
-                                text: "●";
-                                color: root.bg-preview-color;
-                                font-size: 18px;
-                                vertical-alignment: center;
+                            Rectangle {
+                                width: 14px;
+                                height: 14px;
+                                border-radius: 7px;
+                                background: root.bg-preview-color;
+                                y: 6px;
                             }
                             Text { text: "#"; color: Theme.muted; vertical-alignment: center; font-size: 13px; }
                             LineEdit {
@@ -571,11 +587,11 @@ export component SettingsWindow inherits Window {
                         SectionHeader { text: "KEYBOARD SHORTCUTS"; }
 
                         Text {
-                            text: "1-7: layouts  ·  Tab: cycle layout  ·  0: reset ratios\n"
-                                + "T: cycle theme  ·  A: animations  ·  H: toolbar\n"
-                                + "I: window info  ·  P: always on top  ·  O: settings\n"
-                                + "M / right-click header: app menu  ·  R: refresh\n"
-                                + "Alt: toggle toolbar  ·  Esc: exit";
+                            text: "1-7: layouts  |  Tab: cycle layout  |  0: reset ratios\n"
+                                + "T: cycle theme  |  A: animations  |  H: toolbar\n"
+                                + "I: window info  |  P: always on top  |  O: settings\n"
+                                + "M / right-click header: app menu  |  R: refresh\n"
+                                + "Alt: toggle toolbar  |  Esc: exit";
                             color: Theme.label;
                             font-size: 13px;
                             wrap: word-wrap;

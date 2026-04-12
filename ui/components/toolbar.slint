@@ -45,24 +45,24 @@ export component Toolbar inherits Rectangle {
         }
 
         Text {
-            text: root.layout-label + "  \u{00b7}  " + root.window-count + " " + Tr.visible-label + "  \u{00b7}  "
-                  + root.hidden-count + " " + Tr.hidden-label + "  \u{00b7}  " + root.refresh-label
-                  + (root.filters-label != "" ? ("  \u{00b7}  " + root.filters-label) : "");
+            text: root.layout-label + "  |  " + root.window-count + " " + Tr.visible-label + "  |  "
+                + root.hidden-count + " " + Tr.hidden-label + "  |  " + root.refresh-label
+                + (root.filters-label != "" ? ("  |  " + root.filters-label) : "");
             color: Theme.label;
             vertical-alignment: center;
-            font-size: 12px;
+            font-size: 13px;
             overflow: elide;
             horizontal-stretch: 1;
             horizontal-alignment: center;
         }
 
         Text {
-            text: (root.always-on-top ? Tr.always-on-top-label : Tr.normal-window-label) + "  \u{00b7}  "
+            text: (root.always-on-top ? Tr.always-on-top-label : Tr.normal-window-label) + "  |  "
                   + (root.animate-transitions ? Tr.anim-on : Tr.anim-off)
-                  + "  \u{00b7}  " + Tr.toolbar-hint;
+                + "  |  " + Tr.toolbar-hint;
             color: Theme.muted;
             vertical-alignment: center;
-            font-size: 11px;
+            font-size: 12px;
             horizontal-alignment: right;
         }
     }
