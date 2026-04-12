@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::mem;
 
-use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Gdi::{
     CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetDC, ReleaseDC, SelectObject,
     BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
@@ -86,13 +85,13 @@ fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
     // SAFETY: GDI drawing operations on a temporary memory DC; all resources
     // are released before returning.
     unsafe {
-        let screen_dc = GetDC(HWND::default());
+        let screen_dc = GetDC(None);
         if screen_dc.0.is_null() {
             return None;
         }
-        let mem_dc = CreateCompatibleDC(screen_dc);
+        let mem_dc = CreateCompatibleDC(Some(screen_dc));
         if mem_dc.0.is_null() {
-            let _ = ReleaseDC(HWND::default(), screen_dc);
+            let _ = ReleaseDC(None, screen_dc);
             return None;
         }
 
@@ -106,7 +105,7 @@ fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
 
         let mut bits_ptr: *mut c_void = std::ptr::null_mut();
         let Ok(dib) = CreateDIBSection(
-            mem_dc,
+            Some(mem_dc),
             &raw const bmi,
             DIB_RGB_COLORS,
             &raw mut bits_ptr,
@@ -114,13 +113,13 @@ fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
             0,
         ) else {
             let _ = DeleteDC(mem_dc);
-            let _ = ReleaseDC(HWND::default(), screen_dc);
+            let _ = ReleaseDC(None, screen_dc);
             return None;
         };
         if bits_ptr.is_null() {
             let _ = DeleteObject(HGDIOBJ(dib.0.cast()));
             let _ = DeleteDC(mem_dc);
-            let _ = ReleaseDC(HWND::default(), screen_dc);
+            let _ = ReleaseDC(None, screen_dc);
             return None;
         }
 
@@ -155,7 +154,7 @@ fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
 
         let _ = DeleteObject(HGDIOBJ(dib.0.cast()));
         let _ = DeleteDC(mem_dc);
-        let _ = ReleaseDC(HWND::default(), screen_dc);
+        let _ = ReleaseDC(None, screen_dc);
 
         let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
             &rgba,

@@ -48,9 +48,31 @@ show_toolbar = true
 show_window_info = true
 start_in_tray = false
 background_image_path = "C:\\wallpapers\\workspace.png"
+background_image_fit = "cover"
 locked_layout = false
 lock_cell_resize = false
 show_app_icons = true
+
+[shortcuts]
+layout_grid = "1"
+layout_mosaic = "2"
+layout_bento = "3"
+layout_fibonacci = "4"
+layout_columns = "5"
+layout_row = "6"
+layout_column = "7"
+reset_layout = "0"
+cycle_layout = "Tab"
+cycle_theme = "T"
+toggle_animations = "A"
+toggle_toolbar = "H"
+toggle_window_info = "I"
+toggle_always_on_top = "P"
+open_settings = "O"
+open_menu = "M"
+refresh_now = "R"
+exit_app = "Esc"
+alt_toggles_toolbar = true
 
 [tag_styles.work]
 color_hex = "D29A5C"
@@ -97,12 +119,47 @@ row_ratios = [0.4, 0.6]
 | `show_window_info` | `bool` | `true` | shows title/app on the thumbnail | affects the usable thumbnail height |
 | `start_in_tray` | `bool` | `false` | starts hidden | releases thumbnails before hiding |
 | `background_image_path` | `Option<String>` | `None` | draws an image behind the dashboard | silently cleared on load failure |
+| `background_image_fit` | `BackgroundImageFit` | `Cover` | scales the dashboard background image | values: `cover`, `contain`, `fill`, `preserve` |
 | `locked_layout` | `bool` | `false` | locks layout changes | disables shortcuts and toolbar for layouts |
 | `lock_cell_resize` | `bool` | `false` | locks separator dragging | can coexist with `locked_layout` |
 | `show_app_icons` | `bool` | `true` | shows icons on cards | uses cache + GDI rasterisation |
+| `shortcuts` | `ShortcutBindings` | built-in defaults | defines the dashboard key map | single-key bindings plus `Tab`, `Esc`, `Enter`, `Space`; invalid values fall back |
 | `layout_customizations` | `Map<String, LayoutCustomization>` | empty | custom ratios per layout | generated when dragging separators |
 | `app_rules` | `Map<String, AppRule>` | empty | persistent per-app rules | key = `app_id` |
 | `tag_styles` | `Map<String, TagStyle>` | empty | manual tag colours | normalised against actually existing tags |
+
+## Shortcut bindings
+
+Keyboard bindings are persisted under the nested `[shortcuts]` table.
+
+```toml
+[shortcuts]
+layout_grid = "1"
+layout_mosaic = "2"
+layout_bento = "3"
+layout_fibonacci = "4"
+layout_columns = "5"
+layout_row = "6"
+layout_column = "7"
+reset_layout = "0"
+cycle_layout = "Tab"
+cycle_theme = "T"
+toggle_animations = "A"
+toggle_toolbar = "H"
+toggle_window_info = "I"
+toggle_always_on_top = "P"
+open_settings = "O"
+open_menu = "M"
+refresh_now = "R"
+exit_app = "Esc"
+alt_toggles_toolbar = true
+```
+
+Important notes:
+
+- supported bindings are **single keys** or the named special keys `Tab`, `Esc`, `Enter`, and `Space`;
+- invalid or multi-key expressions such as `Ctrl+T` are normalised back to the default binding;
+- `alt_toggles_toolbar` is a separate compatibility switch for the Win32 `Alt` toolbar toggle and is not part of the general shortcut parser.
 
 ## Per-application rules
 
@@ -194,6 +251,7 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 - empty filters;
 - empty or duplicate tags;
 - invalid hex colours;
+- unsupported shortcut bindings (including multi-key expressions);
 - profile names not valid for Windows;
 - rules with an empty `app_id`;
 - orphaned tag styles;

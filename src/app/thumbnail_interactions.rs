@@ -298,7 +298,7 @@ fn close_target_window(hwnd: HWND) {
     }
     unsafe {
         let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
-            hwnd,
+            Some(hwnd),
             windows::Win32::UI::WindowsAndMessaging::WM_CLOSE,
             windows::Win32::Foundation::WPARAM(0),
             windows::Win32::Foundation::LPARAM(0),

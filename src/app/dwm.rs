@@ -94,6 +94,7 @@ pub(crate) fn update_dwm_thumbnails(
         (&state.settings, &mut state.windows)
     };
     let show_icons = settings.show_app_icons;
+    let show_info = settings.show_window_info;
 
     for mw in windows.iter_mut() {
         let preserve = settings.preserve_aspect_ratio_for(&mw.info.app_id);
@@ -101,7 +102,7 @@ pub(crate) fn update_dwm_thumbnails(
         let interval_ms = settings.thumbnail_refresh_interval_ms_for(&mw.info.app_id);
         // SAFETY: Win32 queries on window handles discovered through enumeration.
         let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
-        let is_source_valid = unsafe { IsWindow(mw.info.hwnd).as_bool() };
+        let is_source_valid = unsafe { IsWindow(Some(mw.info.hwnd)).as_bool() };
         let is_source_visible = unsafe { IsWindowVisible(mw.info.hwnd).as_bool() };
         let is_cloaked = is_window_cloaked(mw.info.hwnd);
         if !is_source_valid || (!is_source_visible && !is_minimized) || is_cloaked {
@@ -111,9 +112,7 @@ pub(crate) fn update_dwm_thumbnails(
         if show_icons {
             crate::app::icon::populate_cached_icon(mw);
         }
-        let overlay_top_h = if settings.show_window_info
-            || is_minimized
-            || (show_icons && mw.cached_icon.is_some())
+        let overlay_top_h = if show_info || is_minimized || (show_icons && mw.cached_icon.is_some())
         {
             THUMBNAIL_INFO_STRIP_HEIGHT
         } else {

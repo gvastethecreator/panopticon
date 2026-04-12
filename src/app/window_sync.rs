@@ -1,7 +1,7 @@
 //! Window enumeration refresh and synchronization with managed state.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
@@ -29,7 +29,7 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         .iter()
         .map(|window| (window.hwnd.0 as isize, window))
         .collect();
-    let discovered_hwnds: Vec<isize> = discovered_map.keys().copied().collect();
+    let discovered_hwnds: HashSet<isize> = discovered_map.keys().copied().collect();
     let discovered_order: HashMap<isize, usize> = discovered
         .iter()
         .enumerate()
@@ -45,7 +45,7 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     changed |=
         update_existing_windows(&mut state.windows, &discovered_map, host_hwnd, host_visible);
 
-    let existing: Vec<isize> = state
+    let existing: HashSet<isize> = state
         .windows
         .iter()
         .map(|managed_window| managed_window.info.hwnd.0 as isize)
@@ -122,7 +122,7 @@ fn collect_discovered_windows(state: &mut AppState, host_hwnd: HWND) -> Vec<Wind
 fn append_new_windows(
     windows: &mut Vec<ManagedWindow>,
     discovered: Vec<WindowInfo>,
-    existing: &[isize],
+    existing: &HashSet<isize>,
     host_hwnd: HWND,
     host_visible: bool,
 ) -> bool {

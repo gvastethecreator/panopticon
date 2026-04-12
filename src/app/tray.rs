@@ -6,7 +6,7 @@ use anyhow::{anyhow, Result};
 use panopticon::i18n;
 use panopticon::settings::{AppSelectionEntry, DockEdge, HiddenAppEntry, WindowGrouping};
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, POINT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Shell::{
     Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_SHOWTIP, NIF_TIP, NIM_ADD, NIM_DELETE,
     NOTIFYICONDATAW,
@@ -213,7 +213,7 @@ impl AppIcons {
     #[must_use]
     pub fn fallback_system() -> Self {
         // SAFETY: shared stock icon managed by the OS; must not be destroyed.
-        let icon = unsafe { LoadIconW(HINSTANCE::default(), IDI_APPLICATION).unwrap_or_default() };
+        let icon = unsafe { LoadIconW(None, IDI_APPLICATION).unwrap_or_default() };
         Self {
             large: icon,
             small: icon,
@@ -267,16 +267,16 @@ pub fn apply_window_icons(hwnd: HWND, icons: &AppIcons) {
             let _ = SendMessageW(
                 hwnd,
                 WM_SETICON,
-                WPARAM(ICON_BIG as usize),
-                LPARAM(icons.large.0 as isize),
+                Some(WPARAM(ICON_BIG as usize)),
+                Some(LPARAM(icons.large.0 as isize)),
             );
         }
         if !icons.small.0.is_null() {
             let _ = SendMessageW(
                 hwnd,
                 WM_SETICON,
-                WPARAM(ICON_SMALL as usize),
-                LPARAM(icons.small.0 as isize),
+                Some(WPARAM(ICON_SMALL as usize)),
+                Some(LPARAM(icons.small.0 as isize)),
             );
         }
     }
@@ -397,7 +397,12 @@ pub fn resolve_window_icon_sized(hwnd: HWND, prefer_large: bool) -> Option<HICON
         };
 
         for icon_type in icon_order {
-            let icon = SendMessageW(hwnd, WM_GETICON, WPARAM(icon_type as usize), LPARAM(0));
+            let icon = SendMessageW(
+                hwnd,
+                WM_GETICON,
+                Some(WPARAM(icon_type as usize)),
+                Some(LPARAM(0)),
+            );
             if icon.0 != 0 {
                 return Some(HICON(icon.0 as *mut _));
             }
@@ -899,13 +904,13 @@ pub fn show_application_context_menu_at(
             TPM_RETURNCMD | TPM_NONOTIFY | TPM_LEFTALIGN | TPM_BOTTOMALIGN,
             cursor.x,
             cursor.y,
-            0,
+            Some(0),
             hwnd,
             None,
         );
 
         let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
-            hwnd,
+            Some(hwnd),
             windows::Win32::UI::WindowsAndMessaging::WM_NULL,
             windows::Win32::Foundation::WPARAM(0),
             windows::Win32::Foundation::LPARAM(0),
@@ -1034,7 +1039,7 @@ fn load_icon_from_ico(size: u8) -> Result<HICON> {
     unsafe {
         CreateIconFromResourceEx(
             image_data,
-            BOOL(1),
+            true,
             0x0003_0000,
             i32::from(size),
             i32::from(size),
@@ -1053,7 +1058,7 @@ fn create_colored_icon(size: u8, accent_rgb: [u8; 3]) -> Result<HICON> {
     let icon = unsafe {
         CreateIconFromResourceEx(
             image_data,
-            BOOL(1),
+            true,
             0x0003_0000,
             i32::from(size),
             i32::from(size),
