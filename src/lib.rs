@@ -27,6 +27,7 @@
 pub mod constants;
 pub mod error;
 pub mod i18n;
+pub mod input_ops;
 pub mod layout;
 pub mod logging;
 pub mod settings;
