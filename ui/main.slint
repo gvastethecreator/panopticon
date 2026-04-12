@@ -6,13 +6,14 @@ import { EmptyState } from "components/empty_state.slint";
 import { OverlayScrollbar } from "components/overlay_scrollbar.slint";
 
 export { Tr, Theme, ThumbnailData, ResizeHandleData } from "common.slint";
+export { ThemePreviewData } from "common.slint";
 export { SettingsWindow } from "windows/settings_window.slint";
 export { TagDialogWindow } from "windows/tag_dialog_window.slint";
 
 export component MainWindow inherits Window {
     title: "Panopticon — Window Viewer";
     icon: @image-url("../assets/icon.svg");
-    background: ThemeGlobal.bg;
+    background: root.canvas-background-color;
     preferred-width: 1320px;
     preferred-height: 840px;
     default-font-family: "Miranda Sans";
@@ -37,6 +38,8 @@ export component MainWindow inherits Window {
     in property <bool> resize-locked: false;
     in property <bool> scroll-active: false;
     in property <image> background-image;
+    in property <color> canvas-background-color: ThemeGlobal.bg;
+    in property <int> background-image-fit-index: 0;
 
     in-out property <float> viewport-x: 0;
     in-out property <float> viewport-y: 0;
@@ -74,7 +77,10 @@ export component MainWindow inherits Window {
                 width: 100%;
                 height: 100%;
                 source: root.background-image;
-                image-fit: cover;
+                image-fit: root.background-image-fit-index == 1 ? contain
+                    : root.background-image-fit-index == 2 ? fill
+                    : root.background-image-fit-index == 3 ? preserve
+                    : cover;
                 opacity: 0.25;
             }
 

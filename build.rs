@@ -1,9 +1,8 @@
 fn main() {
     println!("cargo:rerun-if-changed=ui/main.slint");
     println!("cargo:rerun-if-changed=assets/icon.ico");
+    println!("cargo:rerun-if-changed=assets/ui-icons");
     for font_path in [
-        "assets/fonts/MirandaSans-Variable.ttf",
-        "assets/fonts/MirandaSans-Italic-Variable.ttf",
         "assets/fonts/MirandaSans-Regular.ttf",
         "assets/fonts/MirandaSans-Medium.ttf",
         "assets/fonts/MirandaSans-SemiBold.ttf",

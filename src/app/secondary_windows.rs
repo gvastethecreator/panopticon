@@ -1,6 +1,7 @@
 //! Secondary Slint windows: settings, tag dialog, and profile helpers.
 
 use std::cell::RefCell;
+use std::path::Path;
 use std::process::Command;
 use std::rc::Rc;
 
@@ -219,6 +220,50 @@ pub(crate) fn open_settings_window(
             let _ = crate::refresh_windows(&state);
             crate::refresh_ui(&state, &main_weak);
         }
+    });
+
+    settings_window.on_browse_background_image(|| {
+        crate::SETTINGS_WIN.with(|handle| {
+            let guard = handle.borrow();
+            let Some(settings_window) = guard.as_ref() else {
+                return;
+            };
+
+            let dialog = rfd::FileDialog::new()
+                .add_filter(
+                    "Images",
+                    &["png", "jpg", "jpeg", "bmp", "gif", "webp", "svg"],
+                )
+                .set_title("Choose dashboard background image");
+
+            let dialog = if settings_window.get_bg_image_path().is_empty() {
+                dialog
+            } else {
+                let current_path = settings_window.get_bg_image_path().to_string();
+                let start_dir = Path::new(&current_path)
+                    .parent()
+                    .unwrap_or_else(|| Path::new(&current_path));
+                dialog.set_directory(start_dir)
+            };
+
+            if let Some(path) = dialog.pick_file() {
+                settings_window.set_bg_image_path(SharedString::from(path.display().to_string()));
+                if let Ok(image) = slint::Image::load_from_path(path.as_path()) {
+                    settings_window.set_bg_image_preview(image);
+                }
+            }
+        });
+    });
+
+    settings_window.on_clear_background_image(|| {
+        crate::SETTINGS_WIN.with(|handle| {
+            let guard = handle.borrow();
+            let Some(settings_window) = guard.as_ref() else {
+                return;
+            };
+            settings_window.set_bg_image_path(SharedString::from(""));
+            settings_window.set_bg_image_preview(slint::Image::default());
+        });
     });
 
     settings_window.on_apply({

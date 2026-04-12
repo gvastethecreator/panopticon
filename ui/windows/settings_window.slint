@@ -1,151 +1,493 @@
 import { CheckBox, ComboBox, LineEdit, ScrollView, Button, SpinBox } from "std-widgets.slint";
-import { Tr, Theme } from "../common.slint";
+import { Tr, Theme, ThemePreviewData } from "../common.slint";
 
-// ─── Sidebar navigation item ───────────────────────────────────
+component Divider inherits Rectangle {
+    height: 1px;
+    background: Theme.border.with-alpha(72%);
+}
 
 component SidebarItem inherits Rectangle {
     in property <string> label;
-    in property <string> badge-text;
+    in property <string> subtext;
+    in property <image> icon;
     in property <bool> active: false;
     callback clicked();
 
-    height: 40px;
-    border-radius: 6px;
-    background: root.active ? Theme.accent-soft.with-alpha(60%) : touch.has-hover ? Theme.surface : transparent;
+    height: 58px;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: root.active ? Theme.accent.with-alpha(52%) : transparent;
+    background: root.active ? Theme.accent-soft.with-alpha(44%) : touch.has-hover ? Theme.surface.with-alpha(52%) : transparent;
 
     HorizontalLayout {
-        padding-left: 14px;
-        padding-right: 14px;
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 12px;
+        alignment: start;
+
+        Rectangle {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: root.active ? Theme.surface.with-alpha(82%) : Theme.surface.with-alpha(52%);
+            border-width: 1px;
+            border-color: root.active ? Theme.accent.with-alpha(52%) : Theme.border.with-alpha(64%);
+
+            Image {
+                x: 8px;
+                y: 8px;
+                width: 18px;
+                height: 18px;
+                source: root.icon;
+                image-fit: contain;
+            }
+        }
+
+        VerticalLayout {
+            spacing: 1px;
+            alignment: center;
+
+            Text {
+                text: root.label;
+                color: root.active ? Theme.text : Theme.label;
+                font-size: 14px;
+                font-weight: root.active ? 650 : 500;
+                overflow: elide;
+            }
+
+            Text {
+                text: root.subtext;
+                color: root.active ? Theme.label : Theme.muted;
+                font-size: 11px;
+                overflow: elide;
+            }
+        }
+    }
+
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+component PageHeader inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> subtitle;
+
+    height: 72px;
+    border-radius: 14px;
+    background: Theme.panel_bg.with-alpha(84%);
+    border-width: 1px;
+    border-color: Theme.border.with-alpha(72%);
+
+    HorizontalLayout {
+        padding: 18px;
+        spacing: 14px;
+        alignment: start;
+
+        Rectangle {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            background: Theme.accent_soft.with-alpha(52%);
+            border-width: 1px;
+            border-color: Theme.accent.with-alpha(44%);
+
+            Image {
+                x: 9px;
+                y: 9px;
+                width: 20px;
+                height: 20px;
+                source: root.icon;
+                image-fit: contain;
+            }
+        }
+
+        VerticalLayout {
+            spacing: 3px;
+            alignment: center;
+
+            Text {
+                text: root.title;
+                color: Theme.text;
+                font-size: 18px;
+                font-weight: 700;
+            }
+
+            Text {
+                text: root.subtitle;
+                color: Theme.muted;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+component SectionTitle inherits Rectangle {
+    in property <image> icon;
+    in property <string> text;
+    in property <string> helper;
+
+    height: 42px;
+    background: transparent;
+
+    HorizontalLayout {
         spacing: 10px;
         alignment: start;
 
         Rectangle {
-            width: 28px;
-            height: 20px;
-            border-radius: 6px;
-            background: root.active ? Theme.accent-soft.with-alpha(78%) : Theme.surface.with-alpha(72%);
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
+            background: Theme.surface.with-alpha(66%);
             border-width: 1px;
-            border-color: root.active ? Theme.accent.with-alpha(68%) : Theme.border.with-alpha(72%);
+            border-color: Theme.border.with-alpha(60%);
 
-            Text {
-                width: 100%;
-                height: 100%;
-                text: root.badge-text;
-                color: root.active ? Theme.accent : Theme.muted;
-                font-size: 10px;
-                font-weight: 700;
-                vertical-alignment: center;
-                horizontal-alignment: center;
+            Image {
+                x: 5px;
+                y: 5px;
+                width: 14px;
+                height: 14px;
+                source: root.icon;
+                image-fit: contain;
             }
         }
 
-        Text {
-            text: root.label;
-            color: root.active ? Theme.accent : Theme.label;
-            font-size: 14px;
-            font-weight: root.active ? 600 : 400;
-            vertical-alignment: center;
+        VerticalLayout {
+            spacing: 1px;
+            alignment: center;
+
+            Text {
+                text: root.text;
+                color: Theme.accent;
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            Text {
+                text: root.helper;
+                color: Theme.muted;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
         }
     }
-
-    touch := TouchArea {
-        clicked => { root.clicked(); }
-    }
 }
 
-// ─── Section header in uppercase accent colour ────────────────
+component ToggleSettingCard inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> description;
+    in-out property <bool> checked: false;
+    in property <bool> enabled: true;
 
-component SectionHeader inherits Text {
-    color: Theme.accent;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-// ─── Thin horizontal divider ──────────────────────────────────
-
-component Divider inherits Rectangle {
-    height: 1px;
-    background: Theme.border;
-}
-
-// ─── Accent-filled button (for "Apply") ───────────────────────
-
-component AccentButton inherits Rectangle {
-    in property <string> text;
-    callback clicked();
-
-    height: 34px;
-    min-width: 90px;
-    border-radius: 6px;
-    background: touch.has-hover ? Theme.accent.darker(10%) : Theme.accent;
-
-    HorizontalLayout {
-        padding-left: 18px;
-        padding-right: 18px;
-        alignment: center;
-
-        Text {
-            text: root.text;
-            color: Theme.bg;
-            font-size: 14px;
-            font-weight: 600;
-            vertical-alignment: center;
-            horizontal-alignment: center;
-        }
-    }
-
-    touch := TouchArea {
-        clicked => { root.clicked(); }
-    }
-}
-
-// ─── Ghost / secondary button ─────────────────────────────────
-
-component GhostButton inherits Rectangle {
-    in property <string> text;
-    callback clicked();
-
-    height: 34px;
-    min-width: 90px;
-    border-radius: 6px;
+    min-height: 68px;
+    border-radius: 12px;
     border-width: 1px;
-    border-color: touch.has-hover ? Theme.border : Theme.border.with-alpha(60%);
-    background: touch.has-hover ? Theme.surface : transparent;
+    border-color: root.enabled ? Theme.border.with-alpha(70%) : Theme.border.with-alpha(34%);
+    background: root.enabled ? Theme.card_bg.with-alpha(92%) : Theme.surface.with-alpha(34%);
 
     HorizontalLayout {
-        padding-left: 18px;
-        padding-right: 18px;
-        alignment: center;
+        padding: 14px;
+        spacing: 12px;
+        alignment: start;
 
-        Text {
-            text: root.text;
-            color: Theme.label;
-            font-size: 14px;
-            font-weight: 500;
-            vertical-alignment: center;
-            horizontal-alignment: center;
+        Rectangle {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: Theme.surface.with-alpha(72%);
+            border-width: 1px;
+            border-color: Theme.border.with-alpha(60%);
+
+            Image {
+                x: 8px;
+                y: 8px;
+                width: 18px;
+                height: 18px;
+                source: root.icon;
+                image-fit: contain;
+            }
         }
-    }
 
-    touch := TouchArea {
-        clicked => { root.clicked(); }
+        VerticalLayout {
+            spacing: 3px;
+            vertical-stretch: 1;
+
+            Text {
+                text: root.title;
+                color: root.enabled ? Theme.text : Theme.muted;
+                font-size: 14px;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: root.description;
+                color: Theme.muted;
+                font-size: 11.5px;
+                wrap: word-wrap;
+            }
+        }
+
+        CheckBox {
+            text: "";
+            checked <=> root.checked;
+            enabled: root.enabled;
+            vertical-stretch: 1;
+        }
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Settings Window
-// ═══════════════════════════════════════════════════════════════
+component SelectSettingCard inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> description;
+    in property <[string]> options: [];
+    in-out property <int> selected-index: 0;
+    in property <bool> enabled: true;
+
+    min-height: 98px;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: Theme.border.with-alpha(70%);
+    background: Theme.card_bg.with-alpha(92%);
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 10px;
+
+        HorizontalLayout {
+            spacing: 12px;
+
+            Rectangle {
+                width: 34px;
+                height: 34px;
+                border-radius: 10px;
+                background: Theme.surface.with-alpha(72%);
+                border-width: 1px;
+                border-color: Theme.border.with-alpha(60%);
+
+                Image {
+                    x: 8px;
+                    y: 8px;
+                    width: 18px;
+                    height: 18px;
+                    source: root.icon;
+                    image-fit: contain;
+                }
+            }
+
+            VerticalLayout {
+                spacing: 3px;
+                vertical-stretch: 1;
+
+                Text {
+                    text: root.title;
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    wrap: word-wrap;
+                }
+
+                Text {
+                    text: root.description;
+                    color: Theme.muted;
+                    font-size: 11.5px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        ComboBox {
+            model: root.options;
+            current-index <=> root.selected-index;
+            enabled: root.enabled;
+        }
+    }
+}
+
+component TextFieldSettingCard inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> description;
+    in-out property <string> value: "";
+    in property <string> placeholder: "";
+    in property <bool> enabled: true;
+
+    min-height: 98px;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: Theme.border.with-alpha(70%);
+    background: Theme.card_bg.with-alpha(92%);
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 10px;
+
+        HorizontalLayout {
+            spacing: 12px;
+
+            Rectangle {
+                width: 34px;
+                height: 34px;
+                border-radius: 10px;
+                background: Theme.surface.with-alpha(72%);
+                border-width: 1px;
+                border-color: Theme.border.with-alpha(60%);
+
+                Image {
+                    x: 8px;
+                    y: 8px;
+                    width: 18px;
+                    height: 18px;
+                    source: root.icon;
+                    image-fit: contain;
+                }
+            }
+
+            VerticalLayout {
+                spacing: 3px;
+                vertical-stretch: 1;
+
+                Text {
+                    text: root.title;
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    wrap: word-wrap;
+                }
+
+                Text {
+                    text: root.description;
+                    color: Theme.muted;
+                    font-size: 11.5px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        LineEdit {
+            text <=> root.value;
+            placeholder-text: root.placeholder;
+            enabled: root.enabled;
+        }
+    }
+}
+
+component ThemePreviewCard inherits Rectangle {
+    in property <ThemePreviewData> theme;
+    in property <bool> selected: false;
+    callback picked(/* index */ int);
+
+    border-radius: 14px;
+    border-width: selected ? 2px : 1px;
+    border-color: selected ? Theme.accent : Theme.border.with-alpha(62%);
+    background: theme.surface.with-alpha(94%);
+
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 44px;
+        border-radius: 14px;
+        background: theme.bg;
+
+        Rectangle {
+            x: 14px;
+            y: 12px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: theme.accent;
+        }
+
+        Rectangle {
+            x: 32px;
+            y: 12px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: theme.text;
+        }
+    }
+
+    VerticalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 56px;
+        padding-bottom: 12px;
+        spacing: 3px;
+
+        Text {
+            text: root.theme.label;
+            color: Theme.text;
+            font-size: 13px;
+            font-weight: 700;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.theme.subtitle;
+            color: Theme.muted;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+    }
+
+    touch := TouchArea { clicked => { root.picked(root.theme.index); } }
+}
+
+component ColorSwatch inherits Rectangle {
+    in property <color> swatch;
+    in property <string> hex;
+    in property <bool> active: false;
+    callback picked();
+
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border-width: active ? 2px : 1px;
+    border-color: active ? Theme.accent : Theme.border.with-alpha(60%);
+    background: root.swatch;
+
+    touch := TouchArea { clicked => { root.picked(); } }
+}
+
+component FooterButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> accent: false;
+    callback clicked();
+
+    height: 36px;
+    min-width: 102px;
+    border-radius: 10px;
+    border-width: accent ? 0px : 1px;
+    border-color: Theme.border.with-alpha(64%);
+    background: accent ? (touch.has-hover ? Theme.accent.darker(8%) : Theme.accent)
+        : (touch.has-hover ? Theme.surface : transparent);
+
+    Text {
+        width: 100%;
+        height: 100%;
+        text: root.text;
+        color: accent ? Theme.bg : Theme.label;
+        font-size: 13px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
 
 export component SettingsWindow inherits Window {
     title: "Panopticon — Settings";
     icon: @image-url("../../assets/icon.svg");
     background: Theme.bg;
-    preferred-width: 1080px;
-    preferred-height: 720px;
+    preferred-width: 1180px;
+    preferred-height: 820px;
     default-font-family: "Miranda Sans";
     default-font-size: 14px;
-
-    // ─── Properties (API unchanged) ─────────────────────────
 
     in-out property <bool> always-on-top-setting: false;
     in-out property <bool> animate-transitions-setting: true;
@@ -164,6 +506,7 @@ export component SettingsWindow inherits Window {
     in-out property <int> refresh-index: 1;
     in-out property <int> layout-index: 0;
     in property <[string]> theme-options: ["Classic Panopticon"];
+    in property <[ThemePreviewData]> theme-preview-model: [];
     in-out property <int> theme-index: 0;
     in property <[string]> monitor-filter-options: ["All monitors"];
     in-out property <int> monitor-filter-index: 0;
@@ -182,16 +525,33 @@ export component SettingsWindow inherits Window {
     in-out property <color> theme-preview-color: Theme.accent;
     in-out property <string> bg-color-hex: "181513";
     in-out property <string> bg-image-path: "";
+    in-out property <image> bg-image-preview;
+    in-out property <int> bg-image-fit-index: 0;
     in-out property <int> fixed-width-value: 0;
     in-out property <int> fixed-height-value: 0;
     in-out property <int> dock-edge-index: 0;
     in-out property <int> group-windows-index: 0;
-
-    // ─── Navigation state ───────────────────────────────────
+    in-out property <string> shortcut-layout-grid: "1";
+    in-out property <string> shortcut-layout-mosaic: "2";
+    in-out property <string> shortcut-layout-bento: "3";
+    in-out property <string> shortcut-layout-fibonacci: "4";
+    in-out property <string> shortcut-layout-columns: "5";
+    in-out property <string> shortcut-layout-row: "6";
+    in-out property <string> shortcut-layout-column: "7";
+    in-out property <string> shortcut-reset-layout: "0";
+    in-out property <string> shortcut-cycle-layout: "Tab";
+    in-out property <string> shortcut-cycle-theme: "T";
+    in-out property <string> shortcut-toggle-animations: "A";
+    in-out property <string> shortcut-toggle-toolbar: "H";
+    in-out property <string> shortcut-toggle-window-info: "I";
+    in-out property <string> shortcut-toggle-always-on-top: "P";
+    in-out property <string> shortcut-open-settings: "O";
+    in-out property <string> shortcut-open-menu: "M";
+    in-out property <string> shortcut-refresh-now: "R";
+    in-out property <string> shortcut-exit-app: "Esc";
+    in-out property <bool> alt-toolbar-shortcut-enabled: true;
 
     in-out property <int> current-page: 0;
-
-    // ─── Callbacks (API unchanged) ──────────────────────────
 
     callback apply();
     callback save-profile();
@@ -200,84 +560,138 @@ export component SettingsWindow inherits Window {
     callback refresh-now();
     callback restore-hidden-selected();
     callback restore-hidden-all();
+    callback browse-background-image();
+    callback clear-background-image();
     callback closed();
 
-    // ─── Layout ─────────────────────────────────────────────
-
     VerticalLayout {
+        spacing: 0px;
 
-        // ──── Header ────────────────────────────────────────
         Rectangle {
-            height: 56px;
+            height: 70px;
             background: Theme.bg;
 
             HorizontalLayout {
                 padding-left: 24px;
-                alignment: start;
+                padding-right: 24px;
+                alignment: space-between;
 
-                Text {
-                    text: "Settings";
-                    color: Theme.text;
-                    font-size: 22px;
-                    font-weight: 700;
-                    vertical-alignment: center;
+                VerticalLayout {
+                    spacing: 3px;
+                    alignment: center;
+
+                    Text {
+                        text: "Settings";
+                        color: Theme.text;
+                        font-size: 24px;
+                        font-weight: 700;
+                    }
+
+                    Text {
+                        text: "Personaliza el dashboard, los fondos, los atajos y el comportamiento general.";
+                        color: Theme.muted;
+                        font-size: 12px;
+                    }
+                }
+
+                Rectangle {
+                    width: 170px;
+                    height: 42px;
+                    border-radius: 12px;
+                    background: Theme.surface.with-alpha(72%);
+                    border-width: 1px;
+                    border-color: Theme.border.with-alpha(60%);
+
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        spacing: 10px;
+
+                        Rectangle {
+                            width: 18px;
+                            height: 18px;
+                            border-radius: 9px;
+                            background: Theme.accent;
+                        }
+
+                        VerticalLayout {
+                            spacing: 0px;
+                            alignment: center;
+
+                            Text {
+                                text: "Profile";
+                                color: Theme.muted;
+                                font-size: 10px;
+                            }
+
+                            Text {
+                                text: root.current-profile-label;
+                                color: Theme.text;
+                                font-size: 13px;
+                                font-weight: 600;
+                                overflow: elide;
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // ──── Sidebar + Content ─────────────────────────────
         HorizontalLayout {
             vertical-stretch: 1;
 
-            // ── Sidebar ─────────────────────────────────────
             Rectangle {
-                width: 220px;
+                width: 250px;
                 background: Theme.bg;
 
                 VerticalLayout {
-                    padding: 6px;
-                    padding-left: 10px;
-                    padding-right: 10px;
-                    spacing: 2px;
+                    padding: 10px;
+                    spacing: 6px;
 
                     SidebarItem {
                         label: "Behaviour & Display";
-                        badge-text: "UI";
+                        subtext: "Window behaviour, tray and visible chrome";
+                        icon: @image-url("../../assets/ui-icons/section-display.svg");
                         active: root.current-page == 0;
                         clicked => { root.current-page = 0; }
                     }
 
                     SidebarItem {
                         label: "Filters";
-                        badge-text: "FLT";
+                        subtext: "Monitor, tag, app and hidden-state tools";
+                        icon: @image-url("../../assets/ui-icons/section-filter.svg");
                         active: root.current-page == 1;
                         clicked => { root.current-page = 1; }
                     }
 
                     SidebarItem {
                         label: "Theme & Background";
-                        badge-text: "THM";
+                        subtext: "Theme presets, solid canvas colour and image";
+                        icon: @image-url("../../assets/ui-icons/section-theme.svg");
                         active: root.current-page == 2;
                         clicked => { root.current-page = 2; }
                     }
 
                     SidebarItem {
                         label: "Profiles";
-                        badge-text: "PRF";
+                        subtext: "Save and launch named setups";
+                        icon: @image-url("../../assets/ui-icons/section-profile.svg");
                         active: root.current-page == 3;
                         clicked => { root.current-page = 3; }
                     }
 
                     SidebarItem {
                         label: "Keyboard Shortcuts";
-                        badge-text: "KEY";
+                        subtext: "Customize the dashboard key map";
+                        icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
                         active: root.current-page == 4;
                         clicked => { root.current-page = 4; }
                     }
 
                     SidebarItem {
                         label: "Advanced Options";
-                        badge-text: "ADV";
+                        subtext: "Layout, refresh cadence and dock behaviour";
+                        icon: @image-url("../../assets/ui-icons/section-advanced.svg");
                         active: root.current-page == 5;
                         clicked => { root.current-page = 5; }
                     }
@@ -286,396 +700,532 @@ export component SettingsWindow inherits Window {
                 }
             }
 
-            // ── Vertical separator ──────────────────────────
             Rectangle { width: 1px; background: Theme.border; }
 
-            // ── Content area ────────────────────────────────
             ScrollView {
                 horizontal-stretch: 1;
 
                 VerticalLayout {
-                    padding: 32px;
-                    padding-top: 8px;
-                    padding-right: 24px;
-                    spacing: 0px;
+                    padding: 24px;
+                    spacing: 18px;
 
-                    // ════════════════════════════════════════
-                    // Page 0 — Behaviour & Display
-                    // ════════════════════════════════════════
                     if root.current-page == 0: VerticalLayout {
-                        spacing: 10px;
+                        spacing: 16px;
 
-                        SectionHeader { text: "BEHAVIOUR"; }
+                        PageHeader {
+                            icon: @image-url("../../assets/ui-icons/section-display.svg");
+                            title: "Behaviour & Display";
+                            subtitle: "Ajusta cómo se comporta la ventana principal, qué información se muestra y cómo responde al tray.";
+                        }
 
-                        CheckBox { text: "Always on top"; checked <=> root.always-on-top-setting; }
-                        CheckBox { text: "Animate transitions"; checked <=> root.animate-transitions-setting; }
-                        CheckBox { text: "Minimize to tray"; checked <=> root.minimize-to-tray-setting; }
-                        CheckBox { text: "Close to tray"; checked <=> root.close-to-tray-setting; }
-                        CheckBox { text: "Default: preserve aspect ratio"; checked <=> root.preserve-aspect-ratio-setting; }
-                        CheckBox {
-                            text: "Default: hide after selecting app";
+                        SectionTitle {
+                            icon: @image-url("../../assets/ui-icons/option-toggle.svg");
+                            text: "Behaviour";
+                            helper: "Cada opción añade contexto con un pequeño resumen para no tener que adivinar qué hace.";
+                        }
+
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Always on top"; description: "Mantiene Panopticon por encima de las demás ventanas incluso al cambiar de aplicación."; checked <=> root.always-on-top-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Animate transitions"; description: "Suaviza cambios de layout, filtros y reacomodos visuales entre miniaturas."; checked <=> root.animate-transitions-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Minimize to tray"; description: "Al minimizar, la app desaparece del escritorio y sigue viva desde la bandeja del sistema."; checked <=> root.minimize-to-tray-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Close to tray"; description: "Interpreta el cierre de ventana como ocultar a la bandeja en lugar de salir."; checked <=> root.close-to-tray-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Preserve aspect ratio by default"; description: "Las nuevas apps respetarán mejor la proporción original de sus thumbnails."; checked <=> root.preserve-aspect-ratio-setting; }
+                        ToggleSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-toggle.svg");
+                            title: "Hide after selecting an app";
+                            description: root.hide-on-select-enabled ? "Oculta Panopticon cuando activas una ventana desde el dashboard." : Tr.dock-mode-hint;
                             checked <=> root.hide-on-select-setting;
                             enabled: root.hide-on-select-enabled;
                         }
-                        if !root.hide-on-select-enabled: Text {
-                            text: Tr.dock-mode-hint;
-                            color: Theme.muted;
-                            font-size: 12px;
-                            wrap: word-wrap;
-                        }
-                        CheckBox { text: "Start hidden in tray"; checked <=> root.start-in-tray-setting; }
-                        CheckBox { text: "Lock layout (prevent changes)"; checked <=> root.locked-layout-setting; }
-                        CheckBox { text: "Lock cell / column resizing"; checked <=> root.lock-cell-resize-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Start hidden in tray"; description: "Inicia directamente en segundo plano para un arranque más silencioso."; checked <=> root.start-in-tray-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Lock layout changes"; description: "Bloquea cambios de layout por teclado o desde la barra superior."; checked <=> root.locked-layout-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Lock cell resizing"; description: "Desactiva el arrastre de separadores para proteger la composición actual."; checked <=> root.lock-cell-resize-setting; }
 
-                        Rectangle { height: 12px; }
-                        Divider {}
-                        Rectangle { height: 12px; }
-
-                        SectionHeader { text: "DISPLAY"; }
-
-                        CheckBox { text: "Show toolbar"; checked <=> root.show-toolbar-setting; }
-                        CheckBox { text: "Show window info above thumbnails"; checked <=> root.show-info-setting; }
-                        CheckBox { text: "Show app icons in cells"; checked <=> root.show-app-icons-setting; }
-                        CheckBox { text: "Use system backdrop (Win11)"; checked <=> root.use-system-backdrop-setting; }
-
-                        Rectangle { height: 12px; }
-                        Divider {}
-                        Rectangle { height: 12px; }
-
-                        SectionHeader { text: "THEME"; }
-
-                        HorizontalLayout {
-                            spacing: 8px;
-                            Rectangle {
-                                width: 14px;
-                                height: 14px;
-                                border-radius: 7px;
-                                background: root.theme-preview-color;
-                                y: 6px;
-                            }
-                            ComboBox {
-                                model: root.theme-options;
-                                current-index <=> root.theme-index;
-                                horizontal-stretch: 1;
-                            }
+                        SectionTitle {
+                            icon: @image-url("../../assets/ui-icons/option-visibility.svg");
+                            text: "Display";
+                            helper: "Controles que cambian la legibilidad y el contenido visible del dashboard.";
                         }
 
-                        Text {
-                            text: "Tip: press T to cycle themes quickly.";
-                            color: Theme.muted;
-                            font-size: 12px;
-                        }
-
-                        Rectangle { vertical-stretch: 1; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-visibility.svg"); title: "Show toolbar"; description: "Muestra la cabecera superior con resumen de estado y acceso rápido al menú."; checked <=> root.show-toolbar-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-visibility.svg"); title: "Show window info above thumbnails"; description: "Añade el nombre de ventana y aplicación encima de cada preview para leer el contexto de un vistazo."; checked <=> root.show-info-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-visibility.svg"); title: "Show app icons in cells"; description: "Pinta el icono del proceso dentro de cada celda para identificar apps más rápido."; checked <=> root.show-app-icons-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-visibility.svg"); title: "Use system backdrop (Win11)"; description: "Activa materiales del sistema y bordes más nativos cuando Windows 11 los soporta."; checked <=> root.use-system-backdrop-setting; }
                     }
 
-                    // ════════════════════════════════════════
-                    // Page 1 — Filters
-                    // ════════════════════════════════════════
                     if root.current-page == 1: VerticalLayout {
-                        spacing: 10px;
+                        spacing: 16px;
 
-                        SectionHeader { text: "MONITOR FILTER"; }
-
-                        ComboBox {
-                            model: root.monitor-filter-options;
-                            current-index <=> root.monitor-filter-index;
+                        PageHeader {
+                            icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                            title: "Filters";
+                            subtitle: "Acota el dashboard por monitor, tags, aplicaciones o grupos, y recupera apps ocultas sin salir de esta vista.";
                         }
 
-                        Rectangle { height: 8px; }
-                        SectionHeader { text: "TAG FILTER"; }
-
-                        ComboBox {
-                            model: root.tag-filter-options;
-                            current-index <=> root.tag-filter-index;
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                            title: "Monitor filter";
+                            description: "Limita el dashboard a un monitor específico cuando trabajas con varias pantallas.";
+                            options: root.monitor-filter-options;
+                            selected-index <=> root.monitor-filter-index;
                         }
 
-                        Rectangle { height: 8px; }
-                        SectionHeader { text: "APPLICATION FILTER"; }
-
-                        ComboBox {
-                            model: root.app-filter-options;
-                            current-index <=> root.app-filter-index;
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                            title: "Tag filter";
+                            description: "Muestra solo aplicaciones asociadas a una etiqueta manual concreta.";
+                            options: root.tag-filter-options;
+                            selected-index <=> root.tag-filter-index;
                         }
 
-                        Rectangle { height: 8px; }
-                        SectionHeader { text: "GROUP WINDOWS BY"; }
-
-                        ComboBox {
-                            model: ["No grouping", "Application", "Monitor", "Window title", "Window class"];
-                            current-index <=> root.group-windows-index;
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                            title: "Application filter";
+                            description: "Aísla una app concreta cuando quieres revisar solo su grupo de ventanas.";
+                            options: root.app-filter-options;
+                            selected-index <=> root.app-filter-index;
                         }
 
-                        Text {
-                            text: Tr.filters-hint;
-                            color: Theme.muted;
-                            font-size: 12px;
-                            wrap: word-wrap;
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                            title: "Group windows by";
+                            description: "Reordena visualmente la lista sin filtrar contenido, ideal para encontrar patrones.";
+                            options: ["No grouping", "Application", "Monitor", "Window title", "Window class"];
+                            selected-index <=> root.group-windows-index;
                         }
 
-                        Rectangle { height: 12px; }
-                        Divider {}
-                        Rectangle { height: 12px; }
+                        Rectangle {
+                            border-radius: 12px;
+                            border-width: 1px;
+                            border-color: Theme.border.with-alpha(70%);
+                            background: Theme.card_bg.with-alpha(92%);
+                            min-height: 148px;
 
-                        SectionHeader { text: "HIDDEN APPLICATIONS"; }
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
 
-                        Text {
-                            text: root.hidden-apps-summary;
-                            color: Theme.label;
-                            font-size: 13px;
-                            wrap: word-wrap;
-                        }
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                                    text: "Hidden applications";
+                                    helper: "Recupera apps ocultas una a una o de forma masiva desde el estado persistido.";
+                                }
 
-                        ComboBox {
-                            model: root.hidden-app-options;
-                            current-index <=> root.hidden-app-index;
-                            enabled: root.can-restore-hidden;
-                        }
+                                Text {
+                                    text: root.hidden-apps-summary;
+                                    color: Theme.label;
+                                    font-size: 13px;
+                                    wrap: word-wrap;
+                                }
 
-                        HorizontalLayout {
-                            spacing: 10px;
-                            Button {
-                                text: "Restore selected";
-                                enabled: root.can-restore-hidden;
-                                clicked => { root.restore-hidden-selected(); }
+                                ComboBox {
+                                    model: root.hidden-app-options;
+                                    current-index <=> root.hidden-app-index;
+                                    enabled: root.can-restore-hidden;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Button { text: "Restore selected"; enabled: root.can-restore-hidden; clicked => { root.restore-hidden-selected(); } }
+                                    Button { text: "Restore all"; enabled: root.can-restore-hidden; clicked => { root.restore-hidden-all(); } }
+                                }
+
+                                if !root.can-restore-hidden: Text {
+                                    text: Tr.no-hidden-hint;
+                                    color: Theme.muted;
+                                    font-size: 11.5px;
+                                    wrap: word-wrap;
+                                }
                             }
-                            Button {
-                                text: "Restore all";
-                                enabled: root.can-restore-hidden;
-                                clicked => { root.restore-hidden-all(); }
-                            }
                         }
-
-                        if !root.can-restore-hidden: Text {
-                            text: Tr.no-hidden-hint;
-                            color: Theme.muted;
-                            font-size: 12px;
-                            wrap: word-wrap;
-                        }
-
-                        Rectangle { vertical-stretch: 1; }
                     }
 
-                    // ════════════════════════════════════════
-                    // Page 2 — Theme & Background
-                    // ════════════════════════════════════════
                     if root.current-page == 2: VerticalLayout {
-                        spacing: 10px;
+                        spacing: 16px;
 
-                        SectionHeader { text: "THEME"; }
+                        PageHeader {
+                            icon: @image-url("../../assets/ui-icons/section-theme.svg");
+                            title: "Theme & Background";
+                            subtitle: "Combina una librería de themes con un color de canvas propio y una imagen de fondo ajustable.";
+                        }
+
+                        SectionTitle {
+                            icon: @image-url("../../assets/ui-icons/section-theme.svg");
+                            text: "Theme grid";
+                            helper: "Selecciona un preset desde una grilla desplazable; el theme define acentos, paneles y contraste general.";
+                        }
+
+                        Rectangle {
+                            height: 272px;
+                            border-radius: 14px;
+                            border-width: 1px;
+                            border-color: Theme.border.with-alpha(72%);
+                            background: Theme.card_bg.with-alpha(92%);
+                            clip: true;
+
+                            ScrollView {
+                                Rectangle {
+                                    x: 12px;
+                                    y: 12px;
+                                    width: max(parent.width - 24px, 520px);
+                                    height: max(((root.theme-preview-model.length + 1) / 2) * 118px, 118px);
+
+                                    for theme[index] in root.theme-preview-model: ThemePreviewCard {
+                                        width: (parent.width - 12px) / 2;
+                                        height: 106px;
+                                        x: Math.mod(index, 2) * (self.width + 12px);
+                                        y: (index / 2) * 118px;
+                                        theme: theme;
+                                        selected: root.theme-index == theme.index;
+                                        picked(idx) => {
+                                            root.theme-index = idx;
+                                            root.theme-preview-color = theme.accent;
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         HorizontalLayout {
-                            spacing: 8px;
+                            spacing: 16px;
+
                             Rectangle {
-                                width: 14px;
-                                height: 14px;
-                                border-radius: 7px;
-                                background: root.theme-preview-color;
-                                y: 6px;
-                            }
-                            ComboBox {
-                                model: root.theme-options;
-                                current-index <=> root.theme-index;
                                 horizontal-stretch: 1;
+                                border-radius: 14px;
+                                border-width: 1px;
+                                border-color: Theme.border.with-alpha(72%);
+                                background: Theme.card_bg.with-alpha(92%);
+
+                                VerticalLayout {
+                                    padding: 14px;
+                                    spacing: 10px;
+
+                                    SectionTitle {
+                                        icon: @image-url("../../assets/ui-icons/option-image.svg");
+                                        text: "Canvas background";
+                                        helper: "El color de canvas vive detrás de las cards y de la imagen opcional de fondo.";
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 10px;
+                                        ColorSwatch { swatch: #181513; hex: "181513"; active: root.bg-color-hex == "181513"; picked => { root.bg-color-hex = "181513"; root.bg-preview-color = #181513; } }
+                                        ColorSwatch { swatch: #101820; hex: "101820"; active: root.bg-color-hex == "101820"; picked => { root.bg-color-hex = "101820"; root.bg-preview-color = #101820; } }
+                                        ColorSwatch { swatch: #1C2430; hex: "1C2430"; active: root.bg-color-hex == "1C2430"; picked => { root.bg-color-hex = "1C2430"; root.bg-preview-color = #1C2430; } }
+                                        ColorSwatch { swatch: #202633; hex: "202633"; active: root.bg-color-hex == "202633"; picked => { root.bg-color-hex = "202633"; root.bg-preview-color = #202633; } }
+                                        ColorSwatch { swatch: #122027; hex: "122027"; active: root.bg-color-hex == "122027"; picked => { root.bg-color-hex = "122027"; root.bg-preview-color = #122027; } }
+                                        ColorSwatch { swatch: #2A1E1C; hex: "2A1E1C"; active: root.bg-color-hex == "2A1E1C"; picked => { root.bg-color-hex = "2A1E1C"; root.bg-preview-color = #2A1E1C; } }
+                                        ColorSwatch { swatch: #2A2522; hex: "2A2522"; active: root.bg-color-hex == "2A2522"; picked => { root.bg-color-hex = "2A2522"; root.bg-preview-color = #2A2522; } }
+                                        ColorSwatch { swatch: #22303A; hex: "22303A"; active: root.bg-color-hex == "22303A"; picked => { root.bg-color-hex = "22303A"; root.bg-preview-color = #22303A; } }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-image.svg");
+                                        title: "Custom canvas colour";
+                                        description: "Introduce un RGB hex manual si quieres un color fuera de la paleta rápida.";
+                                        value <=> root.bg-color-hex;
+                                        placeholder: "181513";
+                                    }
+                                }
                             }
-                        }
 
-                        Text {
-                            text: "Tip: press T to cycle themes quickly.";
-                            color: Theme.muted;
-                            font-size: 12px;
-                        }
-
-                        Rectangle { height: 12px; }
-                        Divider {}
-                        Rectangle { height: 12px; }
-
-                        SectionHeader { text: "BACKGROUND COLOUR (RGB HEX)"; }
-
-                        HorizontalLayout {
-                            spacing: 8px;
                             Rectangle {
-                                width: 14px;
-                                height: 14px;
-                                border-radius: 7px;
-                                background: root.bg-preview-color;
-                                y: 6px;
-                            }
-                            Text { text: "#"; color: Theme.muted; vertical-alignment: center; font-size: 13px; }
-                            LineEdit {
-                                text <=> root.bg-color-hex;
-                                horizontal-alignment: left;
-                                font-size: 13px;
+                                width: 300px;
+                                border-radius: 14px;
+                                border-width: 1px;
+                                border-color: Theme.border.with-alpha(72%);
+                                background: Theme.card_bg.with-alpha(92%);
+
+                                VerticalLayout {
+                                    padding: 14px;
+                                    spacing: 10px;
+
+                                    SectionTitle {
+                                        icon: @image-url("../../assets/ui-icons/section-theme.svg");
+                                        text: "Preview";
+                                        helper: "Resumen rápido del fondo activo con color e imagen opcional.";
+                                    }
+
+                                    Rectangle {
+                                        height: 164px;
+                                        border-radius: 12px;
+                                        background: root.bg-preview-color;
+                                        clip: true;
+
+                                        if root.bg-image-preview.width > 0: Image {
+                                            width: 100%;
+                                            height: 100%;
+                                            source: root.bg-image-preview;
+                                            image-fit: root.bg-image-fit-index == 1 ? contain
+                                                : root.bg-image-fit-index == 2 ? fill
+                                                : root.bg-image-fit-index == 3 ? preserve
+                                                : cover;
+                                        }
+
+                                        Rectangle {
+                                            x: 12px;
+                                            y: 12px;
+                                            width: 58px;
+                                            height: 20px;
+                                            border-radius: 10px;
+                                            background: Theme.panel_bg.with-alpha(84%);
+                                            Text {
+                                                width: 100%;
+                                                height: 100%;
+                                                text: root.bg-color-hex;
+                                                color: Theme.text;
+                                                font-size: 10px;
+                                                horizontal-alignment: center;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        Rectangle { height: 12px; }
-                        Divider {}
-                        Rectangle { height: 12px; }
+                        Rectangle {
+                            border-radius: 14px;
+                            border-width: 1px;
+                            border-color: Theme.border.with-alpha(72%);
+                            background: Theme.card_bg.with-alpha(92%);
 
-                        SectionHeader { text: "BACKGROUND IMAGE"; }
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
 
-                        Text { text: "Image path (optional)"; color: Theme.muted; font-size: 13px; }
-                        LineEdit {
-                            text <=> root.bg-image-path;
-                            horizontal-alignment: left;
-                            font-size: 13px;
-                            placeholder-text: "C:\\path\\to\\image.png";
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/option-image.svg");
+                                    text: "Background image";
+                                    helper: "Usa una imagen detrás del dashboard y define cómo debe ajustarse dentro del canvas.";
+                                }
+
+                                TextFieldSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/option-image.svg");
+                                    title: "Image file";
+                                    description: "Puedes pegar una ruta manualmente o elegirla con el selector nativo.";
+                                    value <=> root.bg-image-path;
+                                    placeholder: "C:\\wallpapers\\workspace.png";
+                                }
+
+                                SelectSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/option-image.svg");
+                                    title: "Image fit";
+                                    description: "Controla si la imagen cubre, contiene o rellena el área visible del dashboard.";
+                                    options: ["Cover", "Contain", "Fill", "Preserve"];
+                                    selected-index <=> root.bg-image-fit-index;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Button { text: "Browse image…"; clicked => { root.browse-background-image(); } }
+                                    Button { text: "Clear image"; clicked => { root.clear-background-image(); } }
+                                }
+                            }
                         }
-
-                        Rectangle { vertical-stretch: 1; }
                     }
 
-                    // ════════════════════════════════════════
-                    // Page 3 — Profiles
-                    // ════════════════════════════════════════
                     if root.current-page == 3: VerticalLayout {
-                        spacing: 10px;
+                        spacing: 16px;
 
-                        SectionHeader { text: "CURRENT PROFILE"; }
-
-                        Text {
-                            text: Tr.current-profile-prefix + root.current-profile-label;
-                            color: Theme.label;
-                            font-size: 13px;
+                        PageHeader {
+                            icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                            title: "Profiles";
+                            subtitle: "Guarda combinaciones completas de ajustes y abre nuevas instancias ya apuntando al perfil que quieras.";
                         }
 
-                        Rectangle { height: 12px; }
-                        Divider {}
-                        Rectangle { height: 12px; }
+                        Rectangle {
+                            border-radius: 14px;
+                            border-width: 1px;
+                            border-color: Theme.border.with-alpha(72%);
+                            background: Theme.card_bg.with-alpha(92%);
 
-                        SectionHeader { text: "SAVE / LOAD PROFILE"; }
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
 
-                        HorizontalLayout {
-                            spacing: 8px;
-                            Text { text: Tr.profile-input-label; color: Theme.muted; vertical-alignment: center; font-size: 13px; }
-                            LineEdit {
-                                text <=> root.profile-name;
-                                horizontal-stretch: 1;
-                                font-size: 13px;
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                                    text: "Profile management";
+                                    helper: "El perfil actual puede guardarse con otro nombre o lanzarse en una instancia separada.";
+                                }
+
+                                Text {
+                                    text: Tr.current-profile-prefix + root.current-profile-label;
+                                    color: Theme.label;
+                                    font-size: 13px;
+                                }
+
+                                TextFieldSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                                    title: "Profile name";
+                                    description: "Escribe un nombre limpio para guardar el snapshot actual o lanzar otra instancia con él.";
+                                    value <=> root.profile-name;
+                                    placeholder: "workspace-a";
+                                }
+
+                                Text {
+                                    text: root.known-profiles-label;
+                                    color: Theme.muted;
+                                    font-size: 11.5px;
+                                    wrap: word-wrap;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Button { text: Tr.save-profile-btn; clicked => { root.save-profile(); } }
+                                    Button { text: Tr.open-instance-btn; clicked => { root.open-profile-instance(); } }
+                                }
                             }
                         }
-
-                        Text {
-                            text: root.known-profiles-label;
-                            color: Theme.muted;
-                            font-size: 12px;
-                            wrap: word-wrap;
-                        }
-
-                        HorizontalLayout {
-                            spacing: 10px;
-                            Button {
-                                text: Tr.save-profile-btn;
-                                clicked => { root.save-profile(); }
-                            }
-                            Button {
-                                text: Tr.open-instance-btn;
-                                clicked => { root.open-profile-instance(); }
-                            }
-                        }
-
-                        Rectangle { vertical-stretch: 1; }
                     }
 
-                    // ════════════════════════════════════════
-                    // Page 4 — Keyboard Shortcuts
-                    // ════════════════════════════════════════
                     if root.current-page == 4: VerticalLayout {
-                        spacing: 10px;
+                        spacing: 16px;
 
-                        SectionHeader { text: "KEYBOARD SHORTCUTS"; }
-
-                        Text {
-                            text: "1-7: layouts  |  Tab: cycle layout  |  0: reset ratios\n"
-                                + "T: cycle theme  |  A: animations  |  H: toolbar\n"
-                                + "I: window info  |  P: always on top  |  O: settings\n"
-                                + "M / right-click header: app menu  |  R: refresh\n"
-                                + "Alt: toggle toolbar  |  Esc: exit";
-                            color: Theme.label;
-                            font-size: 13px;
-                            wrap: word-wrap;
+                        PageHeader {
+                            icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
+                            title: "Keyboard Shortcuts";
+                            subtitle: "Todas las acciones rápidas del dashboard en un único editor. Usa una tecla simple o nombres como Tab / Esc.";
                         }
 
-                        Rectangle { vertical-stretch: 1; }
+                        Rectangle {
+                            height: 540px;
+                            border-radius: 14px;
+                            border-width: 1px;
+                            border-color: Theme.border.with-alpha(72%);
+                            background: Theme.card_bg.with-alpha(92%);
+                            clip: true;
+
+                            ScrollView {
+                                VerticalLayout {
+                                    padding: 14px;
+                                    spacing: 10px;
+
+                                    SectionTitle {
+                                        icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                        text: "Layout bindings";
+                                        helper: "Asignaciones directas para layouts concretos, reset y ciclo general.";
+                                    }
+
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Grid layout"; description: "Activa la vista Grid al instante."; value <=> root.shortcut-layout-grid; placeholder: "1"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Mosaic layout"; description: "Cambia a la distribución Mosaic."; value <=> root.shortcut-layout-mosaic; placeholder: "2"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Bento layout"; description: "Activa el layout Bento."; value <=> root.shortcut-layout-bento; placeholder: "3"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Fibonacci layout"; description: "Abre la composición Fibonacci."; value <=> root.shortcut-layout-fibonacci; placeholder: "4"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Columns layout"; description: "Activa Columns."; value <=> root.shortcut-layout-columns; placeholder: "5"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Row layout"; description: "Activa la vista Row."; value <=> root.shortcut-layout-row; placeholder: "6"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Column layout"; description: "Activa la vista Column."; value <=> root.shortcut-layout-column; placeholder: "7"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Reset layout ratios"; description: "Restablece proporciones personalizadas del layout actual."; value <=> root.shortcut-reset-layout; placeholder: "0"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Cycle layout"; description: "Avanza al siguiente layout en la secuencia interna."; value <=> root.shortcut-cycle-layout; placeholder: "Tab"; }
+
+                                    SectionTitle {
+                                        icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
+                                        text: "Dashboard actions";
+                                        helper: "Atajos para abrir paneles, refrescar estado y alternar opciones visibles.";
+                                    }
+
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Cycle theme"; description: "Rota entre presets sin abrir la ventana de settings."; value <=> root.shortcut-cycle-theme; placeholder: "T"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle animations"; description: "Activa o desactiva transiciones del dashboard."; value <=> root.shortcut-toggle-animations; placeholder: "A"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle toolbar"; description: "Muestra u oculta la barra superior del dashboard."; value <=> root.shortcut-toggle-toolbar; placeholder: "H"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle window info"; description: "Muestra u oculta títulos e info encima de las miniaturas."; value <=> root.shortcut-toggle-window-info; placeholder: "I"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle always on top"; description: "Conmuta el modo siempre visible por encima de otras apps."; value <=> root.shortcut-toggle-always-on-top; placeholder: "P"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Open settings"; description: "Abre esta ventana desde el dashboard principal."; value <=> root.shortcut-open-settings; placeholder: "O"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Open application menu"; description: "Abre el menú nativo principal con acciones rápidas."; value <=> root.shortcut-open-menu; placeholder: "M"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-refresh.svg"); title: "Refresh now"; description: "Fuerza una nueva enumeración de ventanas y refresca el dashboard."; value <=> root.shortcut-refresh-now; placeholder: "R"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Exit app"; description: "Cierra Panopticon desde teclado."; value <=> root.shortcut-exit-app; placeholder: "Esc"; }
+                                    ToggleSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Use Alt as a quick toolbar toggle"; description: "Mantiene el atajo legacy de Windows para esconder o mostrar la toolbar con una sola pulsación de Alt."; checked <=> root.alt-toolbar-shortcut-enabled; }
+                                }
+                            }
+                        }
                     }
 
-                    // ════════════════════════════════════════
-                    // Page 5 — Advanced Options
-                    // ════════════════════════════════════════
                     if root.current-page == 5: VerticalLayout {
-                        spacing: 10px;
+                        spacing: 16px;
 
-                        SectionHeader { text: "DEFAULT LAYOUT"; }
-
-                        ComboBox {
-                            model: ["Grid", "Mosaic", "Bento", "Fibonacci", "Columns", "Row", "Column"];
-                            current-index <=> root.layout-index;
+                        PageHeader {
+                            icon: @image-url("../../assets/ui-icons/section-advanced.svg");
+                            title: "Advanced Options";
+                            subtitle: "Ajustes de layout inicial, refresco, dimensiones dockeadas y posición del appbar.";
                         }
 
-                        Text {
-                            text: "Tip: press 1-7 to switch layouts, Tab to cycle, 0 to reset proportions.";
-                            color: Theme.muted;
-                            font-size: 12px;
-                            wrap: word-wrap;
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                            title: "Default layout";
+                            description: "Define con qué layout debe arrancar Panopticon cada vez que abras este perfil.";
+                            options: ["Grid", "Mosaic", "Bento", "Fibonacci", "Columns", "Row", "Column"];
+                            selected-index <=> root.layout-index;
                         }
 
-                        Rectangle { height: 12px; }
-                        Divider {}
-                        Rectangle { height: 12px; }
-
-                        SectionHeader { text: "REFRESH INTERVAL"; }
-
-                        ComboBox {
-                            model: ["1s", "2s", "5s", "10s"];
-                            current-index <=> root.refresh-index;
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                            title: "Refresh interval";
+                            description: "Cadencia base para enumerar ventanas y actualizar el dashboard cuando no fuerzas un refresh manual.";
+                            options: ["1s", "2s", "5s", "10s"];
+                            selected-index <=> root.refresh-index;
                         }
 
-                        Button {
-                            text: "Refresh now";
-                            clicked => { root.refresh-now(); }
+                        Rectangle {
+                            border-radius: 12px;
+                            border-width: 1px;
+                            border-color: Theme.border.with-alpha(70%);
+                            background: Theme.card_bg.with-alpha(92%);
+                            min-height: 96px;
+
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
+
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                                    text: "Manual refresh";
+                                    helper: "Úsalo cuando quieras reenumerar ventanas inmediatamente sin esperar al temporizador.";
+                                }
+
+                                Button { text: "Refresh now"; clicked => { root.refresh-now(); } }
+                            }
                         }
 
-                        Rectangle { height: 12px; }
-                        Divider {}
-                        Rectangle { height: 12px; }
+                        Rectangle {
+                            border-radius: 12px;
+                            border-width: 1px;
+                            border-color: Theme.border.with-alpha(70%);
+                            background: Theme.card_bg.with-alpha(92%);
 
-                        SectionHeader { text: "DOCK THICKNESS (0 = AUTO)"; }
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
 
-                        HorizontalLayout {
-                            spacing: 12px;
-                            Text { text: "Width:"; color: Theme.label; vertical-alignment: center; font-size: 13px; }
-                            SpinBox { value <=> root.fixed-width-value; minimum: 0; maximum: 3840; }
-                            Text { text: "Height:"; color: Theme.label; vertical-alignment: center; font-size: 13px; }
-                            SpinBox { value <=> root.fixed-height-value; minimum: 0; maximum: 2160; }
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/option-dock.svg");
+                                    text: "Dock thickness";
+                                    helper: "Para dock lateral se usa width; para top/bottom se usa height. 0 deja el tamaño en automático.";
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 12px;
+                                    Text { text: "Width"; color: Theme.label; vertical-alignment: center; font-size: 13px; }
+                                    SpinBox { value <=> root.fixed-width-value; minimum: 0; maximum: 3840; }
+                                    Text { text: "Height"; color: Theme.label; vertical-alignment: center; font-size: 13px; }
+                                    SpinBox { value <=> root.fixed-height-value; minimum: 0; maximum: 2160; }
+                                }
+                            }
                         }
 
-                        Rectangle { height: 12px; }
-                        Divider {}
-                        Rectangle { height: 12px; }
-
-                        SectionHeader { text: "DOCK POSITION"; }
-
-                        ComboBox {
-                            model: ["Floating (no dock)", "Left", "Right", "Top", "Bottom"];
-                            current-index <=> root.dock-edge-index;
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-dock.svg");
+                            title: "Dock position";
+                            description: "Convierte la ventana en appbar anclada o la deja flotando como panel libre.";
+                            options: ["Floating (no dock)", "Left", "Right", "Top", "Bottom"];
+                            selected-index <=> root.dock-edge-index;
                         }
-
-                        Rectangle { vertical-stretch: 1; }
                     }
                 }
             }
         }
 
-        // ──── Footer button bar ─────────────────────────────
         Rectangle {
-            height: 56px;
+            height: 62px;
             background: Theme.bg;
 
-            Divider {
-                y: 0;
-                width: 100%;
-            }
+            Divider { y: 0; width: 100%; }
 
             HorizontalLayout {
                 padding-left: 24px;
@@ -683,20 +1233,9 @@ export component SettingsWindow inherits Window {
                 spacing: 10px;
                 alignment: end;
 
-                GhostButton {
-                    text: "Reset defaults";
-                    clicked => { root.reset-to-defaults(); }
-                }
-
-                AccentButton {
-                    text: "Apply";
-                    clicked => { root.apply(); }
-                }
-
-                GhostButton {
-                    text: "Close";
-                    clicked => { root.closed(); }
-                }
+                FooterButton { text: "Reset defaults"; clicked => { root.reset-to-defaults(); } }
+                FooterButton { text: "Apply"; accent: true; clicked => { root.apply(); } }
+                FooterButton { text: "Close"; clicked => { root.closed(); } }
             }
         }
     }
