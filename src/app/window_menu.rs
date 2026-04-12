@@ -4,11 +4,12 @@ use std::collections::HashSet;
 
 use crate::app::menu_utils::{checked_flag, disabled_flag, encode_wide};
 use panopticon::i18n;
+use panopticon::settings::ThumbnailRefreshMode;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, SetForegroundWindow, TrackPopupMenu,
-    MF_GRAYED, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_NONOTIFY,
+    MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_NONOTIFY,
     TPM_RETURNCMD,
 };
 
@@ -17,6 +18,9 @@ const CMD_TOGGLE_ASPECT_RATIO: u16 = 2;
 const CMD_TOGGLE_HIDE_ON_SELECT: u16 = 3;
 const CMD_CREATE_TAG_FROM_APP: u16 = 4;
 const CMD_TOGGLE_PIN_POSITION: u16 = 5;
+const CMD_REFRESH_MODE_REALTIME: u16 = 6;
+const CMD_REFRESH_MODE_FROZEN: u16 = 7;
+const CMD_REFRESH_MODE_INTERVAL: u16 = 8;
 const CMD_CLOSE_WINDOW: u16 = 10;
 const CMD_KILL_PROCESS: u16 = 11;
 const CMD_TAG_BASE: u16 = 100;
@@ -42,6 +46,7 @@ pub struct WindowMenuState {
     pub hide_on_select: bool,
     pub hide_on_select_enabled: bool,
     pub pin_position: bool,
+    pub thumbnail_refresh_mode: ThumbnailRefreshMode,
     pub current_color_hex: Option<String>,
     pub known_tags: Vec<String>,
     pub current_tags: HashSet<String>,
@@ -53,6 +58,7 @@ pub enum WindowMenuAction {
     ToggleAspectRatio,
     ToggleHideOnSelect,
     TogglePinPosition,
+    SetThumbnailRefreshMode(ThumbnailRefreshMode),
     CreateTagFromApp,
     SetColor(Option<String>),
     ToggleTag(String),
@@ -107,6 +113,10 @@ unsafe fn populate_window_menu(
     let preserve_aspect_ratio = encode_wide(i18n::t("menu.preserve_aspect"));
     let hide_on_select = encode_wide(i18n::t("menu.hide_on_select"));
     let create_tag = encode_wide(i18n::t("menu.create_tag"));
+    let thumbnail_refresh_title = encode_wide(i18n::t("menu.thumbnail_refresh"));
+    let thumbnail_refresh_realtime = encode_wide(i18n::t("menu.thumbnail_refresh_realtime"));
+    let thumbnail_refresh_frozen = encode_wide(i18n::t("menu.thumbnail_refresh_frozen"));
+    let thumbnail_refresh_interval = encode_wide(i18n::t("menu.thumbnail_refresh_interval"));
     let color_title = encode_wide(i18n::t("menu.cell_color"));
     let use_theme_color = encode_wide(i18n::t("menu.use_theme_color"));
     let close_window = encode_wide(i18n::t("menu.close_window"));
@@ -142,6 +152,36 @@ unsafe fn populate_window_menu(
         CMD_TOGGLE_HIDE_ON_SELECT as usize,
         PCWSTR(hide_on_select.as_ptr()),
     );
+
+    if let Ok(refresh_menu) = CreatePopupMenu() {
+        let _ = AppendMenuW(
+            refresh_menu,
+            MF_STRING
+                | checked_flag(state.thumbnail_refresh_mode == ThumbnailRefreshMode::Realtime),
+            CMD_REFRESH_MODE_REALTIME as usize,
+            PCWSTR(thumbnail_refresh_realtime.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            refresh_menu,
+            MF_STRING | checked_flag(state.thumbnail_refresh_mode == ThumbnailRefreshMode::Frozen),
+            CMD_REFRESH_MODE_FROZEN as usize,
+            PCWSTR(thumbnail_refresh_frozen.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            refresh_menu,
+            MF_STRING
+                | checked_flag(state.thumbnail_refresh_mode == ThumbnailRefreshMode::Interval),
+            CMD_REFRESH_MODE_INTERVAL as usize,
+            PCWSTR(thumbnail_refresh_interval.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_POPUP,
+            refresh_menu.0 as usize,
+            PCWSTR(thumbnail_refresh_title.as_ptr()),
+        );
+    }
+
     let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
     let _ = AppendMenuW(
         menu,
@@ -219,6 +259,15 @@ fn dispatch_window_menu_command(id: u16, state: &WindowMenuState) -> Option<Wind
         CMD_TOGGLE_HIDE_ON_SELECT if state.hide_on_select_enabled => {
             Some(WindowMenuAction::ToggleHideOnSelect)
         }
+        CMD_REFRESH_MODE_REALTIME => Some(WindowMenuAction::SetThumbnailRefreshMode(
+            ThumbnailRefreshMode::Realtime,
+        )),
+        CMD_REFRESH_MODE_FROZEN => Some(WindowMenuAction::SetThumbnailRefreshMode(
+            ThumbnailRefreshMode::Frozen,
+        )),
+        CMD_REFRESH_MODE_INTERVAL => Some(WindowMenuAction::SetThumbnailRefreshMode(
+            ThumbnailRefreshMode::Interval,
+        )),
         CMD_CREATE_TAG_FROM_APP => Some(WindowMenuAction::CreateTagFromApp),
         CMD_USE_THEME_COLOR => Some(WindowMenuAction::SetColor(None)),
         CMD_CLOSE_WINDOW => Some(WindowMenuAction::CloseWindow),

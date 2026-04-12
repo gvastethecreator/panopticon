@@ -125,7 +125,7 @@ macro_rules! populate_tr_global {
         tr.set_open_instance_btn(SharedString::from(i18n::t("settings.open_instance")));
         tr.set_no_hidden_hint(SharedString::from(i18n::t("settings.no_hidden_hint")));
         tr.set_tag_title(SharedString::from(i18n::t("tag.title")));
-        tr.set_tag_app_label(SharedString::from(i18n::t("tag.app_label")));
+        tr.set_tag_app_label(SharedString::from(i18n::t("tag.application")));
         tr.set_tag_name_label(SharedString::from(i18n::t("tag.name_label")));
         tr.set_tag_preset_colour(SharedString::from(i18n::t("tag.preset_colour")));
         tr.set_tag_create_assign(SharedString::from(i18n::t("tag.create_assign")));
@@ -266,7 +266,13 @@ fn main() {
         &settings.background_color_hex,
     );
 
-    let main_window = MainWindow::new().unwrap();
+    let main_window = match MainWindow::new() {
+        Ok(window) => window,
+        Err(error) => {
+            tracing::error!(%error, "failed to create main window");
+            return;
+        }
+    };
     populate_tr_global!(main_window);
     apply_main_window_theme_snapshot(&main_window, &initial_theme);
 
@@ -294,7 +300,10 @@ fn main() {
     }));
 
     // Show the window so the native HWND exists on next event-loop iteration.
-    main_window.show().unwrap();
+    if let Err(error) = main_window.show() {
+        tracing::error!(%error, "failed to show main window");
+        return;
+    }
 
     // Slint callbacks (don't need HWND — they use state internally).
     setup_callbacks(&main_window, &state);
@@ -1391,6 +1400,7 @@ fn handle_thumbnail_right_click(
         hide_on_select: s.settings.hide_on_select_for(&info.app_id),
         hide_on_select_enabled: s.settings.dock_edge.is_none(),
         pin_position: s.settings.is_pinned_position(&info.app_id),
+        thumbnail_refresh_mode: s.settings.thumbnail_refresh_mode_for(&info.app_id),
         current_color_hex: s.settings.app_color_hex(&info.app_id).map(str::to_owned),
         known_tags: s.settings.known_tags(),
         current_tags: s.settings.tags_for(&info.app_id).into_iter().collect(),
@@ -1586,6 +1596,14 @@ fn handle_window_menu_action(
                 needs_ui_refresh = true;
             }
         }
+        WindowMenuAction::SetThumbnailRefreshMode(mode) => {
+            update_settings(state, |settings| {
+                let _ =
+                    settings.set_app_thumbnail_refresh_mode(&info.app_id, &info.app_label(), mode);
+            });
+            release_thumbnails_for_app(state, &info.app_id);
+            needs_ui_refresh = true;
+        }
         WindowMenuAction::CreateTagFromApp => {
             open_create_tag_dialog(state, weak, info);
         }
@@ -1623,6 +1641,15 @@ fn handle_window_menu_action(
 
     if needs_ui_refresh {
         refresh_ui(state, weak);
+    }
+}
+
+fn release_thumbnails_for_app(state: &Rc<RefCell<AppState>>, app_id: &str) {
+    let mut state = state.borrow_mut();
+    for managed_window in &mut state.windows {
+        if managed_window.info.app_id == app_id {
+            release_thumbnail(managed_window);
+        }
     }
 }
 
@@ -2509,6 +2536,12 @@ fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<M
                 sw.set_current_profile_label(SharedString::from(current_profile_label(
                     profile_name.as_deref(),
                 )));
+                {
+                    let refreshed = state.borrow();
+                    populate_settings_window(sw, &refreshed.settings);
+                    populate_settings_window_runtime_fields(sw, &refreshed);
+                    apply_settings_window_theme_snapshot(sw, &refreshed.current_theme);
+                }
                 if let Some(main) = main_weak.upgrade() {
                     recompute_and_update_ui(&state, &main);
                 }
@@ -2927,7 +2960,13 @@ fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut
         window.get_app_filter_index(),
     )
     .and_then(|value| parse_option_value(&value));
-    settings.set_app_filter(app.as_deref());
+
+    if let Some(app) = app.as_deref() {
+        settings.set_tag_filter(None);
+        settings.set_app_filter(Some(app));
+    } else {
+        settings.set_app_filter(None);
+    }
 }
 
 fn selected_model_value(model: &ModelRc<SharedString>, index: i32) -> Option<String> {
