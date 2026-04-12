@@ -90,7 +90,7 @@ pub(crate) fn reposition_appbar(state: &mut AppState) {
         let _ = SHAppBarMessage(ABM_SETPOS, &raw mut abd);
         let _ = SetWindowPos(
             hwnd,
-            HWND_TOPMOST,
+            Some(HWND_TOPMOST),
             abd.rc.left,
             abd.rc.top,
             abd.rc.right - abd.rc.left,
@@ -111,7 +111,7 @@ pub(crate) fn restore_floating_style(hwnd: HWND) {
         );
         let _ = SetWindowPos(
             hwnd,
-            HWND_TOPMOST,
+            Some(HWND_TOPMOST),
             0,
             0,
             0,
@@ -168,9 +168,9 @@ pub(crate) fn apply_topmost_mode(hwnd: HWND, always_on_top: bool) {
         let _ = SetWindowPos(
             hwnd,
             if always_on_top {
-                HWND_TOPMOST
+                Some(HWND_TOPMOST)
             } else {
-                HWND_NOTOPMOST
+                Some(HWND_NOTOPMOST)
             },
             0,
             0,
@@ -254,9 +254,9 @@ pub(crate) fn keep_dialog_above_owner(
         let _ = SetWindowPos(
             dialog_hwnd,
             if settings.always_on_top || settings.dock_edge.is_some() {
-                HWND_TOPMOST
+                Some(HWND_TOPMOST)
             } else {
-                HWND_TOP
+                Some(HWND_TOP)
             },
             0,
             0,
@@ -291,15 +291,7 @@ pub(crate) fn center_window_on_screen(hwnd: HWND) {
         let work = mi.rcWork;
         let cx = work.left + (work.right - work.left - win_w) / 2;
         let cy = work.top + (work.bottom - work.top - win_h) / 2;
-        let _ = SetWindowPos(
-            hwnd,
-            HWND::default(),
-            cx,
-            cy,
-            0,
-            0,
-            SWP_NOSIZE | SWP_NOZORDER,
-        );
+        let _ = SetWindowPos(hwnd, None, cx, cy, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
     }
 }
 

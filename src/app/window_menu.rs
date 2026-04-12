@@ -88,7 +88,7 @@ pub fn show_window_context_menu(
             TPM_RETURNCMD | TPM_NONOTIFY | TPM_LEFTALIGN | TPM_BOTTOMALIGN,
             cursor.x,
             cursor.y,
-            0,
+            Some(0),
             hwnd,
             None,
         );

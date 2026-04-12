@@ -88,8 +88,11 @@ Panopticon does not depend on external services. Its primary integration is with
 | `tracing` | structured logging |
 | `tracing-subscriber` | subscriber and logging filters |
 | `tracing-appender` | rolling file writer |
+| `rfd` | native file dialog for dashboard background image selection |
 | `thiserror` | typed crate errors |
 | `anyhow` | convenient application-level errors |
+
+With the current `slint 1.15.1` setup, the project intentionally uses the generated/static Miranda Sans TTF files tracked by `build.rs` instead of the original variable fonts. This avoids the readability and alignment issues observed with the current released Slint stack.
 
 ## File system integration
 
@@ -125,6 +128,8 @@ slint_build::compile("ui/main.slint")
 ```
 
 This means that any syntax or binding error in Slint becomes part of the normal Cargo compilation pipeline.
+
+The build script also re-runs when static UI assets change, including `assets/ui-icons/` and the Miranda Sans TTF files compiled into the UI bundle.
 
 ## Security and `unsafe`
 

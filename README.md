@@ -30,7 +30,7 @@ Panopticon is useful when you want to:
 - **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
 - **Grouping and filters** by app, monitor, title, class, and tag.
 - **Tray utility + appbar/dock mode** for always-available workflows.
-- **Themes, animations, profiles, and persistence** through local TOML files.
+- **Themes, background images with fit modes, animations, customizable shortcuts, profiles, and persistence** through local TOML files.
 - **Bilingual UI** with English and Spanish support.
 
 ## Quick start
@@ -70,6 +70,8 @@ cargo run --release -- --profile work
 6. Use the tray icon to hide/show the dashboard without closing it.
 
 ### Handy shortcuts
+
+These are the **default** bindings. You can rebind them from `Settings -> Keyboard Shortcuts`, and the standalone `Alt` toolbar toggle can also be disabled there.
 
 | Input | Action |
 | --- | --- |

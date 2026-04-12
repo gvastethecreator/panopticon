@@ -2,7 +2,7 @@
 
 ## Project: Panopticon
 
-**Documented product version:** 0.1.0  
+**Documented product version:** 0.1.1  
 **Document status:** updated to reflect the current implementation  
 **Target platform:** Windows 10 / Windows 11 (64-bit)  
 **Actual stack:** Rust + Slint + Win32/DWM  
@@ -120,6 +120,7 @@ The product must:
 - restore a minimised window before focusing it;
 - allow closing the target window or terminating its process from the context menu;
 - allow hiding an application from the layout without closing the actual process.
+- allow re-binding the main dashboard shortcuts from the settings window, including layouts, refresh, theme, settings, menu, and exit.
 
 ### 5.5. Filters, tags, and grouping
 
@@ -159,6 +160,7 @@ The product must:
 - apply a classic theme or presets derived from `assets/themes.json`;
 - animate theme transitions;
 - allow a solid background and a background image behind the dashboard;
+- allow configuring how the background image fits the canvas (`cover`, `contain`, `fill`, `preserve`);
 - use rounded corners and Windows 11 backdrop when available.
 
 ### 5.9. Dock / appbar

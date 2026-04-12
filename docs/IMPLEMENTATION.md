@@ -195,6 +195,8 @@ The implementation supports direct shortcuts in `handle_key()`:
 - theme change;
 - exit.
 
+The key map is no longer hard-coded only in the handler itself: it is driven by `settings.shortcuts`, normalised by `ShortcutBindings::normalized()`, and surfaced in the settings window as editable single-key bindings.
+
 Additionally, the Win32 subclass intercepts the wheel and middle button to enable pan/scroll in layouts with overflow.
 
 ## Settings, profiles, and dialogs
@@ -205,6 +207,8 @@ This module defines:
 
 - `AppSettings`
 - `AppRule`
+- `BackgroundImageFit`
+- `ShortcutBindings`
 - `TagStyle`
 - `ThumbnailRefreshMode`
 - `WindowGrouping`
@@ -220,7 +224,7 @@ It also handles:
 
 ### `settings_ui.rs`
 
-This is the adapter layer between `AppSettings` and `SettingsWindow`. It translates enums to combo box indices and back.
+This is the adapter layer between `AppSettings` and `SettingsWindow`. It translates enums, background-fit modes, theme previews, and editable shortcut strings to the Slint settings UI and back.
 
 ### Settings window
 
@@ -228,15 +232,18 @@ The settings window allows editing:
 
 - general behaviour;
 - display;
-- theme;
+- theme presets and preview grid;
 - default layout;
 - refresh interval;
 - fixed dimensions;
 - dock edge;
 - filters;
-- background;
+- background image path and fit mode;
+- keyboard shortcuts and the optional `Alt` toolbar toggle;
 - profiles;
 - hidden apps.
+
+`secondary_windows.rs` also wires a native `rfd::FileDialog` picker for browsing and clearing the dashboard background image.
 
 ### Multiple profiles
 
