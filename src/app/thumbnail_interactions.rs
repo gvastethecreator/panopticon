@@ -155,7 +155,7 @@ pub(crate) fn handle_thumbnail_drag_ended(
                     let app_id = window.info.app_id.clone();
                     if !seen_apps.contains(&app_id) {
                         seen_apps.insert(app_id.clone());
-                        let app_label = window.info.app_label();
+                        let app_label = window.info.app_label().to_owned();
                         rules_to_update.push((app_id, app_label, index));
                     }
                 }
@@ -197,28 +197,28 @@ pub(crate) fn handle_window_menu_action(
     match action {
         WindowMenuAction::HideApp => {
             update_settings(state, |settings| {
-                let _ = settings.toggle_hidden(&info.app_id, &info.app_label());
+                let _ = settings.toggle_hidden(&info.app_id, info.app_label());
             });
             needs_window_refresh = true;
             needs_ui_refresh = true;
         }
         WindowMenuAction::TogglePinPosition => {
             update_settings(state, |settings| {
-                let _ = settings.toggle_app_pinned_position(&info.app_id, &info.app_label(), index);
+                let _ = settings.toggle_app_pinned_position(&info.app_id, info.app_label(), index);
             });
             needs_window_refresh = true;
             needs_ui_refresh = true;
         }
         WindowMenuAction::ToggleAspectRatio => {
             update_settings(state, |settings| {
-                let _ = settings.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label());
+                let _ = settings.toggle_app_preserve_aspect_ratio(&info.app_id, info.app_label());
             });
             needs_ui_refresh = true;
         }
         WindowMenuAction::ToggleHideOnSelect => {
             if state.borrow().settings.dock_edge.is_none() {
                 update_settings(state, |settings| {
-                    let _ = settings.toggle_app_hide_on_select(&info.app_id, &info.app_label());
+                    let _ = settings.toggle_app_hide_on_select(&info.app_id, info.app_label());
                 });
                 needs_ui_refresh = true;
             }
@@ -226,7 +226,7 @@ pub(crate) fn handle_window_menu_action(
         WindowMenuAction::SetThumbnailRefreshMode(mode) => {
             update_settings(state, |settings| {
                 let _ =
-                    settings.set_app_thumbnail_refresh_mode(&info.app_id, &info.app_label(), mode);
+                    settings.set_app_thumbnail_refresh_mode(&info.app_id, info.app_label(), mode);
             });
             release_thumbnails_for_app(state, &info.app_id);
             needs_ui_refresh = true;
@@ -238,7 +238,7 @@ pub(crate) fn handle_window_menu_action(
             update_settings(state, |settings| {
                 let _ = settings.set_app_color_hex(
                     &info.app_id,
-                    &info.app_label(),
+                    info.app_label(),
                     color_hex.as_deref(),
                 );
             });
@@ -247,7 +247,7 @@ pub(crate) fn handle_window_menu_action(
         }
         WindowMenuAction::ToggleTag(tag) => {
             update_settings(state, |settings| {
-                let _ = settings.toggle_app_tag(&info.app_id, &info.app_label(), &tag);
+                let _ = settings.toggle_app_tag(&info.app_id, info.app_label(), &tag);
             });
             needs_window_refresh = true;
             needs_ui_refresh = true;

@@ -1,5 +1,7 @@
 //! Window icon extraction and HICON-to-Slint rendering helpers.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ffi::c_void;
 use std::mem;
 
@@ -17,6 +19,15 @@ use crate::app::tray::{
 };
 use crate::ManagedWindow;
 
+// ───────────────────────── Per-app icon cache ─────────────────────────
+
+thread_local! {
+    /// Cache of rendered Slint icons keyed by `app_id`.
+    /// Multiple windows from the same application share one icon image.
+    static APP_ICON_CACHE: RefCell<HashMap<String, Option<slint::Image>>> =
+        RefCell::new(HashMap::new());
+}
+
 // ───────────────────────── Cached icon population ─────────────────────────
 
 /// Extract and cache the application icon for a managed window.
@@ -24,7 +35,19 @@ pub(crate) fn populate_cached_icon(mw: &mut ManagedWindow) {
     if mw.cached_icon.is_some() {
         return;
     }
-    mw.cached_icon = hicon_to_slint_image(&mw.info);
+    // Try the per-app shared cache first before hitting GDI.
+    let cached = APP_ICON_CACHE.with(|cache| cache.borrow().get(&mw.info.app_id).cloned());
+    if let Some(entry) = cached {
+        mw.cached_icon = entry;
+        return;
+    }
+    let image = hicon_to_slint_image(&mw.info);
+    APP_ICON_CACHE.with(|cache| {
+        cache
+            .borrow_mut()
+            .insert(mw.info.app_id.clone(), image.clone());
+    });
+    mw.cached_icon = image;
 }
 
 // ───────────────────────── HICON → Slint Image ─────────────────────────
@@ -109,16 +132,14 @@ fn render_hicon_to_slint_image(icon: HICON) -> Option<slint::Image> {
         let src = std::slice::from_raw_parts(bits_ptr.cast::<u8>(), pixel_count * 4);
         let mut rgba = vec![0u8; pixel_count * 4];
 
+        // BGRA → RGBA conversion in a single pass, also checking for alpha.
         let mut has_alpha = false;
-        for (i, chunk) in src.chunks_exact(4).enumerate() {
-            let o = i * 4;
-            rgba[o] = chunk[2];
-            rgba[o + 1] = chunk[1];
-            rgba[o + 2] = chunk[0];
-            rgba[o + 3] = chunk[3];
-            if chunk[3] != 0 {
-                has_alpha = true;
-            }
+        for (dst, bgra) in rgba.chunks_exact_mut(4).zip(src.chunks_exact(4)) {
+            dst[0] = bgra[2]; // R
+            dst[1] = bgra[1]; // G
+            dst[2] = bgra[0]; // B
+            dst[3] = bgra[3]; // A
+            has_alpha |= bgra[3] != 0;
         }
 
         // Icons without an alpha channel: set all non-black pixels to opaque.
@@ -154,14 +175,24 @@ fn normalize_icon_canvas(source: &[u8], size: usize, padding: usize) -> Vec<u8> 
     let mut max_y = 0usize;
     let mut found = false;
 
+    // Single-pass bounds scan using the alpha channel.
     for y in 0..size {
+        let row_base = y * size * 4;
         for x in 0..size {
-            let alpha = source[(y * size + x) * 4 + 3];
+            let alpha = source[row_base + x * 4 + 3];
             if alpha > 8 {
-                min_x = min_x.min(x);
-                min_y = min_y.min(y);
-                max_x = max_x.max(x);
-                max_y = max_y.max(y);
+                if x < min_x {
+                    min_x = x;
+                }
+                if x > max_x {
+                    max_x = x;
+                }
+                if y < min_y {
+                    min_y = y;
+                }
+                if y > max_y {
+                    max_y = y;
+                }
                 found = true;
             }
         }

@@ -351,7 +351,7 @@ pub(crate) fn open_create_tag_dialog(
         return;
     }
 
-    let suggested_name = suggested_tag_name(&info.app_label());
+    let suggested_name = suggested_tag_name(info.app_label());
     let suggested_color = state.borrow().settings.tag_color_hex(&suggested_name);
 
     let dialog = match TagDialogWindow::new() {
@@ -375,7 +375,7 @@ pub(crate) fn open_create_tag_dialog(
         let state = state.clone();
         let weak = weak.clone();
         let app_id = info.app_id.clone();
-        let display_name = info.app_label();
+        let display_name = info.app_label().to_owned();
         move || {
             crate::TAG_DIALOG_WIN.with(|dialog_cell| {
                 let guard = dialog_cell.borrow();

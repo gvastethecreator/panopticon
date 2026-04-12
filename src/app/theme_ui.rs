@@ -90,7 +90,8 @@ pub(crate) fn sync_theme_target(state: &mut AppState) {
     }
 
     state.theme_animation = Some(crate::ThemeAnimation {
-        from: state.current_theme.clone(),
+        from_rgb: theme_catalog::RgbThemeSnapshot::from_ui_theme(&state.current_theme),
+        to_rgb: theme_catalog::RgbThemeSnapshot::from_ui_theme(&desired),
         to: desired,
         started_at: Instant::now(),
     });
@@ -98,7 +99,7 @@ pub(crate) fn sync_theme_target(state: &mut AppState) {
 
 pub(crate) fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let mut s = state.borrow_mut();
-    let Some(animation) = s.theme_animation.clone() else {
+    let Some(ref animation) = s.theme_animation else {
         let current = s.current_theme.clone();
         drop(s);
         apply_theme_snapshot_everywhere(win, &current);
@@ -109,10 +110,12 @@ pub(crate) fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainW
     let elapsed_ms = animation.started_at.elapsed().as_millis() as u32;
     let progress = (elapsed_ms as f32 / THEME_TRANSITION_DURATION_MS as f32).clamp(0.0, 1.0);
     let eased = 1.0 - (1.0 - progress).powi(3);
-    let resolved = theme_catalog::interpolate_ui_theme(&animation.from, &animation.to, eased);
+    let resolved = animation
+        .from_rgb
+        .interpolate(&animation.to_rgb, eased, &animation.to);
     s.current_theme = resolved;
     if progress >= 1.0 {
-        s.current_theme = animation.to;
+        s.current_theme = s.theme_animation.as_ref().unwrap().to.clone();
         s.theme_animation = None;
     }
     let current = s.current_theme.clone();
@@ -161,8 +164,36 @@ pub(crate) fn refresh_thumbnail_accent_rows(state: &Rc<RefCell<AppState>>, win: 
 }
 
 pub(crate) fn hex_to_slint_color(hex: &str) -> slint::Color {
-    let r = u8::from_str_radix(hex.get(0..2).unwrap_or("D2"), 16).unwrap_or(0xD2);
-    let g = u8::from_str_radix(hex.get(2..4).unwrap_or("9A"), 16).unwrap_or(0x9A);
-    let b = u8::from_str_radix(hex.get(4..6).unwrap_or("5C"), 16).unwrap_or(0x5C);
+    let bytes = hex.as_bytes();
+    let r = if bytes.len() >= 2 {
+        hex_byte(bytes[0], bytes[1])
+    } else {
+        0xD2
+    };
+    let g = if bytes.len() >= 4 {
+        hex_byte(bytes[2], bytes[3])
+    } else {
+        0x9A
+    };
+    let b = if bytes.len() >= 6 {
+        hex_byte(bytes[4], bytes[5])
+    } else {
+        0x5C
+    };
     slint::Color::from_rgb_u8(r, g, b)
+}
+
+#[inline]
+fn hex_nibble(c: u8) -> u8 {
+    match c {
+        b'0'..=b'9' => c - b'0',
+        b'a'..=b'f' => c - b'a' + 10,
+        b'A'..=b'F' => c - b'A' + 10,
+        _ => 0,
+    }
+}
+
+#[inline]
+fn hex_byte(hi: u8, lo: u8) -> u8 {
+    hex_nibble(hi) << 4 | hex_nibble(lo)
 }

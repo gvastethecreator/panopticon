@@ -25,7 +25,7 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
     for window in &available_windows {
         state
             .settings
-            .refresh_app_label(&window.app_id, &window.app_label());
+            .refresh_app_label(&window.app_id, window.app_label());
     }
 
     TrayMenuState {

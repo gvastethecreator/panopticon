@@ -151,7 +151,9 @@ fn normalize_ratios(ratios: &[f64]) -> Vec<f64> {
         return default_ratios(ratios.len());
     }
 
-    ratios.iter().map(|r| r / sum).collect()
+    let mut out = Vec::with_capacity(ratios.len());
+    out.extend(ratios.iter().map(|r| r / sum));
+    out
 }
 
 fn matching_ratios(ratios: Option<&[f64]>, expected_len: usize) -> Option<&[f64]> {
@@ -162,21 +164,23 @@ fn scaled_segments(total: f64, slots: usize, ratios: Option<&[f64]>) -> Vec<f64>
     ratios.map_or_else(
         || vec![total / slots as f64; slots],
         |ratios| {
-            normalize_ratios(ratios)
-                .iter()
-                .map(|ratio| total * ratio)
-                .collect()
+            let normalized = normalize_ratios(ratios);
+            let mut out = Vec::with_capacity(normalized.len());
+            out.extend(normalized.iter().map(|ratio| total * ratio));
+            out
         },
     )
 }
 
 fn cumulative_positions(lengths: &[f64]) -> Vec<f64> {
-    std::iter::once(0.0)
-        .chain(lengths.iter().scan(0.0, |acc, &length| {
-            *acc += length;
-            Some(*acc)
-        }))
-        .collect()
+    let mut positions = Vec::with_capacity(lengths.len() + 1);
+    positions.push(0.0);
+    let mut acc = 0.0;
+    for &length in lengths {
+        acc += length;
+        positions.push(acc);
+    }
+    positions
 }
 
 // ───────────────────────── Separator ─────────────────────────
