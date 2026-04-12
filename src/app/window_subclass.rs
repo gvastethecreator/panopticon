@@ -358,6 +358,9 @@ fn toggle_toolbar_from_alt_hotkey() {
             };
             {
                 let mut guard = state.borrow_mut();
+                if !guard.settings.shortcuts.alt_toggles_toolbar {
+                    return;
+                }
                 guard.settings.show_toolbar = !guard.settings.show_toolbar;
                 let _ = guard.settings.save(guard.profile_name.as_deref());
             }

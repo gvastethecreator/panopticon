@@ -1,11 +1,14 @@
 //! Helpers for synchronizing the Slint settings window with persisted settings.
 
+use std::path::Path;
+
 use panopticon::layout::LayoutType;
-use panopticon::settings::{AppSettings, DockEdge, WindowGrouping};
+use panopticon::settings::{AppSettings, BackgroundImageFit, DockEdge, WindowGrouping};
 use panopticon::theme;
 use slint::SharedString;
+use slint::{ModelRc, VecModel};
 
-use crate::SettingsWindow;
+use crate::{SettingsWindow, ThemePreviewData};
 
 pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings) {
     window.set_always_on_top_setting(settings.always_on_top);
@@ -27,17 +30,46 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_bg_image_path(SharedString::from(
         settings.background_image_path.as_deref().unwrap_or(""),
     ));
+    window.set_bg_image_fit_index(background_fit_to_index(settings.background_image_fit));
     window.set_fixed_width_value(settings.fixed_width.unwrap_or(0) as i32);
     window.set_fixed_height_value(settings.fixed_height.unwrap_or(0) as i32);
     window.set_refresh_index(refresh_to_index(settings.refresh_interval_ms));
     window.set_layout_index(layout_to_index(settings.initial_layout));
     window.set_dock_edge_index(dock_edge_to_index(settings.dock_edge));
     window.set_group_windows_index(grouping_to_index(settings.group_windows_by));
+    window.set_shortcut_layout_grid(SharedString::from(&settings.shortcuts.layout_grid));
+    window.set_shortcut_layout_mosaic(SharedString::from(&settings.shortcuts.layout_mosaic));
+    window.set_shortcut_layout_bento(SharedString::from(&settings.shortcuts.layout_bento));
+    window.set_shortcut_layout_fibonacci(SharedString::from(&settings.shortcuts.layout_fibonacci));
+    window.set_shortcut_layout_columns(SharedString::from(&settings.shortcuts.layout_columns));
+    window.set_shortcut_layout_row(SharedString::from(&settings.shortcuts.layout_row));
+    window.set_shortcut_layout_column(SharedString::from(&settings.shortcuts.layout_column));
+    window.set_shortcut_reset_layout(SharedString::from(&settings.shortcuts.reset_layout));
+    window.set_shortcut_cycle_layout(SharedString::from(&settings.shortcuts.cycle_layout));
+    window.set_shortcut_cycle_theme(SharedString::from(&settings.shortcuts.cycle_theme));
+    window
+        .set_shortcut_toggle_animations(SharedString::from(&settings.shortcuts.toggle_animations));
+    window.set_shortcut_toggle_toolbar(SharedString::from(&settings.shortcuts.toggle_toolbar));
+    window.set_shortcut_toggle_window_info(SharedString::from(
+        &settings.shortcuts.toggle_window_info,
+    ));
+    window.set_shortcut_toggle_always_on_top(SharedString::from(
+        &settings.shortcuts.toggle_always_on_top,
+    ));
+    window.set_shortcut_open_settings(SharedString::from(&settings.shortcuts.open_settings));
+    window.set_shortcut_open_menu(SharedString::from(&settings.shortcuts.open_menu));
+    window.set_shortcut_refresh_now(SharedString::from(&settings.shortcuts.refresh_now));
+    window.set_shortcut_exit_app(SharedString::from(&settings.shortcuts.exit_app));
+    window.set_alt_toolbar_shortcut_enabled(settings.shortcuts.alt_toggles_toolbar);
 
     let resolved_theme =
         theme::resolve_ui_theme(settings.theme_id.as_deref(), &settings.background_color_hex);
-    window.set_bg_preview_color(hex_to_color(&resolved_theme.bg_hex));
+    window.set_bg_preview_color(hex_to_color(&settings.background_color_hex));
     window.set_theme_preview_color(hex_to_color(&resolved_theme.accent_hex));
+    window.set_bg_image_preview(load_image_preview(
+        settings.background_image_path.as_deref(),
+    ));
+    window.set_theme_preview_model(build_theme_preview_model());
 }
 
 pub fn apply_settings_window_changes(
@@ -65,6 +97,7 @@ pub fn apply_settings_window_changes(
     } else {
         Some(img_path)
     };
+    settings.background_image_fit = index_to_background_fit(window.get_bg_image_fit_index());
 
     let fixed_width = window.get_fixed_width_value();
     settings.fixed_width = if fixed_width > 0 {
@@ -83,9 +116,47 @@ pub fn apply_settings_window_changes(
     settings.dock_edge = index_to_dock_edge(window.get_dock_edge_index());
     settings.group_windows_by = index_to_grouping(window.get_group_windows_index());
     settings.refresh_interval_ms = index_to_refresh(window.get_refresh_index());
+    settings.shortcuts.layout_grid = window.get_shortcut_layout_grid().to_string();
+    settings.shortcuts.layout_mosaic = window.get_shortcut_layout_mosaic().to_string();
+    settings.shortcuts.layout_bento = window.get_shortcut_layout_bento().to_string();
+    settings.shortcuts.layout_fibonacci = window.get_shortcut_layout_fibonacci().to_string();
+    settings.shortcuts.layout_columns = window.get_shortcut_layout_columns().to_string();
+    settings.shortcuts.layout_row = window.get_shortcut_layout_row().to_string();
+    settings.shortcuts.layout_column = window.get_shortcut_layout_column().to_string();
+    settings.shortcuts.reset_layout = window.get_shortcut_reset_layout().to_string();
+    settings.shortcuts.cycle_layout = window.get_shortcut_cycle_layout().to_string();
+    settings.shortcuts.cycle_theme = window.get_shortcut_cycle_theme().to_string();
+    settings.shortcuts.toggle_animations = window.get_shortcut_toggle_animations().to_string();
+    settings.shortcuts.toggle_toolbar = window.get_shortcut_toggle_toolbar().to_string();
+    settings.shortcuts.toggle_window_info = window.get_shortcut_toggle_window_info().to_string();
+    settings.shortcuts.toggle_always_on_top =
+        window.get_shortcut_toggle_always_on_top().to_string();
+    settings.shortcuts.open_settings = window.get_shortcut_open_settings().to_string();
+    settings.shortcuts.open_menu = window.get_shortcut_open_menu().to_string();
+    settings.shortcuts.refresh_now = window.get_shortcut_refresh_now().to_string();
+    settings.shortcuts.exit_app = window.get_shortcut_exit_app().to_string();
+    settings.shortcuts.alt_toggles_toolbar = window.get_alt_toolbar_shortcut_enabled();
     let layout = index_to_layout(window.get_layout_index());
     settings.initial_layout = layout;
     layout
+}
+
+fn background_fit_to_index(fit: BackgroundImageFit) -> i32 {
+    match fit {
+        BackgroundImageFit::Cover => 0,
+        BackgroundImageFit::Contain => 1,
+        BackgroundImageFit::Fill => 2,
+        BackgroundImageFit::Preserve => 3,
+    }
+}
+
+fn index_to_background_fit(index: i32) -> BackgroundImageFit {
+    match index {
+        1 => BackgroundImageFit::Contain,
+        2 => BackgroundImageFit::Fill,
+        3 => BackgroundImageFit::Preserve,
+        _ => BackgroundImageFit::Cover,
+    }
 }
 
 fn layout_to_index(layout: LayoutType) -> i32 {
@@ -176,4 +247,40 @@ fn hex_to_color(hex: &str) -> slint::Color {
     let green = u8::from_str_radix(sanitized.get(2..4).unwrap_or("9A"), 16).unwrap_or(0x9A);
     let blue = u8::from_str_radix(sanitized.get(4..6).unwrap_or("5C"), 16).unwrap_or(0x5C);
     slint::Color::from_rgb_u8(red, green, blue)
+}
+
+fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
+    let mut previews = Vec::with_capacity(theme::theme_presets().len() + 1);
+    previews.push(ThemePreviewData {
+        index: 0,
+        label: SharedString::from("Classic Panopticon"),
+        subtitle: SharedString::from("Uses the current canvas colour as the base background."),
+        bg: hex_to_color("181513"),
+        surface: hex_to_color("221E1C"),
+        accent: hex_to_color("D29A5C"),
+        text: hex_to_color("E6E2DE"),
+    });
+
+    previews.extend(
+        theme::theme_presets()
+            .iter()
+            .enumerate()
+            .map(|(offset, preset)| ThemePreviewData {
+                index: offset as i32 + 1,
+                label: SharedString::from(preset.label.clone()),
+                subtitle: SharedString::from(preset.id.clone()),
+                bg: hex_to_color(&preset.ui.bg_hex),
+                surface: hex_to_color(&preset.ui.surface_hex),
+                accent: hex_to_color(&preset.ui.accent_hex),
+                text: hex_to_color(&preset.ui.text_hex),
+            }),
+    );
+
+    ModelRc::new(VecModel::from(previews))
+}
+
+fn load_image_preview(path: Option<&str>) -> slint::Image {
+    path.filter(|value| !value.trim().is_empty())
+        .and_then(|value| slint::Image::load_from_path(Path::new(value)).ok())
+        .unwrap_or_default()
 }

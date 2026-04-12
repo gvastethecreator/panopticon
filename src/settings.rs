@@ -17,6 +17,24 @@ const DEFAULT_REFRESH_INTERVAL_MS: u32 = 2_000;
 const REFRESH_INTERVALS_MS: [u32; 4] = [1_000, 2_000, 5_000, 10_000];
 const DEFAULT_BACKGROUND_COLOR_HEX: &str = "181513";
 const DEFAULT_TAG_COLOR_HEX: &str = "D29A5C";
+const DEFAULT_SHORTCUT_LAYOUT_GRID: &str = "1";
+const DEFAULT_SHORTCUT_LAYOUT_MOSAIC: &str = "2";
+const DEFAULT_SHORTCUT_LAYOUT_BENTO: &str = "3";
+const DEFAULT_SHORTCUT_LAYOUT_FIBONACCI: &str = "4";
+const DEFAULT_SHORTCUT_LAYOUT_COLUMNS: &str = "5";
+const DEFAULT_SHORTCUT_LAYOUT_ROW: &str = "6";
+const DEFAULT_SHORTCUT_LAYOUT_COLUMN: &str = "7";
+const DEFAULT_SHORTCUT_RESET_LAYOUT: &str = "0";
+const DEFAULT_SHORTCUT_CYCLE_LAYOUT: &str = "Tab";
+const DEFAULT_SHORTCUT_CYCLE_THEME: &str = "T";
+const DEFAULT_SHORTCUT_TOGGLE_ANIMATIONS: &str = "A";
+const DEFAULT_SHORTCUT_TOGGLE_TOOLBAR: &str = "H";
+const DEFAULT_SHORTCUT_TOGGLE_WINDOW_INFO: &str = "I";
+const DEFAULT_SHORTCUT_TOGGLE_ALWAYS_ON_TOP: &str = "P";
+const DEFAULT_SHORTCUT_OPEN_SETTINGS: &str = "O";
+const DEFAULT_SHORTCUT_OPEN_MENU: &str = "M";
+const DEFAULT_SHORTCUT_REFRESH: &str = "R";
+const DEFAULT_SHORTCUT_EXIT: &str = "Esc";
 
 const fn default_true() -> bool {
     true
@@ -61,6 +79,138 @@ pub enum WindowGrouping {
     Monitor,
     WindowTitle,
     ClassName,
+}
+
+/// How the optional background image should be fit into the dashboard canvas.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum BackgroundImageFit {
+    #[default]
+    Cover,
+    Contain,
+    Fill,
+    Preserve,
+}
+
+/// Customizable keyboard shortcuts used by the dashboard window.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct ShortcutBindings {
+    pub layout_grid: String,
+    pub layout_mosaic: String,
+    pub layout_bento: String,
+    pub layout_fibonacci: String,
+    pub layout_columns: String,
+    pub layout_row: String,
+    pub layout_column: String,
+    pub reset_layout: String,
+    pub cycle_layout: String,
+    pub cycle_theme: String,
+    pub toggle_animations: String,
+    pub toggle_toolbar: String,
+    pub toggle_window_info: String,
+    pub toggle_always_on_top: String,
+    pub open_settings: String,
+    pub open_menu: String,
+    pub refresh_now: String,
+    pub exit_app: String,
+    #[serde(default = "default_true")]
+    pub alt_toggles_toolbar: bool,
+}
+
+impl Default for ShortcutBindings {
+    fn default() -> Self {
+        Self {
+            layout_grid: DEFAULT_SHORTCUT_LAYOUT_GRID.to_owned(),
+            layout_mosaic: DEFAULT_SHORTCUT_LAYOUT_MOSAIC.to_owned(),
+            layout_bento: DEFAULT_SHORTCUT_LAYOUT_BENTO.to_owned(),
+            layout_fibonacci: DEFAULT_SHORTCUT_LAYOUT_FIBONACCI.to_owned(),
+            layout_columns: DEFAULT_SHORTCUT_LAYOUT_COLUMNS.to_owned(),
+            layout_row: DEFAULT_SHORTCUT_LAYOUT_ROW.to_owned(),
+            layout_column: DEFAULT_SHORTCUT_LAYOUT_COLUMN.to_owned(),
+            reset_layout: DEFAULT_SHORTCUT_RESET_LAYOUT.to_owned(),
+            cycle_layout: DEFAULT_SHORTCUT_CYCLE_LAYOUT.to_owned(),
+            cycle_theme: DEFAULT_SHORTCUT_CYCLE_THEME.to_owned(),
+            toggle_animations: DEFAULT_SHORTCUT_TOGGLE_ANIMATIONS.to_owned(),
+            toggle_toolbar: DEFAULT_SHORTCUT_TOGGLE_TOOLBAR.to_owned(),
+            toggle_window_info: DEFAULT_SHORTCUT_TOGGLE_WINDOW_INFO.to_owned(),
+            toggle_always_on_top: DEFAULT_SHORTCUT_TOGGLE_ALWAYS_ON_TOP.to_owned(),
+            open_settings: DEFAULT_SHORTCUT_OPEN_SETTINGS.to_owned(),
+            open_menu: DEFAULT_SHORTCUT_OPEN_MENU.to_owned(),
+            refresh_now: DEFAULT_SHORTCUT_REFRESH.to_owned(),
+            exit_app: DEFAULT_SHORTCUT_EXIT.to_owned(),
+            alt_toggles_toolbar: true,
+        }
+    }
+}
+
+impl ShortcutBindings {
+    #[must_use]
+    pub fn normalized(&self) -> Self {
+        Self {
+            layout_grid: normalize_shortcut_binding(
+                &self.layout_grid,
+                DEFAULT_SHORTCUT_LAYOUT_GRID,
+            ),
+            layout_mosaic: normalize_shortcut_binding(
+                &self.layout_mosaic,
+                DEFAULT_SHORTCUT_LAYOUT_MOSAIC,
+            ),
+            layout_bento: normalize_shortcut_binding(
+                &self.layout_bento,
+                DEFAULT_SHORTCUT_LAYOUT_BENTO,
+            ),
+            layout_fibonacci: normalize_shortcut_binding(
+                &self.layout_fibonacci,
+                DEFAULT_SHORTCUT_LAYOUT_FIBONACCI,
+            ),
+            layout_columns: normalize_shortcut_binding(
+                &self.layout_columns,
+                DEFAULT_SHORTCUT_LAYOUT_COLUMNS,
+            ),
+            layout_row: normalize_shortcut_binding(&self.layout_row, DEFAULT_SHORTCUT_LAYOUT_ROW),
+            layout_column: normalize_shortcut_binding(
+                &self.layout_column,
+                DEFAULT_SHORTCUT_LAYOUT_COLUMN,
+            ),
+            reset_layout: normalize_shortcut_binding(
+                &self.reset_layout,
+                DEFAULT_SHORTCUT_RESET_LAYOUT,
+            ),
+            cycle_layout: normalize_shortcut_binding(
+                &self.cycle_layout,
+                DEFAULT_SHORTCUT_CYCLE_LAYOUT,
+            ),
+            cycle_theme: normalize_shortcut_binding(
+                &self.cycle_theme,
+                DEFAULT_SHORTCUT_CYCLE_THEME,
+            ),
+            toggle_animations: normalize_shortcut_binding(
+                &self.toggle_animations,
+                DEFAULT_SHORTCUT_TOGGLE_ANIMATIONS,
+            ),
+            toggle_toolbar: normalize_shortcut_binding(
+                &self.toggle_toolbar,
+                DEFAULT_SHORTCUT_TOGGLE_TOOLBAR,
+            ),
+            toggle_window_info: normalize_shortcut_binding(
+                &self.toggle_window_info,
+                DEFAULT_SHORTCUT_TOGGLE_WINDOW_INFO,
+            ),
+            toggle_always_on_top: normalize_shortcut_binding(
+                &self.toggle_always_on_top,
+                DEFAULT_SHORTCUT_TOGGLE_ALWAYS_ON_TOP,
+            ),
+            open_settings: normalize_shortcut_binding(
+                &self.open_settings,
+                DEFAULT_SHORTCUT_OPEN_SETTINGS,
+            ),
+            open_menu: normalize_shortcut_binding(&self.open_menu, DEFAULT_SHORTCUT_OPEN_MENU),
+            refresh_now: normalize_shortcut_binding(&self.refresh_now, DEFAULT_SHORTCUT_REFRESH),
+            exit_app: normalize_shortcut_binding(&self.exit_app, DEFAULT_SHORTCUT_EXIT),
+            alt_toggles_toolbar: self.alt_toggles_toolbar,
+        }
+    }
 }
 
 impl WindowGrouping {
@@ -212,6 +362,9 @@ pub struct AppSettings {
     /// Optional file path to a background image displayed behind thumbnails.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background_image_path: Option<String>,
+    /// How the optional background image should be fitted into the dashboard.
+    #[serde(default)]
+    pub background_image_fit: BackgroundImageFit,
     /// Per-layout custom resize ratios (column/row proportions).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub layout_customizations: BTreeMap<String, LayoutCustomization>,
@@ -224,6 +377,9 @@ pub struct AppSettings {
     /// Show the application icon overlay in each thumbnail cell.
     #[serde(default = "default_true")]
     pub show_app_icons: bool,
+    /// User-configurable dashboard keyboard shortcuts.
+    #[serde(default)]
+    pub shortcuts: ShortcutBindings,
 }
 
 impl Default for AppSettings {
@@ -253,10 +409,12 @@ impl Default for AppSettings {
             show_window_info: true,
             start_in_tray: false,
             background_image_path: None,
+            background_image_fit: BackgroundImageFit::default(),
             layout_customizations: BTreeMap::new(),
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
+            shortcuts: ShortcutBindings::default(),
         }
     }
 }
@@ -857,10 +1015,12 @@ impl AppSettings {
             show_window_info: self.show_window_info,
             start_in_tray: self.start_in_tray,
             background_image_path: self.background_image_path.clone(),
+            background_image_fit: self.background_image_fit,
             layout_customizations: self.layout_customizations.clone(),
             locked_layout: self.locked_layout,
             lock_cell_resize: self.lock_cell_resize,
             show_app_icons: self.show_app_icons,
+            shortcuts: self.shortcuts.normalized(),
         }
     }
 
@@ -931,6 +1091,29 @@ fn normalize_color_hex(color_hex: &str) -> Option<String> {
     Some(trimmed.to_ascii_uppercase())
 }
 
+#[must_use]
+pub fn normalize_shortcut_binding(value: &str, fallback: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return fallback.to_owned();
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+    match lower.as_str() {
+        "tab" => "Tab".to_owned(),
+        "esc" | "escape" => "Esc".to_owned(),
+        "enter" | "return" => "Enter".to_owned(),
+        "space" => "Space".to_owned(),
+        _ => {
+            let mut chars = trimmed.chars();
+            match (chars.next(), chars.next()) {
+                (Some(character), None) => character.to_ascii_uppercase().to_string(),
+                _ => fallback.to_owned(),
+            }
+        }
+    }
+}
+
 fn rgb_hex_to_bgr(color_hex: &str) -> Option<u32> {
     let normalized = normalize_color_hex(color_hex)?;
     let value = u32::from_str_radix(&normalized, 16).ok()?;
@@ -958,7 +1141,10 @@ fn derive_tag_from_label(label: &str) -> Option<String> {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{AppRule, AppSettings, HiddenAppEntry, TagStyle, ThumbnailRefreshMode};
+    use super::{
+        normalize_shortcut_binding, AppRule, AppSettings, BackgroundImageFit, HiddenAppEntry,
+        ShortcutBindings, TagStyle, ThumbnailRefreshMode,
+    };
     use crate::layout::LayoutType;
 
     #[test]
@@ -993,10 +1179,12 @@ mod tests {
             show_window_info: false,
             start_in_tray: false,
             background_image_path: None,
+            background_image_fit: BackgroundImageFit::Contain,
             layout_customizations: std::collections::BTreeMap::default(),
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
+            shortcuts: ShortcutBindings::default(),
         };
 
         let encoded = toml::to_string_pretty(&settings).expect("serialize settings");
@@ -1032,10 +1220,12 @@ mod tests {
             show_window_info: true,
             start_in_tray: false,
             background_image_path: None,
+            background_image_fit: BackgroundImageFit::default(),
             layout_customizations: std::collections::BTreeMap::default(),
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
+            shortcuts: ShortcutBindings::default(),
         };
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);
@@ -1318,5 +1508,14 @@ mod tests {
         );
 
         assert!(!settings.hide_on_select_for("app:docked"));
+    }
+
+    #[test]
+    fn shortcut_bindings_normalize_known_special_keys() {
+        assert_eq!(normalize_shortcut_binding("tab", "X"), "Tab");
+        assert_eq!(normalize_shortcut_binding(" escape ", "X"), "Esc");
+        assert_eq!(normalize_shortcut_binding("q", "X"), "Q");
+        assert_eq!(normalize_shortcut_binding("", "X"), "X");
+        assert_eq!(normalize_shortcut_binding("ctrl+t", "X"), "X");
     }
 }
