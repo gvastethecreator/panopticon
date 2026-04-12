@@ -307,3 +307,79 @@ fn separator_drag_clamps_and_preserves_total_ratio() {
     assert!((ratios[0] - 0.8).abs() < 1e-9);
     assert!((ratios[1] - 0.2).abs() < 1e-9);
 }
+
+#[test]
+fn grid_incomplete_last_row_clips_separator_extents() {
+    // 3 windows → 2×2 grid with an empty bottom-right cell.
+    // The vertical separator must not extend into the empty cell's area,
+    // and the horizontal separator must not extend past the last cell's right edge.
+    let result = compute_layout_custom(
+        LayoutType::Grid,
+        area(1_000, 600),
+        3,
+        &uniform_aspects(3),
+        None,
+    );
+    assert_eq!(result.rects.len(), 3);
+    assert_eq!(result.separators.len(), 2);
+
+    let vert = result
+        .separators
+        .iter()
+        .find(|s| !s.horizontal)
+        .expect("expected vertical separator");
+    let horiz = result
+        .separators
+        .iter()
+        .find(|s| s.horizontal)
+        .expect("expected horizontal separator");
+
+    // Vertical handle should stop at the row boundary (y=300), not extend to the bottom.
+    assert_eq!(vert.extent_start, 0, "vert extent_start");
+    assert_eq!(
+        vert.extent_end, 300,
+        "vert extent_end should stop before empty bottom-right cell"
+    );
+
+    // Horizontal handle should stop at the mid-point (x=500), not extend to the right edge.
+    assert_eq!(horiz.extent_start, 0, "horiz extent_start");
+    assert_eq!(
+        horiz.extent_end, 500,
+        "horiz extent_end should stop where last row has no more cells"
+    );
+}
+
+#[test]
+fn grid_full_grid_keeps_full_separator_extents() {
+    // 4 windows → 2×2 complete grid – no clipping should occur.
+    let result = compute_layout_custom(
+        LayoutType::Grid,
+        area(1_000, 600),
+        4,
+        &uniform_aspects(4),
+        None,
+    );
+    assert_eq!(result.separators.len(), 2);
+
+    let vert = result
+        .separators
+        .iter()
+        .find(|s| !s.horizontal)
+        .expect("expected vertical separator");
+    let horiz = result
+        .separators
+        .iter()
+        .find(|s| s.horizontal)
+        .expect("expected horizontal separator");
+
+    assert_eq!(vert.extent_start, 0);
+    assert_eq!(
+        vert.extent_end, 600,
+        "full grid: vert should span full height"
+    );
+    assert_eq!(horiz.extent_start, 0);
+    assert_eq!(
+        horiz.extent_end, 1_000,
+        "full grid: horiz should span full width"
+    );
+}
