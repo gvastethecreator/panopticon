@@ -1,0 +1,330 @@
+//! Thumbnail-specific UI interactions and contextual window actions.
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use panopticon::window_enum::WindowInfo;
+use slint::ComponentHandle;
+use windows::Win32::Foundation::HWND;
+
+use super::icon::populate_cached_icon;
+use super::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
+use crate::{
+    logical_to_screen_point, recompute_and_update_ui, refresh_ui, refresh_windows,
+    release_thumbnail, schedule_deferred_refresh, update_settings, AppState, MainWindow,
+    TOOLBAR_HEIGHT,
+};
+
+pub(crate) fn handle_thumbnail_click(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    index: usize,
+) {
+    let mut state_guard = state.borrow_mut();
+    let Some(managed_window) = state_guard.windows.get(index) else {
+        return;
+    };
+    let info = managed_window.info.clone();
+    let hide_on_select = state_guard.settings.hide_on_select_for(&info.app_id);
+    state_guard.active_hwnd = Some(info.hwnd);
+    drop(state_guard);
+
+    tracing::info!(title = %info.title, app_id = %info.app_id, "activating window");
+    activate_window(info.hwnd);
+
+    if hide_on_select {
+        if let Some(window) = weak.upgrade() {
+            crate::release_all_thumbnails(state);
+            window.hide().ok();
+        }
+    }
+}
+
+pub(crate) fn handle_thumbnail_right_click(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    index: usize,
+    x: f32,
+    y: f32,
+) {
+    let Some(window) = weak.upgrade() else {
+        return;
+    };
+    let mut state_guard = state.borrow_mut();
+    if state_guard.hwnd.0.is_null() {
+        return;
+    }
+    let viewport_x = window.get_viewport_x();
+    let viewport_y = window.get_viewport_y();
+    let toolbar_offset = if state_guard.settings.show_toolbar {
+        TOOLBAR_HEIGHT as f32
+    } else {
+        0.0
+    };
+    let host_hwnd = state_guard.hwnd;
+    let scale = window.window().scale_factor();
+    let Some((info, screen_point)) = state_guard.windows.get_mut(index).map(|managed_window| {
+        populate_cached_icon(managed_window);
+        (
+            managed_window.info.clone(),
+            logical_to_screen_point(
+                host_hwnd,
+                (managed_window.display_rect.left as f32 + viewport_x + x) * scale,
+                (managed_window.display_rect.top as f32 + viewport_y + toolbar_offset + y) * scale,
+            ),
+        )
+    }) else {
+        return;
+    };
+
+    let menu_state = WindowMenuState {
+        preserve_aspect_ratio: state_guard.settings.preserve_aspect_ratio_for(&info.app_id),
+        hide_on_select: state_guard.settings.hide_on_select_for(&info.app_id),
+        hide_on_select_enabled: state_guard.settings.dock_edge.is_none(),
+        pin_position: state_guard.settings.is_pinned_position(&info.app_id),
+        thumbnail_refresh_mode: state_guard
+            .settings
+            .thumbnail_refresh_mode_for(&info.app_id),
+        current_color_hex: state_guard
+            .settings
+            .app_color_hex(&info.app_id)
+            .map(str::to_owned),
+        known_tags: state_guard.settings.known_tags(),
+        current_tags: state_guard
+            .settings
+            .tags_for(&info.app_id)
+            .into_iter()
+            .collect(),
+    };
+    drop(state_guard);
+
+    if let Some(action) = show_window_context_menu(host_hwnd, &menu_state, Some(screen_point)) {
+        handle_window_menu_action(state, weak, &info, index, action);
+    }
+}
+
+pub(crate) fn handle_thumbnail_close(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    index: usize,
+) {
+    let info = {
+        let state = state.borrow();
+        let Some(managed_window) = state.windows.get(index) else {
+            return;
+        };
+        managed_window.info.clone()
+    };
+
+    tracing::info!(title = %info.title, app_id = %info.app_id, "closing window from thumbnail button");
+    close_target_window(info.hwnd);
+    schedule_deferred_refresh(state, weak);
+}
+
+pub(crate) fn handle_thumbnail_drag_ended(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    src_idx: usize,
+    drop_x: f64,
+    drop_y: f64,
+) {
+    let needs_refresh = {
+        let mut state = state.borrow_mut();
+        if src_idx >= state.windows.len() {
+            return;
+        }
+
+        let target_idx = state.windows.iter().position(|managed_window| {
+            let rect = managed_window.target_rect;
+            drop_x >= rect.left as f64
+                && drop_x <= rect.right as f64
+                && drop_y >= rect.top as f64
+                && drop_y <= rect.bottom as f64
+        });
+
+        if let Some(target_idx) = target_idx {
+            if target_idx == src_idx {
+                false
+            } else {
+                let moved_window = state.windows.remove(src_idx);
+                state.windows.insert(target_idx, moved_window);
+
+                let mut seen_apps = std::collections::HashSet::new();
+                let mut rules_to_update = Vec::new();
+                for (index, window) in state.windows.iter().enumerate() {
+                    let app_id = window.info.app_id.clone();
+                    if !seen_apps.contains(&app_id) {
+                        seen_apps.insert(app_id.clone());
+                        let app_label = window.info.app_label();
+                        rules_to_update.push((app_id, app_label, index));
+                    }
+                }
+
+                for (app_id, app_label, index) in rules_to_update {
+                    let rule = state.settings.app_rules.entry(app_id).or_default();
+                    rule.display_name = app_label;
+                    rule.pinned_position = Some(index);
+                }
+
+                let profile = state.profile_name.clone();
+                let _ = state.settings.save(profile.as_deref());
+
+                true
+            }
+        } else {
+            false
+        }
+    };
+
+    if needs_refresh {
+        refresh_windows(state);
+        if let Some(window) = weak.upgrade() {
+            recompute_and_update_ui(state, &window);
+        }
+    }
+}
+
+pub(crate) fn handle_window_menu_action(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    info: &WindowInfo,
+    index: usize,
+    action: WindowMenuAction,
+) {
+    let mut needs_window_refresh = false;
+    let mut needs_ui_refresh = false;
+
+    match action {
+        WindowMenuAction::HideApp => {
+            update_settings(state, |settings| {
+                let _ = settings.toggle_hidden(&info.app_id, &info.app_label());
+            });
+            needs_window_refresh = true;
+            needs_ui_refresh = true;
+        }
+        WindowMenuAction::TogglePinPosition => {
+            update_settings(state, |settings| {
+                let _ = settings.toggle_app_pinned_position(&info.app_id, &info.app_label(), index);
+            });
+            needs_window_refresh = true;
+            needs_ui_refresh = true;
+        }
+        WindowMenuAction::ToggleAspectRatio => {
+            update_settings(state, |settings| {
+                let _ = settings.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label());
+            });
+            needs_ui_refresh = true;
+        }
+        WindowMenuAction::ToggleHideOnSelect => {
+            if state.borrow().settings.dock_edge.is_none() {
+                update_settings(state, |settings| {
+                    let _ = settings.toggle_app_hide_on_select(&info.app_id, &info.app_label());
+                });
+                needs_ui_refresh = true;
+            }
+        }
+        WindowMenuAction::SetThumbnailRefreshMode(mode) => {
+            update_settings(state, |settings| {
+                let _ =
+                    settings.set_app_thumbnail_refresh_mode(&info.app_id, &info.app_label(), mode);
+            });
+            release_thumbnails_for_app(state, &info.app_id);
+            needs_ui_refresh = true;
+        }
+        WindowMenuAction::CreateTagFromApp => {
+            super::secondary_windows::open_create_tag_dialog(state, weak, info);
+        }
+        WindowMenuAction::SetColor(color_hex) => {
+            update_settings(state, |settings| {
+                let _ = settings.set_app_color_hex(
+                    &info.app_id,
+                    &info.app_label(),
+                    color_hex.as_deref(),
+                );
+            });
+            needs_window_refresh = true;
+            needs_ui_refresh = true;
+        }
+        WindowMenuAction::ToggleTag(tag) => {
+            update_settings(state, |settings| {
+                let _ = settings.toggle_app_tag(&info.app_id, &info.app_label(), &tag);
+            });
+            needs_window_refresh = true;
+            needs_ui_refresh = true;
+        }
+        WindowMenuAction::CloseWindow => {
+            close_target_window(info.hwnd);
+            schedule_deferred_refresh(state, weak);
+        }
+        WindowMenuAction::KillProcess => {
+            kill_target_process(info.hwnd);
+            schedule_deferred_refresh(state, weak);
+        }
+    }
+
+    if needs_window_refresh {
+        let _ = refresh_windows(state);
+    }
+
+    if needs_ui_refresh {
+        refresh_ui(state, weak);
+    }
+}
+
+fn release_thumbnails_for_app(state: &Rc<RefCell<AppState>>, app_id: &str) {
+    let mut state = state.borrow_mut();
+    for managed_window in &mut state.windows {
+        if managed_window.info.app_id == app_id {
+            release_thumbnail(managed_window);
+        }
+    }
+}
+
+fn activate_window(hwnd: HWND) {
+    unsafe {
+        if windows::Win32::UI::WindowsAndMessaging::IsIconic(hwnd).as_bool() {
+            let _ = windows::Win32::UI::WindowsAndMessaging::ShowWindow(
+                hwnd,
+                windows::Win32::UI::WindowsAndMessaging::SW_RESTORE,
+            );
+        }
+        let _ = windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow(hwnd);
+    }
+}
+
+fn close_target_window(hwnd: HWND) {
+    if hwnd.0.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
+            hwnd,
+            windows::Win32::UI::WindowsAndMessaging::WM_CLOSE,
+            windows::Win32::Foundation::WPARAM(0),
+            windows::Win32::Foundation::LPARAM(0),
+        );
+    }
+}
+
+fn kill_target_process(hwnd: HWND) {
+    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+
+    if hwnd.0.is_null() {
+        return;
+    }
+    let mut pid: u32 = 0;
+    unsafe {
+        windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&raw mut pid));
+    }
+    if pid == 0 {
+        return;
+    }
+    unsafe {
+        if let Ok(process) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+            if let Err(error) = TerminateProcess(process, 1) {
+                tracing::warn!(%error, pid, "TerminateProcess failed");
+            }
+            let _ = windows::Win32::Foundation::CloseHandle(process);
+        }
+    }
+}
