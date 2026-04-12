@@ -1,40 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg id="Capa_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 512 512">
-  <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+<svg id="Capa_2" data-name="Capa 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 323.67 323.67">
   <defs>
     <style>
-      .st0 {
-        fill: #ff6b8a;
+      .cls-1 {
+        stroke-width: 15px;
       }
 
-      .st1 {
-        fill: #2a2522;
-        stroke: #3a3530;
-        stroke-width: 2px;
+      .cls-1, .cls-2 {
+        fill: none;
+        stroke: #bc1d1d;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
 
-      .st2 {
-        fill: #3ccf91;
+      .cls-3 {
+        fill: #1d1d1b;
       }
 
-      .st3 {
-        fill: #181513;
+      .cls-2 {
+        stroke-width: 10px;
       }
 
-      .st4 {
-        fill: #d29a5c;
-        isolation: isolate;
-        opacity: .9;
+      .cls-4 {
+        fill: url(#Nueva_muestra_de_degradado_1);
       }
     </style>
+    <radialGradient id="Nueva_muestra_de_degradado_1" data-name="Nueva muestra de degradado 1" cx="161.84" cy="161.83" fx="161.84" fy="161.83" r="102.59" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9e9e9e"/>
+      <stop offset="1" stop-color="#fff"/>
+    </radialGradient>
   </defs>
-  <rect class="st3" y="0" width="512" height="512" rx="108" ry="108"/>
-  <g>
-    <rect class="st1" x="34" y="218" width="176" height="136" rx="12" ry="12"/>
-    <path class="st2" d="M36,218h172c1.1,0,2,.9,2,2h0c0,1.1-.9,2-2,2H36c-1.1,0-2-.9-2-2h0c0-1.1.9-2,2-2Z"/>
-    <rect class="st1" x="242" y="218" width="176" height="136" rx="12" ry="12"/>
-    <path class="st0" d="M244,218h172c1.1,0,2,.9,2,2h0c0,1.1-.9,2-2,2h-172c-1.1,0-2-.9-2-2h0c0-1.1.9-2,2-2Z"/>
+  <g id="Capa_1-2" data-name="Capa 1">
+    <g>
+      <rect class="cls-3" width="323.67" height="323.67" rx="9.25" ry="9.25"/>
+      <g>
+        <path class="cls-4" d="M161.84,227.04c-56.69,0-107.15-23.04-126.92-57.62h-.08l-1.41-2.71c-1.59-3.09-1.59-6.63,0-9.71,18.6-36.11,70.2-60.37,128.41-60.37s109.76,24.24,128.39,60.33c1.61,3.07,1.61,6.63,0,9.73-18.58,36.09-70.17,60.35-128.38,60.35Z"/>
+        <path class="cls-3" d="M161.84,101.63c57.7,0,106.66,24.14,123.95,57.62.87,1.66.87,3.46,0,5.13-17.24,33.5-66.22,57.66-123.95,57.66s-106.66-24.14-123.95-57.62h-.01c-.86-1.67-.86-3.46,0-5.13,17.26-33.5,66.24-57.66,123.96-57.66M161.84,91.63c-29.45,0-57.61,5.96-81.43,17.23-24.05,11.38-41.83,27.23-51.42,45.85-2.34,4.54-2.34,9.75,0,14.29l2.79,5.42h.29c10.1,16.27,26.69,30.16,48.36,40.41,23.82,11.26,51.96,17.21,81.4,17.21s57.61-5.96,81.43-17.23c24.03-11.37,41.81-27.22,51.39-45.83,2.37-4.57,2.37-9.79,0-14.35-9.61-18.6-27.39-34.43-51.42-45.79-23.82-11.26-51.96-17.21-81.4-17.21h0Z"/>
+      </g>
+      <path d="M161.83,205.18c23.94,0,43.35-19.41,43.35-43.35s-19.41-43.35-43.35-43.35-43.35,19.41-43.35,43.35,19.41,43.35,43.35,43.35Z"/>
+      <path class="cls-2" d="M193.81,161.83c0,17.66-14.31,31.97-31.97,31.97s-31.97-14.31-31.97-31.97,14.31-31.97,31.97-31.97,31.97,14.31,31.97,31.97Z"/>
+      <path class="cls-1" d="M175.76,161.83c0,7.69-6.23,13.93-13.93,13.93s-13.93-6.23-13.93-13.93,6.23-13.93,13.93-13.93,13.93,6.23,13.93,13.93Z"/>
+    </g>
   </g>
-  <circle class="st4" cx="226" cy="406" r="22"/>
-  <circle class="st3" cx="226" cy="406" r="9"/>
 </svg>

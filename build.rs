@@ -1,8 +1,20 @@
 fn main() {
     println!("cargo:rerun-if-changed=ui/main.slint");
     println!("cargo:rerun-if-changed=assets/icon.ico");
-    println!("cargo:rerun-if-changed=assets/fonts/MirandaSans-Variable.ttf");
-    println!("cargo:rerun-if-changed=assets/fonts/MirandaSans-Italic-Variable.ttf");
+    for font_path in [
+        "assets/fonts/MirandaSans-Variable.ttf",
+        "assets/fonts/MirandaSans-Italic-Variable.ttf",
+        "assets/fonts/MirandaSans-Regular.ttf",
+        "assets/fonts/MirandaSans-Medium.ttf",
+        "assets/fonts/MirandaSans-SemiBold.ttf",
+        "assets/fonts/MirandaSans-Bold.ttf",
+        "assets/fonts/MirandaSans-Italic.ttf",
+        "assets/fonts/MirandaSans-MediumItalic.ttf",
+        "assets/fonts/MirandaSans-SemiBoldItalic.ttf",
+        "assets/fonts/MirandaSans-BoldItalic.ttf",
+    ] {
+        println!("cargo:rerun-if-changed={font_path}");
+    }
 
     slint_build::compile("ui/main.slint").expect("Slint UI compilation failed");
 
