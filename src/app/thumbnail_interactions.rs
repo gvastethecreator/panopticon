@@ -3,6 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use panopticon::constants::TOOLBAR_HEIGHT;
 use panopticon::window_enum::WindowInfo;
 use slint::ComponentHandle;
 use windows::Win32::Foundation::HWND;
@@ -12,7 +13,6 @@ use super::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuS
 use crate::{
     logical_to_screen_point, recompute_and_update_ui, refresh_ui, refresh_windows,
     release_thumbnail, schedule_deferred_refresh, update_settings, AppState, MainWindow,
-    TOOLBAR_HEIGHT,
 };
 
 pub(crate) fn handle_thumbnail_click(

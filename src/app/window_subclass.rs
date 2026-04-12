@@ -5,6 +5,7 @@ use std::mem;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use panopticon::constants::TOOLBAR_HEIGHT;
 use panopticon::input_ops::{decode_mouse_lparam, scroll_pixels_from_wheel_delta};
 use slint::ComponentHandle;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
@@ -14,10 +15,7 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use super::dock::{docked_mode_active, is_blocked_dock_syscommand};
 use super::dwm::release_thumbnail;
 use super::tray::{handle_tray_message, TrayAction, WM_TRAYICON};
-use crate::{
-    recompute_and_update_ui, AppState, MainWindow, PendingAction, TASKBAR_CREATED_MSG,
-    TOOLBAR_HEIGHT,
-};
+use crate::{recompute_and_update_ui, AppState, MainWindow, PendingAction, TASKBAR_CREATED_MSG};
 
 /// Duration after which the scrollbar overlay auto-hides.
 pub(crate) const SCROLLBAR_HIDE_DELAY: Duration = Duration::from_millis(1500);
