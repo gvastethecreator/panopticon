@@ -13,7 +13,7 @@ component SidebarItem inherits Rectangle {
     in property <bool> active: false;
     callback clicked();
 
-    height: 58px;
+    height: 62px;
     border-radius: 10px;
     border-width: 1px;
     border-color: root.active ? Theme.accent.with-alpha(52%) : transparent;
@@ -22,6 +22,8 @@ component SidebarItem inherits Rectangle {
     HorizontalLayout {
         padding-left: 12px;
         padding-right: 12px;
+        padding-top: 10px;
+        padding-bottom: 10px;
         spacing: 12px;
         alignment: start;
 
@@ -45,7 +47,7 @@ component SidebarItem inherits Rectangle {
 
         VerticalLayout {
             spacing: 1px;
-            alignment: center;
+            alignment: start;
 
             Text {
                 text: root.label;
@@ -72,14 +74,17 @@ component PageHeader inherits Rectangle {
     in property <string> title;
     in property <string> subtitle;
 
-    height: 72px;
+    height: 76px;
     border-radius: 14px;
     background: Theme.panel_bg.with-alpha(84%);
     border-width: 1px;
     border-color: Theme.border.with-alpha(72%);
 
     HorizontalLayout {
-        padding: 18px;
+        padding-left: 18px;
+        padding-right: 18px;
+        padding-top: 16px;
+        padding-bottom: 16px;
         spacing: 14px;
         alignment: start;
 
@@ -103,7 +108,7 @@ component PageHeader inherits Rectangle {
 
         VerticalLayout {
             spacing: 3px;
-            alignment: center;
+            alignment: start;
 
             Text {
                 text: root.title;
@@ -127,7 +132,7 @@ component SectionTitle inherits Rectangle {
     in property <string> text;
     in property <string> helper;
 
-    height: 42px;
+    height: 48px;
     background: transparent;
 
     HorizontalLayout {
@@ -154,7 +159,7 @@ component SectionTitle inherits Rectangle {
 
         VerticalLayout {
             spacing: 1px;
-            alignment: center;
+            alignment: start;
 
             Text {
                 text: root.text;
@@ -394,7 +399,7 @@ component ThemePreviewCard inherits Rectangle {
 
         Rectangle {
             x: 14px;
-            y: 12px;
+            y: 11px;
             width: 12px;
             height: 12px;
             border-radius: 6px;
@@ -403,7 +408,7 @@ component ThemePreviewCard inherits Rectangle {
 
         Rectangle {
             x: 32px;
-            y: 12px;
+            y: 11px;
             width: 12px;
             height: 12px;
             border-radius: 6px;
@@ -434,7 +439,12 @@ component ThemePreviewCard inherits Rectangle {
         }
     }
 
-    touch := TouchArea { clicked => { root.picked(root.theme.index); } }
+    touch := TouchArea {
+        clicked => { root.picked(root.theme.index); }
+        scroll-event(_) => {
+            reject;
+        }
+    }
 }
 
 component ColorSwatch inherits Rectangle {
@@ -568,7 +578,7 @@ export component SettingsWindow inherits Window {
         spacing: 0px;
 
         Rectangle {
-            height: 70px;
+            height: 78px;
             background: Theme.bg;
 
             HorizontalLayout {
@@ -578,7 +588,7 @@ export component SettingsWindow inherits Window {
 
                 VerticalLayout {
                     spacing: 3px;
-                    alignment: center;
+                    alignment: start;
 
                     Text {
                         text: "Settings";
@@ -605,6 +615,8 @@ export component SettingsWindow inherits Window {
                     HorizontalLayout {
                         padding-left: 12px;
                         padding-right: 12px;
+                        padding-top: 8px;
+                        padding-bottom: 8px;
                         spacing: 10px;
 
                         Rectangle {
@@ -616,7 +628,7 @@ export component SettingsWindow inherits Window {
 
                         VerticalLayout {
                             spacing: 0px;
-                            alignment: center;
+                            alignment: start;
 
                             Text {
                                 text: "Profile";
@@ -704,6 +716,7 @@ export component SettingsWindow inherits Window {
 
             ScrollView {
                 horizontal-stretch: 1;
+                vertical-stretch: 1;
 
                 VerticalLayout {
                     padding: 24px;
@@ -862,15 +875,20 @@ export component SettingsWindow inherits Window {
                             background: Theme.card_bg.with-alpha(92%);
                             clip: true;
 
-                            ScrollView {
-                                Rectangle {
+                            theme-grid-scroll := ScrollView {
+                                width: 100%;
+                                height: 100%;
+                                viewport-width: theme-grid-content.width + 24px;
+                                viewport-height: theme-grid-content.height + 24px;
+
+                                theme-grid-content := Rectangle {
                                     x: 12px;
                                     y: 12px;
-                                    width: max(parent.width - 24px, 520px);
-                                    height: max(((root.theme-preview-model.length + 1) / 2) * 118px, 118px);
+                                    width: max(theme-grid-scroll.width - 24px, 520px);
+                                    height: max((((root.theme-preview-model.length + 1) / 2) * 118px) + 12px, theme-grid-scroll.height - 24px);
 
                                     for theme[index] in root.theme-preview-model: ThemePreviewCard {
-                                        width: (parent.width - 12px) / 2;
+                                        width: (theme-grid-content.width - 12px) / 2;
                                         height: 106px;
                                         x: Math.mod(index, 2) * (self.width + 12px);
                                         y: (index / 2) * 118px;
@@ -1032,47 +1050,117 @@ export component SettingsWindow inherits Window {
                             subtitle: "Guarda combinaciones completas de ajustes y abre nuevas instancias ya apuntando al perfil que quieras.";
                         }
 
-                        Rectangle {
-                            border-radius: 14px;
-                            border-width: 1px;
-                            border-color: Theme.border.with-alpha(72%);
-                            background: Theme.card_bg.with-alpha(92%);
+                        HorizontalLayout {
+                            spacing: 16px;
 
-                            VerticalLayout {
-                                padding: 14px;
-                                spacing: 10px;
+                            Rectangle {
+                                width: 430px;
+                                border-radius: 14px;
+                                border-width: 1px;
+                                border-color: Theme.border.with-alpha(72%);
+                                background: Theme.card_bg.with-alpha(92%);
 
-                                SectionTitle {
-                                    icon: @image-url("../../assets/ui-icons/section-profile.svg");
-                                    text: "Profile management";
-                                    helper: "El perfil actual puede guardarse con otro nombre o lanzarse en una instancia separada.";
-                                }
-
-                                Text {
-                                    text: Tr.current-profile-prefix + root.current-profile-label;
-                                    color: Theme.label;
-                                    font-size: 13px;
-                                }
-
-                                TextFieldSettingCard {
-                                    icon: @image-url("../../assets/ui-icons/section-profile.svg");
-                                    title: "Profile name";
-                                    description: "Escribe un nombre limpio para guardar el snapshot actual o lanzar otra instancia con él.";
-                                    value <=> root.profile-name;
-                                    placeholder: "workspace-a";
-                                }
-
-                                Text {
-                                    text: root.known-profiles-label;
-                                    color: Theme.muted;
-                                    font-size: 11.5px;
-                                    wrap: word-wrap;
-                                }
-
-                                HorizontalLayout {
+                                VerticalLayout {
+                                    padding: 14px;
                                     spacing: 10px;
-                                    Button { text: Tr.save-profile-btn; clicked => { root.save-profile(); } }
-                                    Button { text: Tr.open-instance-btn; clicked => { root.open-profile-instance(); } }
+
+                                    SectionTitle {
+                                        icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                                        text: "Edit profile";
+                                        helper: "Usa un nombre corto y descriptivo para guardar o abrir el snapshot actual en otra instancia.";
+                                    }
+
+                                    Rectangle {
+                                        border-radius: 12px;
+                                        border-width: 1px;
+                                        border-color: Theme.border.with-alpha(68%);
+                                        background: Theme.surface.with-alpha(56%);
+
+                                        VerticalLayout {
+                                            padding: 12px;
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: "Current profile";
+                                                color: Theme.muted;
+                                                font-size: 11px;
+                                            }
+
+                                            Text {
+                                                text: root.current-profile-label;
+                                                color: Theme.text;
+                                                font-size: 15px;
+                                                font-weight: 700;
+                                                overflow: elide;
+                                            }
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                                        title: "Profile name";
+                                        description: "Este campo ahora vive en una columna compacta para evitar un input exageradamente ancho.";
+                                        value <=> root.profile-name;
+                                        placeholder: "workspace-a";
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 10px;
+                                        Button { text: Tr.save-profile-btn; clicked => { root.save-profile(); } }
+                                        Button { text: Tr.open-instance-btn; clicked => { root.open-profile-instance(); } }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                border-radius: 14px;
+                                border-width: 1px;
+                                border-color: Theme.border.with-alpha(72%);
+                                background: Theme.card_bg.with-alpha(92%);
+
+                                VerticalLayout {
+                                    padding: 14px;
+                                    spacing: 10px;
+
+                                    SectionTitle {
+                                        icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                                        text: "Saved profiles";
+                                        helper: "Resumen de perfiles detectados y recordatorio del flujo recomendado para trabajar con varias instancias.";
+                                    }
+
+                                    Text {
+                                        text: root.known-profiles-label;
+                                        color: Theme.label;
+                                        font-size: 12px;
+                                        wrap: word-wrap;
+                                    }
+
+                                    Rectangle {
+                                        border-radius: 12px;
+                                        border-width: 1px;
+                                        border-color: Theme.border.with-alpha(64%);
+                                        background: Theme.surface.with-alpha(50%);
+
+                                        VerticalLayout {
+                                            padding: 12px;
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: "Tips";
+                                                color: Theme.accent;
+                                                font-size: 11px;
+                                                font-weight: 700;
+                                            }
+
+                                            Text {
+                                                text: "- Guarda primero el perfil actual si vas a abrir otra instancia.\n- Usa nombres simples como work, stream o review.\n- Los ajustes de tema, fondo y shortcuts viajan con el perfil.";
+                                                color: Theme.muted;
+                                                font-size: 11.5px;
+                                                wrap: word-wrap;
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
