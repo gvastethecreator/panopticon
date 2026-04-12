@@ -1,6 +1,8 @@
 fn main() {
     println!("cargo:rerun-if-changed=ui/main.slint");
     println!("cargo:rerun-if-changed=assets/icon.ico");
+    println!("cargo:rerun-if-changed=assets/fonts/MirandaSans-Variable.ttf");
+    println!("cargo:rerun-if-changed=assets/fonts/MirandaSans-Italic-Variable.ttf");
 
     slint_build::compile("ui/main.slint").expect("Slint UI compilation failed");
 
