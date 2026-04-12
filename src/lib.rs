@@ -33,3 +33,4 @@ pub mod settings;
 pub mod theme;
 pub mod thumbnail;
 pub mod window_enum;
+pub mod window_ops;

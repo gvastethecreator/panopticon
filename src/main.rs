@@ -30,19 +30,22 @@ use app::tray::{
     apply_window_icons, handle_tray_message, show_application_context_menu_at, AppIcons,
     TrayAction, TrayIcon, TrayMenuState, INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
 };
-use app::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
 use panopticon::constants::{ANIMATION_DURATION_MS, TOOLBAR_HEIGHT};
 use panopticon::layout::{
     apply_separator_drag, apply_separator_drag_grouped, compute_layout_custom, default_ratios,
     AspectHint, LayoutType, ScrollDirection, Separator,
 };
-use panopticon::settings::{AppSelectionEntry, AppSettings, WindowGrouping};
+use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
+use panopticon::window_ops::{
+    active_filter_summary, apply_pinned_positions, collect_available_apps,
+    collect_available_monitors, sort_windows_for_grouping, truncate_title,
+};
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 use std::mem;
 use std::rc::Rc;
@@ -861,7 +864,7 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         move |index| {
-            handle_thumbnail_click(&state, &weak, index as usize);
+            app::thumbnail_interactions::handle_thumbnail_click(&state, &weak, index as usize);
         }
     });
 
@@ -869,7 +872,13 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         move |index, x, y| {
-            handle_thumbnail_right_click(&state, &weak, index as usize, x, y);
+            app::thumbnail_interactions::handle_thumbnail_right_click(
+                &state,
+                &weak,
+                index as usize,
+                x,
+                y,
+            );
         }
     });
 
@@ -877,7 +886,7 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         move |src_idx, drop_x, drop_y| {
-            handle_thumbnail_drag_ended(
+            app::thumbnail_interactions::handle_thumbnail_drag_ended(
                 &state,
                 &weak,
                 src_idx as usize,
@@ -891,7 +900,7 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         move |index| {
-            handle_thumbnail_close(&state, &weak, index as usize);
+            app::thumbnail_interactions::handle_thumbnail_close(&state, &weak, index as usize);
         }
     });
 
@@ -1354,312 +1363,6 @@ fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
         win.set_resize_handles(ModelRc::new(VecModel::from(handles)));
     }
     win.set_active_drag_index(active_drag);
-}
-
-// ───────────────────────── Click / Hover ─────────────────────────
-
-fn handle_thumbnail_click(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    index: usize,
-) {
-    let mut s = state.borrow_mut();
-    let Some(mw) = s.windows.get(index) else {
-        return;
-    };
-    let info = mw.info.clone();
-    let hide_on_select = s.settings.hide_on_select_for(&info.app_id);
-    s.active_hwnd = Some(info.hwnd);
-    drop(s);
-
-    tracing::info!(title = %info.title, app_id = %info.app_id, "activating window");
-    activate_window(info.hwnd);
-
-    if hide_on_select {
-        if let Some(win) = weak.upgrade() {
-            release_all_thumbnails(state);
-            win.hide().ok();
-        }
-    }
-}
-
-fn handle_thumbnail_right_click(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    index: usize,
-    x: f32,
-    y: f32,
-) {
-    let Some(win) = weak.upgrade() else { return };
-    let mut s = state.borrow_mut();
-    if s.hwnd.0.is_null() {
-        return;
-    }
-    let viewport_x = win.get_viewport_x();
-    let viewport_y = win.get_viewport_y();
-    let toolbar_offset = if s.settings.show_toolbar {
-        TOOLBAR_HEIGHT as f32
-    } else {
-        0.0
-    };
-    let host_hwnd = s.hwnd;
-    let scale = win.window().scale_factor();
-    let Some((info, screen_point)) = s.windows.get_mut(index).map(|mw| {
-        populate_cached_icon(mw);
-        (
-            mw.info.clone(),
-            logical_to_screen_point(
-                host_hwnd,
-                (mw.display_rect.left as f32 + viewport_x + x) * scale,
-                (mw.display_rect.top as f32 + viewport_y + toolbar_offset + y) * scale,
-            ),
-        )
-    }) else {
-        return;
-    };
-
-    let menu_state = WindowMenuState {
-        preserve_aspect_ratio: s.settings.preserve_aspect_ratio_for(&info.app_id),
-        hide_on_select: s.settings.hide_on_select_for(&info.app_id),
-        hide_on_select_enabled: s.settings.dock_edge.is_none(),
-        pin_position: s.settings.is_pinned_position(&info.app_id),
-        thumbnail_refresh_mode: s.settings.thumbnail_refresh_mode_for(&info.app_id),
-        current_color_hex: s.settings.app_color_hex(&info.app_id).map(str::to_owned),
-        known_tags: s.settings.known_tags(),
-        current_tags: s.settings.tags_for(&info.app_id).into_iter().collect(),
-    };
-    drop(s);
-
-    if let Some(action) = show_window_context_menu(host_hwnd, &menu_state, Some(screen_point)) {
-        handle_window_menu_action(state, weak, &info, index, action);
-    }
-}
-
-fn handle_thumbnail_close(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    index: usize,
-) {
-    let info = {
-        let s = state.borrow();
-        let Some(mw) = s.windows.get(index) else {
-            return;
-        };
-        mw.info.clone()
-    };
-
-    tracing::info!(title = %info.title, app_id = %info.app_id, "closing window from thumbnail button");
-    close_target_window(info.hwnd);
-    schedule_deferred_refresh(state, weak);
-}
-
-fn handle_thumbnail_drag_ended(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    src_idx: usize,
-    drop_x: f64,
-    drop_y: f64,
-) {
-    let needs_refresh = {
-        let mut s = state.borrow_mut();
-        if src_idx >= s.windows.len() {
-            return;
-        }
-
-        let target_idx = s.windows.iter().position(|mw| {
-            let r = mw.target_rect;
-            drop_x >= r.left as f64
-                && drop_x <= r.right as f64
-                && drop_y >= r.top as f64
-                && drop_y <= r.bottom as f64
-        });
-
-        if let Some(target_idx) = target_idx {
-            if target_idx == src_idx {
-                false
-            } else {
-                let moved_window = s.windows.remove(src_idx);
-                s.windows.insert(target_idx, moved_window);
-
-                let mut seen_apps = std::collections::HashSet::new();
-                let mut rules_to_update = Vec::new();
-                for (i, w) in s.windows.iter().enumerate() {
-                    let app_id = w.info.app_id.clone();
-                    if !seen_apps.contains(&app_id) {
-                        seen_apps.insert(app_id.clone());
-                        let app_label = w.info.app_label();
-                        rules_to_update.push((app_id, app_label, i));
-                    }
-                }
-
-                for (app_id, app_label, i) in rules_to_update {
-                    let rule = s.settings.app_rules.entry(app_id).or_default();
-                    rule.display_name = app_label;
-                    rule.pinned_position = Some(i);
-                }
-
-                let profile = s.profile_name.clone();
-                let _ = s.settings.save(profile.as_deref());
-
-                true
-            }
-        } else {
-            false
-        }
-    };
-
-    if needs_refresh {
-        refresh_windows(state);
-        if let Some(win) = weak.upgrade() {
-            recompute_and_update_ui(state, &win);
-        }
-    }
-}
-
-fn activate_window(hwnd: HWND) {
-    // SAFETY: hwnd was obtained from window enumeration; all calls are
-    // read-only queries or focus requests on the same thread.
-    unsafe {
-        if IsIconic(hwnd).as_bool() {
-            let _ = ShowWindow(hwnd, SW_RESTORE);
-        }
-        let _ = SetForegroundWindow(hwnd);
-    }
-}
-
-/// Send `WM_CLOSE` to the target window so it shuts down gracefully.
-fn close_target_window(hwnd: HWND) {
-    if hwnd.0.is_null() {
-        return;
-    }
-    // SAFETY: hwnd is a live window discovered through enumeration.
-    unsafe {
-        let _ = PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
-    }
-}
-
-/// Terminate the process that owns the target window.
-fn kill_target_process(hwnd: HWND) {
-    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
-    if hwnd.0.is_null() {
-        return;
-    }
-    let mut pid: u32 = 0;
-    // SAFETY: hwnd is a live window handle.
-    unsafe {
-        GetWindowThreadProcessId(hwnd, Some(&raw mut pid));
-    }
-    if pid == 0 {
-        return;
-    }
-    // SAFETY: we request limited access (PROCESS_TERMINATE) and close the
-    // handle immediately after use.
-    unsafe {
-        if let Ok(process) = OpenProcess(PROCESS_TERMINATE, false, pid) {
-            if let Err(error) = TerminateProcess(process, 1) {
-                tracing::warn!(%error, pid, "TerminateProcess failed");
-            }
-            let _ = windows::Win32::Foundation::CloseHandle(process);
-        }
-    }
-}
-
-// ───────────────────────── Context Menu ─────────────────────────
-
-fn handle_window_menu_action(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    info: &WindowInfo,
-    index: usize,
-    action: WindowMenuAction,
-) {
-    let mut needs_window_refresh = false;
-    let mut needs_ui_refresh = false;
-
-    match action {
-        WindowMenuAction::HideApp => {
-            update_settings(state, |settings| {
-                let _ = settings.toggle_hidden(&info.app_id, &info.app_label());
-            });
-            needs_window_refresh = true;
-            needs_ui_refresh = true;
-        }
-        WindowMenuAction::TogglePinPosition => {
-            update_settings(state, |settings| {
-                let _ = settings.toggle_app_pinned_position(&info.app_id, &info.app_label(), index);
-            });
-            needs_window_refresh = true;
-            needs_ui_refresh = true;
-        }
-        WindowMenuAction::ToggleAspectRatio => {
-            update_settings(state, |settings| {
-                let _ = settings.toggle_app_preserve_aspect_ratio(&info.app_id, &info.app_label());
-            });
-            needs_ui_refresh = true;
-        }
-        WindowMenuAction::ToggleHideOnSelect => {
-            if state.borrow().settings.dock_edge.is_none() {
-                update_settings(state, |settings| {
-                    let _ = settings.toggle_app_hide_on_select(&info.app_id, &info.app_label());
-                });
-                needs_ui_refresh = true;
-            }
-        }
-        WindowMenuAction::SetThumbnailRefreshMode(mode) => {
-            update_settings(state, |settings| {
-                let _ =
-                    settings.set_app_thumbnail_refresh_mode(&info.app_id, &info.app_label(), mode);
-            });
-            release_thumbnails_for_app(state, &info.app_id);
-            needs_ui_refresh = true;
-        }
-        WindowMenuAction::CreateTagFromApp => {
-            app::secondary_windows::open_create_tag_dialog(state, weak, info);
-        }
-        WindowMenuAction::SetColor(color_hex) => {
-            update_settings(state, |settings| {
-                let _ = settings.set_app_color_hex(
-                    &info.app_id,
-                    &info.app_label(),
-                    color_hex.as_deref(),
-                );
-            });
-            needs_window_refresh = true;
-            needs_ui_refresh = true;
-        }
-        WindowMenuAction::ToggleTag(tag) => {
-            update_settings(state, |settings| {
-                let _ = settings.toggle_app_tag(&info.app_id, &info.app_label(), &tag);
-            });
-            needs_window_refresh = true;
-            needs_ui_refresh = true;
-        }
-        WindowMenuAction::CloseWindow => {
-            close_target_window(info.hwnd);
-            schedule_deferred_refresh(state, weak);
-        }
-        WindowMenuAction::KillProcess => {
-            kill_target_process(info.hwnd);
-            schedule_deferred_refresh(state, weak);
-        }
-    }
-
-    if needs_window_refresh {
-        let _ = refresh_windows(state);
-    }
-
-    if needs_ui_refresh {
-        refresh_ui(state, weak);
-    }
-}
-
-fn release_thumbnails_for_app(state: &Rc<RefCell<AppState>>, app_id: &str) {
-    let mut state = state.borrow_mut();
-    for managed_window in &mut state.windows {
-        if managed_window.info.app_id == app_id {
-            release_thumbnail(managed_window);
-        }
-    }
 }
 
 // ───────────────────────── Keyboard ─────────────────────────
@@ -2491,146 +2194,6 @@ fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT 
         x: window_rect.left + logical_x.round() as i32,
         y: window_rect.top + logical_y.round() as i32,
     }
-}
-
-fn sort_windows_for_grouping(windows: &mut [WindowInfo], settings: &AppSettings) {
-    if settings.group_windows_by == WindowGrouping::None {
-        return;
-    }
-
-    windows.sort_by_cached_key(|window| {
-        (
-            grouping_sort_key(window, settings.group_windows_by),
-            normalize_sort_value(&window.app_label()),
-            normalize_sort_value(&window.title),
-            normalize_sort_value(&window.monitor_name),
-            window.hwnd.0 as isize,
-        )
-    });
-}
-
-fn apply_pinned_positions(windows: &mut Vec<WindowInfo>, settings: &AppSettings) {
-    if windows.len() < 2 {
-        return;
-    }
-
-    let total = windows.len();
-    let mut pinned = Vec::new();
-    let mut remaining = Vec::new();
-
-    for window in windows.drain(..) {
-        if let Some(position) = settings.pinned_position_for(&window.app_id) {
-            pinned.push((position, window));
-        } else {
-            remaining.push(window);
-        }
-    }
-
-    if pinned.is_empty() {
-        *windows = remaining;
-        return;
-    }
-
-    pinned.sort_by_key(|(position, window)| {
-        (
-            *position,
-            normalize_sort_value(&window.app_label()),
-            normalize_sort_value(&window.title),
-            window.hwnd.0 as isize,
-        )
-    });
-
-    let mut slots: Vec<Option<WindowInfo>> = std::iter::repeat_with(|| None).take(total).collect();
-
-    for (desired_position, window) in pinned {
-        let mut target = desired_position.min(total.saturating_sub(1));
-        while target < total && slots[target].is_some() {
-            target += 1;
-        }
-
-        if target >= total {
-            target = total.saturating_sub(1);
-            while slots[target].is_some() && target > 0 {
-                target -= 1;
-            }
-        }
-
-        if slots[target].is_none() {
-            slots[target] = Some(window);
-        } else {
-            remaining.push(window);
-        }
-    }
-
-    let mut reordered = Vec::with_capacity(total);
-    let mut remaining_iter = remaining.into_iter();
-    for slot in slots {
-        if let Some(window) = slot {
-            reordered.push(window);
-        } else if let Some(window) = remaining_iter.next() {
-            reordered.push(window);
-        }
-    }
-    reordered.extend(remaining_iter);
-    *windows = reordered;
-}
-
-fn grouping_sort_key(window: &WindowInfo, grouping: WindowGrouping) -> String {
-    match grouping {
-        WindowGrouping::None => String::new(),
-        WindowGrouping::Application => normalize_sort_value(&window.app_label()),
-        WindowGrouping::Monitor => normalize_sort_value(&window.monitor_name),
-        WindowGrouping::WindowTitle => normalize_sort_value(&window.title),
-        WindowGrouping::ClassName => normalize_sort_value(&window.class_name),
-    }
-}
-
-fn normalize_sort_value(value: &str) -> String {
-    value.trim().to_ascii_lowercase()
-}
-
-fn truncate_title(title: &str) -> String {
-    use panopticon::constants::{MAX_TITLE_CHARS, TITLE_TRUNCATE_AT};
-    let chars: Vec<char> = title.chars().collect();
-    if chars.len() > MAX_TITLE_CHARS {
-        let mut short: String = chars[..TITLE_TRUNCATE_AT].iter().collect();
-        short.push_str("...");
-        short
-    } else {
-        title.to_owned()
-    }
-}
-
-fn active_filter_summary(settings: &AppSettings) -> Option<String> {
-    let mut parts = Vec::new();
-    if let Some(m) = &settings.active_monitor_filter {
-        parts.push(format!("monitor:{m}"));
-    }
-    if let Some(g) = settings.active_group_filter_label() {
-        parts.push(g);
-    }
-    if let Some(grouping) = settings.grouping_label() {
-        parts.push(grouping);
-    }
-    (!parts.is_empty()).then(|| parts.join(" · "))
-}
-
-fn collect_available_monitors(windows: &[WindowInfo]) -> Vec<String> {
-    let set: BTreeSet<String> = windows.iter().map(|w| w.monitor_name.clone()).collect();
-    set.into_iter().collect()
-}
-
-fn collect_available_apps(windows: &[WindowInfo]) -> Vec<AppSelectionEntry> {
-    let mut map: HashMap<String, String> = HashMap::new();
-    for w in windows {
-        map.entry(w.app_id.clone()).or_insert_with(|| w.app_label());
-    }
-    let mut apps: Vec<AppSelectionEntry> = map
-        .into_iter()
-        .map(|(app_id, label)| AppSelectionEntry { app_id, label })
-        .collect();
-    apps.sort_by(|a, b| a.label.cmp(&b.label).then(a.app_id.cmp(&b.app_id)));
-    apps
 }
 
 fn rect_has_area(rect: RECT) -> bool {
