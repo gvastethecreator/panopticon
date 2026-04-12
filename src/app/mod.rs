@@ -3,6 +3,7 @@
 pub mod dock;
 pub mod dwm;
 pub mod icon;
+pub mod layout_actions;
 pub mod menu_utils;
 pub mod model_sync;
 pub mod secondary_windows;
@@ -13,3 +14,4 @@ pub mod tray;
 pub mod tray_actions;
 pub mod window_menu;
 pub mod window_subclass;
+pub mod window_sync;
