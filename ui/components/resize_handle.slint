@@ -1,0 +1,35 @@
+import { Theme } from "../common.slint";
+
+export component ResizeHandle inherits Rectangle {
+    in property <bool> horizontal;
+    in property <int> handle-index;
+    in property <bool> is-dragging: false;
+    in property <bool> is-locked: false;
+
+    callback drag-started(/* index */ int, /* x */ float, /* y */ float);
+    callback drag-moved(/* index */ int, /* x */ float, /* y */ float);
+    callback drag-ended(/* index */ int);
+
+    background: !root.is-locked && (touch.has-hover || root.is-dragging) ? Theme.accent.with-alpha(root.is-dragging ? 0.72 : 0.42) : transparent;
+    border-radius: 3px;
+
+    animate background { duration: 150ms; }
+
+    touch := TouchArea {
+        mouse-cursor: root.is-locked ? MouseCursor.default : (root.horizontal ? MouseCursor.row-resize : MouseCursor.col-resize);
+
+        pointer-event(event) => {
+            if !root.is-locked && event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                root.drag-started(root.handle-index, root.x / 1px + touch.mouse-x / 1px, root.y / 1px + touch.mouse-y / 1px);
+            }
+            if !root.is-locked && event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
+                root.drag-ended(root.handle-index);
+            }
+        }
+        moved => {
+            if !root.is-locked {
+                root.drag-moved(root.handle-index, root.x / 1px + touch.mouse-x / 1px, root.y / 1px + touch.mouse-y / 1px);
+            }
+        }
+    }
+}

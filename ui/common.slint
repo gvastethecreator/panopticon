@@ -1,0 +1,73 @@
+// Shared globals, theme tokens, and view-model structs for Panopticon.
+
+export global Tr {
+    // ThumbnailCard
+    in property <string> minimized: "minimized";
+    in property <string> last-seen: "LAST SEEN";
+    // Toolbar
+    in property <string> visible-label: "visible";
+    in property <string> hidden-label: "hidden";
+    in property <string> always-on-top-label: "always on top";
+    in property <string> normal-window-label: "normal window";
+    in property <string> toolbar-hint: "right-click header / M: menu  ·  Esc exit";
+    in property <string> anim-on: "anim on";
+    in property <string> anim-off: "anim off";
+    // Empty state
+    in property <string> empty-message: "No windows available to preview";
+    in property <string> empty-helper: "Open or restore any desktop window.\nPanopticon will keep watching from the tray.";
+    // Settings hints
+    in property <string> dock-mode-hint: "In dock mode this option is automatically disabled.";
+    in property <string> filters-hint: "Filters and grouping are also reflected in the header and reorder visible cells.";
+    in property <string> current-profile-prefix: "Current profile: ";
+    in property <string> profile-input-label: "Profile:";
+    in property <string> save-profile-btn: "Save profile";
+    in property <string> open-instance-btn: "Open another instance";
+    in property <string> no-hidden-hint: "No hidden apps to restore right now.";
+    // Tag dialog
+    in property <string> tag-title: "Create custom tag";
+    in property <string> tag-app-label: "Application: ";
+    in property <string> tag-name-label: "Tag name";
+    in property <string> tag-preset-colour: "Preset colour";
+    in property <string> tag-create-assign: "Create and assign";
+}
+
+export global Theme {
+    in-out property <color> bg:           #181513;
+    in-out property <color> toolbar-bg:   #1a1814;
+    in-out property <color> panel-bg:     #2A2522;
+    in-out property <color> card-bg:      #1e1c1a;
+    in-out property <color> border:       #3a3530;
+    in-out property <color> accent:       #D29A5C;
+    in-out property <color> accent-soft:  #5C4A38;
+    in-out property <color> text:         #E6E2DE;
+    in-out property <color> label:        #C8C1BA;
+    in-out property <color> muted:        #8D867F;
+    in-out property <color> hover-border: #D29A5C;
+    in-out property <color> placeholder:  #141210;
+    in-out property <color> footer-bg:    #1a1814;
+    in-out property <color> surface:      #221E1C;
+}
+
+export struct ThumbnailData {
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    title: string,
+    app-label: string,
+    is-active: bool,
+    accent-color: color,
+    show-footer: bool,
+    is-minimized: bool,
+    icon: image,
+    show-icon: bool,
+}
+
+export struct ResizeHandleData {
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    horizontal: bool,
+    index: int,
+}
