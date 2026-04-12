@@ -9,4 +9,5 @@ pub mod settings_ui;
 pub mod theme_ui;
 pub mod thumbnail_interactions;
 pub mod tray;
+pub mod tray_actions;
 pub mod window_menu;
