@@ -83,9 +83,7 @@ pub(crate) fn open_settings_window(
 
     {
         let state = state.borrow();
-        populate_settings_window(&settings_window, &state.settings);
-        populate_settings_window_runtime_fields(&settings_window, &state);
-        apply_settings_window_theme_snapshot(&settings_window, &state.current_theme);
+        sync_settings_window_from_state(&settings_window, &state);
     }
 
     settings_window.on_save_profile({
@@ -157,9 +155,7 @@ pub(crate) fn open_settings_window(
                 let guard = handle.borrow();
                 if let Some(settings_window) = guard.as_ref() {
                     let state_ref = state.borrow();
-                    populate_settings_window(settings_window, &state_ref.settings);
-                    populate_settings_window_runtime_fields(settings_window, &state_ref);
-                    apply_settings_window_theme_snapshot(settings_window, &state_ref.current_theme);
+                    sync_settings_window_from_state(settings_window, &state_ref);
                 }
             });
             let state_ref = state.borrow();
@@ -251,6 +247,7 @@ pub(crate) fn open_settings_window(
                 if let Ok(image) = slint::Image::load_from_path(path.as_path()) {
                     settings_window.set_bg_image_preview(image);
                 }
+                settings_window.invoke_apply();
             }
         });
     });
@@ -263,6 +260,7 @@ pub(crate) fn open_settings_window(
             };
             settings_window.set_bg_image_path(SharedString::from(""));
             settings_window.set_bg_image_preview(slint::Image::default());
+            settings_window.invoke_apply();
         });
     });
 
@@ -316,9 +314,7 @@ pub(crate) fn open_settings_window(
                 ));
                 {
                     let refreshed = state.borrow();
-                    populate_settings_window(settings_window, &refreshed.settings);
-                    populate_settings_window_runtime_fields(settings_window, &refreshed);
-                    apply_settings_window_theme_snapshot(settings_window, &refreshed.current_theme);
+                    sync_settings_window_from_state(settings_window, &refreshed);
                 }
                 if let Some(main_window) = main_weak.upgrade() {
                     crate::recompute_and_update_ui(&state, &main_window);
@@ -364,9 +360,7 @@ pub(crate) fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
             return;
         };
         let state = state.borrow();
-        populate_settings_window(window, &state.settings);
-        populate_settings_window_runtime_fields(window, &state);
-        apply_settings_window_theme_snapshot(window, &state.current_theme);
+        sync_settings_window_from_state(window, &state);
         if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
             keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
         }
@@ -572,6 +566,18 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
         window.set_can_restore_hidden(true);
         window.set_hidden_apps_summary(SharedString::from(summary));
     }
+}
+
+fn sync_settings_window_from_state(window: &SettingsWindow, state: &AppState) {
+    let draft_profile_name = window.get_profile_name();
+    window.set_suspend_live_apply(true);
+    populate_settings_window(window, &state.settings);
+    populate_settings_window_runtime_fields(window, state);
+    apply_settings_window_theme_snapshot(window, &state.current_theme);
+    if !draft_profile_name.is_empty() {
+        window.set_profile_name(draft_profile_name);
+    }
+    window.set_suspend_live_apply(false);
 }
 
 fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {

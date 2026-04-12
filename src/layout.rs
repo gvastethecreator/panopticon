@@ -301,26 +301,50 @@ fn grid_layout_custom(
         ));
     }
 
-    // Separators
-    let mut separators = Vec::new();
+    // Actual number of cells in the last (possibly partial) row.
+    let last_row_cells = {
+        let rem = count % cols;
+        if rem == 0 {
+            cols
+        } else {
+            rem
+        }
+    };
+
+    // Separators — extents are clipped to the area where cells exist on both
+    // sides, so handles never float over empty space in an incomplete grid.
+    let mut separators = Vec::with_capacity(cols.saturating_sub(1) + rows.saturating_sub(1));
+
     // Vertical separators (between columns)
     for c in 0..cols.saturating_sub(1) {
+        // If the last row doesn't reach col c+1, stop the handle before that row.
+        let extent_row_end = if c + 1 >= last_row_cells {
+            rows - 1
+        } else {
+            rows
+        };
         separators.push(Separator {
             position: area.left + col_x[c + 1] as i32,
             horizontal: false,
             ratio_index: c,
             extent_start: area.top,
-            extent_end: area.bottom,
+            extent_end: area.top + row_y[extent_row_end] as i32,
         });
     }
     // Horizontal separators (between rows)
     for r in 0..rows.saturating_sub(1) {
+        // If the row below is the partial last row, clip to the columns present.
+        let extent_col_end = if r + 1 == rows - 1 && last_row_cells < cols {
+            last_row_cells
+        } else {
+            cols
+        };
         separators.push(Separator {
             position: area.top + row_y[r + 1] as i32,
             horizontal: true,
             ratio_index: r,
             extent_start: area.left,
-            extent_end: area.right,
+            extent_end: area.left + col_x[extent_col_end] as i32,
         });
     }
 

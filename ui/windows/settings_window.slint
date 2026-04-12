@@ -64,11 +64,11 @@ component PageHeader inherits Rectangle {
     in property <string> title;
     in property <string> subtitle;
 
-    height: 76px;
-    border-radius: 14px;
-    background: Theme.panel_bg.with-alpha(84%);
-    border-width: 1px;
-    border-color: Theme.border.with-alpha(72%);
+    height: 60px;
+    border-radius: 0px;
+    background: transparent;
+    border-width: 0px;
+    border-color: transparent;
 
     HorizontalLayout {
         padding-left: 18px;
@@ -112,7 +112,7 @@ component SectionTitle inherits Rectangle {
     in property <string> text;
     in property <string> helper;
 
-    height: 48px;
+    height: 42px;
     background: transparent;
 
     HorizontalLayout {
@@ -155,14 +155,17 @@ component ToggleSettingCard inherits Rectangle {
     in-out property <bool> checked: false;
     in property <bool> enabled: true;
 
-    min-height: 68px;
-    border-radius: 12px;
-    border-width: 1px;
-    border-color: root.enabled ? Theme.border.with-alpha(70%) : Theme.border.with-alpha(34%);
-    background: root.enabled ? Theme.card_bg.with-alpha(92%) : Theme.surface.with-alpha(34%);
+    min-height: 60px;
+    border-radius: 0px;
+    border-width: 0px;
+    border-color: transparent;
+    background: transparent;
 
     HorizontalLayout {
-        padding: 14px;
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 10px;
+        padding-bottom: 10px;
         spacing: 10px;
         alignment: start;
 
@@ -200,6 +203,13 @@ component ToggleSettingCard inherits Rectangle {
             vertical-stretch: 1;
         }
     }
+
+    Rectangle {
+        y: parent.height - 1px;
+        width: 100%;
+        height: 1px;
+        background: Theme.border.with-alpha(34%);
+    }
 }
 
 component SelectSettingCard inherits Rectangle {
@@ -210,15 +220,18 @@ component SelectSettingCard inherits Rectangle {
     in-out property <int> selected-index: 0;
     in property <bool> enabled: true;
 
-    min-height: 98px;
-    border-radius: 12px;
-    border-width: 1px;
-    border-color: Theme.border.with-alpha(70%);
-    background: Theme.card_bg.with-alpha(92%);
+    min-height: 84px;
+    border-radius: 0px;
+    border-width: 0px;
+    border-color: transparent;
+    background: transparent;
 
     VerticalLayout {
-        padding: 14px;
-        spacing: 10px;
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        spacing: 8px;
 
         HorizontalLayout {
             spacing: 10px;
@@ -257,6 +270,13 @@ component SelectSettingCard inherits Rectangle {
             enabled: root.enabled;
         }
     }
+
+    Rectangle {
+        y: parent.height - 1px;
+        width: 100%;
+        height: 1px;
+        background: Theme.border.with-alpha(34%);
+    }
 }
 
 component TextFieldSettingCard inherits Rectangle {
@@ -266,16 +286,20 @@ component TextFieldSettingCard inherits Rectangle {
     in-out property <string> value: "";
     in property <string> placeholder: "";
     in property <bool> enabled: true;
+    callback committed();
 
-    min-height: 98px;
-    border-radius: 12px;
-    border-width: 1px;
-    border-color: Theme.border.with-alpha(70%);
-    background: Theme.card_bg.with-alpha(92%);
+    min-height: 84px;
+    border-radius: 0px;
+    border-width: 0px;
+    border-color: transparent;
+    background: transparent;
 
     VerticalLayout {
-        padding: 14px;
-        spacing: 10px;
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        spacing: 8px;
 
         HorizontalLayout {
             spacing: 10px;
@@ -308,11 +332,24 @@ component TextFieldSettingCard inherits Rectangle {
             }
         }
 
-        LineEdit {
+        edit := LineEdit {
             text <=> root.value;
             placeholder-text: root.placeholder;
             enabled: root.enabled;
+            accepted(_) => { root.committed(); }
+            changed has-focus => {
+                if !self.has-focus {
+                    root.committed();
+                }
+            }
         }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        width: 100%;
+        height: 1px;
+        background: Theme.border.with-alpha(34%);
     }
 }
 
@@ -497,10 +534,12 @@ export component SettingsWindow inherits Window {
     in-out property <string> shortcut-refresh-now: "R";
     in-out property <string> shortcut-exit-app: "Esc";
     in-out property <bool> alt-toolbar-shortcut-enabled: true;
+    in-out property <bool> suspend-live-apply: false;
 
     in-out property <int> current-page: 0;
 
     callback apply();
+    callback request-live-apply();
     callback save-profile();
     callback open-profile-instance();
     callback reset-to-defaults();
@@ -510,6 +549,38 @@ export component SettingsWindow inherits Window {
     callback browse-background-image();
     callback clear-background-image();
     callback closed();
+
+    request-live-apply => {
+        if (!root.suspend-live-apply) {
+            root.apply();
+        }
+    }
+
+    changed always-on-top-setting => { root.request-live-apply(); }
+    changed animate-transitions-setting => { root.request-live-apply(); }
+    changed minimize-to-tray-setting => { root.request-live-apply(); }
+    changed close-to-tray-setting => { root.request-live-apply(); }
+    changed preserve-aspect-ratio-setting => { root.request-live-apply(); }
+    changed hide-on-select-setting => { root.request-live-apply(); }
+    changed show-toolbar-setting => { root.request-live-apply(); }
+    changed show-info-setting => { root.request-live-apply(); }
+    changed use-system-backdrop-setting => { root.request-live-apply(); }
+    changed start-in-tray-setting => { root.request-live-apply(); }
+    changed locked-layout-setting => { root.request-live-apply(); }
+    changed lock-cell-resize-setting => { root.request-live-apply(); }
+    changed show-app-icons-setting => { root.request-live-apply(); }
+    changed refresh-index => { root.request-live-apply(); }
+    changed layout-index => { root.request-live-apply(); }
+    changed theme-index => { root.request-live-apply(); }
+    changed monitor-filter-index => { root.request-live-apply(); }
+    changed tag-filter-index => { root.request-live-apply(); }
+    changed app-filter-index => { root.request-live-apply(); }
+    changed bg-image-fit-index => { root.request-live-apply(); }
+    changed fixed-width-value => { root.request-live-apply(); }
+    changed fixed-height-value => { root.request-live-apply(); }
+    changed dock-edge-index => { root.request-live-apply(); }
+    changed group-windows-index => { root.request-live-apply(); }
+    changed alt-toolbar-shortcut-enabled => { root.request-live-apply(); }
 
     VerticalLayout {
         spacing: 0px;
@@ -862,14 +933,14 @@ export component SettingsWindow inherits Window {
 
                                     HorizontalLayout {
                                         spacing: 10px;
-                                        ColorSwatch { swatch: #181513; hex: "181513"; active: root.bg-color-hex == "181513"; picked => { root.bg-color-hex = "181513"; root.bg-preview-color = #181513; } }
-                                        ColorSwatch { swatch: #101820; hex: "101820"; active: root.bg-color-hex == "101820"; picked => { root.bg-color-hex = "101820"; root.bg-preview-color = #101820; } }
-                                        ColorSwatch { swatch: #1C2430; hex: "1C2430"; active: root.bg-color-hex == "1C2430"; picked => { root.bg-color-hex = "1C2430"; root.bg-preview-color = #1C2430; } }
-                                        ColorSwatch { swatch: #202633; hex: "202633"; active: root.bg-color-hex == "202633"; picked => { root.bg-color-hex = "202633"; root.bg-preview-color = #202633; } }
-                                        ColorSwatch { swatch: #122027; hex: "122027"; active: root.bg-color-hex == "122027"; picked => { root.bg-color-hex = "122027"; root.bg-preview-color = #122027; } }
-                                        ColorSwatch { swatch: #2A1E1C; hex: "2A1E1C"; active: root.bg-color-hex == "2A1E1C"; picked => { root.bg-color-hex = "2A1E1C"; root.bg-preview-color = #2A1E1C; } }
-                                        ColorSwatch { swatch: #2A2522; hex: "2A2522"; active: root.bg-color-hex == "2A2522"; picked => { root.bg-color-hex = "2A2522"; root.bg-preview-color = #2A2522; } }
-                                        ColorSwatch { swatch: #22303A; hex: "22303A"; active: root.bg-color-hex == "22303A"; picked => { root.bg-color-hex = "22303A"; root.bg-preview-color = #22303A; } }
+                                        ColorSwatch { swatch: #181513; hex: "181513"; active: root.bg-color-hex == "181513"; picked => { root.bg-color-hex = "181513"; root.bg-preview-color = #181513; root.apply(); } }
+                                        ColorSwatch { swatch: #101820; hex: "101820"; active: root.bg-color-hex == "101820"; picked => { root.bg-color-hex = "101820"; root.bg-preview-color = #101820; root.apply(); } }
+                                        ColorSwatch { swatch: #1C2430; hex: "1C2430"; active: root.bg-color-hex == "1C2430"; picked => { root.bg-color-hex = "1C2430"; root.bg-preview-color = #1C2430; root.apply(); } }
+                                        ColorSwatch { swatch: #202633; hex: "202633"; active: root.bg-color-hex == "202633"; picked => { root.bg-color-hex = "202633"; root.bg-preview-color = #202633; root.apply(); } }
+                                        ColorSwatch { swatch: #122027; hex: "122027"; active: root.bg-color-hex == "122027"; picked => { root.bg-color-hex = "122027"; root.bg-preview-color = #122027; root.apply(); } }
+                                        ColorSwatch { swatch: #2A1E1C; hex: "2A1E1C"; active: root.bg-color-hex == "2A1E1C"; picked => { root.bg-color-hex = "2A1E1C"; root.bg-preview-color = #2A1E1C; root.apply(); } }
+                                        ColorSwatch { swatch: #2A2522; hex: "2A2522"; active: root.bg-color-hex == "2A2522"; picked => { root.bg-color-hex = "2A2522"; root.bg-preview-color = #2A2522; root.apply(); } }
+                                        ColorSwatch { swatch: #22303A; hex: "22303A"; active: root.bg-color-hex == "22303A"; picked => { root.bg-color-hex = "22303A"; root.bg-preview-color = #22303A; root.apply(); } }
                                     }
 
                                     TextFieldSettingCard {
@@ -878,6 +949,7 @@ export component SettingsWindow inherits Window {
                                         description: "Introduce un RGB hex manual si quieres un color fuera de la paleta rápida.";
                                         value <=> root.bg-color-hex;
                                         placeholder: "181513";
+                                        committed => { root.apply(); }
                                     }
                                 }
                             }
@@ -959,6 +1031,7 @@ export component SettingsWindow inherits Window {
                                     description: "Puedes pegar una ruta manualmente o elegirla con el selector nativo.";
                                     value <=> root.bg-image-path;
                                     placeholder: "C:\\wallpapers\\workspace.png";
+                                    committed => { root.apply(); }
                                 }
 
                                 SelectSettingCard {
@@ -1131,15 +1204,15 @@ export component SettingsWindow inherits Window {
                                         helper: "Asignaciones directas para layouts concretos, reset y ciclo general.";
                                     }
 
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Grid layout"; description: "Activa la vista Grid al instante."; value <=> root.shortcut-layout-grid; placeholder: "1"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Mosaic layout"; description: "Cambia a la distribución Mosaic."; value <=> root.shortcut-layout-mosaic; placeholder: "2"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Bento layout"; description: "Activa el layout Bento."; value <=> root.shortcut-layout-bento; placeholder: "3"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Fibonacci layout"; description: "Abre la composición Fibonacci."; value <=> root.shortcut-layout-fibonacci; placeholder: "4"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Columns layout"; description: "Activa Columns."; value <=> root.shortcut-layout-columns; placeholder: "5"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Row layout"; description: "Activa la vista Row."; value <=> root.shortcut-layout-row; placeholder: "6"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Column layout"; description: "Activa la vista Column."; value <=> root.shortcut-layout-column; placeholder: "7"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Reset layout ratios"; description: "Restablece proporciones personalizadas del layout actual."; value <=> root.shortcut-reset-layout; placeholder: "0"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Cycle layout"; description: "Avanza al siguiente layout en la secuencia interna."; value <=> root.shortcut-cycle-layout; placeholder: "Tab"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Grid layout"; description: "Activa la vista Grid al instante."; value <=> root.shortcut-layout-grid; placeholder: "1"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Mosaic layout"; description: "Cambia a la distribución Mosaic."; value <=> root.shortcut-layout-mosaic; placeholder: "2"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Bento layout"; description: "Activa el layout Bento."; value <=> root.shortcut-layout-bento; placeholder: "3"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Fibonacci layout"; description: "Abre la composición Fibonacci."; value <=> root.shortcut-layout-fibonacci; placeholder: "4"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Columns layout"; description: "Activa Columns."; value <=> root.shortcut-layout-columns; placeholder: "5"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Row layout"; description: "Activa la vista Row."; value <=> root.shortcut-layout-row; placeholder: "6"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Column layout"; description: "Activa la vista Column."; value <=> root.shortcut-layout-column; placeholder: "7"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Reset layout ratios"; description: "Restablece proporciones personalizadas del layout actual."; value <=> root.shortcut-reset-layout; placeholder: "0"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Cycle layout"; description: "Avanza al siguiente layout en la secuencia interna."; value <=> root.shortcut-cycle-layout; placeholder: "Tab"; committed => { root.apply(); } }
 
                                     SectionTitle {
                                         icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
@@ -1147,15 +1220,15 @@ export component SettingsWindow inherits Window {
                                         helper: "Atajos para abrir paneles, refrescar estado y alternar opciones visibles.";
                                     }
 
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Cycle theme"; description: "Rota entre presets sin abrir la ventana de settings."; value <=> root.shortcut-cycle-theme; placeholder: "T"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle animations"; description: "Activa o desactiva transiciones del dashboard."; value <=> root.shortcut-toggle-animations; placeholder: "A"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle toolbar"; description: "Muestra u oculta la barra superior del dashboard."; value <=> root.shortcut-toggle-toolbar; placeholder: "H"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle window info"; description: "Muestra u oculta títulos e info encima de las miniaturas."; value <=> root.shortcut-toggle-window-info; placeholder: "I"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle always on top"; description: "Conmuta el modo siempre visible por encima de otras apps."; value <=> root.shortcut-toggle-always-on-top; placeholder: "P"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Open settings"; description: "Abre esta ventana desde el dashboard principal."; value <=> root.shortcut-open-settings; placeholder: "O"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Open application menu"; description: "Abre el menú nativo principal con acciones rápidas."; value <=> root.shortcut-open-menu; placeholder: "M"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-refresh.svg"); title: "Refresh now"; description: "Fuerza una nueva enumeración de ventanas y refresca el dashboard."; value <=> root.shortcut-refresh-now; placeholder: "R"; }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Exit app"; description: "Cierra Panopticon desde teclado."; value <=> root.shortcut-exit-app; placeholder: "Esc"; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Cycle theme"; description: "Rota entre presets sin abrir la ventana de settings."; value <=> root.shortcut-cycle-theme; placeholder: "T"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle animations"; description: "Activa o desactiva transiciones del dashboard."; value <=> root.shortcut-toggle-animations; placeholder: "A"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle toolbar"; description: "Muestra u oculta la barra superior del dashboard."; value <=> root.shortcut-toggle-toolbar; placeholder: "H"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle window info"; description: "Muestra u oculta títulos e info encima de las miniaturas."; value <=> root.shortcut-toggle-window-info; placeholder: "I"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle always on top"; description: "Conmuta el modo siempre visible por encima de otras apps."; value <=> root.shortcut-toggle-always-on-top; placeholder: "P"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Open settings"; description: "Abre esta ventana desde el dashboard principal."; value <=> root.shortcut-open-settings; placeholder: "O"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Open application menu"; description: "Abre el menú nativo principal con acciones rápidas."; value <=> root.shortcut-open-menu; placeholder: "M"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-refresh.svg"); title: "Refresh now"; description: "Fuerza una nueva enumeración de ventanas y refresca el dashboard."; value <=> root.shortcut-refresh-now; placeholder: "R"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Exit app"; description: "Cierra Panopticon desde teclado."; value <=> root.shortcut-exit-app; placeholder: "Esc"; committed => { root.apply(); } }
                                     ToggleSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Use Alt as a quick toolbar toggle"; description: "Mantiene el atajo legacy de Windows para esconder o mostrar la toolbar con una sola pulsación de Alt."; checked <=> root.alt-toolbar-shortcut-enabled; }
                                 }
                             }
@@ -1256,11 +1329,20 @@ export component SettingsWindow inherits Window {
                 padding-left: 24px;
                 padding-right: 24px;
                 spacing: 10px;
-                alignment: end;
+                alignment: space-between;
 
-                FooterButton { text: "Reset defaults"; clicked => { root.reset-to-defaults(); } }
-                FooterButton { text: "Apply"; accent: true; clicked => { root.apply(); } }
-                FooterButton { text: "Close"; clicked => { root.closed(); } }
+                Text {
+                    text: "Changes apply automatically.";
+                    color: Theme.muted;
+                    font-size: 11.5px;
+                    vertical-alignment: center;
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    FooterButton { text: "Reset defaults"; clicked => { root.reset-to-defaults(); } }
+                    FooterButton { text: "Close"; clicked => { root.closed(); } }
+                }
             }
         }
     }
