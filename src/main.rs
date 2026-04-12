@@ -14,8 +14,7 @@ mod app;
 
 use app::dock::{
     apply_dock_mode, apply_topmost_mode, apply_window_appearance, docked_mode_active,
-    is_blocked_dock_syscommand, reposition_appbar, restore_floating_style, sync_dock_system_menu,
-    unregister_appbar,
+    is_blocked_dock_syscommand, reposition_appbar, sync_dock_system_menu, unregister_appbar,
 };
 use app::dwm::{
     ensure_thumbnail, query_source_size, release_all_thumbnails, release_thumbnail,
@@ -27,8 +26,8 @@ use app::theme_ui::{
     thumbnail_accent_color,
 };
 use app::tray::{
-    apply_window_icons, handle_tray_message, show_application_context_menu_at, AppIcons,
-    TrayAction, TrayIcon, TrayMenuState, INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
+    apply_window_icons, handle_tray_message, AppIcons, TrayAction, TrayIcon,
+    INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
 };
 use panopticon::constants::{ANIMATION_DURATION_MS, TOOLBAR_HEIGHT};
 use panopticon::layout::{
@@ -40,8 +39,7 @@ use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 use panopticon::window_ops::{
-    active_filter_summary, apply_pinned_positions, collect_available_apps,
-    collect_available_monitors, sort_windows_for_grouping, truncate_title,
+    active_filter_summary, apply_pinned_positions, sort_windows_for_grouping, truncate_title,
 };
 
 use std::cell::{Cell, RefCell};
@@ -73,7 +71,6 @@ slint::include_modules!();
 /// Callback message posted by the shell when the app-bar needs repositioning.
 pub(crate) const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
 
-const OPTION_SEPARATOR: &str = " — ";
 pub(crate) const THUMBNAIL_INFO_STRIP_HEIGHT: i32 = 26;
 pub(crate) const THUMBNAIL_CONTENT_PADDING: i32 = 6;
 pub(crate) const THEME_TRANSITION_DURATION_MS: u32 = 220;
@@ -747,7 +744,7 @@ fn handle_tray_subclass(hwnd: HWND, lparam: LPARAM) {
             s.borrow().as_ref().and_then(|rc| {
                 rc.try_borrow_mut()
                     .ok()
-                    .map(|mut st| build_tray_menu_state(&mut st))
+                    .map(|mut st| app::tray_actions::build_tray_menu_state(&mut st))
             })
         });
         if let Some(menu_state) = menu_state {
@@ -918,7 +915,7 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
     main_window.on_app_context_menu_requested({
         let state = state.clone();
         let weak = main_window.as_weak();
-        move |x, y| open_application_context_menu(&state, &weak, Some((x, y)))
+        move |x, y| app::tray_actions::open_application_context_menu(&state, &weak, Some((x, y)))
     });
 
     main_window.on_resize_drag_started({
@@ -1425,7 +1422,7 @@ fn handle_key(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, key
             true
         }
         "m" | "M" => {
-            open_application_context_menu(state, weak, None);
+            app::tray_actions::open_application_context_menu(state, weak, None);
             true
         }
         "o" | "O" => {
@@ -1665,215 +1662,10 @@ fn ensure_custom_ratios(s: &mut AppState, layout: LayoutType) {
     }
 }
 
-// ───────────────────────── Tray ─────────────────────────
-
-fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
-    let available_windows: Vec<WindowInfo> = enumerate_windows()
-        .into_iter()
-        .filter(|w| w.hwnd != state.hwnd)
-        .collect();
-    for w in &available_windows {
-        state.settings.refresh_app_label(&w.app_id, &w.app_label());
-    }
-
-    TrayMenuState {
-        window_visible: unsafe { IsWindowVisible(state.hwnd).as_bool() },
-        minimize_to_tray: state.settings.minimize_to_tray,
-        close_to_tray: state.settings.close_to_tray,
-        refresh_interval_ms: state.settings.refresh_interval_ms,
-        animate_transitions: state.settings.animate_transitions,
-        preserve_aspect_ratio: state.settings.preserve_aspect_ratio,
-        hide_on_select: state.settings.hide_on_select,
-        always_on_top: state.settings.always_on_top,
-        active_monitor_filter: state.settings.active_monitor_filter.clone(),
-        available_monitors: collect_available_monitors(&available_windows),
-        active_tag_filter: state.settings.active_tag_filter.clone(),
-        available_tags: state.settings.known_tags(),
-        active_app_filter: state.settings.active_app_filter.clone(),
-        available_apps: collect_available_apps(&available_windows),
-        hidden_apps: state.settings.hidden_app_entries(),
-        dock_edge: state.settings.dock_edge,
-        is_docked: state.is_appbar || state.settings.dock_edge.is_some(),
-        show_toolbar: state.settings.show_toolbar,
-        show_window_info: state.settings.show_window_info,
-        show_app_icons: state.settings.show_app_icons,
-        start_in_tray: state.settings.start_in_tray,
-        locked_layout: state.settings.locked_layout,
-        lock_cell_resize: state.settings.lock_cell_resize,
-        group_windows_by: state.settings.group_windows_by,
-    }
-}
-
-#[allow(clippy::too_many_lines)]
-fn handle_tray_action(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    action: TrayAction,
-) {
-    match action {
-        TrayAction::Toggle => toggle_visibility(state, weak),
-        TrayAction::Refresh => {
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::NextLayout => {
-            cycle_layout(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleMinimizeToTray => {
-            update_settings(state, |s| {
-                s.minimize_to_tray = !s.minimize_to_tray;
-            });
-        }
-        TrayAction::ToggleCloseToTray => {
-            update_settings(state, |s| {
-                s.close_to_tray = !s.close_to_tray;
-            });
-        }
-        TrayAction::CycleRefreshInterval => {
-            update_settings(state, AppSettings::cycle_refresh_interval);
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleAnimateTransitions => {
-            update_settings(state, |s| {
-                s.animate_transitions = !s.animate_transitions;
-            });
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleDefaultAspectRatio => {
-            update_settings(state, |s| {
-                s.preserve_aspect_ratio = !s.preserve_aspect_ratio;
-            });
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleDefaultHideOnSelect => {
-            if state.borrow().settings.dock_edge.is_none() {
-                update_settings(state, |s| {
-                    s.hide_on_select = !s.hide_on_select;
-                });
-                refresh_ui(state, weak);
-            }
-        }
-        TrayAction::ToggleAlwaysOnTop => {
-            update_settings(state, |s| {
-                s.always_on_top = !s.always_on_top;
-            });
-            let s = state.borrow();
-            apply_topmost_mode(s.hwnd, s.settings.always_on_top);
-            drop(s);
-            refresh_ui(state, weak);
-        }
-        TrayAction::SetMonitorFilter(filter) => {
-            update_settings(state, |s| {
-                s.set_monitor_filter(filter.as_deref());
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::SetTagFilter(filter) => {
-            update_settings(state, |s| {
-                s.set_tag_filter(filter.as_deref());
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::SetAppFilter(filter) => {
-            update_settings(state, |s| {
-                s.set_app_filter(filter.as_deref());
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::RestoreHidden(app_id) => {
-            update_settings(state, |s| {
-                let _ = s.restore_hidden_app(&app_id);
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::RestoreAllHidden => {
-            update_settings(state, |s| {
-                let _ = s.restore_all_hidden_apps();
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::SetDockEdge(edge) => {
-            {
-                let mut s = state.borrow_mut();
-                if s.is_appbar {
-                    unregister_appbar(s.hwnd);
-                    s.is_appbar = false;
-                }
-                s.settings.dock_edge = edge;
-                s.settings = s.settings.normalized();
-                let _ = s.settings.save(s.profile_name.as_deref());
-                if edge.is_some() {
-                    apply_dock_mode(&mut s);
-                } else {
-                    restore_floating_style(s.hwnd);
-                    apply_topmost_mode(s.hwnd, s.settings.always_on_top);
-                }
-            }
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::SetWindowGrouping(grouping) => {
-            update_settings(state, |s| {
-                s.group_windows_by = grouping;
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleToolbar => {
-            update_settings(state, |s| {
-                s.show_toolbar = !s.show_toolbar;
-            });
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleWindowInfo => {
-            update_settings(state, |s| {
-                s.show_window_info = !s.show_window_info;
-            });
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleAppIcons => {
-            update_settings(state, |s| {
-                s.show_app_icons = !s.show_app_icons;
-            });
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleStartInTray => {
-            update_settings(state, |s| {
-                s.start_in_tray = !s.start_in_tray;
-            });
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleLockedLayout => {
-            update_settings(state, |s| {
-                s.locked_layout = !s.locked_layout;
-            });
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleLockCellResize => {
-            update_settings(state, |s| {
-                s.lock_cell_resize = !s.lock_cell_resize;
-            });
-            refresh_ui(state, weak);
-        }
-        TrayAction::OpenSettingsWindow => {
-            app::secondary_windows::open_settings_window(state, weak);
-        }
-        TrayAction::Exit => {
-            PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Exit));
-        }
-    }
-}
-
 fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action: PendingAction) {
     let weak = win.as_weak();
     match action {
-        PendingAction::Tray(ta) => handle_tray_action(state, &weak, ta),
+        PendingAction::Tray(ta) => app::tray_actions::handle_tray_action(state, &weak, ta),
         PendingAction::Reposition => {
             if let Ok(mut s) = state.try_borrow_mut() {
                 if s.is_appbar {
@@ -1946,14 +1738,17 @@ fn set_layout(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, lay
     refresh_ui(state, weak);
 }
 
-fn update_settings(state: &Rc<RefCell<AppState>>, mutate: impl FnOnce(&mut AppSettings)) {
+pub(crate) fn update_settings(
+    state: &Rc<RefCell<AppState>>,
+    mutate: impl FnOnce(&mut AppSettings),
+) {
     let mut s = state.borrow_mut();
     mutate(&mut s.settings);
     s.settings = s.settings.normalized();
     let _ = s.settings.save(s.profile_name.as_deref());
 }
 
-fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
+pub(crate) fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
     if let Some(win) = weak.upgrade() {
         recompute_and_update_ui(state, &win);
         advance_theme_animation(state, &win);
@@ -1964,7 +1759,10 @@ fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
 /// Schedule an immediate refresh + a deferred one (300 ms) so that
 /// closed/killed windows disappear promptly even if the process takes
 /// a moment to terminate.
-fn schedule_deferred_refresh(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
+pub(crate) fn schedule_deferred_refresh(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+) {
     let _ = refresh_windows(state);
     refresh_ui(state, weak);
 
@@ -2070,34 +1868,6 @@ fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     }
 }
 
-// ───────────────────────── Visibility ─────────────────────────
-
-fn toggle_visibility(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
-    let visible = state.borrow().hwnd != HWND::default()
-        && unsafe { IsWindowVisible(state.borrow().hwnd).as_bool() };
-    if visible {
-        release_all_thumbnails(state);
-        if let Some(win) = weak.upgrade() {
-            win.hide().ok();
-        }
-    } else {
-        restore_from_tray(state, weak);
-    }
-}
-
-fn restore_from_tray(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
-    if let Some(win) = weak.upgrade() {
-        win.show().ok();
-        let hwnd = state.borrow().hwnd;
-        // SAFETY: hwnd is our live main window; bringing it to the foreground.
-        unsafe {
-            let _ = SetForegroundWindow(hwnd);
-        }
-        refresh_windows(state);
-        recompute_and_update_ui(state, &win);
-    }
-}
-
 fn request_exit(state: &Rc<RefCell<AppState>>) {
     tracing::info!("exiting Panopticon");
     {
@@ -2139,33 +1909,6 @@ fn toggle_toolbar_from_alt_hotkey() {
     });
 }
 
-fn open_application_context_menu(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    coords: Option<(f32, f32)>,
-) {
-    let Some(win) = weak.upgrade() else { return };
-
-    let (hwnd, anchor, menu_state) = {
-        let mut guard = state.borrow_mut();
-        if guard.hwnd.0.is_null() {
-            return;
-        }
-        let anchor = coords.map(|(x, y)| {
-            logical_to_screen_point(
-                guard.hwnd,
-                x * win.window().scale_factor(),
-                y * win.window().scale_factor(),
-            )
-        });
-        (guard.hwnd, anchor, build_tray_menu_state(&mut guard))
-    };
-
-    if let Some(action) = show_application_context_menu_at(hwnd, &menu_state, anchor) {
-        handle_tray_action(state, weak, action);
-    }
-}
-
 // ───────────────────────── Utility ─────────────────────────
 
 fn parse_profile_from_args() -> Option<String> {
@@ -2183,7 +1926,7 @@ fn parse_profile_from_args() -> Option<String> {
     None
 }
 
-fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT {
+pub(crate) fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT {
     let mut window_rect = RECT::default();
     // SAFETY: hwnd is our live window; window_rect is stack-allocated and valid.
     unsafe {
@@ -2211,6 +1954,10 @@ fn lerp_rect(from: RECT, to: RECT, t: f32) -> RECT {
 
 fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
     (from as f32 + (to - from) as f32 * t).round() as i32
+}
+
+pub(crate) fn queue_exit_request() {
+    PENDING_ACTIONS.with(|queue| queue.borrow_mut().push(PendingAction::Exit));
 }
 
 #[cfg(test)]

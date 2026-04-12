@@ -6,7 +6,12 @@ use std::rc::Rc;
 
 use panopticon::settings::{AppSelectionEntry, AppSettings, HiddenAppEntry};
 use panopticon::theme as theme_catalog;
+use panopticon::ui_option_ops::{
+    app_option_label, current_profile_label, hidden_app_option_label, parse_option_value,
+    suggested_tag_name, tag_color_hex, tag_color_index,
+};
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
+use panopticon::window_ops::{collect_available_apps, collect_available_monitors};
 use slint::{CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
 use super::dock::{
@@ -531,15 +536,11 @@ fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
         .collect();
 
     RuntimeUiOptions {
-        monitors: crate::collect_available_monitors(&windows),
+        monitors: collect_available_monitors(&windows),
         tags: state.settings.known_tags(),
-        apps: crate::collect_available_apps(&windows),
+        apps: collect_available_apps(&windows),
         hidden_apps: state.settings.hidden_app_entries(),
     }
-}
-
-fn current_profile_label(profile_name: Option<&str>) -> String {
-    profile_name.unwrap_or("default").to_owned()
 }
 
 fn known_profiles_label() -> String {
@@ -564,21 +565,6 @@ fn selected_model_value(model: &ModelRc<SharedString>, index: i32) -> Option<Str
         .ok()
         .and_then(|index| model.row_data(index))
         .map(|value| value.to_string())
-}
-
-fn app_option_label(app: &AppSelectionEntry) -> String {
-    format!("{}{}{}", app.label, crate::OPTION_SEPARATOR, app.app_id)
-}
-
-fn hidden_app_option_label(app: &HiddenAppEntry) -> String {
-    format!("{}{}{}", app.label, crate::OPTION_SEPARATOR, app.app_id)
-}
-
-fn parse_option_value(value: &str) -> Option<String> {
-    value
-        .rsplit_once(crate::OPTION_SEPARATOR)
-        .map(|(_, raw)| raw.trim().to_owned())
-        .filter(|raw| !raw.is_empty())
 }
 
 fn save_settings_as_profile(settings: &AppSettings, profile_name: &str) -> bool {
@@ -614,21 +600,6 @@ fn launch_additional_instance(profile_name: Option<&str>) -> bool {
     }
 }
 
-fn suggested_tag_name(label: &str) -> String {
-    let lowered = label
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character.to_ascii_lowercase()
-            } else {
-                ' '
-            }
-        })
-        .collect::<String>();
-
-    lowered.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
 fn apply_tag_creation(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
@@ -649,27 +620,4 @@ fn close_tag_dialog_window() {
     if let Some(dialog) = taken {
         dialog.hide().ok();
     }
-}
-
-fn tag_color_index(color_hex: &str) -> i32 {
-    match color_hex.to_ascii_uppercase().as_str() {
-        "5CA9FF" => 1,
-        "3CCF91" => 2,
-        "FF6B8A" => 3,
-        "9B7BFF" => 4,
-        "F4B740" => 5,
-        _ => 0,
-    }
-}
-
-fn tag_color_hex(index: i32) -> String {
-    match index {
-        1 => "5CA9FF",
-        2 => "3CCF91",
-        3 => "FF6B8A",
-        4 => "9B7BFF",
-        5 => "F4B740",
-        _ => "D29A5C",
-    }
-    .to_owned()
 }

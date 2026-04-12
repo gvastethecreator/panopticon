@@ -32,5 +32,6 @@ pub mod logging;
 pub mod settings;
 pub mod theme;
 pub mod thumbnail;
+pub mod ui_option_ops;
 pub mod window_enum;
 pub mod window_ops;
