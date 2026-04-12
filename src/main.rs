@@ -145,8 +145,9 @@ struct DragState {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ThemeAnimation {
-    pub(crate) from: theme_catalog::UiTheme,
     pub(crate) to: theme_catalog::UiTheme,
+    pub(crate) from_rgb: theme_catalog::RgbThemeSnapshot,
+    pub(crate) to_rgb: theme_catalog::RgbThemeSnapshot,
     pub(crate) started_at: Instant,
 }
 
@@ -324,12 +325,23 @@ fn main() {
                 return;
             }
 
-            // Drain pending actions.
-            let actions: Vec<PendingAction> =
-                PENDING_ACTIONS.with(|q| q.borrow_mut().drain(..).collect());
-            for action in actions {
-                handle_pending_action(&state, &win, action);
-            }
+            // Drain pending actions without intermediate Vec allocation.
+            PENDING_ACTIONS.with(|q| {
+                let mut queue = q.borrow_mut();
+                if !queue.is_empty() {
+                    // Swap with a reusable buffer to avoid alloc on each tick.
+                    let mut batch = std::mem::take(&mut *queue);
+                    drop(queue);
+                    for action in batch.drain(..) {
+                        handle_pending_action(&state, &win, action);
+                    }
+                    // Return the allocation back for reuse.
+                    let mut queue = q.borrow_mut();
+                    if queue.is_empty() {
+                        *queue = batch;
+                    }
+                }
+            });
 
             // Check for window-size changes.
             let phys_size = win.window().size();
@@ -383,9 +395,9 @@ fn main() {
         },
     );
 
-    // Scrollbar auto-hide timer: checks every 200 ms and hides after inactivity.
+    // Scrollbar auto-hide timer: checks every 500 ms and hides after inactivity.
     let scrollbar_timer = Timer::default();
-    scrollbar_timer.start(TimerMode::Repeated, Duration::from_millis(200), {
+    scrollbar_timer.start(TimerMode::Repeated, Duration::from_millis(500), {
         let weak = main_window.as_weak();
         move || {
             app::window_subclass::hide_scrollbar_if_idle(&weak);

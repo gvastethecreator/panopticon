@@ -43,15 +43,15 @@ pub struct WindowInfo {
 impl WindowInfo {
     /// Human-friendly label used in menus and badges.
     #[must_use]
-    pub fn app_label(&self) -> String {
+    pub fn app_label(&self) -> &str {
         if !self.process_name.is_empty() {
-            self.process_name.clone()
+            &self.process_name
         } else if !self.title.is_empty() {
-            self.title.clone()
+            &self.title
         } else if !self.class_name.is_empty() {
-            self.class_name.clone()
+            &self.class_name
         } else {
-            "Application".to_owned()
+            "Application"
         }
     }
 }
@@ -117,13 +117,22 @@ unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
         return TRUE;
     }
 
-    let mut buffer = vec![0u16; (title_len + 1) as usize];
-    let copied = GetWindowTextW(hwnd, &mut buffer);
-    if copied == 0 {
-        return TRUE;
-    }
-
-    let title = String::from_utf16_lossy(&buffer[..copied as usize]);
+    // Use a stack buffer for typical titles; fall back to heap for very long ones.
+    let title = if (title_len + 1) <= 512 {
+        let mut buf = [0u16; 512];
+        let copied = GetWindowTextW(hwnd, &mut buf[..((title_len + 1) as usize)]);
+        if copied == 0 {
+            return TRUE;
+        }
+        String::from_utf16_lossy(&buf[..copied as usize])
+    } else {
+        let mut buf = vec![0u16; (title_len + 1) as usize];
+        let copied = GetWindowTextW(hwnd, &mut buf);
+        if copied == 0 {
+            return TRUE;
+        }
+        String::from_utf16_lossy(&buf[..copied as usize])
+    };
 
     // Filter out known system windows.
     if is_system_window(&title) {

@@ -383,7 +383,11 @@ impl AppSettings {
     /// Return a human-friendly refresh-interval label.
     #[must_use]
     pub fn refresh_interval_label(&self) -> String {
-        let interval = self.normalized().refresh_interval_ms;
+        let interval = REFRESH_INTERVALS_MS
+            .iter()
+            .copied()
+            .find(|i| *i == self.refresh_interval_ms)
+            .unwrap_or(DEFAULT_REFRESH_INTERVAL_MS);
         if interval.is_multiple_of(1_000) {
             format!("{}s", interval / 1_000)
         } else {

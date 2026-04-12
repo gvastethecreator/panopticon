@@ -260,12 +260,29 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
     let show_icons = state.settings.show_app_icons;
     let model = win.get_thumbnails();
     let row_count = model.row_count();
+    let window_count = state.windows.len();
 
-    if row_count == state.windows.len() {
+    if row_count == window_count {
+        // Fast path: update only geometry fields that change during animation.
         for (index, managed_window) in state.windows.iter().enumerate() {
             if let Some(mut item) = model.row_data(index) {
-                item = build_thumbnail_data(managed_window, &state, show_footer, show_icons);
-                model.set_row_data(index, item);
+                let new_x = managed_window.display_rect.left as f32;
+                let new_y = managed_window.display_rect.top as f32;
+                let new_w =
+                    (managed_window.display_rect.right - managed_window.display_rect.left) as f32;
+                let new_h =
+                    (managed_window.display_rect.bottom - managed_window.display_rect.top) as f32;
+                // These are integer-derived pixel coordinates cast to f32,
+                // so exact bit equality is correct here.
+                #[allow(clippy::float_cmp)]
+                if item.x != new_x || item.y != new_y || item.width != new_w || item.height != new_h
+                {
+                    item.x = new_x;
+                    item.y = new_y;
+                    item.width = new_w;
+                    item.height = new_h;
+                    model.set_row_data(index, item);
+                }
             }
         }
     } else {

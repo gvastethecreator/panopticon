@@ -49,10 +49,10 @@ struct ThemeCatalogEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Rgb {
-    r: u8,
-    g: u8,
-    b: u8,
+pub struct Rgb {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
 #[must_use]
@@ -100,27 +100,86 @@ pub fn resolve_ui_theme(theme_id: Option<&str>, fallback_background_hex: &str) -
         )
 }
 
+/// Pre-parsed RGB representation of a `UiTheme` for fast interpolation.
+///
+/// Avoids re-parsing 15 hex strings on every animation frame.
+#[derive(Debug, Clone, Copy)]
+pub struct RgbThemeSnapshot {
+    pub bg: Rgb,
+    pub toolbar_bg: Rgb,
+    pub panel_bg: Rgb,
+    pub card_bg: Rgb,
+    pub border: Rgb,
+    pub accent: Rgb,
+    pub accent_soft: Rgb,
+    pub text: Rgb,
+    pub label: Rgb,
+    pub muted: Rgb,
+    pub hover_border: Rgb,
+    pub placeholder: Rgb,
+    pub footer_bg: Rgb,
+    pub surface: Rgb,
+}
+
+static DEFAULT_RGB: Rgb = Rgb {
+    r: 0x18,
+    g: 0x15,
+    b: 0x13,
+};
+
+impl RgbThemeSnapshot {
+    /// Parse a `UiTheme` into pre-parsed RGB values.
+    #[must_use]
+    pub fn from_ui_theme(theme: &UiTheme) -> Self {
+        Self {
+            bg: parse_hex_rgb(&theme.bg_hex).unwrap_or(DEFAULT_RGB),
+            toolbar_bg: parse_hex_rgb(&theme.toolbar_bg_hex).unwrap_or(DEFAULT_RGB),
+            panel_bg: parse_hex_rgb(&theme.panel_bg_hex).unwrap_or(DEFAULT_RGB),
+            card_bg: parse_hex_rgb(&theme.card_bg_hex).unwrap_or(DEFAULT_RGB),
+            border: parse_hex_rgb(&theme.border_hex).unwrap_or(DEFAULT_RGB),
+            accent: parse_hex_rgb(&theme.accent_hex).unwrap_or(DEFAULT_RGB),
+            accent_soft: parse_hex_rgb(&theme.accent_soft_hex).unwrap_or(DEFAULT_RGB),
+            text: parse_hex_rgb(&theme.text_hex).unwrap_or(DEFAULT_RGB),
+            label: parse_hex_rgb(&theme.label_hex).unwrap_or(DEFAULT_RGB),
+            muted: parse_hex_rgb(&theme.muted_hex).unwrap_or(DEFAULT_RGB),
+            hover_border: parse_hex_rgb(&theme.hover_border_hex).unwrap_or(DEFAULT_RGB),
+            placeholder: parse_hex_rgb(&theme.placeholder_hex).unwrap_or(DEFAULT_RGB),
+            footer_bg: parse_hex_rgb(&theme.footer_bg_hex).unwrap_or(DEFAULT_RGB),
+            surface: parse_hex_rgb(&theme.surface_hex).unwrap_or(DEFAULT_RGB),
+        }
+    }
+
+    /// Interpolate between two snapshots and produce the resulting `UiTheme`.
+    #[must_use]
+    pub fn interpolate(&self, to: &Self, t: f32, target_theme: &UiTheme) -> UiTheme {
+        let t = t.clamp(0.0, 1.0);
+        UiTheme {
+            id: target_theme.id.clone(),
+            label: target_theme.label.clone(),
+            bg_hex: to_hex(mix(self.bg, to.bg, t)),
+            toolbar_bg_hex: to_hex(mix(self.toolbar_bg, to.toolbar_bg, t)),
+            panel_bg_hex: to_hex(mix(self.panel_bg, to.panel_bg, t)),
+            card_bg_hex: to_hex(mix(self.card_bg, to.card_bg, t)),
+            border_hex: to_hex(mix(self.border, to.border, t)),
+            accent_hex: to_hex(mix(self.accent, to.accent, t)),
+            accent_soft_hex: to_hex(mix(self.accent_soft, to.accent_soft, t)),
+            text_hex: to_hex(mix(self.text, to.text, t)),
+            label_hex: to_hex(mix(self.label, to.label, t)),
+            muted_hex: to_hex(mix(self.muted, to.muted, t)),
+            hover_border_hex: to_hex(mix(self.hover_border, to.hover_border, t)),
+            placeholder_hex: to_hex(mix(self.placeholder, to.placeholder, t)),
+            footer_bg_hex: to_hex(mix(self.footer_bg, to.footer_bg, t)),
+            surface_hex: to_hex(mix(self.surface, to.surface, t)),
+        }
+    }
+}
+
 #[must_use]
 pub fn interpolate_ui_theme(from: &UiTheme, to: &UiTheme, t: f32) -> UiTheme {
     let t = t.clamp(0.0, 1.0);
-    UiTheme {
-        id: to.id.clone(),
-        label: to.label.clone(),
-        bg_hex: interpolate_hex(&from.bg_hex, &to.bg_hex, t),
-        toolbar_bg_hex: interpolate_hex(&from.toolbar_bg_hex, &to.toolbar_bg_hex, t),
-        panel_bg_hex: interpolate_hex(&from.panel_bg_hex, &to.panel_bg_hex, t),
-        card_bg_hex: interpolate_hex(&from.card_bg_hex, &to.card_bg_hex, t),
-        border_hex: interpolate_hex(&from.border_hex, &to.border_hex, t),
-        accent_hex: interpolate_hex(&from.accent_hex, &to.accent_hex, t),
-        accent_soft_hex: interpolate_hex(&from.accent_soft_hex, &to.accent_soft_hex, t),
-        text_hex: interpolate_hex(&from.text_hex, &to.text_hex, t),
-        label_hex: interpolate_hex(&from.label_hex, &to.label_hex, t),
-        muted_hex: interpolate_hex(&from.muted_hex, &to.muted_hex, t),
-        hover_border_hex: interpolate_hex(&from.hover_border_hex, &to.hover_border_hex, t),
-        placeholder_hex: interpolate_hex(&from.placeholder_hex, &to.placeholder_hex, t),
-        footer_bg_hex: interpolate_hex(&from.footer_bg_hex, &to.footer_bg_hex, t),
-        surface_hex: interpolate_hex(&from.surface_hex, &to.surface_hex, t),
-    }
+    let from_rgb = RgbThemeSnapshot::from_ui_theme(from);
+    let to_rgb = RgbThemeSnapshot::from_ui_theme(to);
+    from_rgb.interpolate(&to_rgb, t, to)
 }
 
 impl ThemePreset {
@@ -268,17 +327,6 @@ fn parse_hex_rgb(hex: &str) -> Option<Rgb> {
         g: u8::from_str_radix(&hex[2..4], 16).ok()?,
         b: u8::from_str_radix(&hex[4..6], 16).ok()?,
     })
-}
-
-fn interpolate_hex(from: &str, to: &str, t: f32) -> String {
-    let Some(from_rgb) = parse_hex_rgb(from) else {
-        return to.to_owned();
-    };
-    let Some(to_rgb) = parse_hex_rgb(to) else {
-        return from.to_owned();
-    };
-
-    to_hex(mix(from_rgb, to_rgb, t))
 }
 
 fn to_hex(rgb: Rgb) -> String {

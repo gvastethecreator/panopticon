@@ -19,7 +19,7 @@ pub fn sort_windows_for_grouping(windows: &mut [WindowInfo], settings: &AppSetti
     windows.sort_by_cached_key(|window| {
         (
             grouping_sort_key(window, settings.group_windows_by),
-            normalize_sort_value(&window.app_label()),
+            normalize_sort_value(window.app_label()),
             normalize_sort_value(&window.title),
             normalize_sort_value(&window.monitor_name),
             window.hwnd.0 as isize,
@@ -53,7 +53,7 @@ pub fn apply_pinned_positions(windows: &mut Vec<WindowInfo>, settings: &AppSetti
     pinned.sort_by_key(|(position, window)| {
         (
             *position,
-            normalize_sort_value(&window.app_label()),
+            normalize_sort_value(window.app_label()),
             normalize_sort_value(&window.title),
             window.hwnd.0 as isize,
         )
@@ -113,11 +113,11 @@ pub fn active_filter_summary(settings: &AppSettings) -> Option<String> {
 /// Collect unique monitor names in sorted order.
 #[must_use]
 pub fn collect_available_monitors(windows: &[WindowInfo]) -> Vec<String> {
-    let set: BTreeSet<String> = windows
-        .iter()
-        .map(|window| window.monitor_name.clone())
-        .collect();
-    set.into_iter().collect()
+    let mut set: BTreeSet<&str> = BTreeSet::new();
+    for window in windows {
+        set.insert(&window.monitor_name);
+    }
+    set.into_iter().map(String::from).collect()
 }
 
 /// Collect unique applications in sorted, user-friendly order.
@@ -126,7 +126,7 @@ pub fn collect_available_apps(windows: &[WindowInfo]) -> Vec<AppSelectionEntry> 
     let mut map: HashMap<String, String> = HashMap::new();
     for window in windows {
         map.entry(window.app_id.clone())
-            .or_insert_with(|| window.app_label());
+            .or_insert_with(|| window.app_label().to_owned());
     }
     let mut apps: Vec<AppSelectionEntry> = map
         .into_iter()
@@ -139,9 +139,9 @@ pub fn collect_available_apps(windows: &[WindowInfo]) -> Vec<AppSelectionEntry> 
 /// Truncate a long window title while preserving the workspace style.
 #[must_use]
 pub fn truncate_title(title: &str) -> String {
-    let chars: Vec<char> = title.chars().collect();
-    if chars.len() > MAX_TITLE_CHARS {
-        let mut short: String = chars[..TITLE_TRUNCATE_AT].iter().collect();
+    let char_count = title.chars().count();
+    if char_count > MAX_TITLE_CHARS {
+        let mut short: String = title.chars().take(TITLE_TRUNCATE_AT).collect();
         short.push_str("...");
         short
     } else {
@@ -152,7 +152,7 @@ pub fn truncate_title(title: &str) -> String {
 fn grouping_sort_key(window: &WindowInfo, grouping: WindowGrouping) -> String {
     match grouping {
         WindowGrouping::None => String::new(),
-        WindowGrouping::Application => normalize_sort_value(&window.app_label()),
+        WindowGrouping::Application => normalize_sort_value(window.app_label()),
         WindowGrouping::Monitor => normalize_sort_value(&window.monitor_name),
         WindowGrouping::WindowTitle => normalize_sort_value(&window.title),
         WindowGrouping::ClassName => normalize_sort_value(&window.class_name),

@@ -1,7 +1,7 @@
 //! Window enumeration refresh and synchronization with managed state.
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
@@ -29,7 +29,7 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         .iter()
         .map(|window| (window.hwnd.0 as isize, window))
         .collect();
-    let discovered_hwnds: HashSet<isize> = discovered_map.keys().copied().collect();
+    let discovered_hwnds: Vec<isize> = discovered_map.keys().copied().collect();
     let discovered_order: HashMap<isize, usize> = discovered
         .iter()
         .enumerate()
@@ -45,7 +45,7 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     changed |=
         update_existing_windows(&mut state.windows, &discovered_map, host_hwnd, host_visible);
 
-    let existing: HashSet<isize> = state
+    let existing: Vec<isize> = state
         .windows
         .iter()
         .map(|managed_window| managed_window.info.hwnd.0 as isize)
@@ -91,7 +91,7 @@ fn collect_discovered_windows(state: &mut AppState, host_hwnd: HWND) -> Vec<Wind
     for window in &discovered_all {
         state
             .settings
-            .refresh_app_label(&window.app_id, &window.app_label());
+            .refresh_app_label(&window.app_id, window.app_label());
     }
 
     let monitor_filter = state.settings.active_monitor_filter.clone();
@@ -122,7 +122,7 @@ fn collect_discovered_windows(state: &mut AppState, host_hwnd: HWND) -> Vec<Wind
 fn append_new_windows(
     windows: &mut Vec<ManagedWindow>,
     discovered: Vec<WindowInfo>,
-    existing: &HashSet<isize>,
+    existing: &[isize],
     host_hwnd: HWND,
     host_visible: bool,
 ) -> bool {
@@ -190,12 +190,13 @@ fn update_existing_windows(
 }
 
 fn window_metadata_changed(current: &WindowInfo, fresh: &WindowInfo) -> bool {
-    fresh.title != current.title
-        || fresh.app_id != current.app_id
-        || fresh.process_name != current.process_name
-        || fresh.process_path != current.process_path
+    // Cheapest comparisons first (small fixed strings) → expensive last (title).
+    fresh.app_id != current.app_id
         || fresh.class_name != current.class_name
         || fresh.monitor_name != current.monitor_name
+        || fresh.process_name != current.process_name
+        || fresh.process_path != current.process_path
+        || fresh.title != current.title
 }
 
 fn should_reset_cached_icon(current: &WindowInfo, fresh: &WindowInfo) -> bool {
