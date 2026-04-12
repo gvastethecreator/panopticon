@@ -13,7 +13,7 @@ use super::dock::{apply_dock_mode, apply_topmost_mode, restore_floating_style, u
 use super::secondary_windows;
 use super::tray::{show_application_context_menu_at, TrayAction, TrayMenuState};
 use crate::{
-    logical_to_screen_point, queue_exit_request, recompute_and_update_ui, refresh_ui,
+    cycle_layout, logical_to_screen_point, queue_exit_request, recompute_and_update_ui, refresh_ui,
     refresh_windows, release_all_thumbnails, update_settings, AppState, MainWindow,
 };
 
@@ -280,15 +280,4 @@ fn restore_from_tray(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindo
         refresh_windows(state);
         recompute_and_update_ui(state, &window);
     }
-}
-
-fn cycle_layout(state: &Rc<RefCell<AppState>>) {
-    let mut state = state.borrow_mut();
-    if state.settings.locked_layout {
-        return;
-    }
-    state.current_layout = state.current_layout.next();
-    state.settings.initial_layout = state.current_layout;
-    state.drag_separator = None;
-    let _ = state.settings.save(state.profile_name.as_deref());
 }

@@ -12,56 +12,47 @@
 
 mod app;
 
+pub(crate) use app::model_sync::{
+    advance_animation, recompute_and_update_ui, sync_model_to_slint, sync_settings_to_ui,
+};
+
 use app::dock::{
-    apply_dock_mode, apply_topmost_mode, apply_window_appearance, docked_mode_active,
-    is_blocked_dock_syscommand, reposition_appbar, sync_dock_system_menu, unregister_appbar,
+    apply_dock_mode, apply_topmost_mode, apply_window_appearance, reposition_appbar,
+    sync_dock_system_menu, unregister_appbar,
 };
 use app::dwm::{
     ensure_thumbnail, query_source_size, release_all_thumbnails, release_thumbnail,
     update_dwm_thumbnails,
 };
-use app::icon::populate_cached_icon;
-use app::theme_ui::{
-    advance_theme_animation, apply_main_window_theme_snapshot, sync_theme_target,
-    thumbnail_accent_color,
-};
-use app::tray::{
-    apply_window_icons, handle_tray_message, AppIcons, TrayAction, TrayIcon,
-    INSTANCE_ACCENT_PALETTE, WM_TRAYICON,
-};
-use panopticon::constants::{ANIMATION_DURATION_MS, TOOLBAR_HEIGHT};
+use app::theme_ui::{advance_theme_animation, apply_main_window_theme_snapshot};
+use app::tray::{apply_window_icons, AppIcons, TrayAction, TrayIcon, INSTANCE_ACCENT_PALETTE};
+use panopticon::constants::TOOLBAR_HEIGHT;
 use panopticon::layout::{
-    apply_separator_drag, apply_separator_drag_grouped, compute_layout_custom, default_ratios,
-    AspectHint, LayoutType, ScrollDirection, Separator,
+    apply_separator_drag, apply_separator_drag_grouped, default_ratios, LayoutType,
+    ScrollDirection, Separator,
 };
 use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
-use panopticon::window_ops::{
-    active_filter_summary, apply_pinned_positions, sort_windows_for_grouping, truncate_title,
-};
+use panopticon::window_ops::{apply_pinned_positions, sort_windows_for_grouping};
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
-use std::mem;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use slint::{
-    CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel,
-};
+use slint::{CloseRequestResponse, ComponentHandle, SharedString, Timer, TimerMode};
 
 use windows::core::w;
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
+use windows::Win32::Foundation::{HWND, POINT, RECT, SIZE};
 
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
-use windows::Win32::UI::Shell::ABN_POSCHANGED;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 slint::include_modules!();
@@ -436,14 +427,7 @@ fn main() {
     scrollbar_timer.start(TimerMode::Repeated, Duration::from_millis(200), {
         let weak = main_window.as_weak();
         move || {
-            let should_hide = SCROLL_LAST_ACTIVITY
-                .with(|c| c.get().is_some_and(|t| t.elapsed() >= SCROLLBAR_HIDE_DELAY));
-            if should_hide {
-                SCROLL_LAST_ACTIVITY.with(|c| c.set(None));
-                if let Some(win) = weak.upgrade() {
-                    win.set_scroll_active(false);
-                }
-            }
+            app::window_subclass::hide_scrollbar_if_idle(&weak);
         }
     });
 
@@ -453,7 +437,7 @@ fn main() {
     }
     let hwnd = state.borrow().hwnd;
     if !hwnd.0.is_null() {
-        teardown_subclass(hwnd);
+        app::window_subclass::teardown_subclass(hwnd);
     }
     tracing::info!("Panopticon exiting");
 }
@@ -513,7 +497,7 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
     }
 
     // Subclass the Slint HWND to intercept tray / appbar / minimize messages.
-    setup_subclass(hwnd, state, win);
+    app::window_subclass::setup_subclass(hwnd, state, win);
 
     let refreshed = refresh_windows(state);
     let tracked = state.borrow().windows.len();
@@ -540,317 +524,6 @@ fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow
     }
 
     true
-}
-
-// ───────────────────────── HWND Subclass ─────────────────────────
-
-fn setup_subclass(hwnd: HWND, state: &Rc<RefCell<AppState>>, main_window: &MainWindow) {
-    UI_STATE.with(|s| *s.borrow_mut() = Some(state.clone()));
-    UI_WINDOW.with(|w| *w.borrow_mut() = Some(main_window.as_weak()));
-
-    // SAFETY: hwnd is a live window created by winit; we read then replace
-    // the WndProc pointer on the same UI thread that owns the window.
-    let original = unsafe { GetWindowLongPtrW(hwnd, GWL_WNDPROC) };
-    ORIGINAL_WNDPROC.with(|p| p.set(original));
-
-    // SAFETY: same UI thread; we install our subclass proc and keep the
-    // original pointer in ORIGINAL_WNDPROC for forwarding.
-    unsafe {
-        let subclass_proc_ptr = subclass_proc as *const () as isize;
-        let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, subclass_proc_ptr);
-    }
-}
-
-fn teardown_subclass(hwnd: HWND) {
-    let original = ORIGINAL_WNDPROC.with(Cell::get);
-    if original != 0 {
-        // SAFETY: restoring the original WndProc saved during setup_subclass;
-        // called on the same UI thread that owns the window.
-        unsafe {
-            let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, original);
-        }
-    }
-    UI_STATE.with(|s| *s.borrow_mut() = None);
-    UI_WINDOW.with(|w| *w.borrow_mut() = None);
-}
-
-#[inline]
-#[allow(clippy::missing_transmute_annotations)]
-fn forward_to_original(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let original = ORIGINAL_WNDPROC.with(Cell::get);
-    if original == 0 {
-        // SAFETY: DefWindowProcW is always valid as a fallback.
-        return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
-    }
-    // SAFETY: `original` points to winit's WndProc set during window creation.
-    unsafe { CallWindowProcW(mem::transmute(original), hwnd, msg, wparam, lparam) }
-}
-
-#[allow(clippy::too_many_lines)]
-unsafe extern "system" fn subclass_proc(
-    hwnd: HWND,
-    msg: u32,
-    wparam: WPARAM,
-    lparam: LPARAM,
-) -> LRESULT {
-    // TaskbarCreated: re-register tray icon.
-    let taskbar_msg = TASKBAR_CREATED_MSG.load(Ordering::Relaxed);
-    if taskbar_msg != 0 && msg == taskbar_msg {
-        UI_STATE.with(|s| {
-            if let Some(rc) = s.borrow().as_ref() {
-                if let Ok(mut st) = rc.try_borrow_mut() {
-                    let small = st.icons.small;
-                    if let Some(tray) = st.tray_icon.as_mut() {
-                        tray.readd(small);
-                    }
-                }
-            }
-        });
-        return forward_to_original(hwnd, msg, wparam, lparam);
-    }
-
-    match msg {
-        WM_TRAYICON => {
-            handle_tray_subclass(hwnd, lparam);
-            LRESULT(0)
-        }
-        WM_SYSKEYDOWN => {
-            if wparam.0 as u32 == 0x12 && (lparam.0 & 0x4000_0000) == 0 {
-                toggle_toolbar_from_alt_hotkey();
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        WM_APPBAR_CALLBACK => {
-            if wparam.0 as u32 == ABN_POSCHANGED {
-                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Reposition));
-            }
-            LRESULT(0)
-        }
-        WM_WINDOWPOSCHANGED | WM_DISPLAYCHANGE | WM_DPICHANGED | WM_SETTINGCHANGE => {
-            if docked_mode_active() {
-                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Reposition));
-            }
-            forward_to_original(hwnd, msg, wparam, lparam)
-        }
-        WM_SYSCOMMAND => {
-            if docked_mode_active() && is_blocked_dock_syscommand(wparam.0) {
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        WM_CLOSE => {
-            let should_hide = UI_STATE.with(|s| {
-                s.borrow()
-                    .as_ref()
-                    .and_then(|rc| rc.try_borrow().ok().map(|st| st.settings.close_to_tray))
-                    .unwrap_or(false)
-            });
-            if should_hide {
-                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::HideToTray));
-            } else {
-                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Exit));
-            }
-            LRESULT(0)
-        }
-        WM_SIZE => {
-            if wparam.0 as u32 == 1
-            /* SIZE_MINIMIZED */
-            {
-                let should_hide = UI_STATE.with(|s| {
-                    s.borrow()
-                        .as_ref()
-                        .and_then(|rc| rc.try_borrow().ok().map(|st| st.settings.minimize_to_tray))
-                        .unwrap_or(false)
-                });
-                if should_hide {
-                    PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::HideToTray));
-                }
-            }
-            forward_to_original(hwnd, msg, wparam, lparam)
-        }
-        WM_SHOWWINDOW => {
-            handle_show_window(wparam);
-            forward_to_original(hwnd, msg, wparam, lparam)
-        }
-        WM_MBUTTONDOWN => {
-            let x = (lparam.0 & 0xFFFF) as i16 as i32;
-            let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
-            PAN_STATE.with(|p| {
-                let mut pan = p.borrow_mut();
-                pan.active = true;
-                pan.last_x = x;
-                pan.last_y = y;
-            });
-            LRESULT(0)
-        }
-        WM_MOUSEWHEEL => {
-            let handled = handle_wheel_scroll(wparam);
-            if handled {
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        WM_MBUTTONUP => {
-            PAN_STATE.with(|p| p.borrow_mut().active = false);
-            LRESULT(0)
-        }
-        WM_MOUSEMOVE => {
-            let pan_active = PAN_STATE.with(|p| p.borrow().active);
-            if pan_active {
-                // MK_MBUTTON (0x0010) — reset stale pan if middle button was
-                // released outside the window (WM_MBUTTONUP never received).
-                if wparam.0 & 0x0010 == 0 {
-                    PAN_STATE.with(|p| p.borrow_mut().active = false);
-                    return forward_to_original(hwnd, msg, wparam, lparam);
-                }
-                handle_middle_pan_move(lparam);
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        _ => forward_to_original(hwnd, msg, wparam, lparam),
-    }
-}
-
-/// Handles `WM_SHOWWINDOW` — enqueue refresh on show, release thumbnails on hide.
-fn handle_show_window(wparam: WPARAM) {
-    if wparam.0 != 0 {
-        PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Refresh));
-    } else {
-        UI_STATE.with(|s| {
-            if let Some(rc) = s.borrow().as_ref() {
-                if let Ok(mut st) = rc.try_borrow_mut() {
-                    for mw in &mut st.windows {
-                        release_thumbnail(mw);
-                    }
-                }
-            }
-        });
-    }
-}
-
-/// Handles tray icon messages (left/right click).
-fn handle_tray_subclass(hwnd: HWND, lparam: LPARAM) {
-    let mouse_msg = lparam.0 as u32;
-    if mouse_msg == WM_LBUTTONUP {
-        PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Tray(TrayAction::Toggle)));
-    } else if mouse_msg == WM_RBUTTONUP {
-        let menu_state = UI_STATE.with(|s| {
-            s.borrow().as_ref().and_then(|rc| {
-                rc.try_borrow_mut()
-                    .ok()
-                    .map(|mut st| app::tray_actions::build_tray_menu_state(&mut st))
-            })
-        });
-        if let Some(menu_state) = menu_state {
-            if let Some(action) = handle_tray_message(hwnd, lparam, &menu_state) {
-                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Tray(action)));
-            }
-        }
-    }
-}
-
-/// Handles mouse wheel scroll — maps vertical wheel to horizontal for Row mode.
-/// Returns `true` if the event was consumed.
-fn handle_wheel_scroll(wparam: WPARAM) -> bool {
-    let delta = (wparam.0 >> 16) as i16 as f32; // high word = wheel delta
-    let scroll_px = delta / 120.0 * 48.0; // 48 logical px per wheel tick
-    UI_WINDOW.with(|w| {
-        let Some(win) = w.borrow().as_ref().and_then(slint::Weak::upgrade) else {
-            return false;
-        };
-        let scroll_h = win.get_scroll_horizontal();
-        let scroll_v = win.get_scroll_vertical();
-        if scroll_h {
-            let scale = win.window().scale_factor();
-            let phys = win.window().size();
-            let cw = win.get_content_width();
-            let visible = phys.width as f32 / scale;
-            let max_scroll = (cw - visible).max(0.0);
-            let new_vx = (win.get_viewport_x() + scroll_px).clamp(-max_scroll, 0.0);
-            win.set_viewport_x(new_vx);
-            flash_scrollbar(&win);
-            true
-        } else if scroll_v {
-            let scale = win.window().scale_factor();
-            let phys = win.window().size();
-            let toolbar_h = if win.get_show_toolbar() {
-                TOOLBAR_HEIGHT as f32
-            } else {
-                0.0
-            };
-            let ch = win.get_content_height();
-            let visible = phys.height as f32 / scale - toolbar_h;
-            let max_scroll = (ch - visible).max(0.0);
-            let new_vy = (win.get_viewport_y() + scroll_px).clamp(-max_scroll, 0.0);
-            win.set_viewport_y(new_vy);
-            flash_scrollbar(&win);
-            true
-        } else {
-            false
-        }
-    })
-}
-
-/// Applies a middle-button pan delta to the scroll viewport.
-fn handle_middle_pan_move(lparam: LPARAM) {
-    let x = (lparam.0 & 0xFFFF) as i16 as i32;
-    let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
-    PAN_STATE.with(|p| {
-        let mut pan = p.borrow_mut();
-        let dx = x - pan.last_x;
-        let dy = y - pan.last_y;
-        pan.last_x = x;
-        pan.last_y = y;
-        UI_WINDOW.with(|w| {
-            if let Some(win) = w.borrow().as_ref().and_then(slint::Weak::upgrade) {
-                let scale = win.window().scale_factor();
-                let scroll_h = win.get_scroll_horizontal();
-                let scroll_v = win.get_scroll_vertical();
-                let mut scrolled = false;
-                if scroll_h {
-                    let phys = win.window().size();
-                    let cw = win.get_content_width();
-                    let visible = phys.width as f32 / scale;
-                    let max_scroll = (cw - visible).max(0.0);
-                    let new_vx = (win.get_viewport_x() + dx as f32 / scale).clamp(-max_scroll, 0.0);
-                    win.set_viewport_x(new_vx);
-                    scrolled = true;
-                }
-                if scroll_v {
-                    let phys = win.window().size();
-                    let toolbar_h = if win.get_show_toolbar() {
-                        TOOLBAR_HEIGHT as f32
-                    } else {
-                        0.0
-                    };
-                    let ch = win.get_content_height();
-                    let visible = phys.height as f32 / scale - toolbar_h;
-                    let max_scroll = (ch - visible).max(0.0);
-                    let new_vy = (win.get_viewport_y() + dy as f32 / scale).clamp(-max_scroll, 0.0);
-                    win.set_viewport_y(new_vy);
-                    scrolled = true;
-                }
-                if scrolled {
-                    flash_scrollbar(&win);
-                }
-            }
-        });
-    });
-}
-
-/// Duration after which the scrollbar overlay auto-hides.
-const SCROLLBAR_HIDE_DELAY: Duration = Duration::from_millis(1500);
-
-/// Mark the scrollbar as visible and record activity time for auto-hide.
-fn flash_scrollbar(win: &MainWindow) {
-    win.set_scroll_active(true);
-    SCROLL_LAST_ACTIVITY.with(|c| c.set(Some(Instant::now())));
 }
 
 // ───────────────────────── Slint Callbacks ─────────────────────────
@@ -1082,284 +755,6 @@ fn update_existing_windows(
         }
     }
     changed
-}
-
-// ───────────────────────── Layout + UI Sync ─────────────────────────
-
-fn recompute_and_update_ui(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let mut s = state.borrow_mut();
-    if s.windows.is_empty() {
-        s.animation_started_at = None;
-        sync_theme_target(&mut s);
-        sync_settings_to_ui(win, &s.settings);
-        sync_background_image(&mut s, win);
-        drop(s);
-        sync_model_to_slint(state, win);
-        return;
-    }
-
-    let phys = win.window().size();
-    let scale = win.window().scale_factor();
-    let logical_w = (phys.width as f32 / scale).round() as i32;
-    let logical_h = (phys.height as f32 / scale).round() as i32;
-    let toolbar_h = if s.settings.show_toolbar {
-        TOOLBAR_HEIGHT
-    } else {
-        0
-    };
-
-    // Layout engine works in logical pixels, content-area relative (top = 0).
-    let content_area = RECT {
-        left: 0,
-        top: 0,
-        right: logical_w,
-        bottom: (logical_h - toolbar_h).max(1),
-    };
-
-    let aspects: Vec<AspectHint> = s
-        .windows
-        .iter()
-        .map(|mw| AspectHint {
-            width: f64::from(mw.source_size.cx),
-            height: f64::from(mw.source_size.cy),
-        })
-        .collect();
-
-    let custom = s.settings.layout_custom(s.current_layout).cloned();
-    let result = compute_layout_custom(
-        s.current_layout,
-        content_area,
-        s.windows.len(),
-        &aspects,
-        custom.as_ref(),
-    );
-    let rects = result.rects;
-    s.separators = result.separators;
-
-    // Content extent for scrolling.
-    let scroll_dir = s.current_layout.scroll_direction();
-    s.content_extent = match scroll_dir {
-        ScrollDirection::Horizontal => rects.iter().map(|r| r.right).max().unwrap_or(0),
-        ScrollDirection::Vertical => rects.iter().map(|r| r.bottom).max().unwrap_or(0),
-        ScrollDirection::None => 0,
-    };
-
-    let can_animate = s.settings.animate_transitions
-        && !s.hwnd.0.is_null()
-        && unsafe { IsWindowVisible(s.hwnd).as_bool() }
-        && s.drag_separator.is_none()
-        && s.windows.iter().any(|mw| rect_has_area(mw.display_rect));
-    let mut animation_needed = false;
-
-    for (i, mw) in s.windows.iter_mut().enumerate() {
-        if let Some(&rect) = rects.get(i) {
-            let prev = if rect_has_area(mw.display_rect) {
-                mw.display_rect
-            } else {
-                rect
-            };
-            mw.animation_from_rect = prev;
-            mw.target_rect = rect;
-            if can_animate && prev != rect {
-                animation_needed = true;
-            } else {
-                mw.display_rect = rect;
-            }
-        }
-    }
-
-    if animation_needed {
-        s.animation_started_at = Some(Instant::now());
-    } else {
-        s.animation_started_at = None;
-        for mw in &mut s.windows {
-            mw.display_rect = mw.target_rect;
-        }
-    }
-
-    // Update Slint properties.
-    let scroll_h = scroll_dir == ScrollDirection::Horizontal;
-    let scroll_v = scroll_dir == ScrollDirection::Vertical;
-    win.set_scroll_horizontal(scroll_h);
-    win.set_scroll_vertical(scroll_v);
-    win.set_content_width(s.content_extent as f32);
-    win.set_content_height(s.content_extent as f32);
-    clamp_viewport_offsets(
-        win,
-        scroll_dir,
-        s.content_extent,
-        logical_w,
-        content_area.bottom,
-    );
-
-    sync_theme_target(&mut s);
-    sync_settings_to_ui(win, &s.settings);
-    sync_background_image(&mut s, win);
-
-    drop(s);
-    sync_model_to_slint(state, win);
-}
-
-fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
-    win.set_show_toolbar(settings.show_toolbar);
-    win.set_show_window_info(settings.show_window_info);
-    win.set_is_always_on_top(settings.always_on_top);
-    win.set_animate_transitions(settings.animate_transitions);
-    win.set_resize_locked(settings.locked_layout || settings.lock_cell_resize);
-    win.set_refresh_label(SharedString::from(settings.refresh_interval_label()));
-    win.set_filters_label(SharedString::from(
-        active_filter_summary(settings).unwrap_or_default(),
-    ));
-}
-
-fn sync_background_image(state: &mut AppState, win: &MainWindow) {
-    let desired = state.settings.background_image_path.clone();
-    if state.loaded_background_path == desired {
-        return;
-    }
-
-    if let Some(path) = desired.as_deref() {
-        match slint::Image::load_from_path(std::path::Path::new(path)) {
-            Ok(image) => {
-                win.set_background_image(image);
-                state.loaded_background_path = desired;
-            }
-            Err(error) => {
-                tracing::warn!(%error, path, "failed to load background image");
-                win.set_background_image(slint::Image::default());
-                state.loaded_background_path = None;
-            }
-        }
-    } else {
-        win.set_background_image(slint::Image::default());
-        state.loaded_background_path = None;
-    }
-}
-
-fn clamp_viewport_offsets(
-    win: &MainWindow,
-    scroll_dir: ScrollDirection,
-    content_extent: i32,
-    visible_width: i32,
-    visible_height: i32,
-) {
-    match scroll_dir {
-        ScrollDirection::Horizontal => {
-            let max_scroll = (content_extent - visible_width).max(0) as f32;
-            win.set_viewport_x(win.get_viewport_x().clamp(-max_scroll, 0.0));
-            win.set_viewport_y(0.0);
-        }
-        ScrollDirection::Vertical => {
-            let max_scroll = (content_extent - visible_height).max(0) as f32;
-            win.set_viewport_y(win.get_viewport_y().clamp(-max_scroll, 0.0));
-            win.set_viewport_x(0.0);
-        }
-        ScrollDirection::None => {
-            win.set_viewport_x(0.0);
-            win.set_viewport_y(0.0);
-        }
-    }
-}
-
-fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let mut s = state.borrow_mut();
-    let show_footer = s.settings.show_window_info;
-    let show_icons = s.settings.show_app_icons;
-    let resize_locked = s.settings.locked_layout || s.settings.lock_cell_resize;
-
-    // Populate cached icons lazily.
-    if show_icons {
-        for mw in &mut s.windows {
-            populate_cached_icon(mw);
-        }
-    } else {
-        for mw in &mut s.windows {
-            mw.cached_icon = None;
-        }
-    }
-
-    let data: Vec<ThumbnailData> = s
-        .windows
-        .iter()
-        .map(|mw| {
-            let accent = thumbnail_accent_color(&s.settings, &s.current_theme, &mw.info.app_id);
-            let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
-            ThumbnailData {
-                x: mw.display_rect.left as f32,
-                y: mw.display_rect.top as f32,
-                width: (mw.display_rect.right - mw.display_rect.left) as f32,
-                height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
-                title: SharedString::from(truncate_title(&mw.info.title)),
-                app_label: SharedString::from(mw.info.app_label()),
-                is_active: s.active_hwnd == Some(mw.info.hwnd),
-                accent_color: accent,
-                show_footer,
-                is_minimized,
-                icon: mw.cached_icon.clone().unwrap_or_default(),
-                show_icon: show_icons,
-            }
-        })
-        .collect();
-
-    // Build resize handle data from cached separators.
-    let handle_thickness: f32 = 14.0;
-    let handles: Vec<ResizeHandleData> = if resize_locked {
-        Vec::new()
-    } else {
-        s.separators
-            .iter()
-            .enumerate()
-            .map(|(idx, sep)| {
-                if sep.horizontal {
-                    ResizeHandleData {
-                        x: sep.extent_start as f32,
-                        y: sep.position as f32 - handle_thickness / 2.0,
-                        width: (sep.extent_end - sep.extent_start) as f32,
-                        height: handle_thickness,
-                        horizontal: true,
-                        index: idx as i32,
-                    }
-                } else {
-                    ResizeHandleData {
-                        x: sep.position as f32 - handle_thickness / 2.0,
-                        y: sep.extent_start as f32,
-                        width: handle_thickness,
-                        height: (sep.extent_end - sep.extent_start) as f32,
-                        horizontal: false,
-                        index: idx as i32,
-                    }
-                }
-            })
-            .collect()
-    };
-
-    let dragging = s.drag_separator.is_some();
-    let active_drag = s
-        .drag_separator
-        .as_ref()
-        .map_or(-1, |d| d.separator_index as i32);
-
-    win.set_layout_label(SharedString::from(s.current_layout.label()));
-    win.set_window_count(s.windows.len() as i32);
-    win.set_hidden_count(s.settings.hidden_app_entries().len() as i32);
-
-    drop(s);
-    win.set_thumbnails(ModelRc::new(VecModel::from(data)));
-
-    // During a drag, update handle positions in-place via set_row_data so that
-    // the Slint component instances (and their pointer capture) survive.
-    if dragging {
-        let model = win.get_resize_handles();
-        let existing = model.row_count();
-        for (idx, handle_data) in handles.into_iter().enumerate() {
-            if idx < existing {
-                model.set_row_data(idx, handle_data);
-            }
-        }
-    } else {
-        win.set_resize_handles(ModelRc::new(VecModel::from(handles)));
-    }
-    win.set_active_drag_index(active_drag);
 }
 
 // ───────────────────────── Keyboard ─────────────────────────
@@ -1690,7 +1085,7 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
 
 // ───────────────────────── Layout / State helpers ─────────────────────────
 
-fn cycle_layout(state: &Rc<RefCell<AppState>>) {
+pub(crate) fn cycle_layout(state: &Rc<RefCell<AppState>>) {
     let mut s = state.borrow_mut();
     if s.settings.locked_layout {
         return;
@@ -1786,88 +1181,6 @@ pub(crate) fn schedule_deferred_refresh(
     std::mem::forget(timer);
 }
 
-fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let Ok(mut s) = state.try_borrow_mut() else {
-        return;
-    };
-    let Some(started_at) = s.animation_started_at else {
-        return;
-    };
-    if !unsafe { IsWindowVisible(s.hwnd).as_bool() } {
-        s.animation_started_at = None;
-        return;
-    }
-
-    let elapsed_ms = started_at.elapsed().as_millis() as u32;
-    let progress = (elapsed_ms as f32 / ANIMATION_DURATION_MS as f32).clamp(0.0, 1.0);
-    let eased = 1.0 - (1.0 - progress).powi(3);
-
-    for mw in &mut s.windows {
-        mw.display_rect = lerp_rect(mw.animation_from_rect, mw.target_rect, eased);
-    }
-
-    if progress >= 1.0 {
-        s.animation_started_at = None;
-        for mw in &mut s.windows {
-            mw.display_rect = mw.target_rect;
-        }
-    }
-
-    // Update the Slint model with new positions.
-    let show_footer = s.settings.show_window_info;
-    let show_icons = s.settings.show_app_icons;
-    let model = win.get_thumbnails();
-    let row_count = model.row_count();
-
-    if row_count == s.windows.len() {
-        for (i, mw) in s.windows.iter().enumerate() {
-            if let Some(mut item) = model.row_data(i) {
-                let accent = thumbnail_accent_color(&s.settings, &s.current_theme, &mw.info.app_id);
-                let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
-                item.x = mw.display_rect.left as f32;
-                item.y = mw.display_rect.top as f32;
-                item.width = (mw.display_rect.right - mw.display_rect.left) as f32;
-                item.height = (mw.display_rect.bottom - mw.display_rect.top) as f32;
-                item.title = SharedString::from(truncate_title(&mw.info.title));
-                item.app_label = SharedString::from(mw.info.app_label());
-                item.is_active = s.active_hwnd == Some(mw.info.hwnd);
-                item.accent_color = accent;
-                item.show_footer = show_footer;
-                item.is_minimized = is_minimized;
-                item.icon = mw.cached_icon.clone().unwrap_or_default();
-                item.show_icon = show_icons;
-                model.set_row_data(i, item);
-            }
-        }
-        drop(s);
-    } else {
-        let data: Vec<ThumbnailData> = s
-            .windows
-            .iter()
-            .map(|mw| {
-                let accent = thumbnail_accent_color(&s.settings, &s.current_theme, &mw.info.app_id);
-                let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
-                ThumbnailData {
-                    x: mw.display_rect.left as f32,
-                    y: mw.display_rect.top as f32,
-                    width: (mw.display_rect.right - mw.display_rect.left) as f32,
-                    height: (mw.display_rect.bottom - mw.display_rect.top) as f32,
-                    title: SharedString::from(truncate_title(&mw.info.title)),
-                    app_label: SharedString::from(mw.info.app_label()),
-                    is_active: s.active_hwnd == Some(mw.info.hwnd),
-                    accent_color: accent,
-                    show_footer,
-                    is_minimized,
-                    icon: mw.cached_icon.clone().unwrap_or_default(),
-                    show_icon: show_icons,
-                }
-            })
-            .collect();
-        drop(s);
-        win.set_thumbnails(ModelRc::new(VecModel::from(data)));
-    }
-}
-
 fn request_exit(state: &Rc<RefCell<AppState>>) {
     tracing::info!("exiting Panopticon");
     {
@@ -1888,25 +1201,6 @@ fn request_exit(state: &Rc<RefCell<AppState>>) {
         h.borrow_mut().take();
     });
     slint::quit_event_loop().ok();
-}
-
-fn toggle_toolbar_from_alt_hotkey() {
-    UI_STATE.with(|state| {
-        UI_WINDOW.with(|window| {
-            let Some(state) = state.borrow().as_ref().cloned() else {
-                return;
-            };
-            let Some(window) = window.borrow().as_ref().and_then(slint::Weak::upgrade) else {
-                return;
-            };
-            {
-                let mut guard = state.borrow_mut();
-                guard.settings.show_toolbar = !guard.settings.show_toolbar;
-                let _ = guard.settings.save(guard.profile_name.as_deref());
-            }
-            recompute_and_update_ui(&state, &window);
-        });
-    });
 }
 
 // ───────────────────────── Utility ─────────────────────────
@@ -1937,23 +1231,6 @@ pub(crate) fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32
         x: window_rect.left + logical_x.round() as i32,
         y: window_rect.top + logical_y.round() as i32,
     }
-}
-
-fn rect_has_area(rect: RECT) -> bool {
-    rect.right > rect.left && rect.bottom > rect.top
-}
-
-fn lerp_rect(from: RECT, to: RECT, t: f32) -> RECT {
-    RECT {
-        left: lerp_i32(from.left, to.left, t),
-        top: lerp_i32(from.top, to.top, t),
-        right: lerp_i32(from.right, to.right, t),
-        bottom: lerp_i32(from.bottom, to.bottom, t),
-    }
-}
-
-fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
-    (from as f32 + (to - from) as f32 * t).round() as i32
 }
 
 pub(crate) fn queue_exit_request() {
