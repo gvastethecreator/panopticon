@@ -43,8 +43,8 @@ export component ThumbnailCard inherits Rectangle {
     property <length> minimized-badge-width: root.is-minimized ? 78px : 0px;
     property <length> minimized-badge-gap: root.is-minimized ? 8px : 0px;
     property <string> header-text: root.is-minimized
-        ? (root.app-label != "" ? (root.app-label + "  \u{00b7}  " + Tr.minimized) : (root.title + "  \u{00b7}  " + Tr.minimized))
-        : (root.title + (root.app-label != "" ? ("  \u{00b7}  " + root.app-label) : ""));
+        ? (root.app-label != "" ? (root.app-label + "  |  " + Tr.minimized) : (root.title + "  |  " + Tr.minimized))
+        : (root.title + (root.app-label != "" ? ("  |  " + root.app-label) : ""));
 
     Rectangle {
         x: 0;
@@ -101,7 +101,7 @@ export component ThumbnailCard inherits Rectangle {
             text: root.header-text;
             color: Theme.label;
             vertical-alignment: center;
-            font-size: 11.5px;
+            font-size: 12px;
             font-weight: 500;
             overflow: elide;
         }
@@ -123,7 +123,7 @@ export component ThumbnailCard inherits Rectangle {
                 height: 100%;
                 text: Tr.last-seen;
                 color: Theme.label;
-                font-size: 9px;
+                font-size: 10px;
                 font-weight: 700;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -146,7 +146,7 @@ export component ThumbnailCard inherits Rectangle {
             y: 0;
             width: parent.width - 20px;
             height: 100%;
-            text: root.title + (root.app-label != "" ? ("  ·  " + root.app-label) : "");
+            text: root.title + (root.app-label != "" ? ("  |  " + root.app-label) : "");
             color: Theme.label;
             vertical-alignment: center;
             font-size: 12px;
@@ -214,7 +214,7 @@ export component ThumbnailCard inherits Rectangle {
         Text {
             width: 100%;
             height: 100%;
-            text: "×";
+            text: "X";
             color: Theme.text;
             font-size: 15px;
             font-weight: 700;

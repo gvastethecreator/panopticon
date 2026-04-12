@@ -197,10 +197,36 @@ pub(crate) struct AppState {
 
 // ───────────────────────── Entry Point ─────────────────────────
 
+#[cfg(target_os = "windows")]
+fn select_text_friendly_renderer() {
+    let renderer_selection = slint::BackendSelector::new()
+        .backend_name("winit".into())
+        .renderer_name("skia".into())
+        .select();
+
+    match renderer_selection {
+        Ok(()) => {
+            tracing::info!(
+                "selected Slint winit backend with Skia renderer for sharper Windows text"
+            );
+        }
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                "failed to select Slint Skia renderer; falling back to default backend selection"
+            );
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn select_text_friendly_renderer() {}
+
 #[allow(clippy::too_many_lines)]
 fn main() {
     let _log_guard = panopticon::logging::init().ok();
     panopticon::i18n::init();
+    select_text_friendly_renderer();
 
     let profile = parse_profile_from_args();
     tracing::info!(profile = ?profile, "Panopticon starting (Slint UI)");

@@ -1,11 +1,3 @@
-import "../assets/fonts/MirandaSans-Regular.ttf";
-import "../assets/fonts/MirandaSans-Medium.ttf";
-import "../assets/fonts/MirandaSans-SemiBold.ttf";
-import "../assets/fonts/MirandaSans-Bold.ttf";
-import "../assets/fonts/MirandaSans-Italic.ttf";
-import "../assets/fonts/MirandaSans-MediumItalic.ttf";
-import "../assets/fonts/MirandaSans-SemiBoldItalic.ttf";
-import "../assets/fonts/MirandaSans-BoldItalic.ttf";
 import { Theme as ThemeGlobal, ThumbnailData as ThumbnailModel, ResizeHandleData as ResizeHandleModel } from "common.slint";
 import { ThumbnailCard } from "components/thumbnail_card.slint";
 import { ResizeHandle } from "components/resize_handle.slint";
@@ -24,7 +16,7 @@ export component MainWindow inherits Window {
     preferred-width: 1320px;
     preferred-height: 840px;
     default-font-family: "Miranda Sans";
-    default-font-size: 13px;
+    default-font-size: 14px;
 
     in property <[ThumbnailModel]> thumbnails;
     in property <[ResizeHandleModel]> resize-handles;
