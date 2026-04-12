@@ -200,6 +200,7 @@ pub(crate) struct AppState {
 fn main() {
     let _log_guard = panopticon::logging::init().ok();
     panopticon::i18n::init();
+
     let profile = parse_profile_from_args();
     tracing::info!(profile = ?profile, "Panopticon starting (Slint UI)");
 

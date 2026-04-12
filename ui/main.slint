@@ -1,3 +1,5 @@
+import "../assets/fonts/MirandaSans-Variable.ttf";
+import "../assets/fonts/MirandaSans-Italic-Variable.ttf";
 import { Theme as ThemeGlobal, ThumbnailData as ThumbnailModel, ResizeHandleData as ResizeHandleModel } from "common.slint";
 import { ThumbnailCard } from "components/thumbnail_card.slint";
 import { ResizeHandle } from "components/resize_handle.slint";
@@ -15,7 +17,7 @@ export component MainWindow inherits Window {
     background: ThemeGlobal.bg;
     preferred-width: 1320px;
     preferred-height: 840px;
-    default-font-family: "Segoe UI Variable Text";
+    default-font-family: "Miranda Sans";
     default-font-size: 13px;
 
     in property <[ThumbnailModel]> thumbnails;
