@@ -285,8 +285,8 @@ component ThumbnailCard inherits Rectangle {
                     root.is-dragging-card = true;
                 }
                 if root.is-dragging-card {
-                    root.drag-offset-x += dx;
-                    root.drag-offset-y += dy;
+                    root.drag-offset-x = dx;
+                    root.drag-offset-y = dy;
                 }
             }
         }

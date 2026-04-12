@@ -33,6 +33,10 @@ WizardStyle=modern
 ; Do not require admin — a tray utility works fine in the user profile.
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+; Ensure Panopticon is closed before install/uninstall touches its executable.
+CloseApplications=yes
+CloseApplicationsFilter=panopticon.exe
+RestartApplications=no
 ; Ship a 64-bit-only installer.
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\panopticon.exe
@@ -80,3 +84,12 @@ Root: HKCU; \
 Filename: "{app}\panopticon.exe"; \
   Description: "{cm:LaunchProgram,Panopticon}"; \
   Flags: nowait postinstall skipifsilent
+
+; ---------------------------------------------------------------------------
+[UninstallDelete]
+; Remove user-generated state and logs so uninstall actually cleans up the app.
+Type: filesandordirs; Name: "{userappdata}\Panopticon"
+Type: filesandordirs; Name: "{tmp}\Panopticon"
+Type: filesandordirs; Name: "{tmp}\panopticon"
+; Remove the install directory if the regular uninstaller cleanup emptied it.
+Type: dirifempty; Name: "{app}"

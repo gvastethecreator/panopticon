@@ -436,6 +436,32 @@ impl AppSettings {
             .unwrap_or(5_000)
     }
 
+    /// Set the thumbnail refresh mode for a specific application.
+    ///
+    /// Returns `true` when the effective persisted state changed.
+    pub fn set_app_thumbnail_refresh_mode(
+        &mut self,
+        app_id: &str,
+        display_name: &str,
+        mode: ThumbnailRefreshMode,
+    ) -> bool {
+        let rule = self.ensure_app_rule(app_id, display_name);
+        let changed = rule.thumbnail_refresh_mode != mode
+            || (mode == ThumbnailRefreshMode::Interval
+                && rule.thumbnail_refresh_interval_ms.is_none());
+
+        if !changed {
+            return false;
+        }
+
+        rule.thumbnail_refresh_mode = mode;
+        if mode == ThumbnailRefreshMode::Interval && rule.thumbnail_refresh_interval_ms.is_none() {
+            rule.thumbnail_refresh_interval_ms = Some(5_000);
+        }
+
+        true
+    }
+
     /// Returns the effective hide-on-select preference for `app_id`.
     #[must_use]
     pub fn hide_on_select_for(&self, app_id: &str) -> bool {
@@ -928,7 +954,7 @@ fn derive_tag_from_label(label: &str) -> Option<String> {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{AppRule, AppSettings, HiddenAppEntry, TagStyle};
+    use super::{AppRule, AppSettings, HiddenAppEntry, TagStyle, ThumbnailRefreshMode};
     use crate::layout::LayoutType;
 
     #[test]
@@ -1116,6 +1142,39 @@ mod tests {
 
         assert!(settings.set_app_color_hex("app:browser", "Arc Browser", None));
         assert_eq!(settings.app_color_hex("app:browser"), None);
+    }
+
+    #[test]
+    fn thumbnail_refresh_mode_can_be_assigned_per_app() {
+        let mut settings = AppSettings::default();
+
+        assert!(settings.set_app_thumbnail_refresh_mode(
+            "app:browser",
+            "Arc Browser",
+            ThumbnailRefreshMode::Interval,
+        ));
+        assert_eq!(
+            settings.thumbnail_refresh_mode_for("app:browser"),
+            ThumbnailRefreshMode::Interval
+        );
+        assert_eq!(
+            settings.thumbnail_refresh_interval_ms_for("app:browser"),
+            5_000
+        );
+
+        assert!(settings.set_app_thumbnail_refresh_mode(
+            "app:browser",
+            "Arc Browser",
+            ThumbnailRefreshMode::Frozen,
+        ));
+        assert_eq!(
+            settings.thumbnail_refresh_mode_for("app:browser"),
+            ThumbnailRefreshMode::Frozen
+        );
+        assert_eq!(
+            settings.thumbnail_refresh_interval_ms_for("app:browser"),
+            5_000
+        );
     }
 
     #[test]
