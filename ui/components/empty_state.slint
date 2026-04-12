@@ -1,0 +1,58 @@
+import { Tr, Theme } from "../common.slint";
+
+export component EmptyState inherits Rectangle {
+    in property <string> message: Tr.empty-message;
+    in property <string> helper: Tr.empty-helper;
+
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    Rectangle {
+        width: min(parent.width - 40px, 380px);
+        height: 180px;
+        x: max((parent.width - self.width) / 2, 0px);
+        y: max((parent.height - self.height) / 2, 0px);
+        background: Theme.panel-bg;
+        border-width: 1px;
+        border-color: Theme.border;
+        border-radius: 12px;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 10px;
+            padding: 24px;
+
+            Rectangle {
+                width: 48px;
+                height: 48px;
+                border-radius: 24px;
+                background: Theme.accent-soft;
+
+                Text {
+                    width: 100%;
+                    height: 100%;
+                    text: "👁";
+                    font-size: 24px;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                }
+            }
+
+            Text {
+                text: root.message;
+                color: Theme.text;
+                font-size: 14px;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: root.helper;
+                color: Theme.muted;
+                font-size: 12px;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

@@ -1,0 +1,69 @@
+import { Tr, Theme } from "../common.slint";
+
+export component Toolbar inherits Rectangle {
+    in property <string> layout-label;
+    in property <int> window-count;
+    in property <int> hidden-count;
+    in property <string> refresh-label;
+    in property <bool> always-on-top;
+    in property <bool> animate-transitions;
+    in property <string> filters-label;
+
+    callback clicked();
+    callback context-menu-requested(/* x */ float, /* y */ float);
+
+    height: 48px;
+    background: Theme.toolbar-bg;
+
+    Rectangle {
+        y: parent.height - 1px;
+        width: 100%;
+        height: 1px;
+        background: Theme.border;
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.right {
+                root.context-menu-requested(touch.mouse-x / 1px, touch.mouse-y / 1px);
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        alignment: space-between;
+
+        Text {
+            text: "Panopticon";
+            color: Theme.text;
+            vertical-alignment: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        Text {
+            text: root.layout-label + "  \u{00b7}  " + root.window-count + " " + Tr.visible-label + "  \u{00b7}  "
+                  + root.hidden-count + " " + Tr.hidden-label + "  \u{00b7}  " + root.refresh-label
+                  + (root.filters-label != "" ? ("  \u{00b7}  " + root.filters-label) : "");
+            color: Theme.label;
+            vertical-alignment: center;
+            font-size: 12px;
+            overflow: elide;
+            horizontal-stretch: 1;
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: (root.always-on-top ? Tr.always-on-top-label : Tr.normal-window-label) + "  \u{00b7}  "
+                  + (root.animate-transitions ? Tr.anim-on : Tr.anim-off)
+                  + "  \u{00b7}  " + Tr.toolbar-hint;
+            color: Theme.muted;
+            vertical-alignment: center;
+            font-size: 11px;
+            horizontal-alignment: right;
+        }
+    }
+}

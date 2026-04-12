@@ -1,0 +1,33 @@
+import { Theme } from "../common.slint";
+
+export component OverlayScrollbar inherits Rectangle {
+    in property <float> viewport-offset;
+    in property <float> content-extent;
+    in property <float> visible-size;
+    in property <bool> horizontal;
+    in property <bool> mouse-inside;
+
+    property <float> max-scroll: max(content-extent - visible-size, 0.001);
+    property <float> ratio: min(visible-size / max(content-extent, 0.001), 1.0);
+    property <float> thumb-frac: max(ratio, 0.05);
+    property <float> travel-frac: 1.0 - thumb-frac;
+    property <float> scroll-frac: clamp(-viewport-offset / max-scroll, 0.0, 1.0);
+    property <bool> show: mouse-inside && max-scroll > 0;
+
+    visible: root.show;
+    opacity: 0.7;
+
+    Rectangle {
+        background: Theme.surface.with-alpha(0.3);
+        border-radius: 3px;
+
+        Rectangle {
+            x: root.horizontal ? (parent.width * root.travel-frac * root.scroll-frac) : 0;
+            y: root.horizontal ? 0 : (parent.height * root.travel-frac * root.scroll-frac);
+            width: root.horizontal ? (parent.width * root.thumb-frac) : parent.width;
+            height: root.horizontal ? parent.height : (parent.height * root.thumb-frac);
+            background: Theme.accent.with-alpha(0.6);
+            border-radius: 3px;
+        }
+    }
+}

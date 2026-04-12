@@ -1,0 +1,231 @@
+import { Tr, Theme } from "../common.slint";
+
+export component ThumbnailCard inherits Rectangle {
+    in property <string> title;
+    in property <string> app-label;
+    property <bool> is-hovered: card-touch.has-hover;
+    in property <bool> is-active;
+    in property <bool> show-footer: true;
+    in property <color> accent-color: Theme.accent;
+    in property <bool> is-minimized: false;
+    in property <image> icon-image;
+    in property <bool> show-icon: false;
+
+    callback clicked();
+    callback right-clicked(/* x */ float, /* y */ float);
+    callback pointer-moved(/* x */ float, /* y */ float);
+    callback close-requested();
+    callback move-drag-ended(/* dx */ float, /* dy */ float);
+
+    property <float> drag-start-x: -1.0;
+    property <float> drag-start-y: -1.0;
+    out property <float> drag-offset-x: 0.0;
+    out property <float> drag-offset-y: 0.0;
+    out property <bool> is-dragging-card: false;
+
+    background: Theme.card-bg;
+    opacity: is-dragging-card ? 0.7 : 1.0;
+    border-width: is-hovered || is-active || is-dragging-card ? 2px : 1px;
+    border-color: is-active ? root.accent-color : (is-hovered ? root.accent-color : Theme.border);
+    border-radius: 4px;
+    clip: true;
+
+    animate border-width, border-color, background { duration: 200ms; easing: ease-in-out; }
+
+    property <bool> has-icon: root.show-icon && root.icon-image.width > 0;
+    property <bool> show-header-info: root.show-footer || root.is-minimized;
+    property <length> info-strip-height: root.show-header-info || root.has-icon ? 26px : 0px;
+    property <length> content-padding: 6px;
+    property <bool> show-close-button: root.is-hovered && root.width >= 72px && root.height >= 52px;
+    property <length> header-left-padding: 8px;
+    property <length> header-right-padding: root.show-close-button ? 34px : 8px;
+    property <length> icon-slot-width: root.has-icon ? 24px : 0px;
+    property <length> minimized-badge-width: root.is-minimized ? 78px : 0px;
+    property <length> minimized-badge-gap: root.is-minimized ? 8px : 0px;
+    property <string> header-text: root.is-minimized
+        ? (root.app-label != "" ? (root.app-label + "  \u{00b7}  " + Tr.minimized) : (root.title + "  \u{00b7}  " + Tr.minimized))
+        : (root.title + (root.app-label != "" ? ("  \u{00b7}  " + root.app-label) : ""));
+
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 3px;
+        background: root.accent-color;
+
+        animate background { duration: 200ms; easing: ease-in-out; }
+    }
+
+    Rectangle {
+        x: root.content-padding;
+        y: 3px + root.info-strip-height + root.content-padding;
+        width: parent.width - root.content-padding * 2;
+        height: parent.height - 3px - root.info-strip-height - root.content-padding * 2;
+        background: Theme.placeholder;
+    }
+
+    if root.info-strip-height > 0px: Rectangle {
+        x: 0;
+        y: 3px;
+        width: 100%;
+        height: root.info-strip-height;
+        background: Theme.footer-bg.with-alpha(0.92);
+
+        if root.has-icon: Rectangle {
+            x: root.header-left-padding;
+            y: (parent.height - self.height) / 2;
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            background: Theme.surface.with-alpha(0.72);
+            border-width: 1px;
+            border-color: (root.is-active ? root.accent-color : Theme.border).with-alpha(0.7);
+
+            animate border-color { duration: 200ms; easing: ease-in-out; }
+
+            Image {
+                x: 2px;
+                y: 2px;
+                width: 14px;
+                height: 14px;
+                source: root.icon-image;
+                image-fit: contain;
+            }
+        }
+
+        if root.show-header-info: Text {
+            x: root.header-left-padding + root.icon-slot-width;
+            y: 0;
+            width: max(parent.width - self.x - root.header-right-padding - root.minimized-badge-width - root.minimized-badge-gap, 0px);
+            height: parent.height;
+            text: root.header-text;
+            color: Theme.label;
+            vertical-alignment: center;
+            font-size: 11.5px;
+            font-weight: 500;
+            overflow: elide;
+        }
+
+        if root.is-minimized: Rectangle {
+            x: parent.width - root.header-right-padding - self.width;
+            y: (parent.height - self.height) / 2;
+            width: 78px;
+            height: 18px;
+            border-radius: 9px;
+            background: root.accent-color.with-alpha(0.16);
+            border-width: 1px;
+            border-color: root.accent-color.with-alpha(0.55);
+
+            animate background, border-color { duration: 200ms; easing: ease-in-out; }
+
+            Text {
+                width: 100%;
+                height: 100%;
+                text: Tr.last-seen;
+                color: Theme.label;
+                font-size: 9px;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    Rectangle {
+        x: 0;
+        y: parent.height - 28px;
+        width: 100%;
+        height: 28px;
+        background: Theme.footer-bg.with-alpha(0.92);
+        opacity: root.is-hovered && !root.show-footer && !root.is-minimized ? 1.0 : 0.0;
+
+        animate opacity { duration: 200ms; easing: ease-in-out; }
+
+        Text {
+            x: 10px;
+            y: 0;
+            width: parent.width - 20px;
+            height: 100%;
+            text: root.title + (root.app-label != "" ? ("  ·  " + root.app-label) : "");
+            color: Theme.label;
+            vertical-alignment: center;
+            font-size: 12px;
+            overflow: elide;
+        }
+    }
+
+    card-touch := TouchArea {
+        pointer-event(event) => {
+            let in-close-zone = root.show-close-button
+                && card-touch.mouse-x >= root.width - 30px
+                && card-touch.mouse-y <= 30px;
+
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left && !in-close-zone {
+                root.drag-start-x = card-touch.mouse-x / 1px;
+                root.drag-start-y = card-touch.mouse-y / 1px;
+                root.is-dragging-card = false;
+            }
+
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.left && !in-close-zone {
+                if root.is-dragging-card {
+                    root.move-drag-ended(root.drag-offset-x, root.drag-offset-y);
+                } else {
+                    root.clicked();
+                }
+                root.drag-start-x = -1.0;
+                root.drag-start-y = -1.0;
+                root.drag-offset-x = 0.0;
+                root.drag-offset-y = 0.0;
+                root.is-dragging-card = false;
+            }
+
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.right && !in-close-zone {
+                root.right-clicked(card-touch.mouse-x / 1px, card-touch.mouse-y / 1px);
+            }
+        }
+        moved => {
+            if root.drag-start-x >= 0.0 {
+                let dx = card-touch.mouse-x / 1px - root.drag-start-x;
+                let dy = card-touch.mouse-y / 1px - root.drag-start-y;
+                if !root.is-dragging-card && (Math.abs(dx) > 6.0 || Math.abs(dy) > 6.0) {
+                    root.is-dragging-card = true;
+                }
+                if root.is-dragging-card {
+                    root.drag-offset-x = dx;
+                    root.drag-offset-y = dy;
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        x: parent.width - self.width - 8px;
+        y: 3px + max((root.info-strip-height - self.height) / 2, 0px);
+        width: 20px;
+        height: 20px;
+        border-radius: 10px;
+        background: close-touch.has-hover ? Theme.border : Theme.footer-bg.with-alpha(0.96);
+        border-width: 1px;
+        border-color: Theme.border.with-alpha(0.92);
+        opacity: root.show-close-button ? 1.0 : 0.0;
+
+        animate opacity, background { duration: 200ms; easing: ease-in-out; }
+
+        Text {
+            width: 100%;
+            height: 100%;
+            text: "×";
+            color: Theme.text;
+            font-size: 15px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        close-touch := TouchArea {
+            enabled: root.show-close-button;
+            mouse-cursor: MouseCursor.pointer;
+            clicked => { root.close-requested(); }
+        }
+    }
+}

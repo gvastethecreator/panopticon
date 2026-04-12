@@ -13,19 +13,17 @@
 mod app;
 
 use app::dock::{
-    apply_dock_mode, apply_topmost_mode, apply_window_appearance, center_window_on_screen,
-    docked_mode_active, is_blocked_dock_syscommand, keep_dialog_above_owner, reposition_appbar,
-    restore_floating_style, sync_dock_system_menu, unregister_appbar,
+    apply_dock_mode, apply_topmost_mode, apply_window_appearance, docked_mode_active,
+    is_blocked_dock_syscommand, reposition_appbar, restore_floating_style, sync_dock_system_menu,
+    unregister_appbar,
 };
 use app::dwm::{
     ensure_thumbnail, query_source_size, release_all_thumbnails, release_thumbnail,
     update_dwm_thumbnails,
 };
 use app::icon::populate_cached_icon;
-use app::settings_ui::{apply_settings_window_changes, populate_settings_window};
 use app::theme_ui::{
-    advance_theme_animation, apply_main_window_theme_snapshot,
-    apply_settings_window_theme_snapshot, apply_tag_dialog_theme_snapshot, sync_theme_target,
+    advance_theme_animation, apply_main_window_theme_snapshot, sync_theme_target,
     thumbnail_accent_color,
 };
 use app::tray::{
@@ -38,7 +36,7 @@ use panopticon::layout::{
     apply_separator_drag, apply_separator_drag_grouped, compute_layout_custom, default_ratios,
     AspectHint, LayoutType, ScrollDirection, Separator,
 };
-use panopticon::settings::{AppSelectionEntry, AppSettings, HiddenAppEntry, WindowGrouping};
+use panopticon::settings::{AppSelectionEntry, AppSettings, WindowGrouping};
 use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
@@ -47,7 +45,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::c_void;
 use std::mem;
-use std::process::Command;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
@@ -130,6 +127,39 @@ macro_rules! populate_tr_global {
         tr.set_tag_preset_colour(SharedString::from(i18n::t("tag.preset_colour")));
         tr.set_tag_create_assign(SharedString::from(i18n::t("tag.create_assign")));
     }};
+}
+
+pub(crate) fn populate_tr_global<Component>(window: &Component)
+where
+    Component: ComponentHandle,
+    for<'a> Tr<'a>: slint::Global<'a, Component>,
+{
+    use panopticon::i18n;
+
+    let tr = window.global::<Tr>();
+    tr.set_minimized(SharedString::from(i18n::t("ui.minimized")));
+    tr.set_last_seen(SharedString::from(i18n::t("ui.last_seen")));
+    tr.set_visible_label(SharedString::from(i18n::t("ui.visible")));
+    tr.set_hidden_label(SharedString::from(i18n::t("ui.hidden")));
+    tr.set_always_on_top_label(SharedString::from(i18n::t("ui.always_on_top")));
+    tr.set_normal_window_label(SharedString::from(i18n::t("ui.normal_window")));
+    tr.set_toolbar_hint(SharedString::from(i18n::t("ui.toolbar_hint")));
+    tr.set_anim_on(SharedString::from(i18n::t("ui.anim_on")));
+    tr.set_anim_off(SharedString::from(i18n::t("ui.anim_off")));
+    tr.set_empty_message(SharedString::from(i18n::t("ui.empty_message")));
+    tr.set_empty_helper(SharedString::from(i18n::t("ui.empty_helper")));
+    tr.set_dock_mode_hint(SharedString::from(i18n::t("settings.dock_hint")));
+    tr.set_filters_hint(SharedString::from(i18n::t("settings.filters_hint")));
+    tr.set_current_profile_prefix(SharedString::from(i18n::t("settings.current_profile")));
+    tr.set_profile_input_label(SharedString::from(i18n::t("settings.profile_label")));
+    tr.set_save_profile_btn(SharedString::from(i18n::t("settings.save_profile")));
+    tr.set_open_instance_btn(SharedString::from(i18n::t("settings.open_instance")));
+    tr.set_no_hidden_hint(SharedString::from(i18n::t("settings.no_hidden_hint")));
+    tr.set_tag_title(SharedString::from(i18n::t("tag.title")));
+    tr.set_tag_app_label(SharedString::from(i18n::t("tag.application")));
+    tr.set_tag_name_label(SharedString::from(i18n::t("tag.name_label")));
+    tr.set_tag_preset_colour(SharedString::from(i18n::t("tag.preset_colour")));
+    tr.set_tag_create_assign(SharedString::from(i18n::t("tag.create_assign")));
 }
 
 /// Tracks middle-button pan drag state.
@@ -215,13 +245,6 @@ pub(crate) struct AppState {
     pub(crate) theme_animation: Option<ThemeAnimation>,
 }
 
-struct RuntimeUiOptions {
-    monitors: Vec<String>,
-    tags: Vec<String>,
-    apps: Vec<AppSelectionEntry>,
-    hidden_apps: Vec<HiddenAppEntry>,
-}
-
 // ───────────────────────── Entry Point ─────────────────────────
 
 #[allow(clippy::too_many_lines)]
@@ -259,7 +282,7 @@ fn main() {
         tracing::error!(%error, "settings load failed; using defaults");
         AppSettings::default()
     });
-    ensure_default_profiles_exist(&settings);
+    app::secondary_windows::ensure_default_profiles_exist(&settings);
 
     let initial_theme = theme_catalog::resolve_ui_theme(
         settings.theme_id.as_deref(),
@@ -1493,20 +1516,6 @@ fn handle_thumbnail_drag_ended(
     }
 }
 
-fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
-    let windows: Vec<WindowInfo> = enumerate_windows()
-        .into_iter()
-        .filter(|window| window.hwnd != state.hwnd)
-        .collect();
-
-    RuntimeUiOptions {
-        monitors: collect_available_monitors(&windows),
-        tags: state.settings.known_tags(),
-        apps: collect_available_apps(&windows),
-        hidden_apps: state.settings.hidden_app_entries(),
-    }
-}
-
 fn activate_window(hwnd: HWND) {
     // SAFETY: hwnd was obtained from window enumeration; all calls are
     // read-only queries or focus requests on the same thread.
@@ -1605,7 +1614,7 @@ fn handle_window_menu_action(
             needs_ui_refresh = true;
         }
         WindowMenuAction::CreateTagFromApp => {
-            open_create_tag_dialog(state, weak, info);
+            app::secondary_windows::open_create_tag_dialog(state, weak, info);
         }
         WindowMenuAction::SetColor(color_hex) => {
             update_settings(state, |settings| {
@@ -1651,153 +1660,6 @@ fn release_thumbnails_for_app(state: &Rc<RefCell<AppState>>, app_id: &str) {
             release_thumbnail(managed_window);
         }
     }
-}
-
-fn open_create_tag_dialog(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    info: &WindowInfo,
-) {
-    let already_open = TAG_DIALOG_WIN.with(|dialog| {
-        let guard = dialog.borrow();
-        if let Some(existing) = guard.as_ref() {
-            existing.show().ok();
-            if let Some(dialog_hwnd) = get_hwnd(existing.window()) {
-                let state = state.borrow();
-                apply_window_icons(dialog_hwnd, &state.icons);
-                keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
-            }
-            true
-        } else {
-            false
-        }
-    });
-    if already_open {
-        return;
-    }
-
-    let suggested_name = suggested_tag_name(&info.app_label());
-    let suggested_color = state.borrow().settings.tag_color_hex(&suggested_name);
-
-    let dialog = match TagDialogWindow::new() {
-        Ok(dialog) => dialog,
-        Err(error) => {
-            tracing::error!(%error, app_id = %info.app_id, "failed to create tag dialog");
-            return;
-        }
-    };
-    populate_tr_global!(dialog);
-
-    dialog.set_app_label(SharedString::from(info.app_label()));
-    dialog.set_tag_name(SharedString::from(suggested_name));
-    dialog.set_color_index(tag_color_index(&suggested_color));
-    {
-        let state = state.borrow();
-        apply_tag_dialog_theme_snapshot(&dialog, &state.current_theme);
-    }
-
-    dialog.on_create({
-        let state = state.clone();
-        let weak = weak.clone();
-        let app_id = info.app_id.clone();
-        let display_name = info.app_label();
-        move || {
-            TAG_DIALOG_WIN.with(|dialog_cell| {
-                let guard = dialog_cell.borrow();
-                let Some(dialog) = guard.as_ref() else { return };
-                let tag_name = dialog.get_tag_name().to_string();
-                let color_hex = tag_color_hex(dialog.get_color_index());
-                drop(guard);
-
-                apply_tag_creation(&state, &weak, &app_id, &display_name, &tag_name, &color_hex);
-                close_tag_dialog_window();
-            });
-        }
-    });
-
-    dialog.on_closed(|| {
-        close_tag_dialog_window();
-    });
-
-    dialog.window().on_close_requested(|| {
-        close_tag_dialog_window();
-        CloseRequestResponse::HideWindow
-    });
-
-    if let Err(error) = dialog.show() {
-        tracing::error!(%error, app_id = %info.app_id, "failed to show tag dialog");
-        return;
-    }
-
-    if let Some(dialog_hwnd) = get_hwnd(dialog.window()) {
-        let state = state.borrow();
-        apply_window_icons(dialog_hwnd, &state.icons);
-        apply_window_appearance(dialog_hwnd, &state.settings);
-        apply_tag_dialog_theme_snapshot(&dialog, &state.current_theme);
-        keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
-    }
-
-    TAG_DIALOG_WIN.with(|dialog_cell| *dialog_cell.borrow_mut() = Some(dialog));
-}
-
-fn suggested_tag_name(label: &str) -> String {
-    let lowered = label
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character.to_ascii_lowercase()
-            } else {
-                ' '
-            }
-        })
-        .collect::<String>();
-
-    lowered.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-fn apply_tag_creation(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    app_id: &str,
-    display_name: &str,
-    tag_name: &str,
-    color_hex: &str,
-) {
-    update_settings(state, |settings| {
-        let _ = settings.assign_tag_with_color(app_id, display_name, tag_name, color_hex);
-    });
-    let _ = refresh_windows(state);
-    refresh_ui(state, weak);
-}
-
-fn close_tag_dialog_window() {
-    let taken = TAG_DIALOG_WIN.with(|dialog| dialog.borrow_mut().take());
-    if let Some(dialog) = taken {
-        dialog.hide().ok();
-    }
-}
-
-fn tag_color_index(color_hex: &str) -> i32 {
-    match color_hex.to_ascii_uppercase().as_str() {
-        "5CA9FF" => 1,
-        "3CCF91" => 2,
-        "FF6B8A" => 3,
-        "9B7BFF" => 4,
-        "F4B740" => 5,
-        _ => 0,
-    }
-}
-
-fn tag_color_hex(index: i32) -> String {
-    match index {
-        1 => "5CA9FF",
-        2 => "3CCF91",
-        3 => "FF6B8A",
-        4 => "9B7BFF",
-        5 => "F4B740",
-        _ => "D29A5C",
-    }
-    .to_owned()
 }
 
 // ───────────────────────── Keyboard ─────────────────────────
@@ -1864,7 +1726,7 @@ fn handle_key(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, key
             true
         }
         "o" | "O" => {
-            open_settings_window(state, weak);
+            app::secondary_windows::open_settings_window(state, weak);
             true
         }
         "p" | "P" => {
@@ -2297,7 +2159,7 @@ fn handle_tray_action(
             refresh_ui(state, weak);
         }
         TrayAction::OpenSettingsWindow => {
-            open_settings_window(state, weak);
+            app::secondary_windows::open_settings_window(state, weak);
         }
         TrayAction::Exit => {
             PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Exit));
@@ -2329,257 +2191,6 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
             request_exit(state);
         }
     }
-}
-
-// ───────────────────────── Settings Window ─────────────────────────
-
-#[allow(clippy::too_many_lines)]
-fn open_settings_window(state: &Rc<RefCell<AppState>>, main_weak: &slint::Weak<MainWindow>) {
-    let already_open = SETTINGS_WIN.with(|h| {
-        let guard = h.borrow();
-        if let Some(existing) = guard.as_ref() {
-            existing.show().ok();
-            if let Some(hwnd) = get_hwnd(existing.window()) {
-                let state = state.borrow();
-                apply_window_icons(hwnd, &state.icons);
-                keep_dialog_above_owner(hwnd, state.hwnd, &state.settings);
-                center_window_on_screen(hwnd);
-            }
-            true
-        } else {
-            false
-        }
-    });
-    if already_open {
-        return;
-    }
-
-    let sw = match SettingsWindow::new() {
-        Ok(w) => w,
-        Err(e) => {
-            tracing::error!("failed to create settings window: {e}");
-            return;
-        }
-    };
-    populate_tr_global!(sw);
-
-    {
-        let state = state.borrow();
-        populate_settings_window(&sw, &state.settings);
-        populate_settings_window_runtime_fields(&sw, &state);
-        apply_settings_window_theme_snapshot(&sw, &state.current_theme);
-    }
-
-    sw.on_save_profile({
-        let state = state.clone();
-        move || {
-            SETTINGS_WIN.with(|h| {
-                let guard = h.borrow();
-                let Some(sw) = guard.as_ref() else { return };
-                let requested =
-                    panopticon::settings::normalize_profile_name(&sw.get_profile_name());
-                let Some(profile_name) = requested else {
-                    tracing::warn!("ignoring empty/invalid profile save request");
-                    return;
-                };
-
-                let settings_snapshot = state.borrow().settings.normalized();
-                if save_settings_as_profile(&settings_snapshot, &profile_name) {
-                    sw.set_known_profiles_label(SharedString::from(known_profiles_label()));
-                }
-            });
-        }
-    });
-
-    sw.on_open_profile_instance({
-        let state = state.clone();
-        move || {
-            SETTINGS_WIN.with(|h| {
-                let guard = h.borrow();
-                let Some(sw) = guard.as_ref() else { return };
-
-                let current_profile = state.borrow().profile_name.clone();
-                let requested = panopticon::settings::normalize_profile_name(&sw.get_profile_name())
-                    .or(current_profile);
-
-                let settings_snapshot = state.borrow().settings.normalized();
-                if let Some(profile_name) = requested.as_deref() {
-                    let _ = save_settings_as_profile(&settings_snapshot, profile_name);
-                } else if let Err(error) = settings_snapshot.save(None) {
-                    tracing::error!(%error, "failed to save default profile before launching instance");
-                }
-
-                let _ = launch_additional_instance(requested.as_deref());
-                sw.set_known_profiles_label(SharedString::from(known_profiles_label()));
-            });
-        }
-    });
-
-    sw.on_reset_to_defaults({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            {
-                let mut s = state.borrow_mut();
-                let profile = s.profile_name.clone();
-                s.settings = AppSettings::default();
-                s.settings = s.settings.normalized();
-                s.current_layout = s.settings.initial_layout;
-                let _ = s.settings.save(profile.as_deref());
-            }
-            SETTINGS_WIN.with(|h| {
-                let guard = h.borrow();
-                if let Some(sw) = guard.as_ref() {
-                    let st = state.borrow();
-                    populate_settings_window(sw, &st.settings);
-                    populate_settings_window_runtime_fields(sw, &st);
-                    apply_settings_window_theme_snapshot(sw, &st.current_theme);
-                }
-            });
-            let s = state.borrow();
-            apply_window_appearance(s.hwnd, &s.settings);
-            apply_topmost_mode(s.hwnd, s.settings.always_on_top);
-            drop(s);
-            let _ = refresh_windows(&state);
-            if let Some(main) = main_weak.upgrade() {
-                recompute_and_update_ui(&state, &main);
-            }
-        }
-    });
-
-    sw.on_refresh_now({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            let _ = refresh_windows(&state);
-            refresh_ui(&state, &main_weak);
-        }
-    });
-
-    sw.on_restore_hidden_selected({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            SETTINGS_WIN.with(|h| {
-                let guard = h.borrow();
-                let Some(sw) = guard.as_ref() else { return };
-                let Some(option) =
-                    selected_model_value(&sw.get_hidden_app_options(), sw.get_hidden_app_index())
-                else {
-                    return;
-                };
-                let Some(app_id) = parse_option_value(&option) else {
-                    return;
-                };
-
-                update_settings(&state, |settings| {
-                    let _ = settings.restore_hidden_app(&app_id);
-                });
-                let _ = refresh_windows(&state);
-                refresh_ui(&state, &main_weak);
-            });
-        }
-    });
-
-    sw.on_restore_hidden_all({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            update_settings(&state, |settings| {
-                let _ = settings.restore_all_hidden_apps();
-            });
-            let _ = refresh_windows(&state);
-            refresh_ui(&state, &main_weak);
-        }
-    });
-
-    sw.on_apply({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            SETTINGS_WIN.with(|h| {
-                let guard = h.borrow();
-                let Some(sw) = guard.as_ref() else { return };
-                let mut s = state.borrow_mut();
-                let prev_dock_edge = s.settings.dock_edge;
-                let layout = apply_settings_window_changes(sw, &mut s.settings);
-                apply_runtime_settings_window_changes(sw, &mut s.settings);
-                s.current_layout = layout;
-                s.settings = s.settings.normalized();
-                let _ = s.settings.save(s.profile_name.as_deref());
-                let hwnd = s.hwnd;
-                let always_on_top = s.settings.always_on_top;
-                let new_dock_edge = s.settings.dock_edge;
-                let settings_clone = s.settings.clone();
-                let profile_name = s.profile_name.clone();
-
-                // Handle dock edge transitions.
-                if prev_dock_edge != new_dock_edge {
-                    if s.is_appbar {
-                        unregister_appbar(hwnd);
-                        s.is_appbar = false;
-                    }
-                    if new_dock_edge.is_some() {
-                        apply_dock_mode(&mut s);
-                    } else {
-                        restore_floating_style(hwnd);
-                    }
-                } else if s.is_appbar {
-                    reposition_appbar(&mut s);
-                }
-
-                drop(s);
-                let _ = refresh_windows(&state);
-                apply_window_appearance(hwnd, &settings_clone);
-                apply_topmost_mode(hwnd, always_on_top);
-                sw.set_known_profiles_label(SharedString::from(known_profiles_label()));
-                sw.set_current_profile_label(SharedString::from(current_profile_label(
-                    profile_name.as_deref(),
-                )));
-                {
-                    let refreshed = state.borrow();
-                    populate_settings_window(sw, &refreshed.settings);
-                    populate_settings_window_runtime_fields(sw, &refreshed);
-                    apply_settings_window_theme_snapshot(sw, &refreshed.current_theme);
-                }
-                if let Some(main) = main_weak.upgrade() {
-                    recompute_and_update_ui(&state, &main);
-                }
-
-                TAG_DIALOG_WIN.with(|dialog| {
-                    if let Some(dialog) = dialog.borrow().as_ref() {
-                        if let Some(dialog_hwnd) = get_hwnd(dialog.window()) {
-                            keep_dialog_above_owner(dialog_hwnd, hwnd, &settings_clone);
-                        }
-                    }
-                });
-            });
-        }
-    });
-
-    sw.on_closed({
-        move || {
-            let taken = SETTINGS_WIN.with(|h| h.borrow_mut().take());
-            if let Some(w) = taken {
-                w.hide().ok();
-            }
-        }
-    });
-
-    // Apply DWM dark mode to the settings window.
-    if let Err(error) = sw.show() {
-        tracing::error!(%error, "failed to show settings window");
-        return;
-    }
-    if let Some(sw_hwnd) = get_hwnd(sw.window()) {
-        let state = state.borrow();
-        apply_window_icons(sw_hwnd, &state.icons);
-        apply_window_appearance(sw_hwnd, &state.settings);
-        apply_settings_window_theme_snapshot(&sw, &state.current_theme);
-        keep_dialog_above_owner(sw_hwnd, state.hwnd, &state.settings);
-        center_window_on_screen(sw_hwnd);
-    }
-    SETTINGS_WIN.with(|h| *h.borrow_mut() = Some(sw));
 }
 
 // ───────────────────────── Layout / State helpers ─────────────────────────
@@ -2644,7 +2255,7 @@ fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
         recompute_and_update_ui(state, &win);
         advance_theme_animation(state, &win);
     }
-    refresh_open_settings_window(state);
+    app::secondary_windows::refresh_open_settings_window(state);
 }
 
 /// Schedule an immediate refresh + a deferred one (300 ms) so that
@@ -2672,20 +2283,6 @@ fn schedule_deferred_refresh(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<M
     // dropping it here would cancel the callback. `forget` transfers
     // ownership to the event loop (no real leak for SingleShot timers).
     std::mem::forget(timer);
-}
-
-fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
-    SETTINGS_WIN.with(|handle| {
-        let guard = handle.borrow();
-        let Some(window) = guard.as_ref() else { return };
-        let state = state.borrow();
-        populate_settings_window(window, &state.settings);
-        populate_settings_window_runtime_fields(window, &state);
-        apply_settings_window_theme_snapshot(window, &state.current_theme);
-        if let Some(dialog_hwnd) = get_hwnd(window.window()) {
-            keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
-        }
-    });
 }
 
 fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
@@ -2818,210 +2415,6 @@ fn request_exit(state: &Rc<RefCell<AppState>>) {
         h.borrow_mut().take();
     });
     slint::quit_event_loop().ok();
-}
-
-fn current_profile_label(profile_name: Option<&str>) -> String {
-    profile_name.unwrap_or("default").to_owned()
-}
-
-fn ensure_default_profiles_exist(settings: &AppSettings) {
-    match AppSettings::list_profiles() {
-        Ok(profiles) if profiles.is_empty() => {
-            for profile_name in ["profile-1", "profile-2"] {
-                if let Err(error) = settings.save(Some(profile_name)) {
-                    tracing::error!(%error, profile = profile_name, "failed to seed default profile");
-                }
-            }
-        }
-        Ok(_) => {}
-        Err(error) => tracing::warn!(%error, "failed to inspect saved profiles"),
-    }
-}
-
-fn known_profiles_label() -> String {
-    use panopticon::i18n;
-    match AppSettings::list_profiles() {
-        Ok(profiles) if profiles.is_empty() => i18n::t("settings.saved_profiles").to_owned(),
-        Ok(profiles) => i18n::t_fmt("settings.saved_profiles_fmt", &profiles.join(", ")),
-        Err(error) => {
-            tracing::warn!(%error, "failed to list saved profiles");
-            i18n::t("settings.saved_profiles").to_owned()
-        }
-    }
-}
-
-fn build_string_model(values: Vec<String>) -> ModelRc<SharedString> {
-    let values: Vec<SharedString> = values.into_iter().map(SharedString::from).collect();
-    ModelRc::new(VecModel::from(values))
-}
-
-fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
-    let runtime = collect_runtime_ui_options(state);
-    window.set_theme_options(build_string_model(theme_catalog::theme_labels()));
-    window.set_current_profile_label(SharedString::from(current_profile_label(
-        state.profile_name.as_deref(),
-    )));
-    window.set_profile_name(SharedString::from(
-        state.profile_name.clone().unwrap_or_default(),
-    ));
-    window.set_known_profiles_label(SharedString::from(known_profiles_label()));
-
-    let mut monitor_options = vec![panopticon::i18n::t("tray.all_monitors").to_owned()];
-    monitor_options.extend(runtime.monitors.iter().cloned());
-    let monitor_index = state
-        .settings
-        .active_monitor_filter
-        .as_deref()
-        .and_then(|current| {
-            runtime
-                .monitors
-                .iter()
-                .position(|monitor| monitor == current)
-        })
-        .map_or(0, |index| index as i32 + 1);
-    window.set_monitor_filter_options(build_string_model(monitor_options));
-    window.set_monitor_filter_index(monitor_index);
-
-    let mut tag_options = vec![panopticon::i18n::t("tray.all_tags").to_owned()];
-    tag_options.extend(runtime.tags.iter().cloned());
-    let tag_index = state
-        .settings
-        .active_tag_filter
-        .as_deref()
-        .and_then(|current| runtime.tags.iter().position(|tag| tag == current))
-        .map_or(0, |index| index as i32 + 1);
-    window.set_tag_filter_options(build_string_model(tag_options));
-    window.set_tag_filter_index(tag_index);
-
-    let mut app_options = vec![panopticon::i18n::t("tray.all_apps").to_owned()];
-    app_options.extend(runtime.apps.iter().map(app_option_label));
-    let app_index = state
-        .settings
-        .active_app_filter
-        .as_deref()
-        .and_then(|current| runtime.apps.iter().position(|app| app.app_id == current))
-        .map_or(0, |index| index as i32 + 1);
-    window.set_app_filter_options(build_string_model(app_options));
-    window.set_app_filter_index(app_index);
-
-    if runtime.hidden_apps.is_empty() {
-        window.set_hidden_app_options(build_string_model(vec![panopticon::i18n::t(
-            "settings.no_hidden",
-        )
-        .to_owned()]));
-        window.set_hidden_app_index(0);
-        window.set_can_restore_hidden(false);
-        window.set_hidden_apps_summary(SharedString::from(panopticon::i18n::t(
-            "settings.no_hidden",
-        )));
-    } else {
-        let hidden_options: Vec<String> = runtime
-            .hidden_apps
-            .iter()
-            .map(hidden_app_option_label)
-            .collect();
-        let summary = if runtime.hidden_apps.len() == 1 {
-            panopticon::i18n::t("settings.hidden_one").to_owned()
-        } else {
-            panopticon::i18n::t_fmt(
-                "settings.hidden_many",
-                &runtime.hidden_apps.len().to_string(),
-            )
-        };
-        window.set_hidden_app_options(build_string_model(hidden_options));
-        window.set_hidden_app_index(0);
-        window.set_can_restore_hidden(true);
-        window.set_hidden_apps_summary(SharedString::from(summary));
-    }
-}
-
-fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut AppSettings) {
-    let monitor = selected_model_value(
-        &window.get_monitor_filter_options(),
-        window.get_monitor_filter_index(),
-    );
-    settings.set_monitor_filter(
-        monitor
-            .as_deref()
-            .filter(|value| *value != panopticon::i18n::t("tray.all_monitors")),
-    );
-
-    let tag = selected_model_value(
-        &window.get_tag_filter_options(),
-        window.get_tag_filter_index(),
-    );
-    settings.set_tag_filter(
-        tag.as_deref()
-            .filter(|value| *value != panopticon::i18n::t("tray.all_tags")),
-    );
-
-    let app = selected_model_value(
-        &window.get_app_filter_options(),
-        window.get_app_filter_index(),
-    )
-    .and_then(|value| parse_option_value(&value));
-
-    if let Some(app) = app.as_deref() {
-        settings.set_tag_filter(None);
-        settings.set_app_filter(Some(app));
-    } else {
-        settings.set_app_filter(None);
-    }
-}
-
-fn selected_model_value(model: &ModelRc<SharedString>, index: i32) -> Option<String> {
-    usize::try_from(index)
-        .ok()
-        .and_then(|index| model.row_data(index))
-        .map(|value| value.to_string())
-}
-
-fn app_option_label(app: &AppSelectionEntry) -> String {
-    format!("{}{}{}", app.label, OPTION_SEPARATOR, app.app_id)
-}
-
-fn hidden_app_option_label(app: &HiddenAppEntry) -> String {
-    format!("{}{}{}", app.label, OPTION_SEPARATOR, app.app_id)
-}
-
-fn parse_option_value(value: &str) -> Option<String> {
-    value
-        .rsplit_once(OPTION_SEPARATOR)
-        .map(|(_, raw)| raw.trim().to_owned())
-        .filter(|raw| !raw.is_empty())
-}
-
-fn save_settings_as_profile(settings: &AppSettings, profile_name: &str) -> bool {
-    match settings.save(Some(profile_name)) {
-        Ok(()) => true,
-        Err(error) => {
-            tracing::error!(%error, profile = profile_name, "failed to save profile");
-            false
-        }
-    }
-}
-
-fn launch_additional_instance(profile_name: Option<&str>) -> bool {
-    let executable = match std::env::current_exe() {
-        Ok(path) => path,
-        Err(error) => {
-            tracing::error!(%error, "failed to resolve executable path for new instance");
-            return false;
-        }
-    };
-
-    let mut command = Command::new(executable);
-    if let Some(profile_name) = profile_name {
-        command.arg("--profile").arg(profile_name);
-    }
-
-    match command.spawn() {
-        Ok(_) => true,
-        Err(error) => {
-            tracing::error!(%error, profile = ?profile_name, "failed to launch extra instance");
-            false
-        }
-    }
 }
 
 fn toggle_toolbar_from_alt_hotkey() {

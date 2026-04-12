@@ -1,0 +1,357 @@
+import { CheckBox, ComboBox, LineEdit, ScrollView, Button, SpinBox } from "std-widgets.slint";
+import { Tr, Theme } from "../common.slint";
+
+export component SettingsWindow inherits Window {
+    title: "Panopticon — Settings";
+    icon: @image-url("../../assets/icon.svg");
+    background: Theme.bg;
+    preferred-width: 760px;
+    preferred-height: 860px;
+    default-font-family: "Segoe UI Variable Text";
+    default-font-size: 13px;
+
+    in-out property <bool> always-on-top-setting: false;
+    in-out property <bool> animate-transitions-setting: true;
+    in-out property <bool> minimize-to-tray-setting: true;
+    in-out property <bool> close-to-tray-setting: true;
+    in-out property <bool> preserve-aspect-ratio-setting: false;
+    in-out property <bool> hide-on-select-setting: true;
+    in-out property <bool> show-toolbar-setting: true;
+    in-out property <bool> show-info-setting: true;
+    in-out property <bool> use-system-backdrop-setting: true;
+    in-out property <bool> start-in-tray-setting: false;
+    in-out property <bool> locked-layout-setting: false;
+    in-out property <bool> lock-cell-resize-setting: false;
+    in-out property <bool> show-app-icons-setting: true;
+    in property <bool> hide-on-select-enabled: true;
+    in-out property <int> refresh-index: 1;
+    in-out property <int> layout-index: 0;
+    in property <[string]> theme-options: ["Classic Panopticon"];
+    in-out property <int> theme-index: 0;
+    in property <[string]> monitor-filter-options: ["All monitors"];
+    in-out property <int> monitor-filter-index: 0;
+    in property <[string]> tag-filter-options: ["All tags"];
+    in-out property <int> tag-filter-index: 0;
+    in property <[string]> app-filter-options: ["All applications"];
+    in-out property <int> app-filter-index: 0;
+    in property <[string]> hidden-app-options: ["No hidden apps"];
+    in-out property <int> hidden-app-index: 0;
+    in property <bool> can-restore-hidden: false;
+    in property <string> hidden-apps-summary: "No hidden apps";
+    in property <string> current-profile-label: "default";
+    in-out property <string> profile-name: "";
+    in property <string> known-profiles-label: "No saved profiles";
+    in-out property <color> bg-preview-color: Theme.accent;
+    in-out property <color> theme-preview-color: Theme.accent;
+    in-out property <string> bg-color-hex: "181513";
+    in-out property <string> bg-image-path: "";
+    in-out property <int> fixed-width-value: 0;
+    in-out property <int> fixed-height-value: 0;
+    in-out property <int> dock-edge-index: 0;
+    in-out property <int> group-windows-index: 0;
+
+    callback apply();
+    callback save-profile();
+    callback open-profile-instance();
+    callback reset-to-defaults();
+    callback refresh-now();
+    callback restore-hidden-selected();
+    callback restore-hidden-all();
+    callback closed();
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 14px;
+
+        Text {
+            text: "Settings";
+            color: Theme.text;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        ScrollView {
+            VerticalLayout {
+                spacing: 16px;
+                padding-top: 8px;
+                padding-right: 8px;
+                padding-bottom: 12px;
+
+                Text { text: "Behaviour"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                CheckBox { text: "Always on top"; checked <=> root.always-on-top-setting; }
+                CheckBox { text: "Animate transitions"; checked <=> root.animate-transitions-setting; }
+                CheckBox { text: "Minimize to tray"; checked <=> root.minimize-to-tray-setting; }
+                CheckBox { text: "Close to tray"; checked <=> root.close-to-tray-setting; }
+                CheckBox { text: "Default: preserve aspect ratio"; checked <=> root.preserve-aspect-ratio-setting; }
+                CheckBox {
+                    text: "Default: hide after selecting app";
+                    checked <=> root.hide-on-select-setting;
+                    enabled: root.hide-on-select-enabled;
+                }
+                if !root.hide-on-select-enabled: Text {
+                    text: Tr.dock-mode-hint;
+                    color: Theme.muted;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+                CheckBox { text: "Start hidden in tray"; checked <=> root.start-in-tray-setting; }
+                CheckBox { text: "Lock layout (prevent changes)"; checked <=> root.locked-layout-setting; }
+                CheckBox { text: "Lock cell / column resizing"; checked <=> root.lock-cell-resize-setting; }
+
+                Rectangle { height: 8px; }
+                Text { text: "Display"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                CheckBox { text: "Show toolbar"; checked <=> root.show-toolbar-setting; }
+                CheckBox { text: "Show window info above thumbnails"; checked <=> root.show-info-setting; }
+                CheckBox { text: "Show app icons in cells"; checked <=> root.show-app-icons-setting; }
+                CheckBox { text: "Use system backdrop (Win11)"; checked <=> root.use-system-backdrop-setting; }
+
+                Rectangle { height: 8px; }
+                Text { text: "Theme"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: "●";
+                        color: root.theme-preview-color;
+                        font-size: 18px;
+                        vertical-alignment: center;
+                    }
+                    ComboBox {
+                        model: root.theme-options;
+                        current-index <=> root.theme-index;
+                        horizontal-stretch: 1;
+                    }
+                }
+
+                Text {
+                    text: "Tip: press T to cycle themes quickly.";
+                    color: Theme.muted;
+                    font-size: 12px;
+                }
+
+                Rectangle { height: 8px; }
+                Text { text: "Default layout"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                ComboBox {
+                    model: ["Grid", "Mosaic", "Bento", "Fibonacci", "Columns", "Row", "Column"];
+                    current-index <=> root.layout-index;
+                }
+
+                Text {
+                    text: "Tip: press 1-7 to switch layouts, Tab to cycle, 0 to reset proportions.";
+                    color: Theme.muted;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+
+                Rectangle { height: 8px; }
+                Text { text: "Refresh interval"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                ComboBox {
+                    model: ["1s", "2s", "5s", "10s"];
+                    current-index <=> root.refresh-index;
+                }
+
+                Button {
+                    text: "Refresh now";
+                    clicked => { root.refresh-now(); }
+                }
+
+                Rectangle { height: 8px; }
+                Text { text: "Dock thickness (0 = auto)"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                HorizontalLayout {
+                    spacing: 12px;
+                    Text { text: "Width:"; color: Theme.label; vertical-alignment: center; font-size: 13px; }
+                    SpinBox { value <=> root.fixed-width-value; minimum: 0; maximum: 3840; }
+                    Text { text: "Height:"; color: Theme.label; vertical-alignment: center; font-size: 13px; }
+                    SpinBox { value <=> root.fixed-height-value; minimum: 0; maximum: 2160; }
+                }
+
+                Rectangle { height: 8px; }
+                Text { text: "Dock position"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                ComboBox {
+                    model: ["Floating (no dock)", "Left", "Right", "Top", "Bottom"];
+                    current-index <=> root.dock-edge-index;
+                }
+
+                Rectangle { height: 8px; }
+                Text { text: "Filters"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                Text { text: "Monitor"; color: Theme.muted; font-size: 13px; }
+                ComboBox {
+                    model: root.monitor-filter-options;
+                    current-index <=> root.monitor-filter-index;
+                }
+
+                Text { text: "Tag"; color: Theme.muted; font-size: 13px; }
+                ComboBox {
+                    model: root.tag-filter-options;
+                    current-index <=> root.tag-filter-index;
+                }
+
+                Text { text: "Application"; color: Theme.muted; font-size: 13px; }
+                ComboBox {
+                    model: root.app-filter-options;
+                    current-index <=> root.app-filter-index;
+                }
+
+                Text { text: "Group windows by"; color: Theme.muted; font-size: 13px; }
+                ComboBox {
+                    model: ["No grouping", "Application", "Monitor", "Window title", "Window class"];
+                    current-index <=> root.group-windows-index;
+                }
+
+                Text {
+                    text: Tr.filters-hint;
+                    color: Theme.muted;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+
+                Rectangle { height: 8px; }
+                Text { text: "Background colour (RGB hex)"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: "●";
+                        color: root.bg-preview-color;
+                        font-size: 18px;
+                        vertical-alignment: center;
+                    }
+                    Text { text: "#"; color: Theme.muted; vertical-alignment: center; font-size: 13px; }
+                    LineEdit {
+                        text <=> root.bg-color-hex;
+                        horizontal-alignment: left;
+                        font-size: 13px;
+                    }
+                }
+
+                Text { text: "Background image path (optional)"; color: Theme.muted; font-size: 13px; }
+                LineEdit {
+                    text <=> root.bg-image-path;
+                    horizontal-alignment: left;
+                    font-size: 13px;
+                    placeholder-text: "C:\\path\\to\\image.png";
+                }
+
+                Rectangle { height: 8px; }
+                Text { text: "Profiles"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                Text {
+                    text: Tr.current-profile-prefix + root.current-profile-label;
+                    color: Theme.label;
+                    font-size: 13px;
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: Tr.profile-input-label; color: Theme.muted; vertical-alignment: center; font-size: 13px; }
+                    LineEdit {
+                        text <=> root.profile-name;
+                        horizontal-stretch: 1;
+                        font-size: 13px;
+                    }
+                }
+
+                Text {
+                    text: root.known-profiles-label;
+                    color: Theme.muted;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    Button {
+                        text: Tr.save-profile-btn;
+                        clicked => { root.save-profile(); }
+                    }
+                    Button {
+                        text: Tr.open-instance-btn;
+                        clicked => { root.open-profile-instance(); }
+                    }
+                }
+
+                Rectangle { height: 8px; }
+                Text { text: "Hidden apps"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                Text {
+                    text: root.hidden-apps-summary;
+                    color: Theme.label;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+
+                ComboBox {
+                    model: root.hidden-app-options;
+                    current-index <=> root.hidden-app-index;
+                    enabled: root.can-restore-hidden;
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    Button {
+                        text: "Restore selected";
+                        enabled: root.can-restore-hidden;
+                        clicked => { root.restore-hidden-selected(); }
+                    }
+                    Button {
+                        text: "Restore all";
+                        enabled: root.can-restore-hidden;
+                        clicked => { root.restore-hidden-all(); }
+                    }
+                }
+
+                if !root.can-restore-hidden: Text {
+                    text: Tr.no-hidden-hint;
+                    color: Theme.muted;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+
+                Rectangle { height: 8px; }
+                Text { text: "Keyboard shortcuts"; color: Theme.accent; font-size: 14px; font-weight: 600; }
+
+                Text {
+                    text: "1-7: layouts  ·  Tab: cycle layout  ·  0: reset ratios\n"
+                        + "T: cycle theme  ·  A: animations  ·  H: toolbar\n"
+                        + "I: window info  ·  P: always on top  ·  O: settings\n"
+                        + "M / right-click header: app menu  ·  R: refresh\n"
+                        + "Alt: toggle toolbar  ·  Esc: exit";
+                    color: Theme.muted;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+
+                Rectangle { vertical-stretch: 1; }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: end;
+
+            Button {
+                text: "Reset defaults";
+                clicked => { root.reset-to-defaults(); }
+            }
+
+            Button {
+                text: "Apply";
+                clicked => { root.apply(); }
+            }
+
+            Button {
+                text: "Close";
+                clicked => {
+                    root.closed();
+                }
+            }
+        }
+    }
+}

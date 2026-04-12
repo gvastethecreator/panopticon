@@ -1,0 +1,98 @@
+import { Button, ComboBox, LineEdit } from "std-widgets.slint";
+import { Tr, Theme } from "../common.slint";
+
+export component TagDialogWindow inherits Window {
+    title: "Panopticon — Create tag";
+    icon: @image-url("../../assets/icon.svg");
+    background: Theme.bg;
+    preferred-width: 420px;
+    preferred-height: 260px;
+    default-font-family: "Segoe UI Variable Text";
+    default-font-size: 13px;
+
+    in property <string> app-label: "";
+    in-out property <string> tag-name: "";
+    in-out property <int> color-index: 0;
+    property <color> selected-color: color-index == 1 ? #5CA9FF
+        : color-index == 2 ? #3CCF91
+        : color-index == 3 ? #FF6B8A
+        : color-index == 4 ? #9B7BFF
+        : color-index == 5 ? #F4B740
+        : #D29A5C;
+
+    callback create();
+    callback closed();
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 12px;
+
+        Text {
+            text: Tr.tag-title;
+            color: Theme.text;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        Text {
+            text: Tr.tag-app-label + root.app-label;
+            color: Theme.label;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+
+        Rectangle { height: 4px; }
+
+        Text {
+            text: Tr.tag-name-label;
+            color: Theme.accent;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        LineEdit {
+            text <=> root.tag-name;
+            horizontal-alignment: left;
+            font-size: 12px;
+        }
+
+        Text {
+            text: Tr.tag-preset-colour;
+            color: Theme.accent;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: "●";
+                color: root.selected-color;
+                font-size: 18px;
+                vertical-alignment: center;
+            }
+            ComboBox {
+                model: ["Amber", "Sky", "Mint", "Rose", "Violet", "Sun"];
+                current-index <=> root.color-index;
+                horizontal-stretch: 1;
+            }
+        }
+
+        Rectangle { vertical-stretch: 1; }
+
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: end;
+
+            Button {
+                text: Tr.tag-create-assign;
+                clicked => { root.create(); }
+            }
+
+            Button {
+                text: "Close";
+                clicked => { root.closed(); }
+            }
+        }
+    }
+}
