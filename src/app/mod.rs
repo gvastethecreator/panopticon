@@ -3,9 +3,11 @@
 pub mod dock;
 pub mod dwm;
 pub mod icon;
+pub mod keyboard_actions;
 pub mod layout_actions;
 pub mod menu_utils;
 pub mod model_sync;
+pub mod native_runtime;
 pub mod secondary_windows;
 pub mod settings_ui;
 pub mod theme_ui;
