@@ -16,15 +16,13 @@ pub(crate) use app::layout_actions::cycle_layout;
 pub(crate) use app::model_sync::{
     advance_animation, recompute_and_update_ui, sync_model_to_slint, sync_settings_to_ui,
 };
+pub(crate) use app::native_runtime::get_hwnd;
 pub(crate) use app::window_sync::refresh_windows;
 
-use app::dock::{
-    apply_dock_mode, apply_topmost_mode, apply_window_appearance, reposition_appbar,
-    sync_dock_system_menu, unregister_appbar,
-};
+use app::dock::reposition_appbar;
 use app::dwm::{release_all_thumbnails, release_thumbnail, update_dwm_thumbnails};
 use app::theme_ui::{advance_theme_animation, apply_main_window_theme_snapshot};
-use app::tray::{apply_window_icons, AppIcons, TrayAction, TrayIcon, INSTANCE_ACCENT_PALETTE};
+use app::tray::{AppIcons, TrayAction, TrayIcon, INSTANCE_ACCENT_PALETTE};
 use panopticon::layout::{LayoutType, Separator};
 use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
@@ -32,12 +30,10 @@ use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::WindowInfo;
 
 use std::cell::{Cell, RefCell};
-use std::ffi::c_void;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
-use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{CloseRequestResponse, ComponentHandle, SharedString, Timer, TimerMode};
 
 use windows::core::w;
@@ -308,7 +304,7 @@ fn main() {
         let weak = main_window.as_weak();
         move || {
             let Some(win) = weak.upgrade() else { return };
-            let _ = try_initialize_native_runtime(&state, &win);
+            let _ = app::native_runtime::try_initialize_native_runtime(&state, &win);
         }
     });
 
@@ -321,7 +317,9 @@ fn main() {
         let weak = main_window.as_weak();
         move || {
             let Some(win) = weak.upgrade() else { return };
-            if state.borrow().hwnd.0.is_null() && !try_initialize_native_runtime(&state, &win) {
+            if state.borrow().hwnd.0.is_null()
+                && !app::native_runtime::try_initialize_native_runtime(&state, &win)
+            {
                 return;
             }
 
@@ -402,90 +400,6 @@ fn main() {
         app::window_subclass::teardown_subclass(hwnd);
     }
     tracing::info!("Panopticon exiting");
-}
-
-// ───────────────────────── HWND Extraction ─────────────────────────
-
-fn get_hwnd(window: &slint::Window) -> Option<HWND> {
-    let slint_handle = window.window_handle();
-    let raw = slint_handle.window_handle().ok()?;
-    match raw.as_raw() {
-        RawWindowHandle::Win32(h) => Some(HWND(h.hwnd.get() as *mut c_void)),
-        _ => None,
-    }
-}
-
-fn try_initialize_native_runtime(state: &Rc<RefCell<AppState>>, win: &MainWindow) -> bool {
-    if !state.borrow().hwnd.0.is_null() {
-        return true;
-    }
-
-    let Some(hwnd) = get_hwnd(win.window()) else {
-        tracing::debug!("HWND not ready yet; deferring native initialization");
-        return false;
-    };
-
-    {
-        let mut s = state.borrow_mut();
-        if !s.hwnd.0.is_null() {
-            return true;
-        }
-        s.hwnd = hwnd;
-    }
-
-    let settings_snapshot = state.borrow().settings.clone();
-    tracing::info!(hwnd = ?hwnd, "native HWND acquired");
-
-    {
-        let state = state.borrow();
-        apply_window_icons(hwnd, &state.icons);
-    }
-
-    // DWM appearance.
-    apply_window_appearance(hwnd, &settings_snapshot);
-    apply_topmost_mode(hwnd, settings_snapshot.always_on_top);
-    sync_dock_system_menu(hwnd, settings_snapshot.dock_edge.is_some());
-
-    // System tray.
-    {
-        let mut s = state.borrow_mut();
-        match TrayIcon::add(hwnd, s.icons.small) {
-            Ok(tray) => {
-                tracing::info!("tray icon registered");
-                s.tray_icon = Some(tray);
-            }
-            Err(error) => tracing::error!(%error, "tray icon registration failed"),
-        }
-    }
-
-    // Subclass the Slint HWND to intercept tray / appbar / minimize messages.
-    app::window_subclass::setup_subclass(hwnd, state, win);
-
-    let refreshed = refresh_windows(state);
-    let tracked = state.borrow().windows.len();
-    tracing::info!(
-        refreshed,
-        tracked_windows = tracked,
-        "initial window refresh completed"
-    );
-    recompute_and_update_ui(state, win);
-
-    // App-bar registration (if dock edge is set).
-    if settings_snapshot.dock_edge.is_some() {
-        let mut s = state.borrow_mut();
-        apply_dock_mode(&mut s);
-    }
-
-    // Start minimized to tray when the setting is active.
-    if settings_snapshot.start_in_tray {
-        tracing::info!("start_in_tray is active — hiding main window");
-        for mw in &mut state.borrow_mut().windows {
-            release_thumbnail(mw);
-        }
-        win.hide().ok();
-    }
-
-    true
 }
 
 // ───────────────────────── Slint Callbacks ─────────────────────────
@@ -592,109 +506,8 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
     main_window.on_key_pressed({
         let state = state.clone();
         let weak = main_window.as_weak();
-        move |key_text| handle_key(&state, &weak, &key_text)
+        move |key_text| app::keyboard_actions::handle_key(&state, &weak, &key_text)
     });
-}
-
-// ───────────────────────── Keyboard ─────────────────────────
-
-fn handle_key(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, key: &str) -> bool {
-    match key {
-        "1" => {
-            app::layout_actions::set_layout(state, weak, LayoutType::Grid);
-            true
-        }
-        "2" => {
-            app::layout_actions::set_layout(state, weak, LayoutType::Mosaic);
-            true
-        }
-        "3" => {
-            app::layout_actions::set_layout(state, weak, LayoutType::Bento);
-            true
-        }
-        "4" => {
-            app::layout_actions::set_layout(state, weak, LayoutType::Fibonacci);
-            true
-        }
-        "5" => {
-            app::layout_actions::set_layout(state, weak, LayoutType::Columns);
-            true
-        }
-        "6" => {
-            app::layout_actions::set_layout(state, weak, LayoutType::Row);
-            true
-        }
-        "7" => {
-            app::layout_actions::set_layout(state, weak, LayoutType::Column);
-            true
-        }
-        "0" => {
-            // Reset custom layout ratios for current layout
-            app::layout_actions::reset_layout_custom(state);
-            refresh_ui(state, weak);
-            true
-        }
-        "a" | "A" => {
-            update_settings(state, |s| {
-                s.animate_transitions = !s.animate_transitions;
-            });
-            refresh_ui(state, weak);
-            true
-        }
-        "h" | "H" => {
-            update_settings(state, |s| {
-                s.show_toolbar = !s.show_toolbar;
-            });
-            refresh_ui(state, weak);
-            true
-        }
-        "i" | "I" => {
-            update_settings(state, |s| {
-                s.show_window_info = !s.show_window_info;
-            });
-            refresh_ui(state, weak);
-            true
-        }
-        "m" | "M" => {
-            app::tray_actions::open_application_context_menu(state, weak, None);
-            true
-        }
-        "o" | "O" => {
-            app::secondary_windows::open_settings_window(state, weak);
-            true
-        }
-        "p" | "P" => {
-            update_settings(state, |s| {
-                s.always_on_top = !s.always_on_top;
-            });
-            let s = state.borrow();
-            apply_topmost_mode(s.hwnd, s.settings.always_on_top);
-            drop(s);
-            refresh_ui(state, weak);
-            true
-        }
-        "r" | "R" => {
-            if refresh_windows(state) {
-                refresh_ui(state, weak);
-            }
-            true
-        }
-        "t" | "T" => {
-            cycle_theme(state, weak);
-            true
-        }
-        "\t" => {
-            cycle_layout(state);
-            refresh_ui(state, weak);
-            true
-        }
-        "\u{001B}" => {
-            // Escape
-            PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Exit));
-            true
-        }
-        _ => false,
-    }
 }
 
 // ───────────────────────── Resize Drag ─────────────────────────
@@ -720,32 +533,12 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
             }
         }
         PendingAction::Exit => {
-            request_exit(state);
+            app::native_runtime::request_exit(state);
         }
     }
 }
 
 // ───────────────────────── Layout / State helpers ─────────────────────────
-
-fn cycle_theme(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
-    let current_idx = {
-        let s = state.borrow();
-        theme_catalog::theme_index(s.settings.theme_id.as_deref())
-    };
-    let total = theme_catalog::theme_labels().len() as i32;
-    let next_idx = (current_idx + 1) % total;
-    let new_id = theme_catalog::theme_id_by_index(next_idx);
-
-    update_settings(state, |s| {
-        s.theme_id = new_id;
-    });
-
-    let s = state.borrow();
-    apply_window_appearance(s.hwnd, &s.settings);
-    drop(s);
-
-    refresh_ui(state, weak);
-}
 
 pub(crate) fn update_settings(
     state: &Rc<RefCell<AppState>>,
@@ -795,28 +588,6 @@ pub(crate) fn schedule_deferred_refresh(
     std::mem::forget(timer);
 }
 
-fn request_exit(state: &Rc<RefCell<AppState>>) {
-    tracing::info!("exiting Panopticon");
-    {
-        let mut s = state.borrow_mut();
-        if s.is_appbar {
-            unregister_appbar(s.hwnd);
-            s.is_appbar = false;
-        }
-        for mw in &mut s.windows {
-            release_thumbnail(mw);
-        }
-        s.windows.clear();
-        if let Some(tray) = s.tray_icon.as_mut() {
-            tray.remove();
-        }
-    }
-    SETTINGS_WIN.with(|h| {
-        h.borrow_mut().take();
-    });
-    slint::quit_event_loop().ok();
-}
-
 // ───────────────────────── Utility ─────────────────────────
 
 fn parse_profile_from_args() -> Option<String> {
@@ -857,6 +628,7 @@ mod tests {
     use crate::app::dwm::sanitize_thumbnail_rect;
     use crate::app::icon::bilinear_sample_rgba;
     use panopticon::window_ops::apply_pinned_positions;
+    use std::ffi::c_void;
 
     #[test]
     fn sanitize_thumbnail_rect_clips_to_client_bounds() {
