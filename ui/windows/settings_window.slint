@@ -200,15 +200,7 @@ component ToggleSettingCard inherits Rectangle {
             text: "";
             checked <=> root.checked;
             enabled: root.enabled;
-            vertical-stretch: 1;
         }
-    }
-
-    Rectangle {
-        y: parent.height - 1px;
-        width: 100%;
-        height: 1px;
-        background: Theme.border.with-alpha(34%);
     }
 }
 
@@ -269,13 +261,6 @@ component SelectSettingCard inherits Rectangle {
             current-index <=> root.selected-index;
             enabled: root.enabled;
         }
-    }
-
-    Rectangle {
-        y: parent.height - 1px;
-        width: 100%;
-        height: 1px;
-        background: Theme.border.with-alpha(34%);
     }
 }
 
@@ -343,13 +328,6 @@ component TextFieldSettingCard inherits Rectangle {
                 }
             }
         }
-    }
-
-    Rectangle {
-        y: parent.height - 1px;
-        width: 100%;
-        height: 1px;
-        background: Theme.border.with-alpha(34%);
     }
 }
 
@@ -592,11 +570,13 @@ export component SettingsWindow inherits Window {
             HorizontalLayout {
                 padding-left: 24px;
                 padding-right: 24px;
+                padding-top: 16px;
+                padding-bottom: 16px;
                 alignment: space-between;
 
                 VerticalLayout {
                     spacing: 3px;
-                    alignment: start;
+                    alignment: center;
 
                     Text {
                         text: "Settings";
@@ -616,9 +596,9 @@ export component SettingsWindow inherits Window {
                     width: 170px;
                     height: 42px;
                     border-radius: 12px;
-                    background: Theme.surface.with-alpha(72%);
+                    background: profile-touch.has-hover ? Theme.surface : Theme.surface.with-alpha(72%);
                     border-width: 1px;
-                    border-color: Theme.border.with-alpha(60%);
+                    border-color: profile-touch.has-hover ? Theme.accent.with-alpha(80%) : Theme.border.with-alpha(60%);
 
                     HorizontalLayout {
                         padding-left: 12px;
@@ -652,6 +632,11 @@ export component SettingsWindow inherits Window {
                                 overflow: elide;
                             }
                         }
+                    }
+
+                    profile-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.current-page = 3; }
                     }
                 }
             }
@@ -745,21 +730,23 @@ export component SettingsWindow inherits Window {
                             helper: "Cada opción añade contexto con un pequeño resumen para no tener que adivinar qué hace.";
                         }
 
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Always on top"; description: "Mantiene Panopticon por encima de las demás ventanas incluso al cambiar de aplicación."; checked <=> root.always-on-top-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Animate transitions"; description: "Suaviza cambios de layout, filtros y reacomodos visuales entre miniaturas."; checked <=> root.animate-transitions-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Minimize to tray"; description: "Al minimizar, la app desaparece del escritorio y sigue viva desde la bandeja del sistema."; checked <=> root.minimize-to-tray-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Close to tray"; description: "Interpreta el cierre de ventana como ocultar a la bandeja en lugar de salir."; checked <=> root.close-to-tray-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Preserve aspect ratio by default"; description: "Las nuevas apps respetarán mejor la proporción original de sus thumbnails."; checked <=> root.preserve-aspect-ratio-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-always-on-top.svg"); title: "Always on top"; description: "Mantiene Panopticon por encima de las demás ventanas incluso al cambiar de aplicación."; checked <=> root.always-on-top-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-animate.svg"); title: "Animate transitions"; description: "Suaviza cambios de layout, filtros y reacomodos visuales entre miniaturas."; checked <=> root.animate-transitions-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-minimize-tray.svg"); title: "Minimize to tray"; description: "Al minimizar, la app desaparece del escritorio y sigue viva desde la bandeja del sistema."; checked <=> root.minimize-to-tray-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-close-tray.svg"); title: "Close to tray"; description: "Interpreta el cierre de ventana como ocultar a la bandeja en lugar de salir."; checked <=> root.close-to-tray-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-aspect-ratio.svg"); title: "Preserve aspect ratio by default"; description: "Las nuevas apps respetarán mejor la proporción original de sus thumbnails."; checked <=> root.preserve-aspect-ratio-setting; }
                         ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-toggle.svg");
+                            icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
                             title: "Hide after selecting an app";
                             description: root.hide-on-select-enabled ? "Oculta Panopticon cuando activas una ventana desde el dashboard." : Tr.dock-mode-hint;
                             checked <=> root.hide-on-select-setting;
                             enabled: root.hide-on-select-enabled;
                         }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-toggle.svg"); title: "Start hidden in tray"; description: "Inicia directamente en segundo plano para un arranque más silencioso."; checked <=> root.start-in-tray-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Lock layout changes"; description: "Bloquea cambios de layout por teclado o desde la barra superior."; checked <=> root.locked-layout-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Lock cell resizing"; description: "Desactiva el arrastre de separadores para proteger la composición actual."; checked <=> root.lock-cell-resize-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-start-hidden.svg"); title: "Start hidden in tray"; description: "Inicia directamente en segundo plano para un arranque más silencioso."; checked <=> root.start-in-tray-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-lock-layout.svg"); title: "Lock layout changes"; description: "Bloquea cambios de layout por teclado o desde la barra superior."; checked <=> root.locked-layout-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-lock-resize.svg"); title: "Lock cell resizing"; description: "Desactiva el arrastre de separadores para proteger la composición actual."; checked <=> root.lock-cell-resize-setting; }
+
+                        Divider {}
 
                         SectionTitle {
                             icon: @image-url("../../assets/ui-icons/option-visibility.svg");
@@ -767,10 +754,10 @@ export component SettingsWindow inherits Window {
                             helper: "Controles que cambian la legibilidad y el contenido visible del dashboard.";
                         }
 
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-visibility.svg"); title: "Show toolbar"; description: "Muestra la cabecera superior con resumen de estado y acceso rápido al menú."; checked <=> root.show-toolbar-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-visibility.svg"); title: "Show window info above thumbnails"; description: "Añade el nombre de ventana y aplicación encima de cada preview para leer el contexto de un vistazo."; checked <=> root.show-info-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-visibility.svg"); title: "Show app icons in cells"; description: "Pinta el icono del proceso dentro de cada celda para identificar apps más rápido."; checked <=> root.show-app-icons-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-visibility.svg"); title: "Use system backdrop (Win11)"; description: "Activa materiales del sistema y bordes más nativos cuando Windows 11 los soporta."; checked <=> root.use-system-backdrop-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: "Show toolbar"; description: "Muestra la cabecera superior con resumen de estado y acceso rápido al menú."; checked <=> root.show-toolbar-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-window-info.svg"); title: "Show window info above thumbnails"; description: "Añade el nombre de ventana y aplicación encima de cada preview para leer el contexto de un vistazo."; checked <=> root.show-info-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-app-icon.svg"); title: "Show app icons in cells"; description: "Pinta el icono del proceso dentro de cada celda para identificar apps más rápido."; checked <=> root.show-app-icons-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-backdrop.svg"); title: "Use system backdrop (Win11)"; description: "Activa materiales del sistema y bordes más nativos cuando Windows 11 los soporta."; checked <=> root.use-system-backdrop-setting; }
                     }
 
                     if root.current-page == 1: VerticalLayout {
@@ -1214,6 +1201,8 @@ export component SettingsWindow inherits Window {
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Reset layout ratios"; description: "Restablece proporciones personalizadas del layout actual."; value <=> root.shortcut-reset-layout; placeholder: "0"; committed => { root.apply(); } }
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Cycle layout"; description: "Avanza al siguiente layout en la secuencia interna."; value <=> root.shortcut-cycle-layout; placeholder: "Tab"; committed => { root.apply(); } }
 
+                                    Divider {}
+
                                     SectionTitle {
                                         icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
                                         text: "Dashboard actions";
@@ -1323,25 +1312,30 @@ export component SettingsWindow inherits Window {
             height: 62px;
             background: Theme.bg;
 
-            Divider { y: 0; width: 100%; }
-
-            HorizontalLayout {
-                padding-left: 24px;
-                padding-right: 24px;
-                spacing: 10px;
-                alignment: space-between;
-
-                Text {
-                    text: "Changes apply automatically.";
-                    color: Theme.muted;
-                    font-size: 11.5px;
-                    vertical-alignment: center;
-                }
+            VerticalLayout {
+                Divider { vertical-stretch: 0; }
 
                 HorizontalLayout {
+                    padding-left: 24px;
+                    padding-right: 24px;
+                    padding-top: 12px;
+                    padding-bottom: 12px;
                     spacing: 10px;
-                    FooterButton { text: "Reset defaults"; clicked => { root.reset-to-defaults(); } }
-                    FooterButton { text: "Close"; clicked => { root.closed(); } }
+                    alignment: space-between;
+                    vertical-stretch: 1;
+
+                    Text {
+                        text: "Changes apply automatically.";
+                        color: Theme.muted;
+                        font-size: 11.5px;
+                        vertical-alignment: center;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        FooterButton { text: "Reset defaults"; clicked => { root.reset-to-defaults(); } }
+                        FooterButton { text: "Close"; clicked => { root.closed(); } }
+                    }
                 }
             }
         }
