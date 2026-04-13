@@ -10,9 +10,16 @@ import "../assets/fonts/MirandaSans-BoldItalic.ttf";
 // Shared globals, theme tokens, and view-model structs for Panopticon.
 
 export global Tr {
+    // App identity
+    in property <string> app-name: "Panopticon";
+    in property <string> main-window-title: "Panopticon — Window Viewer";
+    in property <string> settings-window-title: "Panopticon — Settings";
+    in property <string> tag-window-title: "Panopticon — Create tag";
+
     // ThumbnailCard
     in property <string> minimized: "minimized";
     in property <string> last-seen: "LAST SEEN";
+
     // Toolbar
     in property <string> visible-label: "visible";
     in property <string> hidden-label: "hidden";
@@ -21,10 +28,92 @@ export global Tr {
     in property <string> toolbar-hint: "right-click header / M: menu | Esc exit";
     in property <string> anim-on: "anim on";
     in property <string> anim-off: "anim off";
+
+    // Layout options
+    in property <string> layout-grid-label: "Grid";
+    in property <string> layout-mosaic-label: "Mosaic";
+    in property <string> layout-bento-label: "Bento";
+    in property <string> layout-fibonacci-label: "Fibonacci";
+    in property <string> layout-columns-label: "Columns";
+    in property <string> layout-row-label: "Row";
+    in property <string> layout-column-label: "Column";
+    in property <[string]> layout-options: [
+        layout-grid-label,
+        layout-mosaic-label,
+        layout-bento-label,
+        layout-fibonacci-label,
+        layout-columns-label,
+        layout-row-label,
+        layout-column-label,
+    ];
+
+    // Grouping options
+    in property <string> group-none-label: "No grouping";
+    in property <string> group-application-label: "Application";
+    in property <string> group-monitor-label: "Monitor";
+    in property <string> group-title-label: "Window title";
+    in property <string> group-class-label: "Window class";
+    in property <[string]> group-options: [
+        group-none-label,
+        group-application-label,
+        group-monitor-label,
+        group-title-label,
+        group-class-label,
+    ];
+
+    // Dock options
+    in property <string> dock-none-label: "Floating (no dock)";
+    in property <string> dock-left-label: "Left";
+    in property <string> dock-right-label: "Right";
+    in property <string> dock-top-label: "Top";
+    in property <string> dock-bottom-label: "Bottom";
+    in property <[string]> dock-options: [
+        dock-none-label,
+        dock-left-label,
+        dock-right-label,
+        dock-top-label,
+        dock-bottom-label,
+    ];
+
+    // Locale options
+    in property <string> locale-english-label: "English";
+    in property <string> locale-spanish-label: "Spanish";
+    in property <[string]> language-options: [locale-english-label, locale-spanish-label];
+
+    // Image fit options
+    in property <string> fit-cover-label: "Cover";
+    in property <string> fit-contain-label: "Contain";
+    in property <string> fit-fill-label: "Fill";
+    in property <string> fit-preserve-label: "Preserve";
+    in property <[string]> image-fit-options: [
+        fit-cover-label,
+        fit-contain-label,
+        fit-fill-label,
+        fit-preserve-label,
+    ];
+
+    // Dynamic filter defaults
+    in property <string> all-monitors-label: "All monitors";
+    in property <string> all-tags-label: "All tags";
+    in property <string> all-apps-label: "All applications";
+    in property <string> no-hidden-label: "No hidden apps";
+    in property <string> no-saved-profiles-label: "No saved profiles";
+
     // Empty state
     in property <string> empty-message: "No windows available to preview";
     in property <string> empty-helper: "Open or restore any desktop window.\nPanopticon will keep watching from the tray.";
-    // Settings hints
+
+    // Shared actions
+    in property <string> action-close: "Close";
+    in property <string> action-reset-defaults: "Reset defaults";
+    in property <string> action-restore-selected: "Restore selected";
+    in property <string> action-restore-all: "Restore all";
+    in property <string> action-browse-image: "Browse image…";
+    in property <string> action-clear-image: "Clear image";
+    in property <string> action-refresh-now: "Refresh now";
+    in property <string> action-auto-apply: "Changes apply automatically.";
+
+    // Settings hints already used from Rust
     in property <string> dock-mode-hint: "In dock mode this option is automatically disabled.";
     in property <string> filters-hint: "Filters and grouping are also reflected in the header and reorder visible cells.";
     in property <string> current-profile-prefix: "Current profile: ";
@@ -32,12 +121,189 @@ export global Tr {
     in property <string> save-profile-btn: "Save profile";
     in property <string> open-instance-btn: "Open another instance";
     in property <string> no-hidden-hint: "No hidden apps to restore right now.";
+
+    // Settings window chrome
+    in property <string> settings-title: "Settings";
+    in property <string> settings-subtitle: "Customize the dashboard, backgrounds, shortcuts, and overall behavior.";
+    in property <string> settings-profile-badge: "Profile";
+
+    // Sidebar navigation
+    in property <string> settings-nav-behaviour-display-title: "Behaviour & Display";
+    in property <string> settings-nav-behaviour-display-subtitle: "Window behaviour, tray and visible chrome";
+    in property <string> settings-nav-filters-title: "Filters";
+    in property <string> settings-nav-filters-subtitle: "Monitor, tag, app and hidden-state tools";
+    in property <string> settings-nav-theme-background-title: "Theme & Background";
+    in property <string> settings-nav-theme-background-subtitle: "Theme presets, solid canvas colour and image";
+    in property <string> settings-nav-profiles-title: "Profiles";
+    in property <string> settings-nav-profiles-subtitle: "Save and launch named setups";
+    in property <string> settings-nav-shortcuts-title: "Keyboard Shortcuts";
+    in property <string> settings-nav-shortcuts-subtitle: "Customize the dashboard key map";
+    in property <string> settings-nav-advanced-title: "Advanced Options";
+    in property <string> settings-nav-advanced-subtitle: "Layout, refresh cadence and dock behaviour";
+
+    // Behaviour page
+    in property <string> settings-page-behaviour-display-title: "Behaviour & Display";
+    in property <string> settings-page-behaviour-display-subtitle: "Adjust how the main window behaves, what information is shown, and how it responds to the tray.";
+    in property <string> settings-section-behaviour-title: "Behaviour";
+    in property <string> settings-section-behaviour-helper: "Each option includes a small summary so you do not have to guess what it does.";
+    in property <string> settings-option-language-title: "Language";
+    in property <string> settings-option-language-description: "Choose the application language. English is the default; Spanish is also available.";
+    in property <string> settings-option-always-on-top-title: "Always on top";
+    in property <string> settings-option-always-on-top-description: "Keep Panopticon above other windows even while switching applications.";
+    in property <string> settings-option-animate-transitions-title: "Animate transitions";
+    in property <string> settings-option-animate-transitions-description: "Smooth layout changes, filters, and visual reordering between thumbnails.";
+    in property <string> settings-option-minimize-to-tray-title: "Minimize to tray";
+    in property <string> settings-option-minimize-to-tray-description: "When minimized, hide the app from the desktop while keeping it alive in the system tray.";
+    in property <string> settings-option-close-to-tray-title: "Close to tray";
+    in property <string> settings-option-close-to-tray-description: "Interpret the window close button as hiding to the tray instead of exiting.";
+    in property <string> settings-option-preserve-aspect-ratio-title: "Preserve aspect ratio by default";
+    in property <string> settings-option-preserve-aspect-ratio-description: "New applications will better respect the original proportion of their thumbnails.";
+    in property <string> settings-option-hide-on-select-title: "Hide after selecting an app";
+    in property <string> settings-option-hide-on-select-description: "Hide Panopticon when you activate a window from the dashboard.";
+    in property <string> settings-option-start-in-tray-title: "Start hidden in tray";
+    in property <string> settings-option-start-in-tray-description: "Launch directly in the background for a quieter startup.";
+    in property <string> settings-option-lock-layout-title: "Lock layout changes";
+    in property <string> settings-option-lock-layout-description: "Prevent layout changes from the keyboard or the top toolbar.";
+    in property <string> settings-option-lock-cell-resize-title: "Lock cell resizing";
+    in property <string> settings-option-lock-cell-resize-description: "Disable separator dragging to protect the current composition.";
+    in property <string> settings-section-display-title: "Display";
+    in property <string> settings-section-display-helper: "Controls that change readability and the information shown on the dashboard.";
+    in property <string> settings-option-show-toolbar-title: "Show toolbar";
+    in property <string> settings-option-show-toolbar-description: "Show the top header with status summary and quick access to the menu.";
+    in property <string> settings-option-show-info-title: "Show window info above thumbnails";
+    in property <string> settings-option-show-info-description: "Add the window and application name above each preview for quick context.";
+    in property <string> settings-option-show-app-icons-title: "Show app icons in cells";
+    in property <string> settings-option-show-app-icons-description: "Render the process icon inside each cell to identify apps faster.";
+    in property <string> settings-option-use-system-backdrop-title: "Use system backdrop (Win11)";
+    in property <string> settings-option-use-system-backdrop-description: "Enable more native system materials and borders when Windows 11 supports them.";
+
+    // Filters page
+    in property <string> settings-page-filters-title: "Filters";
+    in property <string> settings-page-filters-subtitle: "Limit the dashboard by monitor, tags, applications, or groups, and restore hidden apps without leaving this view.";
+    in property <string> settings-option-monitor-filter-title: "Monitor filter";
+    in property <string> settings-option-monitor-filter-description: "Limit the dashboard to a specific monitor when working with multiple displays.";
+    in property <string> settings-option-tag-filter-title: "Tag filter";
+    in property <string> settings-option-tag-filter-description: "Show only applications associated with a specific manual tag.";
+    in property <string> settings-option-app-filter-title: "Application filter";
+    in property <string> settings-option-app-filter-description: "Isolate a specific app when you want to review only its window group.";
+    in property <string> settings-option-group-windows-title: "Group windows by";
+    in property <string> settings-option-group-windows-description: "Visually reorder the list without filtering content, which is ideal for spotting patterns.";
+    in property <string> settings-section-hidden-apps-title: "Hidden applications";
+    in property <string> settings-section-hidden-apps-helper: "Restore hidden apps one by one or all at once from persisted state.";
+
+    // Theme page
+    in property <string> settings-page-theme-background-title: "Theme & Background";
+    in property <string> settings-page-theme-background-subtitle: "Combine a theme library with a custom canvas colour and an adjustable background image.";
+    in property <string> settings-section-theme-grid-title: "Theme grid";
+    in property <string> settings-section-theme-grid-helper: "Pick a preset from a scrollable grid; the theme defines accents, panels, and overall contrast.";
+    in property <string> settings-section-canvas-background-title: "Canvas background";
+    in property <string> settings-section-canvas-background-helper: "The canvas colour sits behind the cards and the optional background image.";
+    in property <string> settings-option-custom-canvas-colour-title: "Custom canvas colour";
+    in property <string> settings-option-custom-canvas-colour-description: "Enter a manual RGB hex value if you want a colour outside the quick palette.";
+    in property <string> settings-section-preview-title: "Preview";
+    in property <string> settings-section-preview-helper: "Quick summary of the active background with colour and optional image.";
+    in property <string> settings-section-background-image-title: "Background image";
+    in property <string> settings-section-background-image-helper: "Place an image behind the dashboard and define how it should fit within the canvas.";
+    in property <string> settings-option-image-file-title: "Image file";
+    in property <string> settings-option-image-file-description: "You can paste a path manually or choose it with the native picker.";
+    in property <string> settings-option-image-fit-title: "Image fit";
+    in property <string> settings-option-image-fit-description: "Control whether the image covers, contains, or fills the visible dashboard area.";
+
+    // Profiles page
+    in property <string> settings-page-profiles-title: "Profiles";
+    in property <string> settings-page-profiles-subtitle: "Save complete combinations of settings and open new instances already pointed at the profile you want.";
+    in property <string> settings-section-edit-profile-title: "Edit profile";
+    in property <string> settings-section-edit-profile-helper: "Use a short, descriptive name to save or open the current snapshot in another instance.";
+    in property <string> settings-current-profile-card-title: "Current profile";
+    in property <string> settings-option-profile-name-title: "Profile name";
+    in property <string> settings-option-profile-name-description: "Name used to save this setup or launch another instance with it.";
+    in property <string> settings-section-saved-profiles-title: "Saved profiles";
+    in property <string> settings-section-saved-profiles-helper: "Summary of detected profiles plus a reminder of the recommended multi-instance workflow.";
+    in property <string> settings-tips-title: "Tips";
+    in property <string> settings-tips-body: "- Save the current profile first if you are about to open another instance.\n- Use simple names like work, stream, or review.\n- Theme, background, and shortcut settings travel with the profile.";
+
+    // Shortcuts page
+    in property <string> settings-page-shortcuts-title: "Keyboard Shortcuts";
+    in property <string> settings-page-shortcuts-subtitle: "All dashboard quick actions in a single editor. Use a single key or names like Tab / Esc.";
+    in property <string> settings-section-layout-bindings-title: "Layout bindings";
+    in property <string> settings-section-layout-bindings-helper: "Direct assignments for specific layouts, reset, and the general cycle action.";
+    in property <string> settings-shortcut-layout-grid-title: "Grid layout";
+    in property <string> settings-shortcut-layout-grid-description: "Switch to the Grid view instantly.";
+    in property <string> settings-shortcut-layout-mosaic-title: "Mosaic layout";
+    in property <string> settings-shortcut-layout-mosaic-description: "Switch to the Mosaic layout.";
+    in property <string> settings-shortcut-layout-bento-title: "Bento layout";
+    in property <string> settings-shortcut-layout-bento-description: "Activate the Bento layout.";
+    in property <string> settings-shortcut-layout-fibonacci-title: "Fibonacci layout";
+    in property <string> settings-shortcut-layout-fibonacci-description: "Open the Fibonacci composition.";
+    in property <string> settings-shortcut-layout-columns-title: "Columns layout";
+    in property <string> settings-shortcut-layout-columns-description: "Activate Columns.";
+    in property <string> settings-shortcut-layout-row-title: "Row layout";
+    in property <string> settings-shortcut-layout-row-description: "Activate the Row view.";
+    in property <string> settings-shortcut-layout-column-title: "Column layout";
+    in property <string> settings-shortcut-layout-column-description: "Activate the Column view.";
+    in property <string> settings-shortcut-reset-layout-title: "Reset layout ratios";
+    in property <string> settings-shortcut-reset-layout-description: "Reset custom proportions for the current layout.";
+    in property <string> settings-shortcut-cycle-layout-title: "Cycle layout";
+    in property <string> settings-shortcut-cycle-layout-description: "Advance to the next layout in the internal sequence.";
+    in property <string> settings-section-dashboard-actions-title: "Dashboard actions";
+    in property <string> settings-section-dashboard-actions-helper: "Shortcuts for opening panels, refreshing state, and toggling visible options.";
+    in property <string> settings-shortcut-cycle-theme-title: "Cycle theme";
+    in property <string> settings-shortcut-cycle-theme-description: "Rotate between presets without opening the settings window.";
+    in property <string> settings-shortcut-toggle-animations-title: "Toggle animations";
+    in property <string> settings-shortcut-toggle-animations-description: "Enable or disable dashboard transitions.";
+    in property <string> settings-shortcut-toggle-toolbar-title: "Toggle toolbar";
+    in property <string> settings-shortcut-toggle-toolbar-description: "Show or hide the dashboard's top bar.";
+    in property <string> settings-shortcut-toggle-window-info-title: "Toggle window info";
+    in property <string> settings-shortcut-toggle-window-info-description: "Show or hide titles and info above thumbnails.";
+    in property <string> settings-shortcut-toggle-always-on-top-title: "Toggle always on top";
+    in property <string> settings-shortcut-toggle-always-on-top-description: "Toggle the always-on-top mode above other apps.";
+    in property <string> settings-shortcut-open-settings-title: "Open settings";
+    in property <string> settings-shortcut-open-settings-description: "Open this window from the main dashboard.";
+    in property <string> settings-shortcut-open-menu-title: "Open application menu";
+    in property <string> settings-shortcut-open-menu-description: "Open the main native menu with quick actions.";
+    in property <string> settings-shortcut-refresh-now-title: "Refresh now";
+    in property <string> settings-shortcut-refresh-now-description: "Force a new window enumeration and refresh the dashboard.";
+    in property <string> settings-shortcut-exit-app-title: "Exit app";
+    in property <string> settings-shortcut-exit-app-description: "Close Panopticon from the keyboard.";
+    in property <string> settings-shortcut-alt-toolbar-title: "Use Alt as a quick toolbar toggle";
+    in property <string> settings-shortcut-alt-toolbar-description: "Keep the legacy Windows shortcut to hide or show the toolbar with a single Alt press.";
+
+    // Advanced page
+    in property <string> settings-page-advanced-title: "Advanced Options";
+    in property <string> settings-page-advanced-subtitle: "Initial layout, refresh cadence, docked dimensions, and appbar position.";
+    in property <string> settings-option-default-layout-title: "Default layout";
+    in property <string> settings-option-default-layout-description: "Choose which layout Panopticon should use each time this profile starts.";
+    in property <string> settings-option-refresh-interval-title: "Refresh interval";
+    in property <string> settings-option-refresh-interval-description: "Base cadence for enumerating windows and refreshing the dashboard when you do not force a manual refresh.";
+    in property <string> settings-section-manual-refresh-title: "Manual refresh";
+    in property <string> settings-section-manual-refresh-helper: "Use this when you want to re-enumerate windows immediately instead of waiting for the timer.";
+    in property <string> settings-section-dock-thickness-title: "Dock thickness";
+    in property <string> settings-section-dock-thickness-helper: "For a side dock, width is used; for top/bottom, height is used. 0 leaves the size automatic.";
+    in property <string> settings-width-label: "Width";
+    in property <string> settings-height-label: "Height";
+    in property <string> settings-option-dock-position-title: "Dock position";
+    in property <string> settings-option-dock-position-description: "Turn the window into a docked appbar or leave it floating as a free panel.";
+
     // Tag dialog
     in property <string> tag-title: "Create custom tag";
     in property <string> tag-app-label: "Application: ";
     in property <string> tag-name-label: "Tag name";
     in property <string> tag-preset-colour: "Preset colour";
     in property <string> tag-create-assign: "Create and assign";
+    in property <string> tag-colour-amber-label: "Amber";
+    in property <string> tag-colour-sky-label: "Sky";
+    in property <string> tag-colour-mint-label: "Mint";
+    in property <string> tag-colour-rose-label: "Rose";
+    in property <string> tag-colour-violet-label: "Violet";
+    in property <string> tag-colour-sun-label: "Sun";
+    in property <[string]> tag-colour-options: [
+        tag-colour-amber-label,
+        tag-colour-sky-label,
+        tag-colour-mint-label,
+        tag-colour-rose-label,
+        tag-colour-violet-label,
+        tag-colour-sun-label,
+    ];
 }
 
 export global Theme {

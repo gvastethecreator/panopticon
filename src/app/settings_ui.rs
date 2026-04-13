@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use panopticon::i18n;
 use panopticon::layout::LayoutType;
 use panopticon::settings::{AppSettings, BackgroundImageFit, DockEdge, WindowGrouping};
 use panopticon::theme;
@@ -11,6 +12,7 @@ use slint::{ModelRc, VecModel};
 use crate::{SettingsWindow, ThemePreviewData};
 
 pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings) {
+    window.set_language_index(locale_to_index(settings.language));
     window.set_always_on_top_setting(settings.always_on_top);
     window.set_animate_transitions_setting(settings.animate_transitions);
     window.set_minimize_to_tray_setting(settings.minimize_to_tray);
@@ -76,6 +78,7 @@ pub fn apply_settings_window_changes(
     window: &SettingsWindow,
     settings: &mut AppSettings,
 ) -> LayoutType {
+    settings.language = index_to_locale(window.get_language_index());
     settings.always_on_top = window.get_always_on_top_setting();
     settings.animate_transitions = window.get_animate_transitions_setting();
     settings.minimize_to_tray = window.get_minimize_to_tray_setting();
@@ -147,6 +150,20 @@ pub(crate) const fn background_fit_to_index(fit: BackgroundImageFit) -> i32 {
         BackgroundImageFit::Contain => 1,
         BackgroundImageFit::Fill => 2,
         BackgroundImageFit::Preserve => 3,
+    }
+}
+
+const fn locale_to_index(locale: i18n::Locale) -> i32 {
+    match locale {
+        i18n::Locale::English => 0,
+        i18n::Locale::Spanish => 1,
+    }
+}
+
+const fn index_to_locale(index: i32) -> i18n::Locale {
+    match index {
+        1 => i18n::Locale::Spanish,
+        _ => i18n::Locale::English,
     }
 }
 
@@ -253,8 +270,8 @@ fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
     let mut previews = Vec::with_capacity(theme::theme_presets().len() + 1);
     previews.push(ThemePreviewData {
         index: 0,
-        label: SharedString::from("Classic Panopticon"),
-        subtitle: SharedString::from("Uses the current canvas colour as the base background."),
+        label: SharedString::from(i18n::t("theme.classic_name")),
+        subtitle: SharedString::from(i18n::t("theme.classic_subtitle")),
         bg: hex_to_color("181513"),
         surface: hex_to_color("221E1C"),
         accent: hex_to_color("D29A5C"),

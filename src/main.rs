@@ -55,6 +55,10 @@ pub(crate) const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
 
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one central place wires translation keys into the generated Slint global setters"
+)]
 pub(crate) fn populate_tr_global<Component>(window: &Component)
 where
     Component: ComponentHandle,
@@ -62,7 +66,17 @@ where
 {
     use panopticon::i18n;
 
+    macro_rules! set_tr {
+        ($tr:ident, $setter:ident, $key:literal) => {
+            $tr.$setter(SharedString::from(i18n::t($key)));
+        };
+    }
+
     let tr = window.global::<Tr>();
+    set_tr!(tr, set_app_name, "app.name");
+    set_tr!(tr, set_main_window_title, "window.main_title");
+    set_tr!(tr, set_settings_window_title, "window.settings_title");
+    set_tr!(tr, set_tag_window_title, "window.tag_title");
     tr.set_minimized(SharedString::from(i18n::t("ui.minimized")));
     tr.set_last_seen(SharedString::from(i18n::t("ui.last_seen")));
     tr.set_visible_label(SharedString::from(i18n::t("ui.visible")));
@@ -72,8 +86,48 @@ where
     tr.set_toolbar_hint(SharedString::from(i18n::t("ui.toolbar_hint")));
     tr.set_anim_on(SharedString::from(i18n::t("ui.anim_on")));
     tr.set_anim_off(SharedString::from(i18n::t("ui.anim_off")));
+    set_tr!(tr, set_layout_grid_label, "layout.grid");
+    set_tr!(tr, set_layout_mosaic_label, "layout.mosaic");
+    set_tr!(tr, set_layout_bento_label, "layout.bento");
+    set_tr!(tr, set_layout_fibonacci_label, "layout.fibonacci");
+    set_tr!(tr, set_layout_columns_label, "layout.columns");
+    set_tr!(tr, set_layout_row_label, "layout.row");
+    set_tr!(tr, set_layout_column_label, "layout.column");
+    set_tr!(tr, set_group_none_label, "group.none");
+    set_tr!(tr, set_group_application_label, "group.application");
+    set_tr!(tr, set_group_monitor_label, "group.monitor");
+    set_tr!(tr, set_group_title_label, "group.title");
+    set_tr!(tr, set_group_class_label, "group.class");
+    set_tr!(tr, set_dock_none_label, "dock.none");
+    set_tr!(tr, set_dock_left_label, "dock.left");
+    set_tr!(tr, set_dock_right_label, "dock.right");
+    set_tr!(tr, set_dock_top_label, "dock.top");
+    set_tr!(tr, set_dock_bottom_label, "dock.bottom");
+    set_tr!(tr, set_locale_english_label, "locale.english");
+    set_tr!(tr, set_locale_spanish_label, "locale.spanish");
+    set_tr!(tr, set_fit_cover_label, "settings.fit.cover");
+    set_tr!(tr, set_fit_contain_label, "settings.fit.contain");
+    set_tr!(tr, set_fit_fill_label, "settings.fit.fill");
+    set_tr!(tr, set_fit_preserve_label, "settings.fit.preserve");
+    set_tr!(tr, set_all_monitors_label, "tray.all_monitors");
+    set_tr!(tr, set_all_tags_label, "tray.all_tags");
+    set_tr!(tr, set_all_apps_label, "tray.all_apps");
+    set_tr!(tr, set_no_hidden_label, "settings.no_hidden");
+    set_tr!(
+        tr,
+        set_no_saved_profiles_label,
+        "settings.no_saved_profiles"
+    );
     tr.set_empty_message(SharedString::from(i18n::t("ui.empty_message")));
     tr.set_empty_helper(SharedString::from(i18n::t("ui.empty_helper")));
+    set_tr!(tr, set_action_close, "action.close");
+    set_tr!(tr, set_action_reset_defaults, "action.reset_defaults");
+    set_tr!(tr, set_action_restore_selected, "action.restore_selected");
+    set_tr!(tr, set_action_restore_all, "action.restore_all");
+    set_tr!(tr, set_action_browse_image, "action.browse_image");
+    set_tr!(tr, set_action_clear_image, "action.clear_image");
+    set_tr!(tr, set_action_refresh_now, "action.refresh_now");
+    set_tr!(tr, set_action_auto_apply, "action.auto_apply");
     tr.set_dock_mode_hint(SharedString::from(i18n::t("settings.dock_hint")));
     tr.set_filters_hint(SharedString::from(i18n::t("settings.filters_hint")));
     tr.set_current_profile_prefix(SharedString::from(i18n::t("settings.current_profile")));
@@ -81,11 +135,719 @@ where
     tr.set_save_profile_btn(SharedString::from(i18n::t("settings.save_profile")));
     tr.set_open_instance_btn(SharedString::from(i18n::t("settings.open_instance")));
     tr.set_no_hidden_hint(SharedString::from(i18n::t("settings.no_hidden_hint")));
+    set_tr!(tr, set_settings_title, "settings.title");
+    set_tr!(tr, set_settings_subtitle, "settings.subtitle");
+    set_tr!(tr, set_settings_profile_badge, "settings.profile_badge");
+    set_tr!(
+        tr,
+        set_settings_nav_behaviour_display_title,
+        "settings.nav.behaviour_display.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_behaviour_display_subtitle,
+        "settings.nav.behaviour_display.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_filters_title,
+        "settings.nav.filters.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_filters_subtitle,
+        "settings.nav.filters.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_theme_background_title,
+        "settings.nav.theme_background.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_theme_background_subtitle,
+        "settings.nav.theme_background.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_profiles_title,
+        "settings.nav.profiles.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_profiles_subtitle,
+        "settings.nav.profiles.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_shortcuts_title,
+        "settings.nav.shortcuts.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_shortcuts_subtitle,
+        "settings.nav.shortcuts.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_advanced_title,
+        "settings.nav.advanced.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_nav_advanced_subtitle,
+        "settings.nav.advanced.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_behaviour_display_title,
+        "settings.page.behaviour_display.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_behaviour_display_subtitle,
+        "settings.page.behaviour_display.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_behaviour_title,
+        "settings.section.behaviour.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_behaviour_helper,
+        "settings.section.behaviour.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_language_title,
+        "settings.option.language.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_language_description,
+        "settings.option.language.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_always_on_top_title,
+        "settings.option.always_on_top.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_always_on_top_description,
+        "settings.option.always_on_top.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_animate_transitions_title,
+        "settings.option.animate_transitions.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_animate_transitions_description,
+        "settings.option.animate_transitions.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_minimize_to_tray_title,
+        "settings.option.minimize_to_tray.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_minimize_to_tray_description,
+        "settings.option.minimize_to_tray.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_close_to_tray_title,
+        "settings.option.close_to_tray.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_close_to_tray_description,
+        "settings.option.close_to_tray.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_preserve_aspect_ratio_title,
+        "settings.option.preserve_aspect_ratio.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_preserve_aspect_ratio_description,
+        "settings.option.preserve_aspect_ratio.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_hide_on_select_title,
+        "settings.option.hide_on_select.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_hide_on_select_description,
+        "settings.option.hide_on_select.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_start_in_tray_title,
+        "settings.option.start_in_tray.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_start_in_tray_description,
+        "settings.option.start_in_tray.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_lock_layout_title,
+        "settings.option.lock_layout.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_lock_layout_description,
+        "settings.option.lock_layout.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_lock_cell_resize_title,
+        "settings.option.lock_cell_resize.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_lock_cell_resize_description,
+        "settings.option.lock_cell_resize.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_display_title,
+        "settings.section.display.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_display_helper,
+        "settings.section.display.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_show_toolbar_title,
+        "settings.option.show_toolbar.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_show_toolbar_description,
+        "settings.option.show_toolbar.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_show_info_title,
+        "settings.option.show_info.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_show_info_description,
+        "settings.option.show_info.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_show_app_icons_title,
+        "settings.option.show_app_icons.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_show_app_icons_description,
+        "settings.option.show_app_icons.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_use_system_backdrop_title,
+        "settings.option.use_system_backdrop.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_use_system_backdrop_description,
+        "settings.option.use_system_backdrop.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_filters_title,
+        "settings.page.filters.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_filters_subtitle,
+        "settings.page.filters.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_monitor_filter_title,
+        "settings.option.monitor_filter.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_monitor_filter_description,
+        "settings.option.monitor_filter.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_tag_filter_title,
+        "settings.option.tag_filter.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_tag_filter_description,
+        "settings.option.tag_filter.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_app_filter_title,
+        "settings.option.app_filter.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_app_filter_description,
+        "settings.option.app_filter.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_group_windows_title,
+        "settings.option.group_windows.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_group_windows_description,
+        "settings.option.group_windows.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_hidden_apps_title,
+        "settings.section.hidden_apps.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_hidden_apps_helper,
+        "settings.section.hidden_apps.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_theme_background_title,
+        "settings.page.theme_background.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_theme_background_subtitle,
+        "settings.page.theme_background.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_theme_grid_title,
+        "settings.section.theme_grid.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_theme_grid_helper,
+        "settings.section.theme_grid.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_canvas_background_title,
+        "settings.section.canvas_background.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_canvas_background_helper,
+        "settings.section.canvas_background.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_custom_canvas_colour_title,
+        "settings.option.custom_canvas_colour.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_custom_canvas_colour_description,
+        "settings.option.custom_canvas_colour.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_preview_title,
+        "settings.section.preview.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_preview_helper,
+        "settings.section.preview.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_background_image_title,
+        "settings.section.background_image.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_background_image_helper,
+        "settings.section.background_image.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_image_file_title,
+        "settings.option.image_file.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_image_file_description,
+        "settings.option.image_file.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_image_fit_title,
+        "settings.option.image_fit.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_image_fit_description,
+        "settings.option.image_fit.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_profiles_title,
+        "settings.page.profiles.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_profiles_subtitle,
+        "settings.page.profiles.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_edit_profile_title,
+        "settings.section.edit_profile.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_edit_profile_helper,
+        "settings.section.edit_profile.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_current_profile_card_title,
+        "settings.current_profile_card.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_profile_name_title,
+        "settings.option.profile_name.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_profile_name_description,
+        "settings.option.profile_name.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_saved_profiles_title,
+        "settings.section.saved_profiles.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_saved_profiles_helper,
+        "settings.section.saved_profiles.helper"
+    );
+    set_tr!(tr, set_settings_tips_title, "settings.tips.title");
+    set_tr!(tr, set_settings_tips_body, "settings.tips.body");
+    set_tr!(
+        tr,
+        set_settings_page_shortcuts_title,
+        "settings.page.shortcuts.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_shortcuts_subtitle,
+        "settings.page.shortcuts.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_layout_bindings_title,
+        "settings.section.layout_bindings.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_layout_bindings_helper,
+        "settings.section.layout_bindings.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_grid_title,
+        "settings.shortcut.layout_grid.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_grid_description,
+        "settings.shortcut.layout_grid.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_mosaic_title,
+        "settings.shortcut.layout_mosaic.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_mosaic_description,
+        "settings.shortcut.layout_mosaic.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_bento_title,
+        "settings.shortcut.layout_bento.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_bento_description,
+        "settings.shortcut.layout_bento.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_fibonacci_title,
+        "settings.shortcut.layout_fibonacci.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_fibonacci_description,
+        "settings.shortcut.layout_fibonacci.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_columns_title,
+        "settings.shortcut.layout_columns.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_columns_description,
+        "settings.shortcut.layout_columns.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_row_title,
+        "settings.shortcut.layout_row.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_row_description,
+        "settings.shortcut.layout_row.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_column_title,
+        "settings.shortcut.layout_column.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_layout_column_description,
+        "settings.shortcut.layout_column.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_reset_layout_title,
+        "settings.shortcut.reset_layout.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_reset_layout_description,
+        "settings.shortcut.reset_layout.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_cycle_layout_title,
+        "settings.shortcut.cycle_layout.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_cycle_layout_description,
+        "settings.shortcut.cycle_layout.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_dashboard_actions_title,
+        "settings.section.dashboard_actions.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_dashboard_actions_helper,
+        "settings.section.dashboard_actions.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_cycle_theme_title,
+        "settings.shortcut.cycle_theme.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_cycle_theme_description,
+        "settings.shortcut.cycle_theme.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_toggle_animations_title,
+        "settings.shortcut.toggle_animations.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_toggle_animations_description,
+        "settings.shortcut.toggle_animations.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_toggle_toolbar_title,
+        "settings.shortcut.toggle_toolbar.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_toggle_toolbar_description,
+        "settings.shortcut.toggle_toolbar.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_toggle_window_info_title,
+        "settings.shortcut.toggle_window_info.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_toggle_window_info_description,
+        "settings.shortcut.toggle_window_info.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_toggle_always_on_top_title,
+        "settings.shortcut.toggle_always_on_top.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_toggle_always_on_top_description,
+        "settings.shortcut.toggle_always_on_top.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_open_settings_title,
+        "settings.shortcut.open_settings.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_open_settings_description,
+        "settings.shortcut.open_settings.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_open_menu_title,
+        "settings.shortcut.open_menu.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_open_menu_description,
+        "settings.shortcut.open_menu.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_refresh_now_title,
+        "settings.shortcut.refresh_now.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_refresh_now_description,
+        "settings.shortcut.refresh_now.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_exit_app_title,
+        "settings.shortcut.exit_app.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_exit_app_description,
+        "settings.shortcut.exit_app.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_alt_toolbar_title,
+        "settings.shortcut.alt_toolbar.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_alt_toolbar_description,
+        "settings.shortcut.alt_toolbar.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_advanced_title,
+        "settings.page.advanced.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_page_advanced_subtitle,
+        "settings.page.advanced.subtitle"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_default_layout_title,
+        "settings.option.default_layout.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_default_layout_description,
+        "settings.option.default_layout.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_refresh_interval_title,
+        "settings.option.refresh_interval.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_refresh_interval_description,
+        "settings.option.refresh_interval.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_manual_refresh_title,
+        "settings.section.manual_refresh.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_manual_refresh_helper,
+        "settings.section.manual_refresh.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_dock_thickness_title,
+        "settings.section.dock_thickness.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_dock_thickness_helper,
+        "settings.section.dock_thickness.helper"
+    );
+    set_tr!(tr, set_settings_width_label, "settings.label.width");
+    set_tr!(tr, set_settings_height_label, "settings.label.height");
+    set_tr!(
+        tr,
+        set_settings_option_dock_position_title,
+        "settings.option.dock_position.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_dock_position_description,
+        "settings.option.dock_position.description"
+    );
     tr.set_tag_title(SharedString::from(i18n::t("tag.title")));
     tr.set_tag_app_label(SharedString::from(i18n::t("tag.application")));
     tr.set_tag_name_label(SharedString::from(i18n::t("tag.name_label")));
     tr.set_tag_preset_colour(SharedString::from(i18n::t("tag.preset_colour")));
     tr.set_tag_create_assign(SharedString::from(i18n::t("tag.create_assign")));
+    set_tr!(tr, set_tag_colour_amber_label, "tag.color.amber");
+    set_tr!(tr, set_tag_colour_sky_label, "tag.color.sky");
+    set_tr!(tr, set_tag_colour_mint_label, "tag.color.mint");
+    set_tr!(tr, set_tag_colour_rose_label, "tag.color.rose");
+    set_tr!(tr, set_tag_colour_violet_label, "tag.color.violet");
+    set_tr!(tr, set_tag_colour_sun_label, "tag.color.sun");
 }
 
 // ───────────────────────── Entry Point ─────────────────────────
@@ -117,6 +879,7 @@ fn select_text_friendly_renderer() {}
 
 #[allow(clippy::too_many_lines)]
 fn main() {
+    let _ = panopticon::i18n::set_locale(panopticon::i18n::Locale::English);
     let startup_args = match parse_startup_args() {
         Ok(startup_args) => startup_args,
         Err(error) => StartupArgs::PrintAndExit {
@@ -140,7 +903,6 @@ fn main() {
 #[allow(clippy::too_many_lines)]
 fn run_app(profile: Option<String>) {
     let _log_guard = panopticon::logging::init().ok();
-    panopticon::i18n::init();
     select_text_friendly_renderer();
 
     tracing::info!(profile = ?profile, "Panopticon starting (Slint UI)");
@@ -173,6 +935,7 @@ fn run_app(profile: Option<String>) {
         tracing::error!(%error, "settings load failed; using defaults");
         AppSettings::default()
     });
+    panopticon::i18n::init(settings.language);
     app::secondary_windows::ensure_default_profiles_exist(&settings);
 
     let initial_theme = theme_catalog::resolve_ui_theme(
@@ -570,7 +1333,7 @@ fn parse_startup_args_from(
             }
             "--profile" => {
                 let Some(raw_profile) = args.next() else {
-                    return Err("Missing value for --profile".to_owned());
+                    return Err(panopticon::i18n::t("cli.missing_profile_value").to_owned());
                 };
                 profile = Some(parse_profile_name(&raw_profile)?);
             }
@@ -578,7 +1341,7 @@ fn parse_startup_args_from(
                 if let Some(raw_profile) = arg.strip_prefix("--profile=") {
                     profile = Some(parse_profile_name(raw_profile)?);
                 } else {
-                    return Err(format!("Unknown argument: {arg}"));
+                    return Err(panopticon::i18n::t_fmt("cli.unknown_argument", &arg));
                 }
             }
         }
@@ -591,7 +1354,7 @@ fn parse_profile_name(raw_profile: &str) -> Result<String, String> {
     match panopticon::settings::validate_profile_name_input(raw_profile) {
         panopticon::settings::ProfileNameValidation::Valid(profile_name) => Ok(profile_name),
         panopticon::settings::ProfileNameValidation::Empty => {
-            Err("Profile name cannot be empty".to_owned())
+            Err(panopticon::i18n::t("settings.profile_empty_name").to_owned())
         }
         panopticon::settings::ProfileNameValidation::Invalid(reason) => Err(reason),
     }
@@ -599,13 +1362,23 @@ fn parse_profile_name(raw_profile: &str) -> Result<String, String> {
 
 fn cli_usage() -> String {
     format!(
-        "Panopticon {}\n\nUsage:\n  panopticon [--profile <name>]\n  panopticon [--profile=<name>]\n  panopticon --help\n  panopticon --version\n\nOptions:\n  --profile <name>   Load or create the named profile from %APPDATA%\\Panopticon\\profiles\\<name>.toml\n  --help, -h, /?     Show this help text\n  --version, -V      Show the current Panopticon version",
-        env!("CARGO_PKG_VERSION")
+        "{} {}\n\n{}\n  panopticon [--profile <name>]\n  panopticon [--profile=<name>]\n  panopticon --help\n  panopticon --version\n\n{}\n  --profile <name>   {}\n  --help, -h, /?     {}\n  --version, -V      {}",
+        panopticon::i18n::t("app.name"),
+        env!("CARGO_PKG_VERSION"),
+        panopticon::i18n::t("cli.usage_heading"),
+        panopticon::i18n::t("cli.options_heading"),
+        panopticon::i18n::t("cli.profile_option_help"),
+        panopticon::i18n::t("cli.help_option_help"),
+        panopticon::i18n::t("cli.help_option_version"),
     )
 }
 
 fn cli_version() -> String {
-    format!("Panopticon {}", env!("CARGO_PKG_VERSION"))
+    format!(
+        "{} {}",
+        panopticon::i18n::t("app.name"),
+        env!("CARGO_PKG_VERSION")
+    )
 }
 
 pub(crate) fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT {

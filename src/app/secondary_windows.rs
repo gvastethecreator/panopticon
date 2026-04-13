@@ -246,7 +246,7 @@ pub(crate) fn open_settings_window(
                     "Images",
                     &["png", "jpg", "jpeg", "bmp", "gif", "webp", "svg"],
                 )
-                .set_title("Choose dashboard background image");
+                .set_title(panopticon::i18n::t("dialog.choose_background_image"));
 
             let dialog = if settings_window.get_bg_image_path().is_empty() {
                 dialog
@@ -291,6 +291,7 @@ pub(crate) fn open_settings_window(
                 };
                 let mut state_guard = state.borrow_mut();
                 let prev_dock_edge = state_guard.settings.dock_edge;
+                let prev_language = state_guard.settings.language;
                 let layout =
                     apply_settings_window_changes(settings_window, &mut state_guard.settings);
                 apply_runtime_settings_window_changes(settings_window, &mut state_guard.settings);
@@ -302,6 +303,8 @@ pub(crate) fn open_settings_window(
                 let hwnd = state_guard.hwnd;
                 let always_on_top = state_guard.settings.always_on_top;
                 let new_dock_edge = state_guard.settings.dock_edge;
+                let new_language = state_guard.settings.language;
+                let locale_changed = prev_language != new_language;
                 let settings_clone = state_guard.settings.clone();
                 let profile_name = state_guard.profile_name.clone();
 
@@ -321,6 +324,14 @@ pub(crate) fn open_settings_window(
 
                 drop(state_guard);
                 let _ = crate::refresh_windows(&state);
+                if locale_changed {
+                    let _ = panopticon::i18n::set_locale(new_language);
+                    if let Some(main_window) = main_weak.upgrade() {
+                        crate::populate_tr_global(&main_window);
+                    }
+                    refresh_open_tag_dialog_window(&state);
+                    refresh_tray_locale(&state);
+                }
                 apply_window_appearance(hwnd, &settings_clone);
                 apply_topmost_mode(hwnd, always_on_top);
                 settings_window
@@ -587,6 +598,7 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
 
 fn sync_settings_window_from_state(window: &SettingsWindow, state: &AppState) {
     let draft_profile_name = window.get_profile_name();
+    crate::populate_tr_global(window);
     window.set_suspend_live_apply(true);
     populate_settings_window(window, &state.settings);
     populate_settings_window_runtime_fields(window, state);
@@ -614,12 +626,35 @@ fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
 fn known_profiles_label() -> String {
     use panopticon::i18n;
     match AppSettings::list_profiles() {
-        Ok(profiles) if profiles.is_empty() => i18n::t("settings.saved_profiles").to_owned(),
+        Ok(profiles) if profiles.is_empty() => i18n::t("settings.no_saved_profiles").to_owned(),
         Ok(profiles) => i18n::t_fmt("settings.saved_profiles_fmt", &profiles.join(", ")),
         Err(error) => {
             tracing::warn!(%error, "failed to list saved profiles");
-            i18n::t("settings.saved_profiles").to_owned()
+            i18n::t("settings.no_saved_profiles").to_owned()
         }
+    }
+}
+
+fn refresh_open_tag_dialog_window(state: &Rc<RefCell<AppState>>) {
+    crate::TAG_DIALOG_WIN.with(|dialog| {
+        let guard = dialog.borrow();
+        let Some(window) = guard.as_ref() else {
+            return;
+        };
+        crate::populate_tr_global(window);
+        let state = state.borrow();
+        apply_tag_dialog_theme_snapshot(window, &state.current_theme);
+        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
+            keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
+        }
+    });
+}
+
+fn refresh_tray_locale(state: &Rc<RefCell<AppState>>) {
+    let mut state = state.borrow_mut();
+    let icon = state.icons.small;
+    if let Some(tray) = state.tray_icon.as_mut() {
+        tray.refresh(icon);
     }
 }
 

@@ -2,7 +2,7 @@ import { Button, ComboBox, LineEdit } from "std-widgets.slint";
 import { Tr, Theme } from "../common.slint";
 
 export component TagDialogWindow inherits Window {
-    title: "Panopticon — Create tag";
+    title: Tr.tag-window-title;
     icon: @image-url("../../assets/icon.svg");
     background: Theme.bg;
     preferred-width: 420px;
@@ -73,7 +73,7 @@ export component TagDialogWindow inherits Window {
                 y: 5px;
             }
             ComboBox {
-                model: ["Amber", "Sky", "Mint", "Rose", "Violet", "Sun"];
+                model: Tr.tag-colour-options;
                 current-index <=> root.color-index;
                 horizontal-stretch: 1;
             }
@@ -91,7 +91,7 @@ export component TagDialogWindow inherits Window {
             }
 
             Button {
-                text: "Close";
+                text: Tr.action-close;
                 clicked => { root.closed(); }
             }
         }
