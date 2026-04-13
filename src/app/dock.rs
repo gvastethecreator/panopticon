@@ -244,13 +244,27 @@ pub(crate) fn keep_dialog_above_owner(
     owner_hwnd: HWND,
     settings: &panopticon::settings::AppSettings,
 ) {
-    if dialog_hwnd.0.is_null() || owner_hwnd.0.is_null() {
+    if dialog_hwnd.0.is_null() {
         return;
     }
 
-    // SAFETY: both HWNDs belong to live windows created by this process.
+    let owner_is_visible = !owner_hwnd.0.is_null()
+        && unsafe {
+            // SAFETY: owner_hwnd belongs to our process when present; querying
+            // visibility is a read-only Win32 call.
+            IsWindowVisible(owner_hwnd).as_bool()
+        };
+
+    // SAFETY: dialog_hwnd belongs to a live window created by this process.
+    // The owner handle is only attached when it is both valid and currently
+    // visible so hidden tray-host windows do not hide the settings dialog.
     unsafe {
-        let _ = SetWindowLongPtrW(dialog_hwnd, GWLP_HWNDPARENT, owner_hwnd.0 as isize);
+        let owner_raw = if owner_is_visible {
+            owner_hwnd.0 as isize
+        } else {
+            0
+        };
+        let _ = SetWindowLongPtrW(dialog_hwnd, GWLP_HWNDPARENT, owner_raw);
         let _ = SetWindowPos(
             dialog_hwnd,
             if settings.always_on_top || settings.dock_edge.is_some() {
@@ -267,14 +281,30 @@ pub(crate) fn keep_dialog_above_owner(
     }
 }
 
-/// Centers the given window on its current monitor.
-pub(crate) fn center_window_on_screen(hwnd: HWND) {
+/// Centers the given window on the same monitor as its visible owner when
+/// available, or on the current/primary monitor otherwise.
+pub(crate) fn center_window_on_owner_monitor(dialog_hwnd: HWND, owner_hwnd: HWND) {
+    let anchor_hwnd = if !owner_hwnd.0.is_null()
+        && unsafe {
+            // SAFETY: owner_hwnd belongs to our process when present; querying
+            // visibility is a read-only Win32 call.
+            IsWindowVisible(owner_hwnd).as_bool()
+        } {
+        owner_hwnd
+    } else {
+        dialog_hwnd
+    };
+
+    center_window_on_anchor_monitor(dialog_hwnd, anchor_hwnd);
+}
+
+fn center_window_on_anchor_monitor(hwnd: HWND, anchor_hwnd: HWND) {
     if hwnd.0.is_null() {
         return;
     }
     // SAFETY: hwnd is a live window created by this process.
     unsafe {
-        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
+        let monitor = MonitorFromWindow(anchor_hwnd, MONITOR_DEFAULTTOPRIMARY);
         let mut mi = MONITORINFO {
             cbSize: std::mem::size_of::<MONITORINFO>() as u32,
             ..Default::default()
@@ -288,10 +318,21 @@ pub(crate) fn center_window_on_screen(hwnd: HWND) {
         }
         let win_w = rc.right - rc.left;
         let win_h = rc.bottom - rc.top;
+        if win_w <= 0 || win_h <= 0 {
+            return;
+        }
         let work = mi.rcWork;
         let cx = work.left + (work.right - work.left - win_w) / 2;
         let cy = work.top + (work.bottom - work.top - win_h) / 2;
-        let _ = SetWindowPos(hwnd, None, cx, cy, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            cx,
+            cy,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
     }
 }
 

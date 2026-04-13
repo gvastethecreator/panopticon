@@ -402,7 +402,7 @@ fn en(key: &str) -> &'static str {
         }
         "settings.page.shortcuts.title" => "Keyboard Shortcuts",
         "settings.page.shortcuts.subtitle" => {
-            "All dashboard quick actions in a single editor. Use a single key or names like Tab / Esc."
+            "Dashboard shortcuts use a single key; global activation accepts Ctrl / Alt / Shift plus a key like P or Space."
         }
         "settings.section.layout_bindings.title" => "Layout bindings",
         "settings.section.layout_bindings.helper" => {
@@ -461,6 +461,10 @@ fn en(key: &str) -> &'static str {
         "settings.shortcut.open_menu.title" => "Open application menu",
         "settings.shortcut.open_menu.description" => {
             "Open the main native menu with quick actions."
+        }
+        "settings.shortcut.global_activate.title" => "Activate Panopticon globally",
+        "settings.shortcut.global_activate.description" => {
+            "Bring Panopticon to the foreground from anywhere. Leave empty to disable it."
         }
         "settings.shortcut.refresh_now.title" => "Refresh now",
         "settings.shortcut.refresh_now.description" => {
@@ -865,7 +869,7 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.page.shortcuts.title" => "Atajos de teclado",
         "settings.page.shortcuts.subtitle" => {
-            "Todas las acciones rápidas del dashboard en un único editor. Usa una tecla simple o nombres como Tab / Esc."
+            "Los atajos del dashboard usan una sola tecla; la activación global acepta Ctrl / Alt / Shift más una tecla como P o Space."
         }
         "settings.section.layout_bindings.title" => "Atajos de layout",
         "settings.section.layout_bindings.helper" => {
@@ -924,6 +928,10 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.shortcut.open_menu.title" => "Abrir menú de la aplicación",
         "settings.shortcut.open_menu.description" => {
             "Abre el menú nativo principal con acciones rápidas."
+        }
+        "settings.shortcut.global_activate.title" => "Activar Panopticon globalmente",
+        "settings.shortcut.global_activate.description" => {
+            "Trae Panopticon al frente desde cualquier lugar. Déjalo vacío para desactivarlo."
         }
         "settings.shortcut.refresh_now.title" => "Refrescar ahora",
         "settings.shortcut.refresh_now.description" => {

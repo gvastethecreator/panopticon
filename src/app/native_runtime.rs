@@ -14,6 +14,7 @@ use super::dock::{
     unregister_appbar,
 };
 use super::dwm::release_thumbnail;
+use super::global_hotkey;
 use super::tray::{apply_window_icons, TrayIcon};
 use crate::{AppState, MainWindow, SETTINGS_WIN};
 
@@ -72,6 +73,7 @@ pub(crate) fn try_initialize_native_runtime(
     }
 
     super::window_subclass::setup_subclass(hwnd, state, win);
+    global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
 
     let refreshed = crate::refresh_windows(state);
     let tracked = state.borrow().windows.len();
@@ -138,6 +140,7 @@ pub(crate) fn request_exit(state: &Rc<RefCell<AppState>>) {
     tracing::info!("exiting Panopticon");
     {
         let mut state = state.borrow_mut();
+        global_hotkey::unregister_activate_hotkey(state.hwnd);
         if state.is_appbar {
             unregister_appbar(state.hwnd);
             state.is_appbar = false;

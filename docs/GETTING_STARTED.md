@@ -78,7 +78,7 @@ If there are no candidate windows, the UI shows an empty state.
 
 ## Useful shortcuts
 
-These are the default bindings shipped by Panopticon today. They can be edited from the settings window, and the `Alt` toolbar toggle can be enabled or disabled independently.
+These are the default bindings shipped by Panopticon today. They can be edited from the settings window; the dashboard bindings stay single-key, while the global activation shortcut accepts `Ctrl` / `Alt` / `Shift` combinations and can be cleared to disable it.
 
 | Key / gesture | Result |
 | --- | --- |
@@ -93,6 +93,7 @@ These are the default bindings shipped by Panopticon today. They can be edited f
 | `T` | change theme |
 | `O` | open settings |
 | `M` | open application menu |
+| `Ctrl` + `Alt` + `P` | activate and focus Panopticon globally |
 | `Alt` | toggle toolbar |
 | left-click thumbnail | activate window |
 | right-click thumbnail | per-app/window context menu |

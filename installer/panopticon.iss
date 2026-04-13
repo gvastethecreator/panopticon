@@ -67,7 +67,9 @@ Source: "..\LICENSE";                       DestDir: "{app}"; Flags: ignoreversi
 [Icons]
 Name: "{group}\Panopticon";                        Filename: "{app}\panopticon.exe"
 Name: "{group}\{cm:UninstallProgram,Panopticon}";  Filename: "{uninstallexe}"
-Name: "{commondesktop}\Panopticon";                Filename: "{app}\panopticon.exe"; Tasks: desktopicon
+; Match the shortcut scope to the selected install mode. Using {commondesktop}
+; while running without elevation triggers IPersistFile::Save 0x80070005.
+Name: "{autodesktop}\Panopticon";                  Filename: "{app}\panopticon.exe"; Tasks: desktopicon
 
 ; ---------------------------------------------------------------------------
 [Registry]

@@ -111,6 +111,7 @@ pub(crate) struct MiddlePanState {
 
 pub(crate) enum PendingAction {
     Tray(TrayAction),
+    ActivateMainWindow,
     Reposition,
     HideToTray,
     Refresh,

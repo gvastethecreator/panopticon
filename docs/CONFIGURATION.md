@@ -71,6 +71,7 @@ toggle_window_info = "I"
 toggle_always_on_top = "P"
 open_settings = "O"
 open_menu = "M"
+global_activate = "Ctrl+Alt+P"
 refresh_now = "R"
 exit_app = "Esc"
 alt_toggles_toolbar = true
@@ -125,7 +126,7 @@ row_ratios = [0.4, 0.6]
 | `locked_layout` | `bool` | `false` | locks layout changes | disables shortcuts and toolbar for layouts |
 | `lock_cell_resize` | `bool` | `false` | locks separator dragging | can coexist with `locked_layout` |
 | `show_app_icons` | `bool` | `true` | shows icons on cards | uses cache + GDI rasterisation |
-| `shortcuts` | `ShortcutBindings` | built-in defaults | defines the dashboard key map | single-key bindings plus `Tab`, `Esc`, `Enter`, `Space`; invalid values fall back |
+| `shortcuts` | `ShortcutBindings` | built-in defaults | defines the dashboard key map | dashboard bindings stay single-key; `global_activate` accepts `Ctrl` / `Alt` / `Shift` chords and empty disables it |
 | `layout_customizations` | `Map<String, LayoutCustomization>` | empty | custom ratios per layout | generated when dragging separators |
 | `app_rules` | `Map<String, AppRule>` | empty | persistent per-app rules | key = `app_id` |
 | `tag_styles` | `Map<String, TagStyle>` | empty | manual tag colours | normalised against actually existing tags |
@@ -152,6 +153,7 @@ toggle_window_info = "I"
 toggle_always_on_top = "P"
 open_settings = "O"
 open_menu = "M"
+global_activate = "Ctrl+Alt+P"
 refresh_now = "R"
 exit_app = "Esc"
 alt_toggles_toolbar = true
@@ -159,8 +161,9 @@ alt_toggles_toolbar = true
 
 Important notes:
 
-- supported bindings are **single keys** or the named special keys `Tab`, `Esc`, `Enter`, and `Space`;
-- invalid or multi-key expressions such as `Ctrl+T` are normalised back to the default binding;
+- dashboard bindings are **single keys** or the named special keys `Tab`, `Esc`, `Enter`, and `Space`;
+- invalid dashboard expressions such as `Ctrl+T` are normalised back to the default binding;
+- `global_activate` is optional, accepts `Ctrl` / `Alt` / `Shift` plus a final key such as `P`, `Space`, or `F12`, and clearing it disables the global hotkey;
 - `alt_toggles_toolbar` is a separate compatibility switch for the Win32 `Alt` toolbar toggle and is not part of the general shortcut parser.
 
 ## Language and locale

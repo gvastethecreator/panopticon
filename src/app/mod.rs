@@ -2,6 +2,7 @@
 
 pub mod dock;
 pub mod dwm;
+pub mod global_hotkey;
 pub mod icon;
 pub mod keyboard_actions;
 pub mod layout_actions;

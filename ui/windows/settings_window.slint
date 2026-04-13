@@ -516,6 +516,7 @@ export component SettingsWindow inherits Window {
     in-out property <string> shortcut-toggle-always-on-top: "P";
     in-out property <string> shortcut-open-settings: "O";
     in-out property <string> shortcut-open-menu: "M";
+    in-out property <string> shortcut-global-activate: "Ctrl+Alt+P";
     in-out property <string> shortcut-refresh-now: "R";
     in-out property <string> shortcut-exit-app: "Esc";
     in-out property <bool> alt-toolbar-shortcut-enabled: true;
@@ -1232,6 +1233,7 @@ export component SettingsWindow inherits Window {
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-always-on-top.svg"); title: Tr.settings-shortcut-toggle-always-on-top-title; description: Tr.settings-shortcut-toggle-always-on-top-description; value <=> root.shortcut-toggle-always-on-top; placeholder: "P"; committed => { root.apply(); } }
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-settings.svg"); title: Tr.settings-shortcut-open-settings-title; description: Tr.settings-shortcut-open-settings-description; value <=> root.shortcut-open-settings; placeholder: "O"; committed => { root.apply(); } }
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-menu.svg"); title: Tr.settings-shortcut-open-menu-title; description: Tr.settings-shortcut-open-menu-description; value <=> root.shortcut-open-menu; placeholder: "M"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-settings.svg"); title: Tr.settings-shortcut-global-activate-title; description: Tr.settings-shortcut-global-activate-description; value <=> root.shortcut-global-activate; placeholder: "Ctrl+Alt+P"; committed => { root.apply(); } }
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-refresh.svg"); title: Tr.settings-shortcut-refresh-now-title; description: Tr.settings-shortcut-refresh-now-description; value <=> root.shortcut-refresh-now; placeholder: "R"; committed => { root.apply(); } }
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-exit.svg"); title: Tr.settings-shortcut-exit-app-title; description: Tr.settings-shortcut-exit-app-description; value <=> root.shortcut-exit-app; placeholder: "Esc"; committed => { root.apply(); } }
                                     ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: Tr.settings-shortcut-alt-toolbar-title; description: Tr.settings-shortcut-alt-toolbar-description; checked <=> root.alt-toolbar-shortcut-enabled; }
