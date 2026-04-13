@@ -128,6 +128,12 @@ enum PendingAction {
     Exit,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum StartupArgs {
+    Run { profile: Option<String> },
+    PrintAndExit { message: String, stderr: bool },
+}
+
 /// Tracks an in-progress separator drag.
 #[derive(Debug, Clone)]
 struct DragState {
@@ -224,11 +230,32 @@ fn select_text_friendly_renderer() {}
 
 #[allow(clippy::too_many_lines)]
 fn main() {
+    let startup_args = match parse_startup_args() {
+        Ok(startup_args) => startup_args,
+        Err(error) => StartupArgs::PrintAndExit {
+            message: format!("{error}\n\n{}", cli_usage()),
+            stderr: true,
+        },
+    };
+
+    match startup_args {
+        StartupArgs::Run { profile } => run_app(profile),
+        StartupArgs::PrintAndExit { message, stderr } => {
+            if stderr {
+                eprintln!("{message}");
+            } else {
+                println!("{message}");
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn run_app(profile: Option<String>) {
     let _log_guard = panopticon::logging::init().ok();
     panopticon::i18n::init();
     select_text_friendly_renderer();
 
-    let profile = parse_profile_from_args();
     tracing::info!(profile = ?profile, "Panopticon starting (Slint UI)");
 
     // SAFETY: FFI call with no preconditions; failure is non-fatal.
@@ -629,19 +656,65 @@ pub(crate) fn schedule_deferred_refresh(
 
 // ───────────────────────── Utility ─────────────────────────
 
-fn parse_profile_from_args() -> Option<String> {
-    let args: Vec<String> = std::env::args().collect();
-    let mut i = 1;
-    while i < args.len() {
-        if args[i] == "--profile" && i + 1 < args.len() {
-            let name = args[i + 1].trim().to_owned();
-            if !name.is_empty() {
-                return Some(name);
+fn parse_startup_args() -> Result<StartupArgs, String> {
+    parse_startup_args_from(std::env::args())
+}
+
+fn parse_startup_args_from(
+    args: impl IntoIterator<Item = impl Into<String>>,
+) -> Result<StartupArgs, String> {
+    let mut profile = None;
+    let mut args = args.into_iter().map(Into::into);
+    let _ = args.next();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--help" | "-h" | "/?" => {
+                return Ok(StartupArgs::PrintAndExit {
+                    message: cli_usage(),
+                    stderr: false,
+                });
+            }
+            "--version" | "-V" => {
+                return Ok(StartupArgs::PrintAndExit {
+                    message: cli_version(),
+                    stderr: false,
+                });
+            }
+            "--profile" => {
+                let Some(raw_profile) = args.next() else {
+                    return Err("Missing value for --profile".to_owned());
+                };
+                profile = Some(parse_profile_name(&raw_profile)?);
+            }
+            _ => {
+                if let Some(raw_profile) = arg.strip_prefix("--profile=") {
+                    profile = Some(parse_profile_name(raw_profile)?);
+                } else {
+                    return Err(format!("Unknown argument: {arg}"));
+                }
             }
         }
-        i += 1;
     }
-    None
+
+    Ok(StartupArgs::Run { profile })
+}
+
+fn parse_profile_name(raw_profile: &str) -> Result<String, String> {
+    panopticon::settings::normalize_profile_name(raw_profile).ok_or_else(|| {
+        format!("Profile name is empty or invalid after Windows-safe normalization: {raw_profile}")
+    })
+}
+
+fn cli_usage() -> String {
+    format!(
+        "Panopticon {}\n\nUsage:\n  panopticon [--profile <name>]\n  panopticon [--profile=<name>]\n  panopticon --help\n  panopticon --version\n\nOptions:\n  --profile <name>   Load or create the named profile from %APPDATA%\\Panopticon\\profiles\\<name>.toml\n  --help, -h, /?     Show this help text\n  --version, -V      Show the current Panopticon version",
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
+fn cli_version() -> String {
+    format!("Panopticon {}", env!("CARGO_PKG_VERSION"))
 }
 
 pub(crate) fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT {
@@ -759,5 +832,60 @@ mod tests {
         apply_pinned_positions(&mut windows, &settings);
 
         assert_eq!(windows[1].app_id, "app:b");
+    }
+
+    #[test]
+    fn parse_startup_args_supports_profile_value_forms() {
+        assert_eq!(
+            parse_startup_args_from(["panopticon", "--profile", "work"]),
+            Ok(StartupArgs::Run {
+                profile: Some("work".to_owned()),
+            })
+        );
+
+        assert_eq!(
+            parse_startup_args_from(["panopticon", "--profile=focus"]),
+            Ok(StartupArgs::Run {
+                profile: Some("focus".to_owned()),
+            })
+        );
+    }
+
+    #[test]
+    fn parse_startup_args_supports_help_and_version_flags() {
+        let help = parse_startup_args_from(["panopticon", "--help"]);
+        assert!(matches!(
+            help,
+            Ok(StartupArgs::PrintAndExit { stderr: false, .. })
+        ));
+        assert!(matches!(
+            help,
+            Ok(StartupArgs::PrintAndExit { ref message, .. }) if message.contains("Usage:")
+        ));
+
+        let version = parse_startup_args_from(["panopticon", "--version"]);
+        assert!(matches!(
+            version,
+            Ok(StartupArgs::PrintAndExit { stderr: false, .. })
+        ));
+        assert!(matches!(
+            version,
+            Ok(StartupArgs::PrintAndExit { ref message, .. }) if message.contains(env!("CARGO_PKG_VERSION"))
+        ));
+    }
+
+    #[test]
+    fn parse_startup_args_rejects_unknown_or_invalid_arguments() {
+        let missing_value = parse_startup_args_from(["panopticon", "--profile"]);
+        assert!(matches!(missing_value, Err(ref error) if error.contains("Missing value")));
+
+        let invalid_profile = parse_startup_args_from(["panopticon", "--profile", "???"]);
+        assert!(matches!(
+            invalid_profile,
+            Err(ref error) if error.contains("invalid")
+        ));
+
+        let unknown = parse_startup_args_from(["panopticon", "--wat"]);
+        assert!(matches!(unknown, Err(ref error) if error.contains("Unknown argument")));
     }
 }

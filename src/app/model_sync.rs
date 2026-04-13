@@ -15,6 +15,7 @@ use windows::Win32::Foundation::RECT;
 use windows::Win32::UI::WindowsAndMessaging::{IsIconic, IsWindowVisible};
 
 use super::icon::populate_cached_icon;
+use super::settings_ui::background_fit_to_index;
 use super::theme_ui::{sync_theme_target, thumbnail_accent_color};
 use crate::{AppState, MainWindow, ResizeHandleData, ThumbnailData};
 
@@ -138,6 +139,7 @@ pub(crate) fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
     win.set_is_always_on_top(settings.always_on_top);
     win.set_animate_transitions(settings.animate_transitions);
     win.set_resize_locked(settings.locked_layout || settings.lock_cell_resize);
+    win.set_background_image_fit_index(background_fit_to_index(settings.background_image_fit));
     win.set_refresh_label(SharedString::from(settings.refresh_interval_label()));
     win.set_filters_label(SharedString::from(
         active_filter_summary(settings).unwrap_or_default(),
@@ -313,7 +315,16 @@ fn sync_background_image(state: &mut AppState, win: &MainWindow) {
             Err(error) => {
                 tracing::warn!(%error, path, "failed to load background image");
                 win.set_background_image(slint::Image::default());
+                state.settings.background_image_path = None;
                 state.loaded_background_path = None;
+
+                if let Err(save_error) = state.settings.save(state.profile_name.as_deref()) {
+                    tracing::warn!(
+                        %save_error,
+                        path,
+                        "failed to persist cleared background image path"
+                    );
+                }
             }
         }
     } else {

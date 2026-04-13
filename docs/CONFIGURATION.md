@@ -239,6 +239,8 @@ Panopticon supports separate per-file profiles.
 ### How they work
 
 - the app can start with `--profile <name>`;
+- the CLI also accepts `--profile=<name>` for the same behaviour;
+- `--help` prints the available startup flags and `--version` prints the current app version;
 - the settings window allows saving the current state to another profile;
 - it also allows opening another instance with a different profile;
 - if no extra profiles exist, the runtime seeds `profile-1` and `profile-2`.
