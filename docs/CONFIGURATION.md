@@ -109,8 +109,8 @@ row_ratios = [0.4, 0.6]
 | `active_tag_filter` | `Option<String>` | `None` | filters windows by tag | mutually exclusive with `active_app_filter` |
 | `active_app_filter` | `Option<String>` | `None` | filters windows by app | mutually exclusive with `active_tag_filter` |
 | `group_windows_by` | `WindowGrouping` | `None` | reorders visible windows | does not filter; only groups/sorts |
-| `fixed_width` | `Option<u32>` | `None` | lateral dock thickness | does not set the floating window width today |
-| `fixed_height` | `Option<u32>` | `None` | top/bottom dock thickness | does not set the floating window height today |
+| `fixed_width` | `Option<u32>` | `None` | lateral dock thickness or floating window width | when undocked and set, it resizes the main window width at runtime |
+| `fixed_height` | `Option<u32>` | `None` | top/bottom dock thickness or floating window height | when undocked and set, it resizes the main window height at runtime |
 | `dock_edge` | `Option<DockEdge>` | `None` | activates appbar mode | values: `left`, `right`, `top`, `bottom` |
 | `theme_id` | `Option<String>` | `None` | selects a preset from `assets/themes.json` | `None` = classic theme |
 | `background_color_hex` | `String` | `181513` | base client colour | also participates in the classic theme fallback |
@@ -270,7 +270,7 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 ### Dock
 
 - if `dock_edge` is active, `hide_on_select_for(app)` returns `false` at runtime even if an override exists;
-- `fixed_width` / `fixed_height` are interpreted as dock thickness, not as free floating window size.
+- `fixed_width` / `fixed_height` act as dock thickness while docked and as requested floating size while undocked.
 
 ### Themes
 

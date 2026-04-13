@@ -292,7 +292,7 @@ When activated:
 
 ### Important nuance
 
-`fixed_width` and `fixed_height` today act as dock thickness, not as forced floating window size outside appbar mode.
+`fixed_width` and `fixed_height` act as dock thickness while the appbar is active, and as requested floating window dimensions while the main window is undocked.
 
 ## Theming and iconography
 

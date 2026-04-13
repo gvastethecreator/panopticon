@@ -110,12 +110,13 @@ pub(crate) fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainW
     let elapsed_ms = animation.started_at.elapsed().as_millis() as u32;
     let progress = (elapsed_ms as f32 / THEME_TRANSITION_DURATION_MS as f32).clamp(0.0, 1.0);
     let eased = 1.0 - (1.0 - progress).powi(3);
+    let completed_theme = animation.to.clone();
     let resolved = animation
         .from_rgb
         .interpolate(&animation.to_rgb, eased, &animation.to);
     s.current_theme = resolved;
     if progress >= 1.0 {
-        s.current_theme = s.theme_animation.as_ref().unwrap().to.clone();
+        s.current_theme = completed_theme;
         s.theme_animation = None;
     }
     let current = s.current_theme.clone();

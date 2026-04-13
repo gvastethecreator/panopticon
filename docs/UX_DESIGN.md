@@ -196,12 +196,12 @@ The presence of tray, dock/appbar, topmost, and start-in-tray clearly shows that
 ## Design/implementation observations
 
 - the declarative UI defines menu overlays, but the active main flow uses native Win32 menus;
-- the size section in settings is aimed at dock/appbar thickness, not at free floating window size;
+- the size section in settings now serves both dock/appbar thickness and undocked floating window sizing;
 - the tag system is well integrated, but still relies heavily on the per-window context menu rather than bulk editing from settings.
 
 ## UX evolution opportunities
 
 1. make the profile concept and its startup impact more visible;
-2. expose in the UI advanced options that currently exist only in TOML, such as per-thumbnail refresh mode;
+2. expose more batch/global editing for advanced options that already exist in runtime, such as per-thumbnail refresh mode, instead of concentrating them in the per-window context menu;
 3. decide whether declarative menu overlays should be activated or removed;
 4. improve visual communication of dock mode and complex active filters.

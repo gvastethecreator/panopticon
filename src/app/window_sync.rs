@@ -10,6 +10,7 @@ use windows::Win32::Foundation::{HWND, RECT, SIZE};
 use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
 
 use super::dwm::{ensure_thumbnail, query_source_size};
+use super::icon::invalidate_cached_app_icon;
 use crate::{AppState, ManagedWindow};
 
 pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
@@ -164,8 +165,13 @@ fn update_existing_windows(
             let metadata_changed = window_metadata_changed(&managed_window.info, fresh);
             if metadata_changed {
                 let icon_changed = should_reset_cached_icon(&managed_window.info, fresh);
+                let previous_app_id = managed_window.info.app_id.clone();
                 managed_window.info = (*fresh).clone();
                 if icon_changed {
+                    invalidate_cached_app_icon(&previous_app_id);
+                    if managed_window.info.app_id != previous_app_id {
+                        invalidate_cached_app_icon(&managed_window.info.app_id);
+                    }
                     managed_window.cached_icon = None;
                 }
                 changed = true;
