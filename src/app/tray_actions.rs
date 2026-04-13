@@ -10,6 +10,7 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{IsWindowVisible, SetForegroundWindow};
 
 use super::dock::{apply_dock_mode, apply_topmost_mode, restore_floating_style, unregister_appbar};
+use super::native_runtime::apply_configured_main_window_size;
 use super::secondary_windows;
 use super::tray::{show_application_context_menu_at, TrayAction, TrayMenuState};
 use crate::{
@@ -157,6 +158,7 @@ pub(crate) fn handle_tray_action(
             refresh_ui(state, weak);
         }
         TrayAction::SetDockEdge(edge) => {
+            let mut floating_settings = None;
             {
                 let mut state = state.borrow_mut();
                 if state.is_appbar {
@@ -171,6 +173,12 @@ pub(crate) fn handle_tray_action(
                 } else {
                     restore_floating_style(state.hwnd);
                     apply_topmost_mode(state.hwnd, state.settings.always_on_top);
+                    floating_settings = Some(state.settings.clone());
+                }
+            }
+            if let Some(settings) = floating_settings {
+                if let Some(main_window) = weak.upgrade() {
+                    let _ = apply_configured_main_window_size(&main_window, &settings);
                 }
             }
             refresh_windows(state);

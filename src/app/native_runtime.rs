@@ -4,8 +4,9 @@ use std::cell::RefCell;
 use std::ffi::c_void;
 use std::rc::Rc;
 
+use panopticon::settings::AppSettings;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use slint::ComponentHandle;
+use slint::{ComponentHandle, LogicalSize};
 use windows::Win32::Foundation::HWND;
 
 use super::dock::{
@@ -56,6 +57,7 @@ pub(crate) fn try_initialize_native_runtime(
 
     apply_window_appearance(hwnd, &settings_snapshot);
     apply_topmost_mode(hwnd, settings_snapshot.always_on_top);
+    let _ = apply_configured_main_window_size(win, &settings_snapshot);
     sync_dock_system_menu(hwnd, settings_snapshot.dock_edge.is_some());
 
     {
@@ -96,6 +98,42 @@ pub(crate) fn try_initialize_native_runtime(
     true
 }
 
+pub(crate) fn apply_configured_main_window_size(win: &MainWindow, settings: &AppSettings) -> bool {
+    let current_size = LogicalSize::from_physical(win.window().size(), win.window().scale_factor());
+    let Some(target_size) = configured_floating_window_size(current_size, settings) else {
+        return false;
+    };
+
+    if (target_size.width - current_size.width).abs() < 0.5
+        && (target_size.height - current_size.height).abs() < 0.5
+    {
+        return false;
+    }
+
+    win.window().set_size(target_size);
+    true
+}
+
+fn configured_floating_window_size(
+    current_size: LogicalSize,
+    settings: &AppSettings,
+) -> Option<LogicalSize> {
+    if settings.dock_edge.is_some()
+        || (settings.fixed_width.is_none() && settings.fixed_height.is_none())
+    {
+        return None;
+    }
+
+    Some(LogicalSize::new(
+        settings
+            .fixed_width
+            .map_or(current_size.width, |width| width as f32),
+        settings
+            .fixed_height
+            .map_or(current_size.height, |height| height as f32),
+    ))
+}
+
 pub(crate) fn request_exit(state: &Rc<RefCell<AppState>>) {
     tracing::info!("exiting Panopticon");
     {
@@ -116,4 +154,44 @@ pub(crate) fn request_exit(state: &Rc<RefCell<AppState>>) {
         handle.borrow_mut().take();
     });
     slint::quit_event_loop().ok();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::configured_floating_window_size;
+    use panopticon::settings::{AppSettings, DockEdge};
+    use slint::LogicalSize;
+
+    #[test]
+    fn floating_window_size_uses_fixed_dimensions_when_undocked() {
+        let mut settings = AppSettings::default();
+        settings.fixed_width = Some(900);
+        settings.fixed_height = Some(700);
+
+        let size = configured_floating_window_size(LogicalSize::new(1320.0, 840.0), &settings);
+
+        assert_eq!(size, Some(LogicalSize::new(900.0, 700.0)));
+    }
+
+    #[test]
+    fn floating_window_size_preserves_unspecified_dimension() {
+        let mut settings = AppSettings::default();
+        settings.fixed_width = Some(960);
+
+        let size = configured_floating_window_size(LogicalSize::new(1320.0, 840.0), &settings);
+
+        assert_eq!(size, Some(LogicalSize::new(960.0, 840.0)));
+    }
+
+    #[test]
+    fn floating_window_size_is_disabled_while_docked_or_without_overrides() {
+        let current = LogicalSize::new(1320.0, 840.0);
+        let mut settings = AppSettings::default();
+
+        assert_eq!(configured_floating_window_size(current, &settings), None);
+
+        settings.fixed_width = Some(500);
+        settings.dock_edge = Some(DockEdge::Left);
+        assert_eq!(configured_floating_window_size(current, &settings), None);
+    }
 }

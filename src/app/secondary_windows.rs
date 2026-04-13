@@ -19,6 +19,7 @@ use super::dock::{
     apply_dock_mode, apply_topmost_mode, apply_window_appearance, center_window_on_screen,
     keep_dialog_above_owner, reposition_appbar, restore_floating_style, unregister_appbar,
 };
+use super::native_runtime::apply_configured_main_window_size;
 use super::settings_ui::{apply_settings_window_changes, populate_settings_window};
 use super::theme_ui::{apply_settings_window_theme_snapshot, apply_tag_dialog_theme_snapshot};
 use super::tray::apply_window_icons;
@@ -164,6 +165,9 @@ pub(crate) fn open_settings_window(
             drop(state_ref);
             let _ = crate::refresh_windows(&state);
             if let Some(main_window) = main_weak.upgrade() {
+                let state_ref = state.borrow();
+                let _ = apply_configured_main_window_size(&main_window, &state_ref.settings);
+                drop(state_ref);
                 crate::recompute_and_update_ui(&state, &main_window);
             }
         }
@@ -317,6 +321,7 @@ pub(crate) fn open_settings_window(
                     sync_settings_window_from_state(settings_window, &refreshed);
                 }
                 if let Some(main_window) = main_weak.upgrade() {
+                    let _ = apply_configured_main_window_size(&main_window, &settings_clone);
                     crate::recompute_and_update_ui(&state, &main_window);
                 }
 

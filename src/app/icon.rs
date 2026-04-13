@@ -2,6 +2,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::ffi::c_void;
 use std::mem;
 
@@ -20,11 +21,77 @@ use crate::ManagedWindow;
 
 // ───────────────────────── Per-app icon cache ─────────────────────────
 
+const APP_ICON_CACHE_CAPACITY: usize = 64;
+
+struct BoundedCache<V> {
+    capacity: usize,
+    entries: HashMap<String, V>,
+    access_order: VecDeque<String>,
+}
+
+impl<V> BoundedCache<V> {
+    fn new(capacity: usize) -> Self {
+        Self {
+            capacity,
+            entries: HashMap::with_capacity(capacity),
+            access_order: VecDeque::with_capacity(capacity),
+        }
+    }
+
+    fn insert(&mut self, key: &str, value: V) {
+        if self.capacity == 0 {
+            return;
+        }
+
+        self.entries.insert(key.to_owned(), value);
+        self.touch(key);
+
+        while self.entries.len() > self.capacity {
+            let Some(stale_key) = self.access_order.pop_front() else {
+                break;
+            };
+            self.entries.remove(&stale_key);
+        }
+    }
+
+    fn get_cloned(&mut self, key: &str) -> Option<V>
+    where
+        V: Clone,
+    {
+        let value = self.entries.get(key).cloned();
+        if value.is_some() {
+            self.touch(key);
+        }
+        value
+    }
+
+    fn remove(&mut self, key: &str) -> Option<V> {
+        self.access_order.retain(|existing| existing != key);
+        self.entries.remove(key)
+    }
+
+    #[cfg(test)]
+    fn clear(&mut self) {
+        self.entries.clear();
+        self.access_order.clear();
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    fn touch(&mut self, key: &str) {
+        self.access_order.retain(|existing| existing != key);
+        self.access_order.push_back(key.to_owned());
+    }
+}
+
 thread_local! {
     /// Cache of rendered Slint icons keyed by `app_id`.
     /// Multiple windows from the same application share one icon image.
-    static APP_ICON_CACHE: RefCell<HashMap<String, Option<slint::Image>>> =
-        RefCell::new(HashMap::new());
+    static APP_ICON_CACHE: RefCell<BoundedCache<Option<slint::Image>>> =
+        RefCell::new(BoundedCache::new(APP_ICON_CACHE_CAPACITY));
 }
 
 // ───────────────────────── Cached icon population ─────────────────────────
@@ -35,18 +102,23 @@ pub(crate) fn populate_cached_icon(mw: &mut ManagedWindow) {
         return;
     }
     // Try the per-app shared cache first before hitting GDI.
-    let cached = APP_ICON_CACHE.with(|cache| cache.borrow().get(&mw.info.app_id).cloned());
+    let cached = APP_ICON_CACHE.with(|cache| cache.borrow_mut().get_cloned(&mw.info.app_id));
     if let Some(entry) = cached {
         mw.cached_icon = entry;
         return;
     }
     let image = hicon_to_slint_image(&mw.info);
     APP_ICON_CACHE.with(|cache| {
-        cache
-            .borrow_mut()
-            .insert(mw.info.app_id.clone(), image.clone());
+        cache.borrow_mut().insert(&mw.info.app_id, image.clone());
     });
     mw.cached_icon = image;
+}
+
+/// Remove a cached shared icon entry so it can be re-rendered on demand.
+pub(crate) fn invalidate_cached_app_icon(app_id: &str) {
+    APP_ICON_CACHE.with(|cache| {
+        let _ = cache.borrow_mut().remove(app_id);
+    });
 }
 
 // ───────────────────────── HICON → Slint Image ─────────────────────────
@@ -271,4 +343,54 @@ pub(crate) fn bilinear_sample_rgba(source: &[u8], size: usize, x: f32, y: f32) -
         (accum_b / accum_a).round().clamp(0.0, 255.0) as u8,
         (accum_a * 255.0).round().clamp(0.0, 255.0) as u8,
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{invalidate_cached_app_icon, BoundedCache, APP_ICON_CACHE};
+
+    #[test]
+    fn bounded_cache_evicts_oldest_entry_when_capacity_is_exceeded() {
+        let mut cache = BoundedCache::new(2);
+        cache.insert("alpha", 1);
+        cache.insert("bravo", 2);
+        cache.insert("charlie", 3);
+
+        assert_eq!(cache.get_cloned("alpha"), None);
+        assert_eq!(cache.get_cloned("bravo"), Some(2));
+        assert_eq!(cache.get_cloned("charlie"), Some(3));
+    }
+
+    #[test]
+    fn bounded_cache_refreshes_recently_accessed_entries() {
+        let mut cache = BoundedCache::new(2);
+        cache.insert("alpha", 1);
+        cache.insert("bravo", 2);
+
+        assert_eq!(cache.get_cloned("alpha"), Some(1));
+
+        cache.insert("charlie", 3);
+
+        assert_eq!(cache.get_cloned("alpha"), Some(1));
+        assert_eq!(cache.get_cloned("bravo"), None);
+        assert_eq!(cache.get_cloned("charlie"), Some(3));
+    }
+
+    #[test]
+    fn invalidating_shared_icon_cache_removes_entry() {
+        APP_ICON_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            cache.clear();
+            cache.insert("demo", None);
+            assert_eq!(cache.len(), 1);
+        });
+
+        invalidate_cached_app_icon("demo");
+
+        APP_ICON_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            assert_eq!(cache.get_cloned("demo"), None);
+            assert_eq!(cache.len(), 0);
+        });
+    }
 }
