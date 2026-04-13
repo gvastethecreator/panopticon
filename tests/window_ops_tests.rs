@@ -96,8 +96,10 @@ fn collect_available_apps_returns_unique_entries_sorted_by_label_then_id() {
 
 #[test]
 fn sort_windows_for_grouping_orders_by_application_then_title() {
-    let mut settings = AppSettings::default();
-    settings.group_windows_by = WindowGrouping::Application;
+    let settings = AppSettings {
+        group_windows_by: WindowGrouping::Application,
+        ..AppSettings::default()
+    };
 
     let mut windows = vec![
         window(
@@ -191,11 +193,13 @@ fn truncate_title_adds_ellipsis_only_when_needed() {
 
 #[test]
 fn active_filter_summary_combines_monitor_tag_and_grouping_labels() {
-    let mut settings = AppSettings::default();
+    let mut settings = AppSettings {
+        group_windows_by: WindowGrouping::Application,
+        ..AppSettings::default()
+    };
     settings.set_monitor_filter(Some("DISPLAY2"));
     let _ = settings.toggle_app_tag("app:arc", "Arc", "work");
     settings.set_tag_filter(Some("work"));
-    settings.group_windows_by = WindowGrouping::Application;
 
     let summary = active_filter_summary(&settings);
 
