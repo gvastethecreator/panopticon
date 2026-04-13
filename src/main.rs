@@ -588,9 +588,13 @@ fn parse_startup_args_from(
 }
 
 fn parse_profile_name(raw_profile: &str) -> Result<String, String> {
-    panopticon::settings::normalize_profile_name(raw_profile).ok_or_else(|| {
-        format!("Profile name is empty or invalid after Windows-safe normalization: {raw_profile}")
-    })
+    match panopticon::settings::validate_profile_name_input(raw_profile) {
+        panopticon::settings::ProfileNameValidation::Valid(profile_name) => Ok(profile_name),
+        panopticon::settings::ProfileNameValidation::Empty => {
+            Err("Profile name cannot be empty".to_owned())
+        }
+        panopticon::settings::ProfileNameValidation::Invalid(reason) => Err(reason),
+    }
 }
 
 fn cli_usage() -> String {

@@ -60,6 +60,8 @@ To run a named profile:
 cargo run --release -- --profile work
 ```
 
+Profile names are used as TOML filenames on Windows, so avoid reserved characters such as `<>:"/\\|?*` and control characters.
+
 Panopticon also understands:
 
 - `cargo run --release -- --profile=work`

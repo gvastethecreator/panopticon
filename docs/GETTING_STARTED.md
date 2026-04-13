@@ -33,6 +33,8 @@ cargo run --release -- --profile work
 
 This loads the configuration from `%APPDATA%\Panopticon\profiles\work.toml`.
 
+Profile names become Windows filenames, so keep them free of reserved characters such as `<>:"/\\|?*` and control characters.
+
 You can also use `--profile=work`, inspect the CLI with `--help`, or print the current app version with `--version`.
 
 ## What happens at startup

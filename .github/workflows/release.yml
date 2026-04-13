@@ -24,8 +24,21 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Verify tag matches Cargo.toml version
+        shell: pwsh
+        run: |
+          $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
+          $cargoToml = Get-Content Cargo.toml -Raw
+          if ($cargoToml -notmatch '(?m)^version\s*=\s*"([^"]+)"') {
+            throw "Could not parse package version from Cargo.toml"
+          }
+          $cargoVersion = $Matches[1]
+          if ($cargoVersion -ne $tagVersion) {
+            throw "Tag version '$tagVersion' does not match Cargo.toml version '$cargoVersion'"
+          }
+
       - name: Build release
-        run: cargo build --release
+        run: cargo build --release --locked
 
       - name: Package portable zip
         shell: pwsh
