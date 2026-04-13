@@ -33,12 +33,73 @@ const DEFAULT_SHORTCUT_TOGGLE_WINDOW_INFO: &str = "I";
 const DEFAULT_SHORTCUT_TOGGLE_ALWAYS_ON_TOP: &str = "P";
 const DEFAULT_SHORTCUT_OPEN_SETTINGS: &str = "O";
 const DEFAULT_SHORTCUT_OPEN_MENU: &str = "M";
+const DEFAULT_SHORTCUT_GLOBAL_ACTIVATE: &str = "Ctrl+Alt+P";
 const DEFAULT_SHORTCUT_REFRESH: &str = "R";
 const DEFAULT_SHORTCUT_EXIT: &str = "Esc";
 const INVALID_PROFILE_NAME_CHARACTERS: [char; 9] = [':', '"', '<', '>', '|', '?', '*', '/', '\\'];
 
 const fn default_true() -> bool {
     true
+}
+
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "serde field defaults for Option<T> must return the wrapped field type"
+)]
+fn default_global_activate_shortcut() -> Option<String> {
+    Some(DEFAULT_SHORTCUT_GLOBAL_ACTIVATE.to_owned())
+}
+
+/// Supported final key for the configurable global activation hotkey.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GlobalHotkeyKey {
+    /// ASCII letter or digit that maps directly to a Win32 virtual key.
+    Character(char),
+    /// Function-key row (`F1` .. `F24`).
+    Function(u8),
+    /// Tab key.
+    Tab,
+    /// Escape key.
+    Esc,
+    /// Enter / Return key.
+    Enter,
+    /// Space bar.
+    Space,
+}
+
+/// Parsed global activation hotkey with its modifier set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GlobalHotkeyBinding {
+    pub ctrl: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub key: GlobalHotkeyKey,
+}
+
+impl GlobalHotkeyBinding {
+    /// Canonical display form used for persistence and the settings editor.
+    #[must_use]
+    pub fn canonical_string(self) -> String {
+        let mut parts = Vec::with_capacity(4);
+        if self.ctrl {
+            parts.push("Ctrl".to_owned());
+        }
+        if self.alt {
+            parts.push("Alt".to_owned());
+        }
+        if self.shift {
+            parts.push("Shift".to_owned());
+        }
+        parts.push(match self.key {
+            GlobalHotkeyKey::Character(character) => character.to_string(),
+            GlobalHotkeyKey::Function(index) => format!("F{index}"),
+            GlobalHotkeyKey::Tab => "Tab".to_owned(),
+            GlobalHotkeyKey::Esc => "Esc".to_owned(),
+            GlobalHotkeyKey::Enter => "Enter".to_owned(),
+            GlobalHotkeyKey::Space => "Space".to_owned(),
+        });
+        parts.join("+")
+    }
 }
 
 /// Validation result for an interactively supplied profile name.
@@ -124,6 +185,11 @@ pub struct ShortcutBindings {
     pub toggle_always_on_top: String,
     pub open_settings: String,
     pub open_menu: String,
+    #[serde(
+        default = "default_global_activate_shortcut",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub global_activate: Option<String>,
     pub refresh_now: String,
     pub exit_app: String,
     #[serde(default = "default_true")]
@@ -149,6 +215,7 @@ impl Default for ShortcutBindings {
             toggle_always_on_top: DEFAULT_SHORTCUT_TOGGLE_ALWAYS_ON_TOP.to_owned(),
             open_settings: DEFAULT_SHORTCUT_OPEN_SETTINGS.to_owned(),
             open_menu: DEFAULT_SHORTCUT_OPEN_MENU.to_owned(),
+            global_activate: default_global_activate_shortcut(),
             refresh_now: DEFAULT_SHORTCUT_REFRESH.to_owned(),
             exit_app: DEFAULT_SHORTCUT_EXIT.to_owned(),
             alt_toggles_toolbar: true,
@@ -218,6 +285,10 @@ impl ShortcutBindings {
                 DEFAULT_SHORTCUT_OPEN_SETTINGS,
             ),
             open_menu: normalize_shortcut_binding(&self.open_menu, DEFAULT_SHORTCUT_OPEN_MENU),
+            global_activate: normalize_global_hotkey_binding(
+                self.global_activate.as_deref(),
+                Some(DEFAULT_SHORTCUT_GLOBAL_ACTIVATE),
+            ),
             refresh_now: normalize_shortcut_binding(&self.refresh_now, DEFAULT_SHORTCUT_REFRESH),
             exit_app: normalize_shortcut_binding(&self.exit_app, DEFAULT_SHORTCUT_EXIT),
             alt_toggles_toolbar: self.alt_toggles_toolbar,
@@ -1176,6 +1247,102 @@ pub fn normalize_shortcut_binding(value: &str, fallback: &str) -> String {
     }
 }
 
+#[must_use]
+pub fn normalize_global_hotkey_binding(
+    value: Option<&str>,
+    fallback: Option<&str>,
+) -> Option<String> {
+    match value.map(str::trim) {
+        None | Some("") => None,
+        Some(raw) => parse_global_hotkey_binding(raw)
+            .map(GlobalHotkeyBinding::canonical_string)
+            .or_else(|| {
+                fallback
+                    .and_then(parse_global_hotkey_binding)
+                    .map(GlobalHotkeyBinding::canonical_string)
+            }),
+    }
+}
+
+#[must_use]
+pub fn parse_global_hotkey_binding(value: &str) -> Option<GlobalHotkeyBinding> {
+    let mut ctrl = false;
+    let mut alt = false;
+    let mut shift = false;
+    let mut key = None;
+
+    for token in value.split('+') {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        match trimmed.to_ascii_lowercase().as_str() {
+            "ctrl" | "control" => {
+                if ctrl {
+                    return None;
+                }
+                ctrl = true;
+            }
+            "alt" => {
+                if alt {
+                    return None;
+                }
+                alt = true;
+            }
+            "shift" => {
+                if shift {
+                    return None;
+                }
+                shift = true;
+            }
+            _ => {
+                if key.is_some() {
+                    return None;
+                }
+                key = parse_global_hotkey_key(trimmed);
+            }
+        }
+    }
+
+    Some(GlobalHotkeyBinding {
+        ctrl,
+        alt,
+        shift,
+        key: key?,
+    })
+    .filter(|binding| binding.ctrl || binding.alt || binding.shift)
+}
+
+fn parse_global_hotkey_key(token: &str) -> Option<GlobalHotkeyKey> {
+    let trimmed = token.trim();
+    let lower = trimmed.to_ascii_lowercase();
+
+    match lower.as_str() {
+        "tab" => Some(GlobalHotkeyKey::Tab),
+        "esc" | "escape" => Some(GlobalHotkeyKey::Esc),
+        "enter" | "return" => Some(GlobalHotkeyKey::Enter),
+        "space" => Some(GlobalHotkeyKey::Space),
+        _ => {
+            if let Some(function_index) = lower
+                .strip_prefix('f')
+                .and_then(|digits| digits.parse::<u8>().ok())
+                .filter(|index| (1..=24).contains(index))
+            {
+                return Some(GlobalHotkeyKey::Function(function_index));
+            }
+
+            let mut chars = trimmed.chars();
+            match (chars.next(), chars.next()) {
+                (Some(character), None) if character.is_ascii_alphanumeric() => {
+                    Some(GlobalHotkeyKey::Character(character.to_ascii_uppercase()))
+                }
+                _ => None,
+            }
+        }
+    }
+}
+
 fn rgb_hex_to_bgr(color_hex: &str) -> Option<u32> {
     let normalized = normalize_color_hex(color_hex)?;
     let value = u32::from_str_radix(&normalized, 16).ok()?;
@@ -1204,8 +1371,9 @@ fn derive_tag_from_label(label: &str) -> Option<String> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        normalize_shortcut_binding, validate_profile_name_input, AppRule, AppSettings,
-        BackgroundImageFit, HiddenAppEntry, ProfileNameValidation, ShortcutBindings, TagStyle,
+        normalize_global_hotkey_binding, normalize_shortcut_binding, parse_global_hotkey_binding,
+        validate_profile_name_input, AppRule, AppSettings, BackgroundImageFit, GlobalHotkeyBinding,
+        GlobalHotkeyKey, HiddenAppEntry, ProfileNameValidation, ShortcutBindings, TagStyle,
         ThumbnailRefreshMode,
     };
     use crate::layout::LayoutType;
@@ -1582,6 +1750,49 @@ mod tests {
         assert_eq!(normalize_shortcut_binding("q", "X"), "Q");
         assert_eq!(normalize_shortcut_binding("", "X"), "X");
         assert_eq!(normalize_shortcut_binding("ctrl+t", "X"), "X");
+    }
+
+    #[test]
+    fn global_hotkey_parser_accepts_canonical_modifier_chords() {
+        assert_eq!(
+            parse_global_hotkey_binding("ctrl + alt + p"),
+            Some(GlobalHotkeyBinding {
+                ctrl: true,
+                alt: true,
+                shift: false,
+                key: GlobalHotkeyKey::Character('P'),
+            })
+        );
+        assert_eq!(
+            parse_global_hotkey_binding("Shift+Ctrl+Space")
+                .map(GlobalHotkeyBinding::canonical_string),
+            Some("Ctrl+Shift+Space".to_owned())
+        );
+        assert_eq!(
+            parse_global_hotkey_binding("Alt+F12"),
+            Some(GlobalHotkeyBinding {
+                ctrl: false,
+                alt: true,
+                shift: false,
+                key: GlobalHotkeyKey::Function(12),
+            })
+        );
+    }
+
+    #[test]
+    fn global_hotkey_normalization_allows_disabling_and_rejects_invalid_values() {
+        assert_eq!(
+            normalize_global_hotkey_binding(Some(""), Some("Ctrl+Alt+P")),
+            None
+        );
+        assert_eq!(
+            normalize_global_hotkey_binding(Some("Ctrl+Alt+Shift"), Some("Ctrl+Alt+P")),
+            Some("Ctrl+Alt+P".to_owned())
+        );
+        assert_eq!(
+            normalize_global_hotkey_binding(Some("P"), Some("Ctrl+Alt+P")),
+            Some("Ctrl+Alt+P".to_owned())
+        );
     }
 
     #[test]

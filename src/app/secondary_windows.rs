@@ -16,9 +16,10 @@ use panopticon::window_ops::{collect_available_apps, collect_available_monitors}
 use slint::{CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
 use super::dock::{
-    apply_dock_mode, apply_topmost_mode, apply_window_appearance, center_window_on_screen,
+    apply_dock_mode, apply_topmost_mode, apply_window_appearance, center_window_on_owner_monitor,
     keep_dialog_above_owner, reposition_appbar, restore_floating_style, unregister_appbar,
 };
+use super::global_hotkey;
 use super::native_runtime::apply_configured_main_window_size;
 use super::settings_ui::{apply_settings_window_changes, populate_settings_window};
 use super::theme_ui::{apply_settings_window_theme_snapshot, apply_tag_dialog_theme_snapshot};
@@ -62,7 +63,7 @@ pub(crate) fn open_settings_window(
                 let state = state.borrow();
                 apply_window_icons(hwnd, &state.icons);
                 keep_dialog_above_owner(hwnd, state.hwnd, &state.settings);
-                center_window_on_screen(hwnd);
+                center_window_on_owner_monitor(hwnd, state.hwnd);
             }
             true
         } else {
@@ -156,14 +157,16 @@ pub(crate) fn open_settings_window(
         let state = state.clone();
         let main_weak = main_weak.clone();
         move || {
-            {
+            let (hwnd, settings_snapshot) = {
                 let mut state = state.borrow_mut();
                 let profile = state.profile_name.clone();
                 state.settings = AppSettings::default();
                 state.settings = state.settings.normalized();
                 state.current_layout = state.settings.initial_layout;
                 let _ = state.settings.save(profile.as_deref());
-            }
+                (state.hwnd, state.settings.clone())
+            };
+            global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
             crate::SETTINGS_WIN.with(|handle| {
                 let guard = handle.borrow();
                 if let Some(settings_window) = guard.as_ref() {
@@ -323,6 +326,7 @@ pub(crate) fn open_settings_window(
                 }
 
                 drop(state_guard);
+                global_hotkey::sync_activate_hotkey(hwnd, &settings_clone);
                 let _ = crate::refresh_windows(&state);
                 if locale_changed {
                     let _ = panopticon::i18n::set_locale(new_language);
@@ -376,7 +380,7 @@ pub(crate) fn open_settings_window(
         apply_window_appearance(settings_hwnd, &state.settings);
         apply_settings_window_theme_snapshot(&settings_window, &state.current_theme);
         keep_dialog_above_owner(settings_hwnd, state.hwnd, &state.settings);
-        center_window_on_screen(settings_hwnd);
+        center_window_on_owner_monitor(settings_hwnd, state.hwnd);
     }
     crate::SETTINGS_WIN.with(|handle| *handle.borrow_mut() = Some(settings_window));
 }
@@ -387,7 +391,10 @@ pub(crate) fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
         let Some(window) = guard.as_ref() else {
             return;
         };
-        let state = state.borrow();
+        let Ok(state) = state.try_borrow() else {
+            tracing::debug!("skipping settings window refresh while app state is busy");
+            return;
+        };
         sync_settings_window_from_state(window, &state);
         if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
             keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);

@@ -12,6 +12,7 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 
 use super::dock::{docked_mode_active, is_blocked_dock_syscommand};
 use super::dwm::release_thumbnail;
+use super::global_hotkey;
 use super::tray::{handle_tray_message, TrayAction, WM_TRAYICON};
 use crate::{
     queue_action, recompute_and_update_ui, AppState, MainWindow, PendingAction, SavedWndProc,
@@ -116,6 +117,14 @@ unsafe extern "system" fn subclass_proc(
         WM_TRAYICON => {
             handle_tray_subclass(hwnd, lparam);
             LRESULT(0)
+        }
+        WM_HOTKEY => {
+            if global_hotkey::is_activate_hotkey(wparam.0) {
+                queue_action(PendingAction::ActivateMainWindow);
+                LRESULT(0)
+            } else {
+                forward_to_original(hwnd, msg, wparam, lparam)
+            }
         }
         WM_SYSKEYDOWN => {
             if wparam.0 as u32 == 0x12 && (lparam.0 & 0x4000_0000) == 0 {

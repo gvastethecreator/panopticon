@@ -747,6 +747,16 @@ where
     );
     set_tr!(
         tr,
+        set_settings_shortcut_global_activate_title,
+        "settings.shortcut.global_activate.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_global_activate_description,
+        "settings.shortcut.global_activate.description"
+    );
+    set_tr!(
+        tr,
         set_settings_shortcut_refresh_now_title,
         "settings.shortcut.refresh_now.title"
     );
@@ -1232,6 +1242,7 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
     let weak = win.as_weak();
     match action {
         PendingAction::Tray(ta) => app::tray_actions::handle_tray_action(state, &weak, ta),
+        PendingAction::ActivateMainWindow => app::tray_actions::activate_main_window(state, &weak),
         PendingAction::Reposition => {
             if let Ok(mut s) = state.try_borrow_mut() {
                 if s.is_appbar {
@@ -1260,10 +1271,14 @@ pub(crate) fn update_settings(
     state: &Rc<RefCell<AppState>>,
     mutate: impl FnOnce(&mut AppSettings),
 ) {
-    let mut s = state.borrow_mut();
-    mutate(&mut s.settings);
-    s.settings = s.settings.normalized();
-    let _ = s.settings.save(s.profile_name.as_deref());
+    let (hwnd, settings_snapshot) = {
+        let mut s = state.borrow_mut();
+        mutate(&mut s.settings);
+        s.settings = s.settings.normalized();
+        let _ = s.settings.save(s.profile_name.as_deref());
+        (s.hwnd, s.settings.clone())
+    };
+    app::global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
 }
 
 pub(crate) fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {

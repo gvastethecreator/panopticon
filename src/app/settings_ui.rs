@@ -29,9 +29,9 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_show_app_icons_setting(settings.show_app_icons);
     window.set_theme_index(theme::theme_index(settings.theme_id.as_deref()));
     window.set_bg_color_hex(SharedString::from(&settings.background_color_hex));
-    window.set_bg_image_path(SharedString::from(
-        settings.background_image_path.as_deref().unwrap_or(""),
-    ));
+    let next_bg_image_path = settings.background_image_path.as_deref().unwrap_or("");
+    let previous_bg_image_path = window.get_bg_image_path().to_string();
+    window.set_bg_image_path(SharedString::from(next_bg_image_path));
     window.set_bg_image_fit_index(background_fit_to_index(settings.background_image_fit));
     window.set_fixed_width_value(settings.fixed_width.unwrap_or(0) as i32);
     window.set_fixed_height_value(settings.fixed_height.unwrap_or(0) as i32);
@@ -60,6 +60,9 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     ));
     window.set_shortcut_open_settings(SharedString::from(&settings.shortcuts.open_settings));
     window.set_shortcut_open_menu(SharedString::from(&settings.shortcuts.open_menu));
+    window.set_shortcut_global_activate(SharedString::from(
+        settings.shortcuts.global_activate.as_deref().unwrap_or(""),
+    ));
     window.set_shortcut_refresh_now(SharedString::from(&settings.shortcuts.refresh_now));
     window.set_shortcut_exit_app(SharedString::from(&settings.shortcuts.exit_app));
     window.set_alt_toolbar_shortcut_enabled(settings.shortcuts.alt_toggles_toolbar);
@@ -68,9 +71,11 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
         theme::resolve_ui_theme(settings.theme_id.as_deref(), &settings.background_color_hex);
     window.set_bg_preview_color(hex_to_color(&settings.background_color_hex));
     window.set_theme_preview_color(hex_to_color(&resolved_theme.accent_hex));
-    window.set_bg_image_preview(load_image_preview(
-        settings.background_image_path.as_deref(),
-    ));
+    if previous_bg_image_path != next_bg_image_path {
+        window.set_bg_image_preview(load_image_preview(
+            settings.background_image_path.as_deref(),
+        ));
+    }
     window.set_theme_preview_model(build_theme_preview_model());
 }
 
@@ -136,6 +141,7 @@ pub fn apply_settings_window_changes(
         window.get_shortcut_toggle_always_on_top().to_string();
     settings.shortcuts.open_settings = window.get_shortcut_open_settings().to_string();
     settings.shortcuts.open_menu = window.get_shortcut_open_menu().to_string();
+    settings.shortcuts.global_activate = Some(window.get_shortcut_global_activate().to_string());
     settings.shortcuts.refresh_now = window.get_shortcut_refresh_now().to_string();
     settings.shortcuts.exit_app = window.get_shortcut_exit_app().to_string();
     settings.shortcuts.alt_toggles_toolbar = window.get_alt_toolbar_shortcut_enabled();

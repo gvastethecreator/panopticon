@@ -79,7 +79,7 @@ Panopticon also understands:
 
 ### Handy shortcuts
 
-These are the **default** bindings. You can rebind them from `Settings -> Keyboard Shortcuts`, and the standalone `Alt` toolbar toggle can also be disabled there.
+These are the **default** bindings. You can rebind them from `Settings -> Keyboard Shortcuts`; the dashboard bindings stay single-key, while the global activation shortcut accepts `Ctrl` / `Alt` / `Shift` combinations and can be cleared to disable it.
 
 | Input | Action |
 | --- | --- |
@@ -94,6 +94,7 @@ These are the **default** bindings. You can rebind them from `Settings -> Keyboa
 | `T` | Change theme |
 | `O` | Open settings |
 | `M` | Open application menu |
+| `Ctrl` + `Alt` + `P` | Activate and focus Panopticon globally |
 | `Alt` | Toggle toolbar |
 | `Esc` | Exit |
 

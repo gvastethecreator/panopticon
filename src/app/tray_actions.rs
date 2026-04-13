@@ -274,18 +274,22 @@ fn toggle_visibility(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindo
             window.hide().ok();
         }
     } else {
-        restore_from_tray(state, weak);
+        activate_main_window(state, weak);
     }
 }
 
-fn restore_from_tray(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
+pub(crate) fn activate_main_window(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
     if let Some(window) = weak.upgrade() {
+        let was_visible = state.borrow().hwnd != HWND::default()
+            && unsafe { IsWindowVisible(state.borrow().hwnd).as_bool() };
         window.show().ok();
         let hwnd = state.borrow().hwnd;
         unsafe {
             let _ = SetForegroundWindow(hwnd);
         }
-        refresh_windows(state);
-        recompute_and_update_ui(state, &window);
+        if !was_visible {
+            refresh_windows(state);
+            recompute_and_update_ui(state, &window);
+        }
     }
 }
