@@ -1,7 +1,5 @@
 //! Native Win32 window subclassing and low-level input handling.
 
-use std::cell::Cell;
-use std::mem;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -15,7 +13,10 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use super::dock::{docked_mode_active, is_blocked_dock_syscommand};
 use super::dwm::release_thumbnail;
 use super::tray::{handle_tray_message, TrayAction, WM_TRAYICON};
-use crate::{recompute_and_update_ui, AppState, MainWindow, PendingAction, TASKBAR_CREATED_MSG};
+use crate::{
+    queue_action, recompute_and_update_ui, AppState, MainWindow, PendingAction, SavedWndProc,
+    TASKBAR_CREATED_MSG,
+};
 
 /// Duration after which the scrollbar overlay auto-hides.
 pub(crate) const SCROLLBAR_HIDE_DELAY: Duration = Duration::from_millis(1500);
@@ -28,9 +29,15 @@ pub(crate) fn setup_subclass(
     crate::UI_STATE.with(|slot| *slot.borrow_mut() = Some(state.clone()));
     crate::UI_WINDOW.with(|slot| *slot.borrow_mut() = Some(main_window.as_weak()));
 
+    // SAFETY: `hwnd` is the live main window created by Slint; reading the
+    // current WNDPROC via `GetWindowLongPtrW` is a read-only Win32 query.
     let original = unsafe { GetWindowLongPtrW(hwnd, GWL_WNDPROC) };
-    crate::ORIGINAL_WNDPROC.with(|slot| slot.set(original));
+    crate::ORIGINAL_WNDPROC.with(|slot| slot.set(SavedWndProc::from_raw(original)));
 
+    // SAFETY: `hwnd` is our live window and `subclass_proc` has the correct
+    // `WNDPROC` signature (`unsafe extern "system" fn`).  Replacing the
+    // procedure is valid for the lifetime of the window; teardown restores
+    // the original before the window is destroyed.
     unsafe {
         let subclass_proc_ptr = subclass_proc as *const () as isize;
         let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, subclass_proc_ptr);
@@ -38,10 +45,13 @@ pub(crate) fn setup_subclass(
 }
 
 pub(crate) fn teardown_subclass(hwnd: HWND) {
-    let original = crate::ORIGINAL_WNDPROC.with(Cell::get);
-    if original != 0 {
+    let original = crate::ORIGINAL_WNDPROC.with(std::cell::Cell::get);
+    if !original.is_null() {
+        // SAFETY: `original` was captured from the same `hwnd` in
+        // `setup_subclass` and has not been freed; restoring it returns
+        // the window to its pre-subclass state.
         unsafe {
-            let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, original);
+            let _ = SetWindowLongPtrW(hwnd, GWL_WNDPROC, original.as_raw());
         }
     }
     crate::UI_STATE.with(|slot| *slot.borrow_mut() = None);
@@ -63,13 +73,18 @@ pub(crate) fn hide_scrollbar_if_idle(weak: &slint::Weak<MainWindow>) {
 }
 
 #[inline]
-#[allow(clippy::missing_transmute_annotations)]
 fn forward_to_original(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let original = crate::ORIGINAL_WNDPROC.with(Cell::get);
-    if original == 0 {
+    let saved = crate::ORIGINAL_WNDPROC.with(std::cell::Cell::get);
+    if saved.is_null() {
+        // SAFETY: Fallback to the default window procedure when no
+        // original WNDPROC was captured; all arguments come from the OS.
         return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
     }
-    unsafe { CallWindowProcW(mem::transmute(original), hwnd, msg, wparam, lparam) }
+    // SAFETY: `saved` was obtained from `GetWindowLongPtrW` in `setup_subclass`
+    // on this same window; the window is still alive because we are inside its
+    // message handler.  `as_wndproc()` performs the `isize → WNDPROC` transmute
+    // in a single audited location.
+    unsafe { CallWindowProcW(saved.as_wndproc(), hwnd, msg, wparam, lparam) }
 }
 
 #[expect(
@@ -112,15 +127,13 @@ unsafe extern "system" fn subclass_proc(
         }
         crate::WM_APPBAR_CALLBACK => {
             if wparam.0 as u32 == ABN_POSCHANGED {
-                crate::PENDING_ACTIONS
-                    .with(|queue| queue.borrow_mut().push(PendingAction::Reposition));
+                queue_action(PendingAction::Reposition);
             }
             LRESULT(0)
         }
         WM_WINDOWPOSCHANGED | WM_DISPLAYCHANGE | WM_DPICHANGED | WM_SETTINGCHANGE => {
             if docked_mode_active() {
-                crate::PENDING_ACTIONS
-                    .with(|queue| queue.borrow_mut().push(PendingAction::Reposition));
+                queue_action(PendingAction::Reposition);
             }
             forward_to_original(hwnd, msg, wparam, lparam)
         }
@@ -144,8 +157,7 @@ unsafe extern "system" fn subclass_proc(
                     .unwrap_or(false)
             });
             if should_hide {
-                crate::PENDING_ACTIONS
-                    .with(|queue| queue.borrow_mut().push(PendingAction::HideToTray));
+                queue_action(PendingAction::HideToTray);
             } else {
                 crate::queue_exit_request();
             }
@@ -165,8 +177,7 @@ unsafe extern "system" fn subclass_proc(
                         .unwrap_or(false)
                 });
                 if should_hide {
-                    crate::PENDING_ACTIONS
-                        .with(|queue| queue.borrow_mut().push(PendingAction::HideToTray));
+                    queue_action(PendingAction::HideToTray);
                 }
             }
             forward_to_original(hwnd, msg, wparam, lparam)
@@ -215,7 +226,7 @@ unsafe extern "system" fn subclass_proc(
 
 fn handle_show_window(wparam: WPARAM) {
     if wparam.0 != 0 {
-        crate::PENDING_ACTIONS.with(|queue| queue.borrow_mut().push(PendingAction::Refresh));
+        queue_action(PendingAction::Refresh);
     } else {
         crate::UI_STATE.with(|slot| {
             if let Some(state) = slot.borrow().as_ref() {
@@ -232,11 +243,7 @@ fn handle_show_window(wparam: WPARAM) {
 fn handle_tray_subclass(hwnd: HWND, lparam: LPARAM) {
     let mouse_msg = lparam.0 as u32;
     if mouse_msg == WM_LBUTTONUP {
-        crate::PENDING_ACTIONS.with(|queue| {
-            queue
-                .borrow_mut()
-                .push(PendingAction::Tray(TrayAction::Toggle));
-        });
+        queue_action(PendingAction::Tray(TrayAction::Toggle));
     } else if mouse_msg == WM_RBUTTONUP {
         let menu_state = crate::UI_STATE.with(|slot| {
             slot.borrow().as_ref().and_then(|state| {
@@ -248,8 +255,7 @@ fn handle_tray_subclass(hwnd: HWND, lparam: LPARAM) {
         });
         if let Some(menu_state) = menu_state {
             if let Some(action) = handle_tray_message(hwnd, lparam, &menu_state) {
-                crate::PENDING_ACTIONS
-                    .with(|queue| queue.borrow_mut().push(PendingAction::Tray(action)));
+                queue_action(PendingAction::Tray(action));
             }
         }
     }

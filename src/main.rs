@@ -11,6 +11,11 @@
 //! Binary entry point for Panopticon — Slint UI with DWM thumbnail overlays.
 
 mod app;
+mod state;
+
+// Re-export all public state types and thread-locals so that `crate::AppState`,
+// `crate::UI_STATE`, etc. continue to resolve without changing every consumer.
+pub(crate) use state::*;
 
 pub(crate) use app::layout_actions::cycle_layout;
 pub(crate) use app::model_sync::{
@@ -22,22 +27,19 @@ pub(crate) use app::window_sync::refresh_windows;
 use app::dock::reposition_appbar;
 use app::dwm::{release_all_thumbnails, release_thumbnail, update_dwm_thumbnails};
 use app::theme_ui::{advance_theme_animation, apply_main_window_theme_snapshot};
-use app::tray::{AppIcons, TrayAction, TrayIcon, INSTANCE_ACCENT_PALETTE};
-use panopticon::layout::{LayoutType, Separator};
+use app::tray::{AppIcons, INSTANCE_ACCENT_PALETTE};
 use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
-use panopticon::thumbnail::Thumbnail;
-use panopticon::window_enum::WindowInfo;
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use slint::{CloseRequestResponse, ComponentHandle, SharedString, Timer, TimerMode};
 
 use windows::core::w;
-use windows::Win32::Foundation::{HWND, POINT, RECT, SIZE};
+use windows::Win32::Foundation::{HWND, POINT, RECT};
 
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
@@ -51,32 +53,7 @@ slint::include_modules!();
 /// Callback message posted by the shell when the app-bar needs repositioning.
 pub(crate) const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
 
-pub(crate) const THUMBNAIL_INFO_STRIP_HEIGHT: i32 = 26;
-pub(crate) const THUMBNAIL_CONTENT_PADDING: i32 = 6;
-pub(crate) const THEME_TRANSITION_DURATION_MS: u32 = 220;
-pub(crate) const HIDDEN_THUMBNAIL_RECT: RECT = RECT {
-    left: 0,
-    top: 0,
-    right: 1,
-    bottom: 1,
-};
-
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
-
-// ───────────────────────── Thread-local subclass state ─────────────────────────
-
-thread_local! {
-    static ORIGINAL_WNDPROC: Cell<isize> = const { Cell::new(0) };
-    static UI_STATE: RefCell<Option<Rc<RefCell<AppState>>>> = const { RefCell::new(None) };
-    static UI_WINDOW: RefCell<Option<slint::Weak<MainWindow>>> = const { RefCell::new(None) };
-    static PENDING_ACTIONS: RefCell<Vec<PendingAction>> = const { RefCell::new(Vec::new()) };
-    static SETTINGS_WIN: RefCell<Option<SettingsWindow>> = const { RefCell::new(None) };
-    static TAG_DIALOG_WIN: RefCell<Option<TagDialogWindow>> = const { RefCell::new(None) };
-    static PAN_STATE: RefCell<MiddlePanState> = const { RefCell::new(MiddlePanState { active: false, last_x: 0, last_y: 0 }) };
-    /// Instant when the last scroll event occurred; used by the scrollbar
-    /// auto-hide timer to determine when to fade out.
-    static SCROLL_LAST_ACTIVITY: Cell<Option<Instant>> = const { Cell::new(None) };
-}
 
 pub(crate) fn populate_tr_global<Component>(window: &Component)
 where
@@ -109,96 +86,6 @@ where
     tr.set_tag_name_label(SharedString::from(i18n::t("tag.name_label")));
     tr.set_tag_preset_colour(SharedString::from(i18n::t("tag.preset_colour")));
     tr.set_tag_create_assign(SharedString::from(i18n::t("tag.create_assign")));
-}
-
-/// Tracks middle-button pan drag state.
-struct MiddlePanState {
-    active: bool,
-    last_x: i32,
-    last_y: i32,
-}
-
-// ───────────────────────── Types ─────────────────────────
-
-enum PendingAction {
-    Tray(TrayAction),
-    Reposition,
-    HideToTray,
-    Refresh,
-    Exit,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum StartupArgs {
-    Run { profile: Option<String> },
-    PrintAndExit { message: String, stderr: bool },
-}
-
-/// Tracks an in-progress separator drag.
-#[derive(Debug, Clone)]
-struct DragState {
-    /// Separator index (maps to the handle `index` field in Slint).
-    separator_index: usize,
-    /// Whether the separator is horizontal (drag vertically).
-    horizontal: bool,
-    /// Ratio-array index of the separator.
-    ratio_index: usize,
-    /// Total extent of the axis at drag start (width or height of content area).
-    axis_extent: f64,
-    /// Last pointer offset inside the handle, used for incremental movement.
-    last_pointer_offset: f64,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ThemeAnimation {
-    pub(crate) to: theme_catalog::UiTheme,
-    pub(crate) from_rgb: theme_catalog::RgbThemeSnapshot,
-    pub(crate) to_rgb: theme_catalog::RgbThemeSnapshot,
-    pub(crate) started_at: Instant,
-}
-
-/// A window tracked by Panopticon, including its DWM thumbnail handle.
-pub(crate) struct ManagedWindow {
-    pub(crate) info: WindowInfo,
-    pub(crate) thumbnail: Option<Thumbnail>,
-    pub(crate) target_rect: RECT,
-    pub(crate) display_rect: RECT,
-    pub(crate) animation_from_rect: RECT,
-    pub(crate) source_size: SIZE,
-    /// Last time the DWM thumbnail was actually updated (for interval mode).
-    pub(crate) last_thumb_update: Option<Instant>,
-    /// Last destination rectangle applied to the DWM thumbnail.
-    pub(crate) last_thumb_dest: Option<RECT>,
-    /// Last visibility flag applied to the DWM thumbnail.
-    pub(crate) last_thumb_visible: bool,
-    /// Cached Slint image of the window's application icon.
-    pub(crate) cached_icon: Option<slint::Image>,
-}
-
-/// Root application state shared via `Rc<RefCell<…>>`.
-pub(crate) struct AppState {
-    pub(crate) hwnd: HWND,
-    pub(crate) windows: Vec<ManagedWindow>,
-    pub(crate) current_layout: LayoutType,
-    pub(crate) active_hwnd: Option<HWND>,
-    pub(crate) tray_icon: Option<TrayIcon>,
-    pub(crate) icons: AppIcons,
-    pub(crate) settings: AppSettings,
-    pub(crate) animation_started_at: Option<Instant>,
-    pub(crate) content_extent: i32,
-    pub(crate) is_appbar: bool,
-    pub(crate) profile_name: Option<String>,
-    pub(crate) last_size: (i32, i32),
-    /// Cached separators from the last layout computation.
-    pub(crate) separators: Vec<Separator>,
-    /// Active drag state: separator index being dragged.
-    pub(crate) drag_separator: Option<DragState>,
-    /// Last background image path loaded into the main window.
-    pub(crate) loaded_background_path: Option<String>,
-    /// Last theme snapshot rendered into Slint globals.
-    pub(crate) current_theme: theme_catalog::UiTheme,
-    /// Optional animated transition between theme snapshots.
-    pub(crate) theme_animation: Option<ThemeAnimation>,
 }
 
 // ───────────────────────── Entry Point ─────────────────────────
@@ -346,7 +233,7 @@ fn run_app(profile: Option<String>) {
                 CloseRequestResponse::HideWindow
             } else {
                 drop(s);
-                PENDING_ACTIONS.with(|q| q.borrow_mut().push(PendingAction::Exit));
+                queue_exit_request();
                 CloseRequestResponse::KeepWindowShown
             }
         }
@@ -730,15 +617,12 @@ pub(crate) fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32
     }
 }
 
-pub(crate) fn queue_exit_request() {
-    PENDING_ACTIONS.with(|queue| queue.borrow_mut().push(PendingAction::Exit));
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app::dwm::sanitize_thumbnail_rect;
     use crate::app::icon::bilinear_sample_rgba;
+    use panopticon::window_enum::WindowInfo;
     use panopticon::window_ops::apply_pinned_positions;
     use std::ffi::c_void;
 
