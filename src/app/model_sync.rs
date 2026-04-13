@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use panopticon::constants::{ANIMATION_DURATION_MS, TOOLBAR_HEIGHT};
+use panopticon::i18n;
 use panopticon::layout::{compute_layout_custom, AspectHint, ScrollDirection};
 use panopticon::settings::AppSettings;
 use panopticon::window_ops::{active_filter_summary, truncate_title};
@@ -206,7 +207,9 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
         .as_ref()
         .map_or(-1, |drag| drag.separator_index as i32);
 
-    win.set_layout_label(SharedString::from(state.current_layout.label()));
+    win.set_layout_label(SharedString::from(i18n::t(
+        state.current_layout.translation_key(),
+    )));
     win.set_window_count(state.windows.len() as i32);
     win.set_hidden_count(state.settings.hidden_app_entries().len() as i32);
 

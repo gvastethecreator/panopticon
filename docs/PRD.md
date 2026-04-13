@@ -2,7 +2,7 @@
 
 ## Project: Panopticon
 
-**Documented product version:** 0.1.2  
+**Documented product version:** 0.1.21  
 **Document status:** updated to reflect the current implementation  
 **Target platform:** Windows 10 / Windows 11 (64-bit)  
 **Actual stack:** Rust + Slint + Win32/DWM  
@@ -163,7 +163,16 @@ The product must:
 - allow configuring how the background image fits the canvas (`cover`, `contain`, `fill`, `preserve`);
 - use rounded corners and Windows 11 backdrop when available.
 
-### 5.9. Dock / appbar
+### 5.9. Localization
+
+The product must:
+
+- ship with English as the default UI language;
+- support Spanish as a bundled alternative locale;
+- persist the selected language per profile;
+- allow the current process to override the saved locale via `PANOPTICON_LANG`.
+
+### 5.10. Dock / appbar
 
 The product can dock to a screen edge as an appbar. In that mode it must:
 

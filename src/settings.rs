@@ -322,6 +322,9 @@ pub enum DockEdge {
 #[serde(default)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct AppSettings {
+    /// Preferred UI language for the application.
+    #[serde(default)]
+    pub language: i18n::Locale,
     /// Layout used when the application starts.
     pub initial_layout: LayoutType,
     /// Refresh interval for window enumeration and layout updates.
@@ -397,6 +400,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            language: i18n::Locale::English,
             initial_layout: LayoutType::Grid,
             refresh_interval_ms: DEFAULT_REFRESH_INTERVAL_MS,
             minimize_to_tray: true,
@@ -436,23 +440,23 @@ impl AppSettings {
     #[must_use]
     pub fn layout_custom(&self, layout: LayoutType) -> Option<&LayoutCustomization> {
         self.layout_customizations
-            .get(layout.label())
+            .get(layout.storage_key())
             .filter(|c| !c.is_empty())
     }
 
     /// Store (or clear) a layout customization for the given layout type.
     pub fn set_layout_custom(&mut self, layout: LayoutType, custom: LayoutCustomization) {
         if custom.is_empty() {
-            self.layout_customizations.remove(layout.label());
+            self.layout_customizations.remove(layout.storage_key());
         } else {
             self.layout_customizations
-                .insert(layout.label().to_owned(), custom);
+                .insert(layout.storage_key().to_owned(), custom);
         }
     }
 
     /// Clear all custom layout ratios for the given layout type.
     pub fn clear_layout_custom(&mut self, layout: LayoutType) {
-        self.layout_customizations.remove(layout.label());
+        self.layout_customizations.remove(layout.storage_key());
     }
 
     /// Resolve the on-disk settings path for a given instance profile.
@@ -925,7 +929,7 @@ impl AppSettings {
             .map(|(app_id, rule)| HiddenAppEntry {
                 app_id: app_id.clone(),
                 label: if rule.display_name.trim().is_empty() {
-                    "Hidden app".to_owned()
+                    i18n::t("settings.hidden_app_fallback").to_owned()
                 } else {
                     rule.display_name.clone()
                 },
@@ -1002,6 +1006,7 @@ impl AppSettings {
         };
 
         Self {
+            language: self.language,
             initial_layout: self.initial_layout,
             refresh_interval_ms,
             minimize_to_tray: self.minimize_to_tray,
@@ -1107,8 +1112,9 @@ pub fn validate_profile_name_input(value: &str) -> ProfileNameValidation {
             .map(format_profile_name_character)
             .collect::<Vec<_>>()
             .join(", ");
-        return ProfileNameValidation::Invalid(format!(
-            "Profile name contains invalid Windows filename characters: {invalid_chars}"
+        return ProfileNameValidation::Invalid(i18n::t_fmt(
+            "settings.profile_invalid_chars",
+            &invalid_chars,
         ));
     }
 
@@ -1207,6 +1213,7 @@ mod tests {
     #[test]
     fn settings_roundtrip_through_toml() {
         let settings = AppSettings {
+            language: crate::i18n::Locale::English,
             initial_layout: LayoutType::Bento,
             refresh_interval_ms: 5_000,
             minimize_to_tray: false,
@@ -1253,6 +1260,7 @@ mod tests {
     #[test]
     fn invalid_refresh_interval_normalizes_to_default() {
         let settings = AppSettings {
+            language: crate::i18n::Locale::English,
             initial_layout: LayoutType::Columns,
             refresh_interval_ms: 777,
             minimize_to_tray: true,

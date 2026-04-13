@@ -46,9 +46,9 @@ impl LayoutType {
         }
     }
 
-    /// Human-readable name for the toolbar label.
+    /// Stable storage key used for persisted layout customizations.
     #[must_use]
-    pub fn label(self) -> &'static str {
+    pub const fn storage_key(self) -> &'static str {
         match self {
             Self::Grid => "Grid",
             Self::Mosaic => "Mosaic",
@@ -58,6 +58,26 @@ impl LayoutType {
             Self::Row => "Row",
             Self::Column => "Column",
         }
+    }
+
+    /// Translation key for the user-facing layout label.
+    #[must_use]
+    pub const fn translation_key(self) -> &'static str {
+        match self {
+            Self::Grid => "layout.grid",
+            Self::Mosaic => "layout.mosaic",
+            Self::Bento => "layout.bento",
+            Self::Fibonacci => "layout.fibonacci",
+            Self::Columns => "layout.columns",
+            Self::Row => "layout.row",
+            Self::Column => "layout.column",
+        }
+    }
+
+    /// Backward-compatible stable label accessor.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        self.storage_key()
     }
 
     /// Axis along which this layout may produce content that overflows the

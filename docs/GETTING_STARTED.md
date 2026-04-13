@@ -72,7 +72,7 @@ If there are no candidate windows, the UI shows an empty state.
 3. Right-click a thumbnail to open the per-window menu.
 4. Hide an application from the layout, then restore it from the tray.
 5. Create a tag from an application.
-6. Open `Settings` with `O` and review filters, theme, background options, shortcuts, and profiles.
+6. Open `Settings` with `O` and review language, filters, theme, background options, shortcuts, and profiles.
 7. Try `T` to toggle between themes.
 8. If using `Row` or `Column`, scroll with the wheel or middle-button drag.
 

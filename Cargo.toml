@@ -1,6 +1,6 @@
 [package]
 name = "panopticon"
-version = "0.1.2"
+version = "0.1.21"
 edition = "2021"
 description = "Real-time window thumbnail viewer for Windows using the DWM API"
 readme = "README.md"

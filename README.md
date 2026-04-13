@@ -74,7 +74,7 @@ Panopticon also understands:
 2. Press `Tab` or `1` to `7` to explore the available layouts.
 3. Left-click a thumbnail to activate that window.
 4. Right-click a thumbnail to open per-window actions.
-5. Press `O` to open settings and review theme, filters, and profiles.
+5. Press `O` to open settings and review language, theme, filters, and profiles.
 6. Use the tray icon to hide/show the dashboard without closing it.
 
 ### Handy shortcuts

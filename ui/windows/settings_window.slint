@@ -449,7 +449,7 @@ component FooterButton inherits Rectangle {
 }
 
 export component SettingsWindow inherits Window {
-    title: "Panopticon — Settings";
+    title: Tr.settings-window-title;
     icon: @image-url("../../assets/icon.svg");
     background: Theme.bg;
     preferred-width: 1180px;
@@ -471,24 +471,25 @@ export component SettingsWindow inherits Window {
     in-out property <bool> lock-cell-resize-setting: false;
     in-out property <bool> show-app-icons-setting: true;
     in property <bool> hide-on-select-enabled: true;
+    in-out property <int> language-index: 0;
     in-out property <int> refresh-index: 1;
     in-out property <int> layout-index: 0;
     in property <[string]> theme-options: ["Classic Panopticon"];
     in property <[ThemePreviewData]> theme-preview-model: [];
     in-out property <int> theme-index: 0;
-    in property <[string]> monitor-filter-options: ["All monitors"];
+    in property <[string]> monitor-filter-options: [Tr.all-monitors-label];
     in-out property <int> monitor-filter-index: 0;
-    in property <[string]> tag-filter-options: ["All tags"];
+    in property <[string]> tag-filter-options: [Tr.all-tags-label];
     in-out property <int> tag-filter-index: 0;
-    in property <[string]> app-filter-options: ["All applications"];
+    in property <[string]> app-filter-options: [Tr.all-apps-label];
     in-out property <int> app-filter-index: 0;
-    in property <[string]> hidden-app-options: ["No hidden apps"];
+    in property <[string]> hidden-app-options: [Tr.no-hidden-label];
     in-out property <int> hidden-app-index: 0;
     in property <bool> can-restore-hidden: false;
-    in property <string> hidden-apps-summary: "No hidden apps";
+    in property <string> hidden-apps-summary: Tr.no-hidden-label;
     in property <string> current-profile-label: "default";
     in-out property <string> profile-name: "";
-    in property <string> known-profiles-label: "No saved profiles";
+    in property <string> known-profiles-label: Tr.no-saved-profiles-label;
     in-out property <color> bg-preview-color: Theme.accent;
     in-out property <color> theme-preview-color: Theme.accent;
     in-out property <string> bg-color-hex: "181513";
@@ -553,6 +554,7 @@ export component SettingsWindow inherits Window {
     changed locked-layout-setting => { root.request-live-apply(); }
     changed lock-cell-resize-setting => { root.request-live-apply(); }
     changed show-app-icons-setting => { root.request-live-apply(); }
+    changed language-index => { root.request-live-apply(); }
     changed refresh-index => { root.request-live-apply(); }
     changed layout-index => { root.request-live-apply(); }
     changed theme-index => { root.request-live-apply(); }
@@ -585,14 +587,14 @@ export component SettingsWindow inherits Window {
                     alignment: center;
 
                     Text {
-                        text: "Settings";
+                        text: Tr.settings-title;
                         color: Theme.text;
                         font-size: 24px;
                         font-weight: 700;
                     }
 
                     Text {
-                        text: "Personaliza el dashboard, los fondos, los atajos y el comportamiento general.";
+                        text: Tr.settings-subtitle;
                         color: Theme.muted;
                         font-size: 12px;
                     }
@@ -625,7 +627,7 @@ export component SettingsWindow inherits Window {
                             alignment: start;
 
                             Text {
-                                text: "Profile";
+                                text: Tr.settings-profile-badge;
                                 color: Theme.muted;
                                 font-size: 10px;
                             }
@@ -660,48 +662,48 @@ export component SettingsWindow inherits Window {
                     spacing: 6px;
 
                     SidebarItem {
-                        label: "Behaviour & Display";
-                        subtext: "Window behaviour, tray and visible chrome";
+                        label: Tr.settings-nav-behaviour-display-title;
+                        subtext: Tr.settings-nav-behaviour-display-subtitle;
                         icon: @image-url("../../assets/ui-icons/section-display.svg");
                         active: root.current-page == 0;
                         clicked => { root.current-page = 0; }
                     }
 
                     SidebarItem {
-                        label: "Filters";
-                        subtext: "Monitor, tag, app and hidden-state tools";
+                        label: Tr.settings-nav-filters-title;
+                        subtext: Tr.settings-nav-filters-subtitle;
                         icon: @image-url("../../assets/ui-icons/section-filter.svg");
                         active: root.current-page == 1;
                         clicked => { root.current-page = 1; }
                     }
 
                     SidebarItem {
-                        label: "Theme & Background";
-                        subtext: "Theme presets, solid canvas colour and image";
+                        label: Tr.settings-nav-theme-background-title;
+                        subtext: Tr.settings-nav-theme-background-subtitle;
                         icon: @image-url("../../assets/ui-icons/section-theme.svg");
                         active: root.current-page == 2;
                         clicked => { root.current-page = 2; }
                     }
 
                     SidebarItem {
-                        label: "Profiles";
-                        subtext: "Save and launch named setups";
+                        label: Tr.settings-nav-profiles-title;
+                        subtext: Tr.settings-nav-profiles-subtitle;
                         icon: @image-url("../../assets/ui-icons/section-profile.svg");
                         active: root.current-page == 3;
                         clicked => { root.current-page = 3; }
                     }
 
                     SidebarItem {
-                        label: "Keyboard Shortcuts";
-                        subtext: "Customize the dashboard key map";
+                        label: Tr.settings-nav-shortcuts-title;
+                        subtext: Tr.settings-nav-shortcuts-subtitle;
                         icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
                         active: root.current-page == 4;
                         clicked => { root.current-page = 4; }
                     }
 
                     SidebarItem {
-                        label: "Advanced Options";
-                        subtext: "Layout, refresh cadence and dock behaviour";
+                        label: Tr.settings-nav-advanced-title;
+                        subtext: Tr.settings-nav-advanced-subtitle;
                         icon: @image-url("../../assets/ui-icons/section-advanced.svg");
                         active: root.current-page == 5;
                         clicked => { root.current-page = 5; }
@@ -726,44 +728,52 @@ export component SettingsWindow inherits Window {
 
                         PageHeader {
                             icon: @image-url("../../assets/ui-icons/section-display.svg");
-                            title: "Behaviour & Display";
-                            subtitle: "Ajusta cómo se comporta la ventana principal, qué información se muestra y cómo responde al tray.";
+                            title: Tr.settings-page-behaviour-display-title;
+                            subtitle: Tr.settings-page-behaviour-display-subtitle;
                         }
 
                         SectionTitle {
                             icon: @image-url("../../assets/ui-icons/option-toggle.svg");
-                            text: "Behaviour";
-                            helper: "Cada opción añade contexto con un pequeño resumen para no tener que adivinar qué hace.";
+                            text: Tr.settings-section-behaviour-title;
+                            helper: Tr.settings-section-behaviour-helper;
                         }
 
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-always-on-top.svg"); title: "Always on top"; description: "Mantiene Panopticon por encima de las demás ventanas incluso al cambiar de aplicación."; checked <=> root.always-on-top-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-animate.svg"); title: "Animate transitions"; description: "Suaviza cambios de layout, filtros y reacomodos visuales entre miniaturas."; checked <=> root.animate-transitions-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-minimize-tray.svg"); title: "Minimize to tray"; description: "Al minimizar, la app desaparece del escritorio y sigue viva desde la bandeja del sistema."; checked <=> root.minimize-to-tray-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-close-tray.svg"); title: "Close to tray"; description: "Interpreta el cierre de ventana como ocultar a la bandeja en lugar de salir."; checked <=> root.close-to-tray-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-aspect-ratio.svg"); title: "Preserve aspect ratio by default"; description: "Las nuevas apps respetarán mejor la proporción original de sus thumbnails."; checked <=> root.preserve-aspect-ratio-setting; }
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                            title: Tr.settings-option-language-title;
+                            description: Tr.settings-option-language-description;
+                            options: Tr.language-options;
+                            selected-index <=> root.language-index;
+                        }
+
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-always-on-top.svg"); title: Tr.settings-option-always-on-top-title; description: Tr.settings-option-always-on-top-description; checked <=> root.always-on-top-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-animate.svg"); title: Tr.settings-option-animate-transitions-title; description: Tr.settings-option-animate-transitions-description; checked <=> root.animate-transitions-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-minimize-tray.svg"); title: Tr.settings-option-minimize-to-tray-title; description: Tr.settings-option-minimize-to-tray-description; checked <=> root.minimize-to-tray-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-close-tray.svg"); title: Tr.settings-option-close-to-tray-title; description: Tr.settings-option-close-to-tray-description; checked <=> root.close-to-tray-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-aspect-ratio.svg"); title: Tr.settings-option-preserve-aspect-ratio-title; description: Tr.settings-option-preserve-aspect-ratio-description; checked <=> root.preserve-aspect-ratio-setting; }
                         ToggleSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
-                            title: "Hide after selecting an app";
-                            description: root.hide-on-select-enabled ? "Oculta Panopticon cuando activas una ventana desde el dashboard." : Tr.dock-mode-hint;
+                            title: Tr.settings-option-hide-on-select-title;
+                            description: root.hide-on-select-enabled ? Tr.settings-option-hide-on-select-description : Tr.dock-mode-hint;
                             checked <=> root.hide-on-select-setting;
                             enabled: root.hide-on-select-enabled;
                         }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-start-hidden.svg"); title: "Start hidden in tray"; description: "Inicia directamente en segundo plano para un arranque más silencioso."; checked <=> root.start-in-tray-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-lock-layout.svg"); title: "Lock layout changes"; description: "Bloquea cambios de layout por teclado o desde la barra superior."; checked <=> root.locked-layout-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-lock-resize.svg"); title: "Lock cell resizing"; description: "Desactiva el arrastre de separadores para proteger la composición actual."; checked <=> root.lock-cell-resize-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-start-hidden.svg"); title: Tr.settings-option-start-in-tray-title; description: Tr.settings-option-start-in-tray-description; checked <=> root.start-in-tray-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-lock-layout.svg"); title: Tr.settings-option-lock-layout-title; description: Tr.settings-option-lock-layout-description; checked <=> root.locked-layout-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-lock-resize.svg"); title: Tr.settings-option-lock-cell-resize-title; description: Tr.settings-option-lock-cell-resize-description; checked <=> root.lock-cell-resize-setting; }
 
                         Divider {}
 
                         SectionTitle {
                             icon: @image-url("../../assets/ui-icons/option-visibility.svg");
-                            text: "Display";
-                            helper: "Controles que cambian la legibilidad y el contenido visible del dashboard.";
+                            text: Tr.settings-section-display-title;
+                            helper: Tr.settings-section-display-helper;
                         }
 
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: "Show toolbar"; description: "Muestra la cabecera superior con resumen de estado y acceso rápido al menú."; checked <=> root.show-toolbar-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-window-info.svg"); title: "Show window info above thumbnails"; description: "Añade el nombre de ventana y aplicación encima de cada preview para leer el contexto de un vistazo."; checked <=> root.show-info-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-app-icon.svg"); title: "Show app icons in cells"; description: "Pinta el icono del proceso dentro de cada celda para identificar apps más rápido."; checked <=> root.show-app-icons-setting; }
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-backdrop.svg"); title: "Use system backdrop (Win11)"; description: "Activa materiales del sistema y bordes más nativos cuando Windows 11 los soporta."; checked <=> root.use-system-backdrop-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: Tr.settings-option-show-toolbar-title; description: Tr.settings-option-show-toolbar-description; checked <=> root.show-toolbar-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-window-info.svg"); title: Tr.settings-option-show-info-title; description: Tr.settings-option-show-info-description; checked <=> root.show-info-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-app-icon.svg"); title: Tr.settings-option-show-app-icons-title; description: Tr.settings-option-show-app-icons-description; checked <=> root.show-app-icons-setting; }
+                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-backdrop.svg"); title: Tr.settings-option-use-system-backdrop-title; description: Tr.settings-option-use-system-backdrop-description; checked <=> root.use-system-backdrop-setting; }
                     }
 
                     if root.current-page == 1: VerticalLayout {
@@ -771,39 +781,39 @@ export component SettingsWindow inherits Window {
 
                         PageHeader {
                             icon: @image-url("../../assets/ui-icons/section-filter.svg");
-                            title: "Filters";
-                            subtitle: "Acota el dashboard por monitor, tags, aplicaciones o grupos, y recupera apps ocultas sin salir de esta vista.";
+                            title: Tr.settings-page-filters-title;
+                            subtitle: Tr.settings-page-filters-subtitle;
                         }
 
                         SelectSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-monitor.svg");
-                            title: "Monitor filter";
-                            description: "Limita el dashboard a un monitor específico cuando trabajas con varias pantallas.";
+                            title: Tr.settings-option-monitor-filter-title;
+                            description: Tr.settings-option-monitor-filter-description;
                             options: root.monitor-filter-options;
                             selected-index <=> root.monitor-filter-index;
                         }
 
                         SelectSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-tag.svg");
-                            title: "Tag filter";
-                            description: "Muestra solo aplicaciones asociadas a una etiqueta manual concreta.";
+                            title: Tr.settings-option-tag-filter-title;
+                            description: Tr.settings-option-tag-filter-description;
                             options: root.tag-filter-options;
                             selected-index <=> root.tag-filter-index;
                         }
 
                         SelectSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-app-icon.svg");
-                            title: "Application filter";
-                            description: "Aísla una app concreta cuando quieres revisar solo su grupo de ventanas.";
+                            title: Tr.settings-option-app-filter-title;
+                            description: Tr.settings-option-app-filter-description;
                             options: root.app-filter-options;
                             selected-index <=> root.app-filter-index;
                         }
 
                         SelectSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-group.svg");
-                            title: "Group windows by";
-                            description: "Reordena visualmente la lista sin filtrar contenido, ideal para encontrar patrones.";
-                            options: ["No grouping", "Application", "Monitor", "Window title", "Window class"];
+                            title: Tr.settings-option-group-windows-title;
+                            description: Tr.settings-option-group-windows-description;
+                            options: Tr.group-options;
                             selected-index <=> root.group-windows-index;
                         }
 
@@ -820,8 +830,8 @@ export component SettingsWindow inherits Window {
 
                                 SectionTitle {
                                     icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
-                                    text: "Hidden applications";
-                                    helper: "Recupera apps ocultas una a una o de forma masiva desde el estado persistido.";
+                                    text: Tr.settings-section-hidden-apps-title;
+                                    helper: Tr.settings-section-hidden-apps-helper;
                                 }
 
                                 Text {
@@ -839,8 +849,8 @@ export component SettingsWindow inherits Window {
 
                                 HorizontalLayout {
                                     spacing: 10px;
-                                    Button { text: "Restore selected"; enabled: root.can-restore-hidden; clicked => { root.restore-hidden-selected(); } }
-                                    Button { text: "Restore all"; enabled: root.can-restore-hidden; clicked => { root.restore-hidden-all(); } }
+                                    Button { text: Tr.action-restore-selected; enabled: root.can-restore-hidden; clicked => { root.restore-hidden-selected(); } }
+                                    Button { text: Tr.action-restore-all; enabled: root.can-restore-hidden; clicked => { root.restore-hidden-all(); } }
                                 }
 
                                 if !root.can-restore-hidden: Text {
@@ -858,14 +868,14 @@ export component SettingsWindow inherits Window {
 
                         PageHeader {
                             icon: @image-url("../../assets/ui-icons/section-theme.svg");
-                            title: "Theme & Background";
-                            subtitle: "Combina una librería de themes con un color de canvas propio y una imagen de fondo ajustable.";
+                            title: Tr.settings-page-theme-background-title;
+                            subtitle: Tr.settings-page-theme-background-subtitle;
                         }
 
                         SectionTitle {
                             icon: @image-url("../../assets/ui-icons/section-theme.svg");
-                            text: "Theme grid";
-                            helper: "Selecciona un preset desde una grilla desplazable; el theme define acentos, paneles y contraste general.";
+                            text: Tr.settings-section-theme-grid-title;
+                            helper: Tr.settings-section-theme-grid-helper;
                         }
 
                         Rectangle {
@@ -920,8 +930,8 @@ export component SettingsWindow inherits Window {
 
                                     SectionTitle {
                                         icon: @image-url("../../assets/ui-icons/option-paint.svg");
-                                        text: "Canvas background";
-                                        helper: "El color de canvas vive detrás de las cards y de la imagen opcional de fondo.";
+                                        text: Tr.settings-section-canvas-background-title;
+                                        helper: Tr.settings-section-canvas-background-helper;
                                     }
 
                                     HorizontalLayout {
@@ -938,8 +948,8 @@ export component SettingsWindow inherits Window {
 
                                     TextFieldSettingCard {
                                         icon: @image-url("../../assets/ui-icons/option-paint.svg");
-                                        title: "Custom canvas colour";
-                                        description: "Introduce un RGB hex manual si quieres un color fuera de la paleta rápida.";
+                                        title: Tr.settings-option-custom-canvas-colour-title;
+                                        description: Tr.settings-option-custom-canvas-colour-description;
                                         value <=> root.bg-color-hex;
                                         placeholder: "181513";
                                         committed => { root.apply(); }
@@ -960,8 +970,8 @@ export component SettingsWindow inherits Window {
 
                                     SectionTitle {
                                         icon: @image-url("../../assets/ui-icons/section-theme.svg");
-                                        text: "Preview";
-                                        helper: "Resumen rápido del fondo activo con color e imagen opcional.";
+                                        text: Tr.settings-section-preview-title;
+                                        helper: Tr.settings-section-preview-helper;
                                     }
 
                                     Rectangle {
@@ -1014,14 +1024,14 @@ export component SettingsWindow inherits Window {
 
                                 SectionTitle {
                                     icon: @image-url("../../assets/ui-icons/option-image.svg");
-                                    text: "Background image";
-                                    helper: "Usa una imagen detrás del dashboard y define cómo debe ajustarse dentro del canvas.";
+                                    text: Tr.settings-section-background-image-title;
+                                    helper: Tr.settings-section-background-image-helper;
                                 }
 
                                 TextFieldSettingCard {
                                     icon: @image-url("../../assets/ui-icons/option-image.svg");
-                                    title: "Image file";
-                                    description: "Puedes pegar una ruta manualmente o elegirla con el selector nativo.";
+                                    title: Tr.settings-option-image-file-title;
+                                    description: Tr.settings-option-image-file-description;
                                     value <=> root.bg-image-path;
                                     placeholder: "C:\\wallpapers\\workspace.png";
                                     committed => { root.apply(); }
@@ -1029,16 +1039,16 @@ export component SettingsWindow inherits Window {
 
                                 SelectSettingCard {
                                     icon: @image-url("../../assets/ui-icons/option-image-fit.svg");
-                                    title: "Image fit";
-                                    description: "Controla si la imagen cubre, contiene o rellena el área visible del dashboard.";
-                                    options: ["Cover", "Contain", "Fill", "Preserve"];
+                                    title: Tr.settings-option-image-fit-title;
+                                    description: Tr.settings-option-image-fit-description;
+                                    options: Tr.image-fit-options;
                                     selected-index <=> root.bg-image-fit-index;
                                 }
 
                                 HorizontalLayout {
                                     spacing: 10px;
-                                    Button { text: "Browse image…"; clicked => { root.browse-background-image(); } }
-                                    Button { text: "Clear image"; clicked => { root.clear-background-image(); } }
+                                    Button { text: Tr.action-browse-image; clicked => { root.browse-background-image(); } }
+                                    Button { text: Tr.action-clear-image; clicked => { root.clear-background-image(); } }
                                 }
                             }
                         }
@@ -1049,8 +1059,8 @@ export component SettingsWindow inherits Window {
 
                         PageHeader {
                             icon: @image-url("../../assets/ui-icons/section-profile.svg");
-                            title: "Profiles";
-                            subtitle: "Guarda combinaciones completas de ajustes y abre nuevas instancias ya apuntando al perfil que quieras.";
+                            title: Tr.settings-page-profiles-title;
+                            subtitle: Tr.settings-page-profiles-subtitle;
                         }
 
                         HorizontalLayout {
@@ -1069,8 +1079,8 @@ export component SettingsWindow inherits Window {
 
                                     SectionTitle {
                                         icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                        text: "Edit profile";
-                                        helper: "Usa un nombre corto y descriptivo para guardar o abrir el snapshot actual en otra instancia.";
+                                        text: Tr.settings-section-edit-profile-title;
+                                        helper: Tr.settings-section-edit-profile-helper;
                                     }
 
                                     Rectangle {
@@ -1084,7 +1094,7 @@ export component SettingsWindow inherits Window {
                                             spacing: 6px;
 
                                             Text {
-                                                text: "Current profile";
+                                                text: Tr.settings-current-profile-card-title;
                                                 color: Theme.muted;
                                                 font-size: 11px;
                                             }
@@ -1101,8 +1111,8 @@ export component SettingsWindow inherits Window {
 
                                     TextFieldSettingCard {
                                         icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                        title: "Profile name";
-                                        description: "Este campo ahora vive en una columna compacta para evitar un input exageradamente ancho.";
+                                        title: Tr.settings-option-profile-name-title;
+                                        description: Tr.settings-option-profile-name-description;
                                         value <=> root.profile-name;
                                         placeholder: "workspace-a";
                                     }
@@ -1128,8 +1138,8 @@ export component SettingsWindow inherits Window {
 
                                     SectionTitle {
                                         icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
-                                        text: "Saved profiles";
-                                        helper: "Resumen de perfiles detectados y recordatorio del flujo recomendado para trabajar con varias instancias.";
+                                        text: Tr.settings-section-saved-profiles-title;
+                                        helper: Tr.settings-section-saved-profiles-helper;
                                     }
 
                                     Text {
@@ -1150,14 +1160,14 @@ export component SettingsWindow inherits Window {
                                             spacing: 6px;
 
                                             Text {
-                                                text: "Tips";
+                                                text: Tr.settings-tips-title;
                                                 color: Theme.accent;
                                                 font-size: 11px;
                                                 font-weight: 700;
                                             }
 
                                             Text {
-                                                text: "- Guarda primero el perfil actual si vas a abrir otra instancia.\n- Usa nombres simples como work, stream o review.\n- Los ajustes de tema, fondo y shortcuts viajan con el perfil.";
+                                                text: Tr.settings-tips-body;
                                                 color: Theme.muted;
                                                 font-size: 11.5px;
                                                 wrap: word-wrap;
@@ -1174,8 +1184,8 @@ export component SettingsWindow inherits Window {
 
                         PageHeader {
                             icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
-                            title: "Keyboard Shortcuts";
-                            subtitle: "Todas las acciones rápidas del dashboard en un único editor. Usa una tecla simple o nombres como Tab / Esc.";
+                            title: Tr.settings-page-shortcuts-title;
+                            subtitle: Tr.settings-page-shortcuts-subtitle;
                         }
 
                         Rectangle {
@@ -1193,38 +1203,38 @@ export component SettingsWindow inherits Window {
 
                                     SectionTitle {
                                         icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                        text: "Layout bindings";
-                                        helper: "Asignaciones directas para layouts concretos, reset y ciclo general.";
+                                        text: Tr.settings-section-layout-bindings-title;
+                                        helper: Tr.settings-section-layout-bindings-helper;
                                     }
 
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Grid layout"; description: "Activa la vista Grid al instante."; value <=> root.shortcut-layout-grid; placeholder: "1"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Mosaic layout"; description: "Cambia a la distribución Mosaic."; value <=> root.shortcut-layout-mosaic; placeholder: "2"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Bento layout"; description: "Activa el layout Bento."; value <=> root.shortcut-layout-bento; placeholder: "3"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Fibonacci layout"; description: "Abre la composición Fibonacci."; value <=> root.shortcut-layout-fibonacci; placeholder: "4"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Columns layout"; description: "Activa Columns."; value <=> root.shortcut-layout-columns; placeholder: "5"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Row layout"; description: "Activa la vista Row."; value <=> root.shortcut-layout-row; placeholder: "6"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Column layout"; description: "Activa la vista Column."; value <=> root.shortcut-layout-column; placeholder: "7"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Reset layout ratios"; description: "Restablece proporciones personalizadas del layout actual."; value <=> root.shortcut-reset-layout; placeholder: "0"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-cycle.svg"); title: "Cycle layout"; description: "Avanza al siguiente layout en la secuencia interna."; value <=> root.shortcut-cycle-layout; placeholder: "Tab"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: Tr.settings-shortcut-layout-grid-title; description: Tr.settings-shortcut-layout-grid-description; value <=> root.shortcut-layout-grid; placeholder: "1"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: Tr.settings-shortcut-layout-mosaic-title; description: Tr.settings-shortcut-layout-mosaic-description; value <=> root.shortcut-layout-mosaic; placeholder: "2"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: Tr.settings-shortcut-layout-bento-title; description: Tr.settings-shortcut-layout-bento-description; value <=> root.shortcut-layout-bento; placeholder: "3"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: Tr.settings-shortcut-layout-fibonacci-title; description: Tr.settings-shortcut-layout-fibonacci-description; value <=> root.shortcut-layout-fibonacci; placeholder: "4"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: Tr.settings-shortcut-layout-columns-title; description: Tr.settings-shortcut-layout-columns-description; value <=> root.shortcut-layout-columns; placeholder: "5"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: Tr.settings-shortcut-layout-row-title; description: Tr.settings-shortcut-layout-row-description; value <=> root.shortcut-layout-row; placeholder: "6"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: Tr.settings-shortcut-layout-column-title; description: Tr.settings-shortcut-layout-column-description; value <=> root.shortcut-layout-column; placeholder: "7"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: Tr.settings-shortcut-reset-layout-title; description: Tr.settings-shortcut-reset-layout-description; value <=> root.shortcut-reset-layout; placeholder: "0"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-cycle.svg"); title: Tr.settings-shortcut-cycle-layout-title; description: Tr.settings-shortcut-cycle-layout-description; value <=> root.shortcut-cycle-layout; placeholder: "Tab"; committed => { root.apply(); } }
 
                                     Divider {}
 
                                     SectionTitle {
                                         icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
-                                        text: "Dashboard actions";
-                                        helper: "Atajos para abrir paneles, refrescar estado y alternar opciones visibles.";
+                                        text: Tr.settings-section-dashboard-actions-title;
+                                        helper: Tr.settings-section-dashboard-actions-helper;
                                     }
 
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-palette.svg"); title: "Cycle theme"; description: "Rota entre presets sin abrir la ventana de settings."; value <=> root.shortcut-cycle-theme; placeholder: "T"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-animate.svg"); title: "Toggle animations"; description: "Activa o desactiva transiciones del dashboard."; value <=> root.shortcut-toggle-animations; placeholder: "A"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: "Toggle toolbar"; description: "Muestra u oculta la barra superior del dashboard."; value <=> root.shortcut-toggle-toolbar; placeholder: "H"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-window-info.svg"); title: "Toggle window info"; description: "Muestra u oculta títulos e info encima de las miniaturas."; value <=> root.shortcut-toggle-window-info; placeholder: "I"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-always-on-top.svg"); title: "Toggle always on top"; description: "Conmuta el modo siempre visible por encima de otras apps."; value <=> root.shortcut-toggle-always-on-top; placeholder: "P"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-settings.svg"); title: "Open settings"; description: "Abre esta ventana desde el dashboard principal."; value <=> root.shortcut-open-settings; placeholder: "O"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-menu.svg"); title: "Open application menu"; description: "Abre el menú nativo principal con acciones rápidas."; value <=> root.shortcut-open-menu; placeholder: "M"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-refresh.svg"); title: "Refresh now"; description: "Fuerza una nueva enumeración de ventanas y refresca el dashboard."; value <=> root.shortcut-refresh-now; placeholder: "R"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-exit.svg"); title: "Exit app"; description: "Cierra Panopticon desde teclado."; value <=> root.shortcut-exit-app; placeholder: "Esc"; committed => { root.apply(); } }
-                                    ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: "Use Alt as a quick toolbar toggle"; description: "Mantiene el atajo legacy de Windows para esconder o mostrar la toolbar con una sola pulsación de Alt."; checked <=> root.alt-toolbar-shortcut-enabled; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-palette.svg"); title: Tr.settings-shortcut-cycle-theme-title; description: Tr.settings-shortcut-cycle-theme-description; value <=> root.shortcut-cycle-theme; placeholder: "T"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-animate.svg"); title: Tr.settings-shortcut-toggle-animations-title; description: Tr.settings-shortcut-toggle-animations-description; value <=> root.shortcut-toggle-animations; placeholder: "A"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: Tr.settings-shortcut-toggle-toolbar-title; description: Tr.settings-shortcut-toggle-toolbar-description; value <=> root.shortcut-toggle-toolbar; placeholder: "H"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-window-info.svg"); title: Tr.settings-shortcut-toggle-window-info-title; description: Tr.settings-shortcut-toggle-window-info-description; value <=> root.shortcut-toggle-window-info; placeholder: "I"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-always-on-top.svg"); title: Tr.settings-shortcut-toggle-always-on-top-title; description: Tr.settings-shortcut-toggle-always-on-top-description; value <=> root.shortcut-toggle-always-on-top; placeholder: "P"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-settings.svg"); title: Tr.settings-shortcut-open-settings-title; description: Tr.settings-shortcut-open-settings-description; value <=> root.shortcut-open-settings; placeholder: "O"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-menu.svg"); title: Tr.settings-shortcut-open-menu-title; description: Tr.settings-shortcut-open-menu-description; value <=> root.shortcut-open-menu; placeholder: "M"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-refresh.svg"); title: Tr.settings-shortcut-refresh-now-title; description: Tr.settings-shortcut-refresh-now-description; value <=> root.shortcut-refresh-now; placeholder: "R"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-exit.svg"); title: Tr.settings-shortcut-exit-app-title; description: Tr.settings-shortcut-exit-app-description; value <=> root.shortcut-exit-app; placeholder: "Esc"; committed => { root.apply(); } }
+                                    ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: Tr.settings-shortcut-alt-toolbar-title; description: Tr.settings-shortcut-alt-toolbar-description; checked <=> root.alt-toolbar-shortcut-enabled; }
                                 }
                             }
                         }
@@ -1235,22 +1245,22 @@ export component SettingsWindow inherits Window {
 
                         PageHeader {
                             icon: @image-url("../../assets/ui-icons/section-advanced.svg");
-                            title: "Advanced Options";
-                            subtitle: "Ajustes de layout inicial, refresco, dimensiones dockeadas y posición del appbar.";
+                            title: Tr.settings-page-advanced-title;
+                            subtitle: Tr.settings-page-advanced-subtitle;
                         }
 
                         SelectSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                            title: "Default layout";
-                            description: "Define con qué layout debe arrancar Panopticon cada vez que abras este perfil.";
-                            options: ["Grid", "Mosaic", "Bento", "Fibonacci", "Columns", "Row", "Column"];
+                            title: Tr.settings-option-default-layout-title;
+                            description: Tr.settings-option-default-layout-description;
+                            options: Tr.layout-options;
                             selected-index <=> root.layout-index;
                         }
 
                         SelectSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                            title: "Refresh interval";
-                            description: "Cadencia base para enumerar ventanas y actualizar el dashboard cuando no fuerzas un refresh manual.";
+                            title: Tr.settings-option-refresh-interval-title;
+                            description: Tr.settings-option-refresh-interval-description;
                             options: ["1s", "2s", "5s", "10s"];
                             selected-index <=> root.refresh-index;
                         }
@@ -1268,11 +1278,11 @@ export component SettingsWindow inherits Window {
 
                                 SectionTitle {
                                     icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                                    text: "Manual refresh";
-                                    helper: "Úsalo cuando quieras reenumerar ventanas inmediatamente sin esperar al temporizador.";
+                                    text: Tr.settings-section-manual-refresh-title;
+                                    helper: Tr.settings-section-manual-refresh-helper;
                                 }
 
-                                Button { text: "Refresh now"; clicked => { root.refresh-now(); } }
+                                Button { text: Tr.action-refresh-now; clicked => { root.refresh-now(); } }
                             }
                         }
 
@@ -1288,15 +1298,15 @@ export component SettingsWindow inherits Window {
 
                                 SectionTitle {
                                     icon: @image-url("../../assets/ui-icons/option-dock.svg");
-                                    text: "Dock thickness";
-                                    helper: "Para dock lateral se usa width; para top/bottom se usa height. 0 deja el tamaño en automático.";
+                                    text: Tr.settings-section-dock-thickness-title;
+                                    helper: Tr.settings-section-dock-thickness-helper;
                                 }
 
                                 HorizontalLayout {
                                     spacing: 12px;
-                                    Text { text: "Width"; color: Theme.label; vertical-alignment: center; font-size: 13px; }
+                                    Text { text: Tr.settings-width-label; color: Theme.label; vertical-alignment: center; font-size: 13px; }
                                     SpinBox { value <=> root.fixed-width-value; minimum: 0; maximum: 3840; }
-                                    Text { text: "Height"; color: Theme.label; vertical-alignment: center; font-size: 13px; }
+                                    Text { text: Tr.settings-height-label; color: Theme.label; vertical-alignment: center; font-size: 13px; }
                                     SpinBox { value <=> root.fixed-height-value; minimum: 0; maximum: 2160; }
                                 }
                             }
@@ -1304,9 +1314,9 @@ export component SettingsWindow inherits Window {
 
                         SelectSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-dock.svg");
-                            title: "Dock position";
-                            description: "Convierte la ventana en appbar anclada o la deja flotando como panel libre.";
-                            options: ["Floating (no dock)", "Left", "Right", "Top", "Bottom"];
+                            title: Tr.settings-option-dock-position-title;
+                            description: Tr.settings-option-dock-position-description;
+                            options: Tr.dock-options;
                             selected-index <=> root.dock-edge-index;
                         }
                     }
@@ -1331,7 +1341,7 @@ export component SettingsWindow inherits Window {
                     vertical-stretch: 1;
 
                     Text {
-                        text: "Changes apply automatically.";
+                        text: Tr.action-auto-apply;
                         color: Theme.muted;
                         font-size: 11.5px;
                         vertical-alignment: center;
@@ -1339,8 +1349,8 @@ export component SettingsWindow inherits Window {
 
                     HorizontalLayout {
                         spacing: 10px;
-                        FooterButton { text: "Reset defaults"; clicked => { root.reset-to-defaults(); } }
-                        FooterButton { text: "Close"; clicked => { root.closed(); } }
+                        FooterButton { text: Tr.action-reset-defaults; clicked => { root.reset-to-defaults(); } }
+                        FooterButton { text: Tr.action-close; clicked => { root.closed(); } }
                     }
                 }
             }

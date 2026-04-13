@@ -140,7 +140,7 @@ pub(crate) fn handle_resize_drag_move(
     if let Some(custom) = state_ref
         .settings
         .layout_customizations
-        .get_mut(layout.label())
+        .get_mut(layout.storage_key())
     {
         let ratios = if horizontal {
             &mut custom.row_ratios
@@ -194,7 +194,7 @@ fn ensure_custom_ratios(state: &mut AppState, layout: LayoutType) {
     let entry = state
         .settings
         .layout_customizations
-        .entry(layout.label().to_owned())
+        .entry(layout.storage_key().to_owned())
         .or_default();
 
     match layout {

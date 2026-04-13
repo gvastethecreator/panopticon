@@ -9,7 +9,7 @@ use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Shell::{
     Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_SHOWTIP, NIF_TIP, NIM_ADD, NIM_DELETE,
-    NOTIFYICONDATAW,
+    NIM_MODIFY, NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, DestroyIcon, DestroyMenu, DrawIconEx,
@@ -316,6 +316,16 @@ impl TrayIcon {
             self.active = true;
         } else {
             tracing::warn!("Failed to re-add tray icon after Explorer restart");
+        }
+    }
+
+    /// Refresh the tray tooltip and icon payload in-place.
+    pub fn refresh(&mut self, icon: HICON) {
+        let nid = notify_data(self.hwnd, icon);
+        // SAFETY: same window / icon ID pair used for registration.
+        let updated = unsafe { Shell_NotifyIconW(NIM_MODIFY, &raw const nid).as_bool() };
+        if !updated {
+            tracing::warn!("failed to refresh tray icon metadata");
         }
     }
 

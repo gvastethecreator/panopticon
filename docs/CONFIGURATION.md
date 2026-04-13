@@ -26,6 +26,7 @@ Panopticon stores its preferences in local TOML files. There is no database or r
 ## General schema
 
 ```toml
+language = "english"
 initial_layout = "grid"
 refresh_interval_ms = 2000
 minimize_to_tray = true
@@ -97,6 +98,7 @@ row_ratios = [0.4, 0.6]
 
 | Key | Type | Default | Runtime effect | Notes |
 | --- | --- | --- | --- | --- |
+| `language` | `Locale` | `English` | selects the application UI language | supported values: `english`, `spanish`; `PANOPTICON_LANG` can override it at runtime |
 | `initial_layout` | `LayoutType` | `Grid` | active layout at startup | also updated when changing layout at runtime |
 | `refresh_interval_ms` | `u32` | `2000` | frequency of `refresh_windows()` | normalised to `1000`, `2000`, `5000`, or `10000` |
 | `minimize_to_tray` | `bool` | `true` | minimise hides the app to tray | affects `WM_SIZE` |
@@ -160,6 +162,12 @@ Important notes:
 - supported bindings are **single keys** or the named special keys `Tab`, `Esc`, `Enter`, and `Space`;
 - invalid or multi-key expressions such as `Ctrl+T` are normalised back to the default binding;
 - `alt_toggles_toolbar` is a separate compatibility switch for the Win32 `Alt` toolbar toggle and is not part of the general shortcut parser.
+
+## Language and locale
+
+- `language = "english"` is the persisted default for every new or migrated profile;
+- `language = "spanish"` switches the full Slint UI, native dialogs, tray tooltip, and runtime labels to Spanish;
+- the optional `PANOPTICON_LANG` environment variable (`en`, `es`, `en-US`, `es-MX`, etc.) takes precedence over the saved value for the current process only.
 
 ## Per-application rules
 

@@ -1,4 +1,4 @@
-import { Theme as ThemeGlobal, ThumbnailData as ThumbnailModel, ResizeHandleData as ResizeHandleModel } from "common.slint";
+import { Tr, Theme as ThemeGlobal, ThumbnailData as ThumbnailModel, ResizeHandleData as ResizeHandleModel } from "common.slint";
 import { ThumbnailCard } from "components/thumbnail_card.slint";
 import { ResizeHandle } from "components/resize_handle.slint";
 import { Toolbar } from "components/toolbar.slint";
@@ -11,7 +11,7 @@ export { SettingsWindow } from "windows/settings_window.slint";
 export { TagDialogWindow } from "windows/tag_dialog_window.slint";
 
 export component MainWindow inherits Window {
-    title: "Panopticon — Window Viewer";
+    title: Tr.main-window-title;
     icon: @image-url("../assets/icon.svg");
     background: root.canvas-background-color;
     preferred-width: 1320px;
@@ -23,7 +23,7 @@ export component MainWindow inherits Window {
     in property <[ResizeHandleModel]> resize-handles;
     in property <bool> show-toolbar: true;
     in property <bool> show-window-info: true;
-    in property <string> layout-label: "Grid";
+    in property <string> layout-label: Tr.layout-grid-label;
     in property <int> window-count: 0;
     in property <int> hidden-count: 0;
     in property <string> refresh-label: "2s";
