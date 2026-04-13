@@ -32,6 +32,7 @@ component SidebarItem inherits Rectangle {
             height: 18px;
             source: root.icon;
             image-fit: contain;
+            colorize: root.active ? Theme.accent : Theme.muted;
         }
 
         VerticalLayout {
@@ -83,6 +84,7 @@ component PageHeader inherits Rectangle {
             height: 20px;
             source: root.icon;
             image-fit: contain;
+            colorize: Theme.accent;
         }
 
         VerticalLayout {
@@ -124,6 +126,7 @@ component SectionTitle inherits Rectangle {
             height: 14px;
             source: root.icon;
             image-fit: contain;
+            colorize: Theme.accent;
         }
 
         VerticalLayout {
@@ -174,6 +177,7 @@ component ToggleSettingCard inherits Rectangle {
             height: 18px;
             source: root.icon;
             image-fit: contain;
+            colorize: root.enabled ? Theme.label : Theme.muted;
         }
 
         VerticalLayout {
@@ -233,6 +237,7 @@ component SelectSettingCard inherits Rectangle {
                 height: 18px;
                 source: root.icon;
                 image-fit: contain;
+                colorize: Theme.label;
             }
 
             VerticalLayout {
@@ -294,6 +299,7 @@ component TextFieldSettingCard inherits Rectangle {
                 height: 18px;
                 source: root.icon;
                 image-fit: contain;
+                colorize: Theme.label;
             }
 
             VerticalLayout {
@@ -770,7 +776,7 @@ export component SettingsWindow inherits Window {
                         }
 
                         SelectSettingCard {
-                            icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                            icon: @image-url("../../assets/ui-icons/option-monitor.svg");
                             title: "Monitor filter";
                             description: "Limita el dashboard a un monitor específico cuando trabajas con varias pantallas.";
                             options: root.monitor-filter-options;
@@ -778,7 +784,7 @@ export component SettingsWindow inherits Window {
                         }
 
                         SelectSettingCard {
-                            icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                            icon: @image-url("../../assets/ui-icons/option-tag.svg");
                             title: "Tag filter";
                             description: "Muestra solo aplicaciones asociadas a una etiqueta manual concreta.";
                             options: root.tag-filter-options;
@@ -786,7 +792,7 @@ export component SettingsWindow inherits Window {
                         }
 
                         SelectSettingCard {
-                            icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                            icon: @image-url("../../assets/ui-icons/option-app-icon.svg");
                             title: "Application filter";
                             description: "Aísla una app concreta cuando quieres revisar solo su grupo de ventanas.";
                             options: root.app-filter-options;
@@ -794,7 +800,7 @@ export component SettingsWindow inherits Window {
                         }
 
                         SelectSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                            icon: @image-url("../../assets/ui-icons/option-group.svg");
                             title: "Group windows by";
                             description: "Reordena visualmente la lista sin filtrar contenido, ideal para encontrar patrones.";
                             options: ["No grouping", "Application", "Monitor", "Window title", "Window class"];
@@ -813,7 +819,7 @@ export component SettingsWindow inherits Window {
                                 spacing: 10px;
 
                                 SectionTitle {
-                                    icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                                    icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
                                     text: "Hidden applications";
                                     helper: "Recupera apps ocultas una a una o de forma masiva desde el estado persistido.";
                                 }
@@ -913,7 +919,7 @@ export component SettingsWindow inherits Window {
                                     spacing: 10px;
 
                                     SectionTitle {
-                                        icon: @image-url("../../assets/ui-icons/option-image.svg");
+                                        icon: @image-url("../../assets/ui-icons/option-paint.svg");
                                         text: "Canvas background";
                                         helper: "El color de canvas vive detrás de las cards y de la imagen opcional de fondo.";
                                     }
@@ -931,7 +937,7 @@ export component SettingsWindow inherits Window {
                                     }
 
                                     TextFieldSettingCard {
-                                        icon: @image-url("../../assets/ui-icons/option-image.svg");
+                                        icon: @image-url("../../assets/ui-icons/option-paint.svg");
                                         title: "Custom canvas colour";
                                         description: "Introduce un RGB hex manual si quieres un color fuera de la paleta rápida.";
                                         value <=> root.bg-color-hex;
@@ -1022,7 +1028,7 @@ export component SettingsWindow inherits Window {
                                 }
 
                                 SelectSettingCard {
-                                    icon: @image-url("../../assets/ui-icons/option-image.svg");
+                                    icon: @image-url("../../assets/ui-icons/option-image-fit.svg");
                                     title: "Image fit";
                                     description: "Controla si la imagen cubre, contiene o rellena el área visible del dashboard.";
                                     options: ["Cover", "Contain", "Fill", "Preserve"];
@@ -1062,7 +1068,7 @@ export component SettingsWindow inherits Window {
                                     spacing: 10px;
 
                                     SectionTitle {
-                                        icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                                        icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
                                         text: "Edit profile";
                                         helper: "Usa un nombre corto y descriptivo para guardar o abrir el snapshot actual en otra instancia.";
                                     }
@@ -1094,7 +1100,7 @@ export component SettingsWindow inherits Window {
                                     }
 
                                     TextFieldSettingCard {
-                                        icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                                        icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
                                         title: "Profile name";
                                         description: "Este campo ahora vive en una columna compacta para evitar un input exageradamente ancho.";
                                         value <=> root.profile-name;
@@ -1121,7 +1127,7 @@ export component SettingsWindow inherits Window {
                                     spacing: 10px;
 
                                     SectionTitle {
-                                        icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                                        icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
                                         text: "Saved profiles";
                                         helper: "Resumen de perfiles detectados y recordatorio del flujo recomendado para trabajar con varias instancias.";
                                     }
@@ -1199,7 +1205,7 @@ export component SettingsWindow inherits Window {
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Row layout"; description: "Activa la vista Row."; value <=> root.shortcut-layout-row; placeholder: "6"; committed => { root.apply(); } }
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Column layout"; description: "Activa la vista Column."; value <=> root.shortcut-layout-column; placeholder: "7"; committed => { root.apply(); } }
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Reset layout ratios"; description: "Restablece proporciones personalizadas del layout actual."; value <=> root.shortcut-reset-layout; placeholder: "0"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-layout.svg"); title: "Cycle layout"; description: "Avanza al siguiente layout en la secuencia interna."; value <=> root.shortcut-cycle-layout; placeholder: "Tab"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-cycle.svg"); title: "Cycle layout"; description: "Avanza al siguiente layout en la secuencia interna."; value <=> root.shortcut-cycle-layout; placeholder: "Tab"; committed => { root.apply(); } }
 
                                     Divider {}
 
@@ -1209,16 +1215,16 @@ export component SettingsWindow inherits Window {
                                         helper: "Atajos para abrir paneles, refrescar estado y alternar opciones visibles.";
                                     }
 
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Cycle theme"; description: "Rota entre presets sin abrir la ventana de settings."; value <=> root.shortcut-cycle-theme; placeholder: "T"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle animations"; description: "Activa o desactiva transiciones del dashboard."; value <=> root.shortcut-toggle-animations; placeholder: "A"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle toolbar"; description: "Muestra u oculta la barra superior del dashboard."; value <=> root.shortcut-toggle-toolbar; placeholder: "H"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle window info"; description: "Muestra u oculta títulos e info encima de las miniaturas."; value <=> root.shortcut-toggle-window-info; placeholder: "I"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Toggle always on top"; description: "Conmuta el modo siempre visible por encima de otras apps."; value <=> root.shortcut-toggle-always-on-top; placeholder: "P"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Open settings"; description: "Abre esta ventana desde el dashboard principal."; value <=> root.shortcut-open-settings; placeholder: "O"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Open application menu"; description: "Abre el menú nativo principal con acciones rápidas."; value <=> root.shortcut-open-menu; placeholder: "M"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-palette.svg"); title: "Cycle theme"; description: "Rota entre presets sin abrir la ventana de settings."; value <=> root.shortcut-cycle-theme; placeholder: "T"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-animate.svg"); title: "Toggle animations"; description: "Activa o desactiva transiciones del dashboard."; value <=> root.shortcut-toggle-animations; placeholder: "A"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: "Toggle toolbar"; description: "Muestra u oculta la barra superior del dashboard."; value <=> root.shortcut-toggle-toolbar; placeholder: "H"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-window-info.svg"); title: "Toggle window info"; description: "Muestra u oculta títulos e info encima de las miniaturas."; value <=> root.shortcut-toggle-window-info; placeholder: "I"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-always-on-top.svg"); title: "Toggle always on top"; description: "Conmuta el modo siempre visible por encima de otras apps."; value <=> root.shortcut-toggle-always-on-top; placeholder: "P"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-settings.svg"); title: "Open settings"; description: "Abre esta ventana desde el dashboard principal."; value <=> root.shortcut-open-settings; placeholder: "O"; committed => { root.apply(); } }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-menu.svg"); title: "Open application menu"; description: "Abre el menú nativo principal con acciones rápidas."; value <=> root.shortcut-open-menu; placeholder: "M"; committed => { root.apply(); } }
                                     TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-refresh.svg"); title: "Refresh now"; description: "Fuerza una nueva enumeración de ventanas y refresca el dashboard."; value <=> root.shortcut-refresh-now; placeholder: "R"; committed => { root.apply(); } }
-                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Exit app"; description: "Cierra Panopticon desde teclado."; value <=> root.shortcut-exit-app; placeholder: "Esc"; committed => { root.apply(); } }
-                                    ToggleSettingCard { icon: @image-url("../../assets/ui-icons/section-keyboard.svg"); title: "Use Alt as a quick toolbar toggle"; description: "Mantiene el atajo legacy de Windows para esconder o mostrar la toolbar con una sola pulsación de Alt."; checked <=> root.alt-toolbar-shortcut-enabled; }
+                                    TextFieldSettingCard { icon: @image-url("../../assets/ui-icons/option-exit.svg"); title: "Exit app"; description: "Cierra Panopticon desde teclado."; value <=> root.shortcut-exit-app; placeholder: "Esc"; committed => { root.apply(); } }
+                                    ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg"); title: "Use Alt as a quick toolbar toggle"; description: "Mantiene el atajo legacy de Windows para esconder o mostrar la toolbar con una sola pulsación de Alt."; checked <=> root.alt-toolbar-shortcut-enabled; }
                                 }
                             }
                         }
