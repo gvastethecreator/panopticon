@@ -33,6 +33,8 @@ cargo run --release -- --profile work
 
 This loads the configuration from `%APPDATA%\Panopticon\profiles\work.toml`.
 
+You can also use `--profile=work`, inspect the CLI with `--help`, or print the current app version with `--version`.
+
 ## What happens at startup
 
 In a normal session, Panopticon does the following:
@@ -158,7 +160,7 @@ The runtime attempts to re-register it automatically when it receives `TaskbarCr
 
 ### A profile does not seem to load
 
-Launch the app with `--profile <name>` and verify that `%APPDATA%\Panopticon\profiles\<name>.toml` exists.
+Launch the app with `--profile <name>` (or `--profile=<name>`) and verify that `%APPDATA%\Panopticon\profiles\<name>.toml` exists.
 
 ### In dock mode some actions behave differently
 

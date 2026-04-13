@@ -60,6 +60,12 @@ To run a named profile:
 cargo run --release -- --profile work
 ```
 
+Panopticon also understands:
+
+- `cargo run --release -- --profile=work`
+- `cargo run --release -- --help`
+- `cargo run --release -- --version`
+
 ## First minute with Panopticon
 
 1. Launch the app with a few normal desktop windows already open.

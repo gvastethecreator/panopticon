@@ -141,7 +141,7 @@ pub fn apply_settings_window_changes(
     layout
 }
 
-fn background_fit_to_index(fit: BackgroundImageFit) -> i32 {
+pub(crate) const fn background_fit_to_index(fit: BackgroundImageFit) -> i32 {
     match fit {
         BackgroundImageFit::Cover => 0,
         BackgroundImageFit::Contain => 1,
@@ -283,4 +283,31 @@ fn load_image_preview(path: Option<&str>) -> slint::Image {
     path.filter(|value| !value.trim().is_empty())
         .and_then(|value| slint::Image::load_from_path(Path::new(value)).ok())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{background_fit_to_index, index_to_background_fit};
+    use panopticon::settings::BackgroundImageFit;
+
+    #[test]
+    fn background_fit_indices_roundtrip_all_supported_modes() {
+        let cases = [
+            (BackgroundImageFit::Cover, 0),
+            (BackgroundImageFit::Contain, 1),
+            (BackgroundImageFit::Fill, 2),
+            (BackgroundImageFit::Preserve, 3),
+        ];
+
+        for (fit, index) in cases {
+            assert_eq!(background_fit_to_index(fit), index);
+            assert_eq!(index_to_background_fit(index), fit);
+        }
+    }
+
+    #[test]
+    fn unknown_background_fit_index_falls_back_to_cover() {
+        assert_eq!(index_to_background_fit(-1), BackgroundImageFit::Cover);
+        assert_eq!(index_to_background_fit(99), BackgroundImageFit::Cover);
+    }
 }
