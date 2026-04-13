@@ -164,9 +164,11 @@ mod tests {
 
     #[test]
     fn floating_window_size_uses_fixed_dimensions_when_undocked() {
-        let mut settings = AppSettings::default();
-        settings.fixed_width = Some(900);
-        settings.fixed_height = Some(700);
+        let settings = AppSettings {
+            fixed_width: Some(900),
+            fixed_height: Some(700),
+            ..AppSettings::default()
+        };
 
         let size = configured_floating_window_size(LogicalSize::new(1320.0, 840.0), &settings);
 
@@ -175,8 +177,10 @@ mod tests {
 
     #[test]
     fn floating_window_size_preserves_unspecified_dimension() {
-        let mut settings = AppSettings::default();
-        settings.fixed_width = Some(960);
+        let settings = AppSettings {
+            fixed_width: Some(960),
+            ..AppSettings::default()
+        };
 
         let size = configured_floating_window_size(LogicalSize::new(1320.0, 840.0), &settings);
 
@@ -186,12 +190,18 @@ mod tests {
     #[test]
     fn floating_window_size_is_disabled_while_docked_or_without_overrides() {
         let current = LogicalSize::new(1320.0, 840.0);
-        let mut settings = AppSettings::default();
+        let settings = AppSettings::default();
 
         assert_eq!(configured_floating_window_size(current, &settings), None);
 
-        settings.fixed_width = Some(500);
-        settings.dock_edge = Some(DockEdge::Left);
-        assert_eq!(configured_floating_window_size(current, &settings), None);
+        let docked_settings = AppSettings {
+            fixed_width: Some(500),
+            dock_edge: Some(DockEdge::Left),
+            ..AppSettings::default()
+        };
+        assert_eq!(
+            configured_floating_window_size(current, &docked_settings),
+            None
+        );
     }
 }
