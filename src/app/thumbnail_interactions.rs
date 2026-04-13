@@ -307,7 +307,11 @@ fn close_target_window(hwnd: HWND) {
 }
 
 fn kill_target_process(hwnd: HWND) {
-    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+    use windows::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0, WAIT_TIMEOUT};
+    use windows::Win32::System::Threading::{
+        OpenProcess, TerminateProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION,
+        PROCESS_TERMINATE,
+    };
 
     if hwnd.0.is_null() {
         return;
@@ -320,11 +324,32 @@ fn kill_target_process(hwnd: HWND) {
         return;
     }
     unsafe {
-        if let Ok(process) = OpenProcess(PROCESS_TERMINATE, false, pid) {
-            if let Err(error) = TerminateProcess(process, 1) {
-                tracing::warn!(%error, pid, "TerminateProcess failed");
+        match OpenProcess(
+            PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
+            false,
+            pid,
+        ) {
+            Ok(process) => {
+                if let Err(error) = TerminateProcess(process, 1) {
+                    tracing::warn!(%error, pid, "TerminateProcess failed");
+                } else {
+                    match WaitForSingleObject(process, 1_000) {
+                        WAIT_OBJECT_0 => {
+                            tracing::info!(pid, "terminated process after thumbnail kill request");
+                        }
+                        WAIT_TIMEOUT => {
+                            tracing::warn!(pid, "timed out waiting for terminated process");
+                        }
+                        status => tracing::warn!(
+                            pid,
+                            wait_status = status.0,
+                            "unexpected wait status after process termination"
+                        ),
+                    }
+                }
+                let _ = CloseHandle(process);
             }
-            let _ = windows::Win32::Foundation::CloseHandle(process);
+            Err(error) => tracing::warn!(%error, pid, "OpenProcess failed for termination"),
         }
     }
 }

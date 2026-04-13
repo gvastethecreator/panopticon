@@ -35,9 +35,21 @@ const DEFAULT_SHORTCUT_OPEN_SETTINGS: &str = "O";
 const DEFAULT_SHORTCUT_OPEN_MENU: &str = "M";
 const DEFAULT_SHORTCUT_REFRESH: &str = "R";
 const DEFAULT_SHORTCUT_EXIT: &str = "Esc";
+const INVALID_PROFILE_NAME_CHARACTERS: [char; 9] = [':', '"', '<', '>', '|', '?', '*', '/', '\\'];
 
 const fn default_true() -> bool {
     true
+}
+
+/// Validation result for an interactively supplied profile name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProfileNameValidation {
+    /// Input was blank after trimming surrounding whitespace.
+    Empty,
+    /// Input is valid and can be stored as a profile filename.
+    Valid(String),
+    /// Input contains characters that Windows filenames cannot represent.
+    Invalid(String),
 }
 
 /// Visual styling persisted for a manual tag/group.
@@ -1058,15 +1070,59 @@ fn normalize_filter_value(value: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
 }
 
+fn is_invalid_profile_name_character(character: char) -> bool {
+    character.is_control() || INVALID_PROFILE_NAME_CHARACTERS.contains(&character)
+}
+
+fn invalid_profile_name_characters(value: &str) -> Vec<char> {
+    let mut invalid = Vec::new();
+    for character in value.chars() {
+        if is_invalid_profile_name_character(character) && !invalid.contains(&character) {
+            invalid.push(character);
+        }
+    }
+    invalid
+}
+
+fn format_profile_name_character(character: char) -> String {
+    if character.is_control() {
+        format!("U+{:04X}", u32::from(character))
+    } else {
+        character.to_string()
+    }
+}
+
+/// Validate a user-supplied profile name before it is used as a settings file stem.
+#[must_use]
+pub fn validate_profile_name_input(value: &str) -> ProfileNameValidation {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return ProfileNameValidation::Empty;
+    }
+
+    let invalid = invalid_profile_name_characters(trimmed);
+    if !invalid.is_empty() {
+        let invalid_chars = invalid
+            .into_iter()
+            .map(format_profile_name_character)
+            .collect::<Vec<_>>()
+            .join(", ");
+        return ProfileNameValidation::Invalid(format!(
+            "Profile name contains invalid Windows filename characters: {invalid_chars}"
+        ));
+    }
+
+    match normalize_profile_name(trimmed) {
+        Some(profile_name) => ProfileNameValidation::Valid(profile_name),
+        None => ProfileNameValidation::Empty,
+    }
+}
+
 #[must_use]
 pub fn normalize_profile_name(value: &str) -> Option<String> {
     let sanitized = value
         .chars()
-        .filter_map(|character| match character {
-            ':' | '"' | '<' | '>' | '|' | '?' | '*' | '/' | '\\' => None,
-            character if character.is_control() => None,
-            character => Some(character),
-        })
+        .filter(|character| !is_invalid_profile_name_character(*character))
         .collect::<String>();
 
     normalize_filter_value(&sanitized)
@@ -1142,8 +1198,9 @@ fn derive_tag_from_label(label: &str) -> Option<String> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        normalize_shortcut_binding, AppRule, AppSettings, BackgroundImageFit, HiddenAppEntry,
-        ShortcutBindings, TagStyle, ThumbnailRefreshMode,
+        normalize_shortcut_binding, validate_profile_name_input, AppRule, AppSettings,
+        BackgroundImageFit, HiddenAppEntry, ProfileNameValidation, ShortcutBindings, TagStyle,
+        ThumbnailRefreshMode,
     };
     use crate::layout::LayoutType;
 
@@ -1517,5 +1574,25 @@ mod tests {
         assert_eq!(normalize_shortcut_binding("q", "X"), "Q");
         assert_eq!(normalize_shortcut_binding("", "X"), "X");
         assert_eq!(normalize_shortcut_binding("ctrl+t", "X"), "X");
+    }
+
+    #[test]
+    fn profile_name_validation_distinguishes_blank_valid_and_invalid_input() {
+        assert_eq!(
+            validate_profile_name_input("  work  "),
+            ProfileNameValidation::Valid("work".to_owned())
+        );
+        assert_eq!(
+            validate_profile_name_input("   "),
+            ProfileNameValidation::Empty
+        );
+        assert!(matches!(
+            validate_profile_name_input("ops?board"),
+            ProfileNameValidation::Invalid(ref reason) if reason.contains('?')
+        ));
+        assert!(matches!(
+            validate_profile_name_input("ops\u{0007}board"),
+            ProfileNameValidation::Invalid(ref reason) if reason.contains("U+0007")
+        ));
     }
 }

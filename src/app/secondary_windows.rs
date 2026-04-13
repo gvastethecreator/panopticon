@@ -5,7 +5,7 @@ use std::path::Path;
 use std::process::Command;
 use std::rc::Rc;
 
-use panopticon::settings::{AppSelectionEntry, AppSettings, HiddenAppEntry};
+use panopticon::settings::{AppSelectionEntry, AppSettings, HiddenAppEntry, ProfileNameValidation};
 use panopticon::theme as theme_catalog;
 use panopticon::ui_option_ops::{
     app_option_label, current_profile_label, hidden_app_option_label, parse_option_value,
@@ -95,12 +95,18 @@ pub(crate) fn open_settings_window(
                 let Some(settings_window) = guard.as_ref() else {
                     return;
                 };
-                let requested = panopticon::settings::normalize_profile_name(
+                let profile_name = match panopticon::settings::validate_profile_name_input(
                     &settings_window.get_profile_name(),
-                );
-                let Some(profile_name) = requested else {
-                    tracing::warn!("ignoring empty/invalid profile save request");
-                    return;
+                ) {
+                    ProfileNameValidation::Valid(profile_name) => profile_name,
+                    ProfileNameValidation::Empty => {
+                        tracing::warn!("ignoring empty profile save request");
+                        return;
+                    }
+                    ProfileNameValidation::Invalid(reason) => {
+                        tracing::warn!(%reason, "ignoring invalid profile save request");
+                        return;
+                    }
                 };
 
                 let settings_snapshot = state.borrow().settings.normalized();
@@ -122,10 +128,16 @@ pub(crate) fn open_settings_window(
                 };
 
                 let current_profile = state.borrow().profile_name.clone();
-                let requested = panopticon::settings::normalize_profile_name(
+                let requested = match panopticon::settings::validate_profile_name_input(
                     &settings_window.get_profile_name(),
-                )
-                .or(current_profile);
+                ) {
+                    ProfileNameValidation::Valid(profile_name) => Some(profile_name),
+                    ProfileNameValidation::Empty => current_profile,
+                    ProfileNameValidation::Invalid(reason) => {
+                        tracing::warn!(%reason, "ignoring invalid extra-instance profile request");
+                        return;
+                    }
+                };
 
                 let settings_snapshot = state.borrow().settings.normalized();
                 if let Some(profile_name) = requested.as_deref() {
