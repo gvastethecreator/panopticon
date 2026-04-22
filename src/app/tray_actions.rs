@@ -174,6 +174,7 @@ pub(crate) fn handle_tray_action(
                 }
                 state.settings.dock_edge = edge;
                 state.settings = state.settings.normalized();
+                state.current_layout = state.settings.effective_layout();
                 let _ = state.settings.save(state.profile_name.as_deref());
                 if edge.is_some() {
                     apply_dock_mode(&mut state);

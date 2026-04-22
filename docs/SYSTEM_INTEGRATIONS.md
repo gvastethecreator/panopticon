@@ -46,8 +46,19 @@ Panopticon does not depend on external services. Its primary integration is with
 | `Shell_NotifyIconW` | register/remove tray icon |
 | `SHAppBarMessage` | dock/appbar mode |
 | `ExtractIconExW` | extract icons from executables |
+| `RegSetKeyValueW` / `RegDeleteKeyValueW` | enable or remove per-user startup registration |
 
 **Functional role:** turns Panopticon into a persistent desktop utility, not just another window.
+
+### Windows Registry / Session startup
+
+Panopticon can optionally register itself in the current user's startup sequence.
+
+| Path | Value | Usage |
+| --- | --- | --- |
+| `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | `Panopticon` | launches the current executable, optionally with `--profile <name>` for non-default profiles |
+
+**Operational note:** this is per-user only. The app does not install a service, scheduled task, or machine-wide autorun entry.
 
 ### GDI
 
@@ -104,6 +115,11 @@ Panopticon stores settings in:
 %APPDATA%\Panopticon\settings.toml
 %APPDATA%\Panopticon\profiles\<profile>.toml
 ```
+
+Startup enablement is stored twice by design:
+
+- the boolean preference lives in the profile TOML (`run_at_startup = true/false`);
+- when enabled, the runtime also mirrors that intent into the per-user Windows `Run` registry key so the app can actually launch at sign-in.
 
 ### Logs
 

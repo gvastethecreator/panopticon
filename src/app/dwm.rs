@@ -95,6 +95,7 @@ pub(crate) fn update_dwm_thumbnails(
         let preserve = settings.preserve_aspect_ratio_for(&mw.info.app_id);
         let refresh_mode = settings.thumbnail_refresh_mode_for(&mw.info.app_id);
         let interval_ms = settings.thumbnail_refresh_interval_ms_for(&mw.info.app_id);
+        let render_scale_pct = settings.thumbnail_render_scale_pct;
         // SAFETY: Win32 queries on window handles discovered through enumeration.
         let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
         let is_source_valid = unsafe { IsWindow(Some(mw.info.hwnd)).as_bool() };
@@ -133,6 +134,7 @@ pub(crate) fn update_dwm_thumbnails(
                 viewport_x,
                 viewport_y,
                 scale,
+                render_scale_pct,
             );
             let (dest, visible) =
                 sanitize_thumbnail_rect(raw_dest, phys.width as i32, phys.height as i32);
@@ -220,6 +222,7 @@ pub(crate) fn compute_dwm_rect(
     viewport_x: f32,
     viewport_y: f32,
     scale: f32,
+    render_scale_pct: u8,
 ) -> RECT {
     let inset = THUMBNAIL_CONTENT_PADDING as f32;
     let l = card_rect.left as f32 + inset;
@@ -245,10 +248,18 @@ pub(crate) fn compute_dwm_rect(
         (l, t, r, b)
     };
 
+    let render_scale = (f32::from(render_scale_pct) / 100.0).clamp(0.5, 1.0);
+    let scaled_width = (fr - fl) * render_scale;
+    let scaled_height = (fb - ft) * render_scale;
+    let scaled_left = fl + ((fr - fl) - scaled_width) / 2.0;
+    let scaled_top = ft + ((fb - ft) - scaled_height) / 2.0;
+    let scaled_right = scaled_left + scaled_width;
+    let scaled_bottom = scaled_top + scaled_height;
+
     RECT {
-        left: ((fl + viewport_x) * scale).round() as i32,
-        top: ((ft + viewport_y) * scale).round() as i32,
-        right: ((fr + viewport_x) * scale).round() as i32,
-        bottom: ((fb + viewport_y) * scale).round() as i32,
+        left: ((scaled_left + viewport_x) * scale).round() as i32,
+        top: ((scaled_top + viewport_y) * scale).round() as i32,
+        right: ((scaled_right + viewport_x) * scale).round() as i32,
+        bottom: ((scaled_bottom + viewport_y) * scale).round() as i32,
     }
 }

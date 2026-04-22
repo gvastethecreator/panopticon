@@ -17,6 +17,8 @@ const DEFAULT_REFRESH_INTERVAL_MS: u32 = 2_000;
 const REFRESH_INTERVALS_MS: [u32; 4] = [1_000, 2_000, 5_000, 10_000];
 const DEFAULT_BACKGROUND_COLOR_HEX: &str = "181513";
 const DEFAULT_BACKGROUND_IMAGE_OPACITY_PCT: u8 = 25;
+const DEFAULT_THUMBNAIL_RENDER_SCALE_PCT: u8 = 100;
+const MIN_THUMBNAIL_RENDER_SCALE_PCT: u8 = 50;
 const DEFAULT_TAG_COLOR_HEX: &str = "D29A5C";
 const DEFAULT_SHORTCUT_LAYOUT_GRID: &str = "1";
 const DEFAULT_SHORTCUT_LAYOUT_MOSAIC: &str = "2";
@@ -394,6 +396,17 @@ pub enum DockEdge {
     Bottom,
 }
 
+impl DockEdge {
+    /// Layout orientation forced by this dock edge.
+    #[must_use]
+    pub const fn forced_layout(self) -> LayoutType {
+        match self {
+            Self::Left | Self::Right => LayoutType::Column,
+            Self::Top | Self::Bottom => LayoutType::Row,
+        }
+    }
+}
+
 /// User preferences persisted between application launches.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
@@ -437,6 +450,12 @@ pub struct AppSettings {
     pub fixed_height: Option<u32>,
     /// Dock the window to a screen edge, reserving desktop space.
     pub dock_edge: Option<DockEdge>,
+    /// Thickness used when the dock is vertical (`left` / `right`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dock_column_thickness: Option<u32>,
+    /// Thickness used when the dock is horizontal (`top` / `bottom`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dock_row_thickness: Option<u32>,
     /// Selected bundled UI theme; `None` = classic Panopticon theme.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme_id: Option<String>,
@@ -451,6 +470,9 @@ pub struct AppSettings {
     /// Start the application hidden in the system tray.
     #[serde(default)]
     pub start_in_tray: bool,
+    /// Start the application automatically when the user logs into Windows.
+    #[serde(default)]
+    pub run_at_startup: bool,
     /// Optional file path to a background image displayed behind thumbnails.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background_image_path: Option<String>,
@@ -472,6 +494,9 @@ pub struct AppSettings {
     /// Show the application icon overlay in each thumbnail cell.
     #[serde(default = "default_true")]
     pub show_app_icons: bool,
+    /// Percentage used to scale the live DWM thumbnail within each card.
+    #[serde(default = "default_thumbnail_render_scale_pct")]
+    pub thumbnail_render_scale_pct: u8,
     /// User-configurable dashboard keyboard shortcuts.
     #[serde(default)]
     pub shortcuts: ShortcutBindings,
@@ -498,12 +523,15 @@ impl Default for AppSettings {
             fixed_width: None,
             fixed_height: None,
             dock_edge: None,
+            dock_column_thickness: None,
+            dock_row_thickness: None,
             theme_id: None,
             background_color_hex: DEFAULT_BACKGROUND_COLOR_HEX.to_owned(),
             use_system_backdrop: true,
             show_toolbar: true,
             show_window_info: true,
             start_in_tray: false,
+            run_at_startup: false,
             background_image_path: None,
             background_image_fit: BackgroundImageFit::default(),
             background_image_opacity_pct: default_background_image_opacity_pct(),
@@ -511,12 +539,35 @@ impl Default for AppSettings {
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
+            thumbnail_render_scale_pct: default_thumbnail_render_scale_pct(),
             shortcuts: ShortcutBindings::default(),
         }
     }
 }
 
 impl AppSettings {
+    /// Return the layout Panopticon should actively use for the current dock state.
+    #[must_use]
+    pub const fn effective_layout(&self) -> LayoutType {
+        match self.dock_edge {
+            Some(edge) => edge.forced_layout(),
+            None => self.initial_layout,
+        }
+    }
+
+    /// Return the configured dock thickness for a specific edge, if any.
+    #[must_use]
+    pub const fn dock_thickness_for(&self, edge: DockEdge) -> Option<u32> {
+        let raw = match edge {
+            DockEdge::Left | DockEdge::Right => self.dock_column_thickness,
+            DockEdge::Top | DockEdge::Bottom => self.dock_row_thickness,
+        };
+        match raw {
+            Some(0) | None => None,
+            Some(value) => Some(value),
+        }
+    }
+
     /// Return the custom layout override for the given layout type, if any.
     #[must_use]
     pub fn layout_custom(&self, layout: LayoutType) -> Option<&LayoutCustomization> {
@@ -1120,6 +1171,8 @@ impl AppSettings {
             fixed_width: self.fixed_width,
             fixed_height: self.fixed_height,
             dock_edge: self.dock_edge,
+            dock_column_thickness: normalize_positive_dimension(self.dock_column_thickness),
+            dock_row_thickness: normalize_positive_dimension(self.dock_row_thickness),
             theme_id: self.theme_id.as_deref().and_then(normalize_profile_name),
             background_color_hex: normalize_color_hex(&self.background_color_hex)
                 .unwrap_or_else(|| DEFAULT_BACKGROUND_COLOR_HEX.to_owned()),
@@ -1127,6 +1180,7 @@ impl AppSettings {
             show_toolbar: self.show_toolbar,
             show_window_info: self.show_window_info,
             start_in_tray: self.start_in_tray,
+            run_at_startup: self.run_at_startup,
             background_image_path: self.background_image_path.clone(),
             background_image_fit: self.background_image_fit,
             background_image_opacity_pct: self.background_image_opacity_pct.min(100),
@@ -1134,6 +1188,9 @@ impl AppSettings {
             locked_layout: self.locked_layout,
             lock_cell_resize: self.lock_cell_resize,
             show_app_icons: self.show_app_icons,
+            thumbnail_render_scale_pct: normalize_thumbnail_render_scale_pct(
+                self.thumbnail_render_scale_pct,
+            ),
             shortcuts: self.shortcuts.normalized(),
         }
     }
@@ -1170,6 +1227,27 @@ impl AppSettings {
 
 const fn default_background_image_opacity_pct() -> u8 {
     DEFAULT_BACKGROUND_IMAGE_OPACITY_PCT
+}
+
+const fn default_thumbnail_render_scale_pct() -> u8 {
+    DEFAULT_THUMBNAIL_RENDER_SCALE_PCT
+}
+
+const fn normalize_thumbnail_render_scale_pct(value: u8) -> u8 {
+    if value < MIN_THUMBNAIL_RENDER_SCALE_PCT {
+        MIN_THUMBNAIL_RENDER_SCALE_PCT
+    } else if value > 100 {
+        100
+    } else {
+        value
+    }
+}
+
+const fn normalize_positive_dimension(value: Option<u32>) -> Option<u32> {
+    match value {
+        Some(0) | None => None,
+        Some(value) => Some(value),
+    }
 }
 
 fn normalize_filter_value(value: &str) -> Option<String> {
@@ -1435,12 +1513,15 @@ mod tests {
             fixed_width: Some(120),
             fixed_height: None,
             dock_edge: Some(super::DockEdge::Left),
+            dock_column_thickness: Some(280),
+            dock_row_thickness: Some(180),
             theme_id: Some("theme:demo".to_owned()),
             background_color_hex: "101820".to_owned(),
             use_system_backdrop: true,
             show_toolbar: false,
             show_window_info: false,
             start_in_tray: false,
+            run_at_startup: true,
             background_image_path: None,
             background_image_fit: BackgroundImageFit::Contain,
             background_image_opacity_pct: 42,
@@ -1448,6 +1529,7 @@ mod tests {
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
+            thumbnail_render_scale_pct: 82,
             shortcuts: ShortcutBindings::default(),
         };
 
@@ -1478,12 +1560,15 @@ mod tests {
             fixed_width: None,
             fixed_height: None,
             dock_edge: None,
+            dock_column_thickness: Some(0),
+            dock_row_thickness: Some(0),
             theme_id: Some("  work  ".to_owned()),
             background_color_hex: "ZZZZZZ".to_owned(),
             use_system_backdrop: false,
             show_toolbar: true,
             show_window_info: true,
             start_in_tray: false,
+            run_at_startup: false,
             background_image_path: None,
             background_image_fit: BackgroundImageFit::default(),
             background_image_opacity_pct: 255,
@@ -1491,13 +1576,56 @@ mod tests {
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
+            thumbnail_render_scale_pct: 10,
             shortcuts: ShortcutBindings::default(),
         };
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);
         assert_eq!(settings.normalized().background_color_hex, "181513");
         assert_eq!(settings.normalized().background_image_opacity_pct, 100);
+        assert_eq!(settings.normalized().thumbnail_render_scale_pct, 50);
         assert_eq!(settings.normalized().theme_id.as_deref(), Some("work"));
+    }
+
+    #[test]
+    fn effective_layout_follows_dock_orientation_without_overwriting_default_layout() {
+        let settings = AppSettings {
+            initial_layout: LayoutType::Bento,
+            dock_edge: Some(super::DockEdge::Right),
+            ..AppSettings::default()
+        };
+
+        assert_eq!(settings.initial_layout, LayoutType::Bento);
+        assert_eq!(settings.effective_layout(), LayoutType::Column);
+
+        let horizontal = AppSettings {
+            dock_edge: Some(super::DockEdge::Bottom),
+            ..settings
+        };
+        assert_eq!(horizontal.effective_layout(), LayoutType::Row);
+    }
+
+    #[test]
+    fn dock_thickness_is_stored_per_orientation() {
+        let settings = AppSettings {
+            dock_column_thickness: Some(320),
+            dock_row_thickness: Some(180),
+            ..AppSettings::default()
+        };
+
+        assert_eq!(
+            settings.dock_thickness_for(super::DockEdge::Left),
+            Some(320)
+        );
+        assert_eq!(
+            settings.dock_thickness_for(super::DockEdge::Right),
+            Some(320)
+        );
+        assert_eq!(settings.dock_thickness_for(super::DockEdge::Top), Some(180));
+        assert_eq!(
+            settings.dock_thickness_for(super::DockEdge::Bottom),
+            Some(180)
+        );
     }
 
     #[test]

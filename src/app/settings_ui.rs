@@ -20,13 +20,16 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_preserve_aspect_ratio_setting(settings.preserve_aspect_ratio);
     window.set_hide_on_select_setting(settings.hide_on_select);
     window.set_hide_on_select_enabled(settings.dock_edge.is_none());
+    window.set_default_layout_enabled(settings.dock_edge.is_none());
     window.set_show_toolbar_setting(settings.show_toolbar);
     window.set_show_info_setting(settings.show_window_info);
     window.set_use_system_backdrop_setting(settings.use_system_backdrop);
     window.set_start_in_tray_setting(settings.start_in_tray);
+    window.set_run_at_startup_setting(settings.run_at_startup);
     window.set_locked_layout_setting(settings.locked_layout);
     window.set_lock_cell_resize_setting(settings.lock_cell_resize);
     window.set_show_app_icons_setting(settings.show_app_icons);
+    window.set_thumbnail_render_scale_value(i32::from(settings.thumbnail_render_scale_pct));
     window.set_theme_index(theme::theme_index(settings.theme_id.as_deref()));
     window.set_bg_color_hex(SharedString::from(&settings.background_color_hex));
     let (bg_red, bg_green, bg_blue) = rgb_components_from_hex(&settings.background_color_hex);
@@ -40,6 +43,8 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_bg_image_opacity_value(i32::from(settings.background_image_opacity_pct));
     window.set_fixed_width_value(settings.fixed_width.unwrap_or(0) as i32);
     window.set_fixed_height_value(settings.fixed_height.unwrap_or(0) as i32);
+    window.set_dock_column_thickness_value(settings.dock_column_thickness.unwrap_or(0) as i32);
+    window.set_dock_row_thickness_value(settings.dock_row_thickness.unwrap_or(0) as i32);
     window.set_refresh_index(refresh_to_index(settings.refresh_interval_ms));
     window.set_layout_index(layout_to_index(settings.initial_layout));
     window.set_dock_edge_index(dock_edge_to_index(settings.dock_edge));
@@ -84,10 +89,7 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_theme_preview_model(build_theme_preview_model());
 }
 
-pub fn apply_settings_window_changes(
-    window: &SettingsWindow,
-    settings: &mut AppSettings,
-) -> LayoutType {
+pub fn apply_settings_window_changes(window: &SettingsWindow, settings: &mut AppSettings) {
     settings.language = index_to_locale(window.get_language_index());
     settings.always_on_top = window.get_always_on_top_setting();
     settings.animate_transitions = window.get_animate_transitions_setting();
@@ -99,9 +101,12 @@ pub fn apply_settings_window_changes(
     settings.show_window_info = window.get_show_info_setting();
     settings.use_system_backdrop = window.get_use_system_backdrop_setting();
     settings.start_in_tray = window.get_start_in_tray_setting();
+    settings.run_at_startup = window.get_run_at_startup_setting();
     settings.locked_layout = window.get_locked_layout_setting();
     settings.lock_cell_resize = window.get_lock_cell_resize_setting();
     settings.show_app_icons = window.get_show_app_icons_setting();
+    settings.thumbnail_render_scale_pct =
+        window.get_thumbnail_render_scale_value().clamp(50, 100) as u8;
     let next_theme_id = theme::theme_id_by_index(window.get_theme_index());
     let theme_changed = settings.theme_id != next_theme_id;
     settings.theme_id = next_theme_id;
@@ -134,6 +139,20 @@ pub fn apply_settings_window_changes(
         None
     };
 
+    let dock_column_thickness = window.get_dock_column_thickness_value();
+    settings.dock_column_thickness = if dock_column_thickness > 0 {
+        Some(dock_column_thickness as u32)
+    } else {
+        None
+    };
+
+    let dock_row_thickness = window.get_dock_row_thickness_value();
+    settings.dock_row_thickness = if dock_row_thickness > 0 {
+        Some(dock_row_thickness as u32)
+    } else {
+        None
+    };
+
     settings.dock_edge = index_to_dock_edge(window.get_dock_edge_index());
     settings.group_windows_by = index_to_grouping(window.get_group_windows_index());
     settings.refresh_interval_ms = index_to_refresh(window.get_refresh_index());
@@ -158,9 +177,7 @@ pub fn apply_settings_window_changes(
     settings.shortcuts.refresh_now = window.get_shortcut_refresh_now().to_string();
     settings.shortcuts.exit_app = window.get_shortcut_exit_app().to_string();
     settings.shortcuts.alt_toggles_toolbar = window.get_alt_toolbar_shortcut_enabled();
-    let layout = index_to_layout(window.get_layout_index());
-    settings.initial_layout = layout;
-    layout
+    settings.initial_layout = index_to_layout(window.get_layout_index());
 }
 
 pub(crate) const fn background_fit_to_index(fit: BackgroundImageFit) -> i32 {

@@ -175,6 +175,8 @@ export global Tr {
     in property <string> settings-option-hide-on-select-description: "Hide Panopticon when you activate a window from the dashboard.";
     in property <string> settings-option-start-in-tray-title: "Start hidden in tray";
     in property <string> settings-option-start-in-tray-description: "Launch directly in the background for a quieter startup.";
+    in property <string> settings-option-run-at-startup-title: "Run at startup";
+    in property <string> settings-option-run-at-startup-description: "Register Panopticon in the current Windows session so it launches automatically when you sign in.";
     in property <string> settings-option-lock-layout-title: "Lock layout changes";
     in property <string> settings-option-lock-layout-description: "Prevent layout changes from the keyboard or the application menu.";
     in property <string> settings-option-lock-cell-resize-title: "Lock cell resizing";
@@ -298,12 +300,17 @@ export global Tr {
     in property <string> settings-page-advanced-subtitle: "Manual refresh controls and the base cadence used for background window discovery.";
     in property <string> settings-option-default-layout-title: "Default layout";
     in property <string> settings-option-default-layout-description: "Choose which layout Panopticon should use each time this profile starts.";
+    in property <string> settings-option-default-layout-docked-description: "Dock mode automatically uses Column on the sides and Row on the top or bottom, so this selector only applies while floating.";
     in property <string> settings-option-refresh-interval-title: "Refresh interval";
     in property <string> settings-option-refresh-interval-description: "Base cadence for enumerating windows and refreshing the dashboard when you do not force a manual refresh.";
     in property <string> settings-section-manual-refresh-title: "Manual refresh";
     in property <string> settings-section-manual-refresh-helper: "Use this when you want to re-enumerate windows immediately instead of waiting for the timer.";
     in property <string> settings-section-dock-thickness-title: "Dock thickness";
     in property <string> settings-section-dock-thickness-helper: "For a side dock, width is used; for top/bottom, height is used. 0 leaves the size automatic.";
+    in property <string> settings-section-floating-window-size-title: "Floating window size";
+    in property <string> settings-section-floating-window-size-helper: "When dock mode is disabled, these values define the default width and height used by the floating window.";
+    in property <string> settings-option-thumbnail-render-scale-title: "Thumbnail render scale";
+    in property <string> settings-option-thumbnail-render-scale-description: "Lower values reduce thumbnail rendering size to improve performance, at the cost of preview sharpness.";
     in property <string> settings-width-label: "Width";
     in property <string> settings-height-label: "Height";
     in property <string> settings-option-dock-position-title: "Dock position";

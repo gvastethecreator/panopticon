@@ -63,10 +63,13 @@ pub(crate) fn reposition_appbar(state: &mut AppState) {
     let hwnd = state.hwnd;
     let monitor_rect = get_monitor_rect(hwnd);
     let abe = dock_edge_to_abe(edge);
-    let thickness = match edge {
-        DockEdge::Left | DockEdge::Right => state.settings.fixed_width.unwrap_or(300) as i32,
-        DockEdge::Top | DockEdge::Bottom => state.settings.fixed_height.unwrap_or(200) as i32,
-    };
+    let thickness = state
+        .settings
+        .dock_thickness_for(edge)
+        .unwrap_or(match edge {
+            DockEdge::Left | DockEdge::Right => 300,
+            DockEdge::Top | DockEdge::Bottom => 200,
+        }) as i32;
 
     let mut abd = APPBARDATA {
         cbSize: mem::size_of::<APPBARDATA>() as u32,

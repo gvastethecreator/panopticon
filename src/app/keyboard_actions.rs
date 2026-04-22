@@ -170,7 +170,9 @@ fn cycle_theme(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, di
     update_settings(state, |settings| {
         settings.theme_id = new_id;
         if settings.theme_id.is_some() {
-            settings.background_color_hex.clone_from(&next_background_hex);
+            settings
+                .background_color_hex
+                .clone_from(&next_background_hex);
         }
     });
 
