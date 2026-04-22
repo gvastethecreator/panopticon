@@ -79,11 +79,6 @@ pub(crate) fn update_dwm_thumbnails(
 
     let scale = win.window().scale_factor();
     let phys = win.window().size();
-    let toolbar_h = if s.settings.show_toolbar {
-        panopticon::constants::TOOLBAR_HEIGHT as f32
-    } else {
-        0.0
-    };
     let viewport_x = win.get_viewport_x();
     let viewport_y = win.get_viewport_y();
     let now = Instant::now();
@@ -135,7 +130,6 @@ pub(crate) fn update_dwm_thumbnails(
                 mw.source_size,
                 preserve,
                 overlay_top_h,
-                toolbar_h,
                 viewport_x,
                 viewport_y,
                 scale,
@@ -223,7 +217,6 @@ pub(crate) fn compute_dwm_rect(
     source_size: SIZE,
     preserve_aspect: bool,
     overlay_top_h: i32,
-    toolbar_h: f32,
     viewport_x: f32,
     viewport_y: f32,
     scale: f32,
@@ -254,8 +247,8 @@ pub(crate) fn compute_dwm_rect(
 
     RECT {
         left: ((fl + viewport_x) * scale).round() as i32,
-        top: ((ft + toolbar_h + viewport_y) * scale).round() as i32,
+        top: ((ft + viewport_y) * scale).round() as i32,
         right: ((fr + viewport_x) * scale).round() as i32,
-        bottom: ((fb + toolbar_h + viewport_y) * scale).round() as i32,
+        bottom: ((fb + viewport_y) * scale).round() as i32,
     }
 }

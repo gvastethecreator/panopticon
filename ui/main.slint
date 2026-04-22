@@ -9,6 +9,7 @@ export { Tr, Theme, ThumbnailData, ResizeHandleData } from "common.slint";
 export { ThemePreviewData } from "common.slint";
 export { SettingsWindow } from "windows/settings_window.slint";
 export { TagDialogWindow } from "windows/tag_dialog_window.slint";
+export { AboutWindow } from "windows/about_window.slint";
 
 export component MainWindow inherits Window {
     title: Tr.main-window-title;
@@ -56,18 +57,6 @@ export component MainWindow inherits Window {
     callback resize-drag-ended(/* index */ int);
 
     VerticalLayout {
-        if root.show-toolbar: Toolbar {
-            layout-label: root.layout-label;
-            window-count: root.window-count;
-            hidden-count: root.hidden-count;
-            refresh-label: root.refresh-label;
-            always-on-top: root.is-always-on-top;
-            animate-transitions: root.animate-transitions;
-            filters-label: root.filters-label;
-            clicked => { root.toolbar-clicked(); }
-            context-menu-requested(x, y) => { root.app-context-menu-requested(x, y); }
-        }
-
         content-frame := Rectangle {
             clip: true;
             property <float> max-scroll-x: max(root.content-width - self.width / 1px, 0);
@@ -152,6 +141,18 @@ export component MainWindow inherits Window {
                 horizontal: true;
                 mouse-inside: root.scroll-active;
             }
+        }
+
+        if root.show-toolbar: Toolbar {
+            layout-label: root.layout-label;
+            window-count: root.window-count;
+            hidden-count: root.hidden-count;
+            refresh-label: root.refresh-label;
+            always-on-top: root.is-always-on-top;
+            animate-transitions: root.animate-transitions;
+            filters-label: root.filters-label;
+            clicked => { root.toolbar-clicked(); }
+            context-menu-requested(x, y) => { root.app-context-menu-requested(x, y); }
         }
     }
 

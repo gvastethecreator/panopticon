@@ -230,6 +230,9 @@ pub(crate) fn handle_tray_action(
         TrayAction::OpenSettingsWindow => {
             secondary_windows::open_settings_window(state, weak);
         }
+        TrayAction::OpenAboutWindow => {
+            secondary_windows::open_about_window(state);
+        }
         TrayAction::Exit => {
             queue_exit_request();
         }

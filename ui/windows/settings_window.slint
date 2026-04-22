@@ -528,6 +528,7 @@ export component SettingsWindow inherits Window {
     callback request-live-apply();
     callback save-profile();
     callback open-profile-instance();
+    callback open-about();
     callback reset-to-defaults();
     callback refresh-now();
     callback restore-hidden-selected();
@@ -747,7 +748,8 @@ export component SettingsWindow inherits Window {
                             selected-index <=> root.language-index;
                         }
 
-                        ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-always-on-top.svg"); title: Tr.settings-option-always-on-top-title; description: Tr.settings-option-always-on-top-description; checked <=> root.always-on-top-setting; }
+                        ToggleSettingCard { enabled: true;
+                            icon: @image-url("../../assets/ui-icons/option-always-on-top.svg"); title: Tr.settings-option-always-on-top-title; description: Tr.settings-option-always-on-top-description; checked <=> root.always-on-top-setting; }
                         ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-animate.svg"); title: Tr.settings-option-animate-transitions-title; description: Tr.settings-option-animate-transitions-description; checked <=> root.animate-transitions-setting; }
                         ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-minimize-tray.svg"); title: Tr.settings-option-minimize-to-tray-title; description: Tr.settings-option-minimize-to-tray-description; checked <=> root.minimize-to-tray-setting; }
                         ToggleSettingCard { icon: @image-url("../../assets/ui-icons/option-close-tray.svg"); title: Tr.settings-option-close-to-tray-title; description: Tr.settings-option-close-to-tray-description; checked <=> root.close-to-tray-setting; }
@@ -1351,6 +1353,7 @@ export component SettingsWindow inherits Window {
 
                     HorizontalLayout {
                         spacing: 10px;
+                        FooterButton { text: Tr.action-about; clicked => { root.open-about(); } }
                         FooterButton { text: Tr.action-reset-defaults; clicked => { root.reset-to-defaults(); } }
                         FooterButton { text: Tr.action-close; clicked => { root.closed(); } }
                     }

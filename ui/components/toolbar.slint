@@ -16,7 +16,7 @@ export component Toolbar inherits Rectangle {
     background: Theme.toolbar-bg;
 
     Rectangle {
-        y: parent.height - 1px;
+        y: 0px;
         width: 100%;
         height: 1px;
         background: Theme.border;
@@ -34,26 +34,19 @@ export component Toolbar inherits Rectangle {
     HorizontalLayout {
         padding-left: 14px;
         padding-right: 14px;
+        spacing: 12px;
         alignment: space-between;
-
-        Text {
-            text: Tr.app-name;
-            color: Theme.text;
-            vertical-alignment: center;
-            font-size: 14px;
-            font-weight: 600;
-        }
 
         Text {
             text: root.layout-label + "  |  " + root.window-count + " " + Tr.visible-label + "  |  "
                 + root.hidden-count + " " + Tr.hidden-label + "  |  " + root.refresh-label
                 + (root.filters-label != "" ? ("  |  " + root.filters-label) : "");
-            color: Theme.label;
+            color: Theme.text;
             vertical-alignment: center;
             font-size: 13px;
             overflow: elide;
             horizontal-stretch: 1;
-            horizontal-alignment: center;
+            horizontal-alignment: left;
         }
 
         Text {

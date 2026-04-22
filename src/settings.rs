@@ -320,6 +320,10 @@ pub struct AppRule {
     pub hidden: bool,
     /// Whether Panopticon should preserve the source aspect ratio for this app.
     pub preserve_aspect_ratio: bool,
+    /// Explicit per-app override for `preserve_aspect_ratio`; `None` means
+    /// inherit the current global default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preserve_aspect_ratio_override: Option<bool>,
     /// Whether activating this app should hide Panopticon afterwards.
     pub hide_on_select: bool,
     /// Explicit per-app override for `hide_on_select`; `None` means inherit
@@ -349,6 +353,7 @@ impl Default for AppRule {
             display_name: String::new(),
             hidden: false,
             preserve_aspect_ratio: false,
+            preserve_aspect_ratio_override: None,
             hide_on_select: true,
             hide_on_select_override: None,
             pinned_position: None,
@@ -438,7 +443,7 @@ pub struct AppSettings {
     pub background_color_hex: String,
     /// Use Windows 11 backdrop / rounded-corner chrome when available.
     pub use_system_backdrop: bool,
-    /// Show the status toolbar at the top of the window.
+    /// Show the optional status bar at the bottom of the window.
     pub show_toolbar: bool,
     /// Show per-window title/app information below thumbnails.
     pub show_window_info: bool,
@@ -651,9 +656,8 @@ impl AppSettings {
     pub fn preserve_aspect_ratio_for(&self, app_id: &str) -> bool {
         self.app_rules
             .get(app_id)
-            .map_or(self.preserve_aspect_ratio, |rule| {
-                rule.preserve_aspect_ratio
-            })
+            .and_then(|rule| rule.preserve_aspect_ratio_override)
+            .unwrap_or(self.preserve_aspect_ratio)
     }
 
     /// Returns the per-app custom colour hex, if one is assigned.
@@ -881,9 +885,13 @@ impl AppSettings {
 
     /// Toggle aspect-ratio preservation for a specific application.
     pub fn toggle_app_preserve_aspect_ratio(&mut self, app_id: &str, display_name: &str) -> bool {
+        let default_preserve_aspect_ratio = self.preserve_aspect_ratio;
+        let next = !self.preserve_aspect_ratio_for(app_id);
         let rule = self.ensure_app_rule(app_id, display_name);
-        rule.preserve_aspect_ratio = !rule.preserve_aspect_ratio;
-        rule.preserve_aspect_ratio
+        rule.preserve_aspect_ratio = next;
+        rule.preserve_aspect_ratio_override =
+            (next != default_preserve_aspect_ratio).then_some(next);
+        next
     }
 
     /// Toggle hide-on-select for a specific application.
@@ -1025,9 +1033,9 @@ impl AppSettings {
         app_rules.retain(|app_id, _| !app_id.trim().is_empty());
         for rule in app_rules.values_mut() {
             rule.display_name = rule.display_name.trim().to_owned();
-            rule.hide_on_select_override = rule.hide_on_select_override.or_else(|| {
-                (rule.hide_on_select != self.hide_on_select).then_some(rule.hide_on_select)
-            });
+            rule.preserve_aspect_ratio = rule
+                .preserve_aspect_ratio_override
+                .unwrap_or(self.preserve_aspect_ratio);
             rule.hide_on_select = rule.hide_on_select_override.unwrap_or(self.hide_on_select);
             rule.pinned_position = rule.pinned_position.filter(|_| !rule.hidden);
             rule.color_hex = rule.color_hex.as_deref().and_then(normalize_color_hex);
@@ -1124,6 +1132,7 @@ impl AppSettings {
                 display_name: display_name.to_owned(),
                 hidden: false,
                 preserve_aspect_ratio,
+                preserve_aspect_ratio_override: None,
                 hide_on_select,
                 hide_on_select_override: None,
                 pinned_position: None,
@@ -1667,6 +1676,7 @@ mod tests {
                 display_name: "Legacy".to_owned(),
                 hidden: false,
                 preserve_aspect_ratio: false,
+                preserve_aspect_ratio_override: None,
                 hide_on_select: true,
                 hide_on_select_override: None,
                 pinned_position: None,
@@ -1684,7 +1694,7 @@ mod tests {
     }
 
     #[test]
-    fn normalized_legacy_hide_on_select_difference_becomes_override() {
+    fn normalized_legacy_hide_on_select_difference_stays_inherited() {
         let mut settings = AppSettings {
             hide_on_select: false,
             ..AppSettings::default()
@@ -1695,6 +1705,7 @@ mod tests {
                 display_name: "Explicit".to_owned(),
                 hidden: false,
                 preserve_aspect_ratio: false,
+                preserve_aspect_ratio_override: None,
                 hide_on_select: true,
                 hide_on_select_override: None,
                 pinned_position: None,
@@ -1707,13 +1718,62 @@ mod tests {
 
         let normalized = settings.normalized();
 
-        assert!(normalized.hide_on_select_for("app:explicit"));
+        assert!(!normalized.hide_on_select_for("app:explicit"));
         assert_eq!(
             normalized
                 .app_rules
                 .get("app:explicit")
                 .and_then(|rule| rule.hide_on_select_override),
-            Some(true)
+            None
+        );
+        assert_eq!(
+            normalized
+                .app_rules
+                .get("app:explicit")
+                .map(|rule| rule.hide_on_select),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn normalized_legacy_preserve_aspect_ratio_difference_stays_inherited() {
+        let mut settings = AppSettings {
+            preserve_aspect_ratio: false,
+            ..AppSettings::default()
+        };
+        settings.app_rules.insert(
+            "app:aspect".to_owned(),
+            AppRule {
+                display_name: "Aspect".to_owned(),
+                hidden: false,
+                preserve_aspect_ratio: true,
+                preserve_aspect_ratio_override: None,
+                hide_on_select: true,
+                hide_on_select_override: None,
+                pinned_position: None,
+                tags: Vec::new(),
+                color_hex: None,
+                thumbnail_refresh_mode: super::ThumbnailRefreshMode::default(),
+                thumbnail_refresh_interval_ms: None,
+            },
+        );
+
+        let normalized = settings.normalized();
+
+        assert!(!normalized.preserve_aspect_ratio_for("app:aspect"));
+        assert_eq!(
+            normalized
+                .app_rules
+                .get("app:aspect")
+                .and_then(|rule| rule.preserve_aspect_ratio_override),
+            None
+        );
+        assert_eq!(
+            normalized
+                .app_rules
+                .get("app:aspect")
+                .map(|rule| rule.preserve_aspect_ratio),
+            Some(false)
         );
     }
 
@@ -1730,6 +1790,7 @@ mod tests {
                 display_name: "Docked".to_owned(),
                 hidden: false,
                 preserve_aspect_ratio: false,
+                preserve_aspect_ratio_override: None,
                 hide_on_select: true,
                 hide_on_select_override: Some(true),
                 pinned_position: None,

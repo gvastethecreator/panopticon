@@ -83,6 +83,7 @@ color_hex = "D29A5C"
 display_name = "Arc"
 hidden = false
 preserve_aspect_ratio = true
+preserve_aspect_ratio_override = true
 hide_on_select = false
 hide_on_select_override = false
 tags = ["work", "browser"]
@@ -118,12 +119,12 @@ row_ratios = [0.4, 0.6]
 | `theme_id` | `Option<String>` | `None` | selects a preset from `assets/themes.json` | `None` = classic theme |
 | `background_color_hex` | `String` | `181513` | base client colour | also participates in the classic theme fallback |
 | `use_system_backdrop` | `bool` | `true` | backdrop + rounded corners on Windows 11 | via `DwmSetWindowAttribute` |
-| `show_toolbar` | `bool` | `true` | show/hide upper header | also changes the usable viewport area |
+| `show_toolbar` | `bool` | `true` | show/hide the bottom status bar | also changes the usable viewport area |
 | `show_window_info` | `bool` | `true` | shows title/app on the thumbnail | affects the usable thumbnail height |
 | `start_in_tray` | `bool` | `false` | starts hidden | releases thumbnails before hiding |
 | `background_image_path` | `Option<String>` | `None` | draws an image behind the dashboard | silently cleared on load failure |
 | `background_image_fit` | `BackgroundImageFit` | `Cover` | scales the dashboard background image | values: `cover`, `contain`, `fill`, `preserve` |
-| `locked_layout` | `bool` | `false` | locks layout changes | disables shortcuts and toolbar for layouts |
+| `locked_layout` | `bool` | `false` | locks layout changes | disables shortcuts and menu-driven layout changes |
 | `lock_cell_resize` | `bool` | `false` | locks separator dragging | can coexist with `locked_layout` |
 | `show_app_icons` | `bool` | `true` | shows icons on cards | uses cache + GDI rasterisation |
 | `shortcuts` | `ShortcutBindings` | built-in defaults | defines the dashboard key map | dashboard bindings stay single-key; `global_activate` accepts `Ctrl` / `Alt` / `Shift` chords and empty disables it |
@@ -164,7 +165,7 @@ Important notes:
 - dashboard bindings are **single keys** or the named special keys `Tab`, `Esc`, `Enter`, and `Space`;
 - invalid dashboard expressions such as `Ctrl+T` are normalised back to the default binding;
 - `global_activate` is optional, accepts `Ctrl` / `Alt` / `Shift` plus a final key such as `P`, `Space`, or `F12`, and clearing it disables the global hotkey;
-- `alt_toggles_toolbar` is a separate compatibility switch for the Win32 `Alt` toolbar toggle and is not part of the general shortcut parser.
+- `alt_toggles_toolbar` is a separate compatibility switch for the Win32 `Alt` status-bar toggle and is not part of the general shortcut parser.
 
 ## Language and locale
 
@@ -181,6 +182,7 @@ Each `app_rules` entry is keyed by `app_id`. The most common format is:
 display_name = "Arc"
 hidden = false
 preserve_aspect_ratio = true
+preserve_aspect_ratio_override = true
 hide_on_select = false
 hide_on_select_override = false
 tags = ["work", "browser"]
@@ -195,7 +197,8 @@ thumbnail_refresh_interval_ms = 5000
 | --- | --- | --- |
 | `display_name` | `String` | friendly label in menus and restore |
 | `hidden` | `bool` | excludes the app from the visible layout |
-| `preserve_aspect_ratio` | `bool` | overrides the global default |
+| `preserve_aspect_ratio` | `bool` | inherited/legacy stored value |
+| `preserve_aspect_ratio_override` | `Option<bool>` | explicit modern override |
 | `hide_on_select` | `bool` | inherited/legacy value |
 | `hide_on_select_override` | `Option<bool>` | explicit modern override |
 | `tags` | `Vec<String>` | manual tags for grouping/filtering |
@@ -269,7 +272,7 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 - profile names not valid for Windows;
 - rules with an empty `app_id`;
 - orphaned tag styles;
-- legacy `hide_on_select` inheritance towards the modern override model.
+- legacy inherited per-app copies of `preserve_aspect_ratio` and `hide_on_select`, so old global defaults do not stay pinned unless an explicit `*_override` exists.
 
 ## Important relationships and exclusions
 

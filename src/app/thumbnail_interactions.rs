@@ -3,7 +3,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use panopticon::constants::TOOLBAR_HEIGHT;
 use panopticon::window_enum::WindowInfo;
 use slint::ComponentHandle;
 use windows::Win32::Foundation::HWND;
@@ -56,11 +55,6 @@ pub(crate) fn handle_thumbnail_right_click(
     }
     let viewport_x = window.get_viewport_x();
     let viewport_y = window.get_viewport_y();
-    let toolbar_offset = if state_guard.settings.show_toolbar {
-        TOOLBAR_HEIGHT as f32
-    } else {
-        0.0
-    };
     let host_hwnd = state_guard.hwnd;
     let scale = window.window().scale_factor();
     let Some((info, screen_point)) = state_guard.windows.get_mut(index).map(|managed_window| {
@@ -70,7 +64,7 @@ pub(crate) fn handle_thumbnail_right_click(
             logical_to_screen_point(
                 host_hwnd,
                 (managed_window.display_rect.left as f32 + viewport_x + x) * scale,
-                (managed_window.display_rect.top as f32 + viewport_y + toolbar_offset + y) * scale,
+                (managed_window.display_rect.top as f32 + viewport_y + y) * scale,
             ),
         )
     }) else {

@@ -10,8 +10,8 @@ use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 
 use crate::{
-    AppState, MainWindow, SettingsWindow, TagDialogWindow, Theme, SETTINGS_WIN, TAG_DIALOG_WIN,
-    THEME_TRANSITION_DURATION_MS,
+    AppState, MainWindow, SettingsWindow, TagDialogWindow, Theme, ABOUT_WIN, SETTINGS_WIN,
+    TAG_DIALOG_WIN, THEME_TRANSITION_DURATION_MS,
 };
 
 // ───────────────────────── Macro ─────────────────────────
@@ -59,6 +59,13 @@ pub(crate) fn apply_tag_dialog_theme_snapshot(
     apply_runtime_theme!(window, resolved);
 }
 
+pub(crate) fn apply_about_window_theme_snapshot(
+    window: &crate::AboutWindow,
+    resolved: &theme_catalog::UiTheme,
+) {
+    apply_runtime_theme!(window, resolved);
+}
+
 pub(crate) fn apply_theme_snapshot_everywhere(win: &MainWindow, resolved: &theme_catalog::UiTheme) {
     apply_main_window_theme_snapshot(win, resolved);
     SETTINGS_WIN.with(|handle| {
@@ -69,6 +76,11 @@ pub(crate) fn apply_theme_snapshot_everywhere(win: &MainWindow, resolved: &theme
     TAG_DIALOG_WIN.with(|handle| {
         if let Some(window) = handle.borrow().as_ref() {
             apply_tag_dialog_theme_snapshot(window, resolved);
+        }
+    });
+    ABOUT_WIN.with(|handle| {
+        if let Some(window) = handle.borrow().as_ref() {
+            apply_about_window_theme_snapshot(window, resolved);
         }
     });
 }

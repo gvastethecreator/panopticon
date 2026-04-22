@@ -17,15 +17,15 @@ Panopticon does not behave like a document or form application. It is designed a
 
 This is the product dashboard. It contains:
 
-- optional upper toolbar;
+- optional bottom status bar;
 - main area with thumbnails;
 - empty state when there are no windows;
 - overlay scrollbar in layouts with overflow;
 - resize handles for layouts that support persistent ratios.
 
-### 2. Toolbar
+### 2. Status bar
 
-The toolbar summarises the dashboard operational state:
+The status bar summarises the dashboard operational state:
 
 - current layout;
 - number of visible windows;
@@ -100,7 +100,7 @@ The classic theme uses a dark base with amber accent, but the theme system allow
 Main chromatic elements:
 
 - **bg**: general background;
-- **toolbar-bg**: upper bar;
+- **toolbar-bg**: bottom status bar;
 - **card-bg / panel-bg / surface**: layered surfaces;
 - **accent**: protagonist colour for the active state or group;
 - **muted / label / text**: typographic hierarchy levels.

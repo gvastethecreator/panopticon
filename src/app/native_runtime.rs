@@ -16,7 +16,7 @@ use super::dock::{
 use super::dwm::release_thumbnail;
 use super::global_hotkey;
 use super::tray::{apply_window_icons, TrayIcon};
-use crate::{AppState, MainWindow, SETTINGS_WIN};
+use crate::{AppState, MainWindow, ABOUT_WIN, SETTINGS_WIN, TAG_DIALOG_WIN};
 
 pub(crate) fn get_hwnd(window: &slint::Window) -> Option<HWND> {
     let slint_handle = window.window_handle();
@@ -154,6 +154,12 @@ pub(crate) fn request_exit(state: &Rc<RefCell<AppState>>) {
         }
     }
     SETTINGS_WIN.with(|handle| {
+        handle.borrow_mut().take();
+    });
+    TAG_DIALOG_WIN.with(|handle| {
+        handle.borrow_mut().take();
+    });
+    ABOUT_WIN.with(|handle| {
         handle.borrow_mut().take();
     });
     slint::quit_event_loop().ok();

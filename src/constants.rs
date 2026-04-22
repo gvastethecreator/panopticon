@@ -2,7 +2,7 @@
 
 // ── UI geometry ──────────────────────────────────────────────
 
-/// Height of the toolbar area in pixels.
+/// Height of the optional bottom status bar in pixels.
 pub const TOOLBAR_HEIGHT: i32 = 48;
 
 /// Accent-strip height used for thumbnail cards.

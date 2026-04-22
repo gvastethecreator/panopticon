@@ -61,6 +61,7 @@ const CMD_TRAY_TOGGLE_APP_ICONS: u16 = 16;
 const CMD_TRAY_TOGGLE_START_IN_TRAY: u16 = 17;
 const CMD_TRAY_TOGGLE_LOCKED_LAYOUT: u16 = 18;
 const CMD_TRAY_TOGGLE_LOCK_CELL_RESIZE: u16 = 19;
+const CMD_TRAY_OPEN_ABOUT: u16 = 20;
 
 /// Snapshot of UI preferences needed to render the tray menu.
 #[derive(Debug, Clone)]
@@ -167,6 +168,8 @@ pub enum TrayAction {
     ToggleLockCellResize,
     /// Open the dedicated settings window.
     OpenSettingsWindow,
+    /// Open the About window.
+    OpenAboutWindow,
     /// Exit the application.
     Exit,
 }
@@ -472,6 +475,7 @@ pub fn show_application_context_menu_at(
         let toggle = encode_wide(toggle_label);
         let refresh = encode_wide(i18n::t("tray.refresh"));
         let open_settings = encode_wide(i18n::t("tray.open_settings"));
+        let open_about = encode_wide(i18n::t("tray.open_about"));
         let next_layout = encode_wide(i18n::t("tray.next_layout"));
         let lock_layout = encode_wide(i18n::t("tray.lock_layout"));
         let lock_cell_resize = encode_wide(i18n::t("tray.lock_resize"));
@@ -544,6 +548,12 @@ pub fn show_application_context_menu_at(
             MF_STRING,
             CMD_TRAY_OPEN_SETTINGS as usize,
             PCWSTR(open_settings.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MF_STRING,
+            CMD_TRAY_OPEN_ABOUT as usize,
+            PCWSTR(open_about.as_ptr()),
         );
 
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
@@ -946,6 +956,7 @@ pub fn show_application_context_menu_at(
             CMD_TRAY_TOGGLE_LOCKED_LAYOUT => Some(TrayAction::ToggleLockedLayout),
             CMD_TRAY_TOGGLE_LOCK_CELL_RESIZE => Some(TrayAction::ToggleLockCellResize),
             CMD_TRAY_OPEN_SETTINGS => Some(TrayAction::OpenSettingsWindow),
+            CMD_TRAY_OPEN_ABOUT => Some(TrayAction::OpenAboutWindow),
             CMD_TRAY_DOCK_NONE => Some(TrayAction::SetDockEdge(None)),
             CMD_TRAY_DOCK_LEFT => Some(TrayAction::SetDockEdge(Some(DockEdge::Left))),
             CMD_TRAY_DOCK_RIGHT => Some(TrayAction::SetDockEdge(Some(DockEdge::Right))),

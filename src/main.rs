@@ -77,6 +77,7 @@ where
     set_tr!(tr, set_main_window_title, "window.main_title");
     set_tr!(tr, set_settings_window_title, "window.settings_title");
     set_tr!(tr, set_tag_window_title, "window.tag_title");
+    set_tr!(tr, set_about_window_title, "window.about_title");
     tr.set_minimized(SharedString::from(i18n::t("ui.minimized")));
     tr.set_last_seen(SharedString::from(i18n::t("ui.last_seen")));
     tr.set_visible_label(SharedString::from(i18n::t("ui.visible")));
@@ -128,6 +129,14 @@ where
     set_tr!(tr, set_action_clear_image, "action.clear_image");
     set_tr!(tr, set_action_refresh_now, "action.refresh_now");
     set_tr!(tr, set_action_auto_apply, "action.auto_apply");
+    set_tr!(tr, set_action_about, "action.about");
+    set_tr!(tr, set_about_title, "about.title");
+    set_tr!(tr, set_about_subtitle, "about.subtitle");
+    set_tr!(tr, set_about_version_title, "about.version_title");
+    set_tr!(tr, set_about_description_title, "about.description_title");
+    set_tr!(tr, set_about_description_body, "about.description_body");
+    set_tr!(tr, set_about_credits_title, "about.credits_title");
+    set_tr!(tr, set_about_credits_body, "about.credits_body");
     tr.set_dock_mode_hint(SharedString::from(i18n::t("settings.dock_hint")));
     tr.set_filters_hint(SharedString::from(i18n::t("settings.filters_hint")));
     tr.set_current_profile_prefix(SharedString::from(i18n::t("settings.current_profile")));

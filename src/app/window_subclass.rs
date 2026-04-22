@@ -7,6 +7,7 @@ use panopticon::constants::TOOLBAR_HEIGHT;
 use panopticon::input_ops::{decode_mouse_lparam, scroll_pixels_from_wheel_delta};
 use slint::ComponentHandle;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::UI::Input::KeyboardAndMouse::VK_F1;
 use windows::Win32::UI::Shell::ABN_POSCHANGED;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -121,6 +122,14 @@ unsafe extern "system" fn subclass_proc(
         WM_HOTKEY => {
             if global_hotkey::is_activate_hotkey(wparam.0) {
                 queue_action(PendingAction::ActivateMainWindow);
+                LRESULT(0)
+            } else {
+                forward_to_original(hwnd, msg, wparam, lparam)
+            }
+        }
+        WM_KEYDOWN => {
+            if wparam.0 as u32 == u32::from(VK_F1.0) && (lparam.0 & 0x4000_0000) == 0 {
+                queue_action(PendingAction::Tray(TrayAction::OpenAboutWindow));
                 LRESULT(0)
             } else {
                 forward_to_original(hwnd, msg, wparam, lparam)

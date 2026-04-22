@@ -1,0 +1,129 @@
+import { Button } from "std-widgets.slint";
+import { Tr, Theme } from "../common.slint";
+
+component AboutCard inherits Rectangle {
+    in property <string> title;
+    in property <string> body;
+
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: Theme.border.with-alpha(72%);
+    background: Theme.card_bg.with-alpha(92%);
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 6px;
+
+        Text {
+            text: root.title;
+            color: Theme.accent;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        Text {
+            text: root.body;
+            color: Theme.label;
+            font-size: 12.5px;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component AboutWindow inherits Window {
+    title: Tr.about-window-title;
+    icon: @image-url("../../assets/icon.svg");
+    background: Theme.bg;
+    preferred-width: 720px;
+    preferred-height: 460px;
+    default-font-family: "Miranda Sans";
+    default-font-size: 14px;
+
+    in property <string> version-text: "";
+
+    callback closed();
+
+    VerticalLayout {
+        padding: 22px;
+        spacing: 18px;
+
+        HorizontalLayout {
+            spacing: 20px;
+            alignment: start;
+
+            Rectangle {
+                width: 220px;
+                min-height: 320px;
+                border-radius: 16px;
+                border-width: 1px;
+                border-color: Theme.border.with-alpha(72%);
+                background: Theme.card_bg.with-alpha(92%);
+
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 12px;
+                    alignment: center;
+
+                    Image {
+                        source: @image-url("../../assets/mascot.svg");
+                        width: 170px;
+                        height: 250px;
+                        image-fit: contain;
+                    }
+
+                    Text {
+                        text: Tr.app-name;
+                        color: Theme.text;
+                        font-size: 15px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            VerticalLayout {
+                spacing: 12px;
+                vertical-stretch: 1;
+
+                Text {
+                    text: Tr.about-title;
+                    color: Theme.text;
+                    font-size: 28px;
+                    font-weight: 800;
+                    wrap: word-wrap;
+                }
+
+                Text {
+                    text: Tr.about-subtitle;
+                    color: Theme.muted;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+
+                AboutCard {
+                    title: Tr.about-version-title;
+                    body: root.version-text;
+                }
+
+                AboutCard {
+                    title: Tr.about-description-title;
+                    body: Tr.about-description-body;
+                }
+
+                AboutCard {
+                    title: Tr.about-credits-title;
+                    body: Tr.about-credits-body;
+                    vertical-stretch: 1;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            FooterButton := Button {
+                text: Tr.action-close;
+                clicked => { root.closed(); }
+            }
+        }
+    }
+}
