@@ -11,6 +11,17 @@ pub fn current_profile_label(profile_name: Option<&str>) -> String {
     profile_name.unwrap_or("default").to_owned()
 }
 
+/// Convert a combo-box profile label back into an optional profile name.
+#[must_use]
+pub fn selected_profile_name(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("default") {
+        None
+    } else {
+        Some(trimmed.to_owned())
+    }
+}
+
 /// Build a combo-box option for a selectable application.
 #[must_use]
 pub fn app_option_label(app: &AppSelectionEntry) -> String {

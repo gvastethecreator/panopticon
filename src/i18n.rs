@@ -153,6 +153,8 @@ fn en(key: &str) -> &'static str {
         "tray.refresh" => "Refresh windows",
         "tray.open_settings" => "Open settings window",
         "tray.open_about" => "About Panopticon",
+        "tray.profiles" => "Profiles",
+        "tray.profile_default" => "default",
         "tray.layout" => "Layout",
         "tray.next_layout" => "Next layout",
         "tray.lock_layout" => "Lock layout switching",
@@ -222,6 +224,7 @@ fn en(key: &str) -> &'static str {
             "Filters and grouping are also reflected in the status bar and reorder visible cells."
         }
         "settings.no_saved_profiles" => "No saved profiles",
+        "settings.default_profile" => "default",
         "settings.saved_profiles" => "Saved profiles: default",
         "settings.saved_profiles_fmt" => "Saved profiles: default, {}",
         "settings.current_profile" => "Current profile: ",
@@ -303,7 +306,7 @@ fn en(key: &str) -> &'static str {
         }
         "settings.section.display.title" => "Display",
         "settings.section.display.helper" => {
-            "Controls that change readability and the information shown on the dashboard."
+            "Controls for layout-at-startup, dock placement, sizing, and dashboard readability."
         }
         "settings.option.show_toolbar.title" => "Show status bar",
         "settings.option.show_toolbar.description" => {
@@ -377,6 +380,10 @@ fn en(key: &str) -> &'static str {
         "settings.option.image_fit.description" => {
             "Control whether the image covers, contains, or fills the visible dashboard area."
         }
+        "settings.option.image_opacity.title" => "Image opacity",
+        "settings.option.image_opacity.description" => {
+            "Control how strong the background image should appear over the canvas colour."
+        }
         "settings.fit.cover" => "Cover",
         "settings.fit.contain" => "Contain",
         "settings.fit.fill" => "Fill",
@@ -397,6 +404,14 @@ fn en(key: &str) -> &'static str {
         "settings.section.saved_profiles.title" => "Saved profiles",
         "settings.section.saved_profiles.helper" => {
             "Summary of detected profiles plus a reminder of the recommended multi-instance workflow."
+        }
+        "settings.section.load_profile.title" => "Switch current instance",
+        "settings.section.load_profile.helper" => {
+            "Load another saved profile into this running Panopticon window."
+        }
+        "settings.option.available_profile.title" => "Available profiles",
+        "settings.option.available_profile.description" => {
+            "Choose which saved profile this instance should load right now."
         }
         "settings.tips.title" => "Tips",
         "settings.tips.body" => {
@@ -438,7 +453,7 @@ fn en(key: &str) -> &'static str {
         }
         "settings.shortcut.cycle_theme.title" => "Cycle theme",
         "settings.shortcut.cycle_theme.description" => {
-            "Rotate between presets without opening the settings window."
+            "Press T for the next theme or Shift+T for the previous one."
         }
         "settings.shortcut.toggle_animations.title" => "Toggle animations",
         "settings.shortcut.toggle_animations.description" => {
@@ -480,7 +495,7 @@ fn en(key: &str) -> &'static str {
         }
         "settings.page.advanced.title" => "Advanced Options",
         "settings.page.advanced.subtitle" => {
-            "Initial layout, refresh cadence, docked dimensions, and appbar position."
+            "Manual refresh controls and the base cadence used for background window discovery."
         }
         "settings.option.default_layout.title" => "Default layout",
         "settings.option.default_layout.description" => {
@@ -526,6 +541,7 @@ fn en(key: &str) -> &'static str {
         "action.refresh_now" => "Refresh now",
         "action.auto_apply" => "Changes apply automatically.",
         "action.about" => "About",
+        "action.load_profile" => "Load profile",
         "action.reset_defaults" => "Reset defaults",
         "action.close" => "Close",
         "dialog.choose_background_image" => "Choose dashboard background image",
@@ -636,6 +652,8 @@ fn es(key: &str) -> Option<&'static str> {
         "tray.refresh" => "Refrescar ventanas",
         "tray.open_settings" => "Abrir configuración",
         "tray.open_about" => "Acerca de Panopticon",
+        "tray.profiles" => "Perfiles",
+        "tray.profile_default" => "default",
         "tray.layout" => "Layout",
         "tray.next_layout" => "Siguiente layout",
         "tray.lock_layout" => "Bloquear cambio de layout",
@@ -705,6 +723,7 @@ fn es(key: &str) -> Option<&'static str> {
             "Los filtros y el agrupado también se reflejan en la barra de estado y reordenan las celdas visibles."
         }
         "settings.no_saved_profiles" => "Sin perfiles guardados",
+        "settings.default_profile" => "default",
         "settings.saved_profiles" => "Perfiles guardados: default",
         "settings.saved_profiles_fmt" => "Perfiles guardados: default, {}",
         "settings.current_profile" => "Perfil actual: ",
@@ -736,7 +755,7 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.nav.shortcuts.subtitle" => "Personalizá el mapa de teclas del dashboard",
         "settings.nav.advanced.title" => "Opciones avanzadas",
         "settings.nav.advanced.subtitle" => {
-            "Layout, cadencia de refresco y comportamiento del dock"
+            "Cadencia de refresco y herramientas manuales de runtime"
         }
         "settings.page.behaviour_display.title" => "Comportamiento y vista",
         "settings.page.behaviour_display.subtitle" => {
@@ -788,7 +807,7 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.section.display.title" => "Vista",
         "settings.section.display.helper" => {
-            "Controles que cambian la legibilidad y el contenido visible del dashboard."
+            "Controles para layout inicial, posición del dock, tamaño y legibilidad del dashboard."
         }
         "settings.option.show_toolbar.title" => "Mostrar barra de estado",
         "settings.option.show_toolbar.description" => {
@@ -862,6 +881,10 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.option.image_fit.description" => {
             "Controla si la imagen cubre, contiene o rellena el área visible del dashboard."
         }
+        "settings.option.image_opacity.title" => "Opacidad de la imagen",
+        "settings.option.image_opacity.description" => {
+            "Controla qué tan presente debe verse la imagen de fondo sobre el color del canvas."
+        }
         "settings.fit.cover" => "Cubrir",
         "settings.fit.contain" => "Contener",
         "settings.fit.fill" => "Rellenar",
@@ -882,6 +905,14 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.section.saved_profiles.title" => "Perfiles guardados",
         "settings.section.saved_profiles.helper" => {
             "Resumen de perfiles detectados y recordatorio del flujo recomendado para trabajar con varias instancias."
+        }
+        "settings.section.load_profile.title" => "Cambiar esta instancia",
+        "settings.section.load_profile.helper" => {
+            "Carga otro perfil guardado dentro de esta ventana de Panopticon ya abierta."
+        }
+        "settings.option.available_profile.title" => "Perfiles disponibles",
+        "settings.option.available_profile.description" => {
+            "Elegí qué perfil guardado debe cargar esta instancia ahora mismo."
         }
         "settings.tips.title" => "Consejos",
         "settings.tips.body" => {
@@ -923,7 +954,7 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.shortcut.cycle_theme.title" => "Ciclar tema",
         "settings.shortcut.cycle_theme.description" => {
-            "Rota entre presets sin abrir la ventana de configuración."
+            "Pulsa T para el siguiente tema o Shift+T para volver al anterior."
         }
         "settings.shortcut.toggle_animations.title" => "Alternar animaciones",
         "settings.shortcut.toggle_animations.description" => {
@@ -965,7 +996,7 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.page.advanced.title" => "Opciones avanzadas",
         "settings.page.advanced.subtitle" => {
-            "Ajustes de layout inicial, refresco, dimensiones dockeadas y posición del appbar."
+            "Controles de refresco manual y la cadencia base usada para descubrir ventanas en segundo plano."
         }
         "settings.option.default_layout.title" => "Layout por defecto",
         "settings.option.default_layout.description" => {
@@ -1011,6 +1042,7 @@ fn es(key: &str) -> Option<&'static str> {
         "action.refresh_now" => "Refrescar ahora",
         "action.auto_apply" => "Los cambios se aplican automáticamente.",
         "action.about" => "Acerca de",
+        "action.load_profile" => "Cargar perfil",
         "action.reset_defaults" => "Restablecer valores por defecto",
         "action.close" => "Cerrar",
         "dialog.choose_background_image" => "Elegir imagen de fondo del dashboard",

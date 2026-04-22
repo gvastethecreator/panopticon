@@ -119,6 +119,7 @@ where
         set_no_saved_profiles_label,
         "settings.no_saved_profiles"
     );
+    set_tr!(tr, set_default_profile_label, "settings.default_profile");
     tr.set_empty_message(SharedString::from(i18n::t("ui.empty_message")));
     tr.set_empty_helper(SharedString::from(i18n::t("ui.empty_helper")));
     set_tr!(tr, set_action_close, "action.close");
@@ -130,6 +131,7 @@ where
     set_tr!(tr, set_action_refresh_now, "action.refresh_now");
     set_tr!(tr, set_action_auto_apply, "action.auto_apply");
     set_tr!(tr, set_action_about, "action.about");
+    set_tr!(tr, set_action_load_profile, "action.load_profile");
     set_tr!(tr, set_about_title, "about.title");
     set_tr!(tr, set_about_subtitle, "about.subtitle");
     set_tr!(tr, set_about_version_title, "about.version_title");
@@ -519,6 +521,16 @@ where
     );
     set_tr!(
         tr,
+        set_settings_option_image_opacity_title,
+        "settings.option.image_opacity.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_image_opacity_description,
+        "settings.option.image_opacity.description"
+    );
+    set_tr!(
+        tr,
         set_settings_page_profiles_title,
         "settings.page.profiles.title"
     );
@@ -561,6 +573,26 @@ where
         tr,
         set_settings_section_saved_profiles_helper,
         "settings.section.saved_profiles.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_load_profile_title,
+        "settings.section.load_profile.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_load_profile_helper,
+        "settings.section.load_profile.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_available_profile_title,
+        "settings.option.available_profile.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_available_profile_description,
+        "settings.option.available_profile.description"
     );
     set_tr!(tr, set_settings_tips_title, "settings.tips.title");
     set_tr!(tr, set_settings_tips_body, "settings.tips.body");
@@ -1241,7 +1273,9 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
     main_window.on_key_pressed({
         let state = state.clone();
         let weak = main_window.as_weak();
-        move |key_text| app::keyboard_actions::handle_key(&state, &weak, &key_text)
+        move |key_text, shift_pressed| {
+            app::keyboard_actions::handle_key(&state, &weak, &key_text, shift_pressed)
+        }
     });
 }
 

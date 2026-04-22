@@ -14,6 +14,7 @@ use panopticon::ui_option_ops::{
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 use panopticon::window_ops::{collect_available_apps, collect_available_monitors};
 use slint::{CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, VecModel};
+use windows::Win32::Foundation::HWND;
 
 use super::dock::{
     apply_dock_mode, apply_topmost_mode, apply_window_appearance, center_window_on_owner_monitor,
@@ -23,11 +24,26 @@ use super::global_hotkey;
 use super::native_runtime::apply_configured_main_window_size;
 use super::settings_ui::{apply_settings_window_changes, populate_settings_window};
 use super::theme_ui::{
-    apply_about_window_theme_snapshot, apply_settings_window_theme_snapshot,
-    apply_tag_dialog_theme_snapshot,
+    apply_about_window_theme_snapshot, apply_main_window_theme_snapshot,
+    apply_settings_window_theme_snapshot, apply_tag_dialog_theme_snapshot,
 };
 use super::tray::apply_window_icons;
 use crate::{AboutWindow, AppState, MainWindow, SettingsWindow, TagDialogWindow};
+
+fn available_profile_options() -> Vec<String> {
+    AppSettings::list_profiles_with_default().unwrap_or_else(|error| {
+        tracing::warn!(%error, "failed to enumerate available profiles");
+        vec!["default".to_owned()]
+    })
+}
+
+fn selected_profile_from_settings_window(window: &SettingsWindow) -> Option<String> {
+    selected_model_value(
+        &window.get_available_profile_options(),
+        window.get_available_profile_index(),
+    )
+    .and_then(|value| panopticon::ui_option_ops::selected_profile_name(&value))
+}
 
 struct RuntimeUiOptions {
     monitors: Vec<String>,
@@ -131,7 +147,8 @@ pub(crate) fn open_settings_window(
                     return;
                 };
 
-                let current_profile = state.borrow().profile_name.clone();
+                let current_profile = selected_profile_from_settings_window(settings_window)
+                    .or_else(|| state.borrow().profile_name.clone());
                 let requested = match panopticon::settings::validate_profile_name_input(
                     &settings_window.get_profile_name(),
                 ) {
@@ -152,6 +169,22 @@ pub(crate) fn open_settings_window(
 
                 let _ = launch_additional_instance(requested.as_deref());
                 settings_window.set_known_profiles_label(SharedString::from(known_profiles_label()));
+            });
+        }
+    });
+
+    settings_window.on_load_selected_profile({
+        let state = state.clone();
+        let main_weak = main_weak.clone();
+        move || {
+            crate::SETTINGS_WIN.with(|handle| {
+                let guard = handle.borrow();
+                let Some(settings_window) = guard.as_ref() else {
+                    return;
+                };
+                let requested = selected_profile_from_settings_window(settings_window);
+                drop(guard);
+                let _ = load_profile_into_current_instance(&state, &main_weak, requested);
             });
         }
     });
@@ -290,6 +323,35 @@ pub(crate) fn open_settings_window(
             settings_window.set_bg_image_path(SharedString::from(""));
             settings_window.set_bg_image_preview(slint::Image::default());
             settings_window.invoke_apply();
+        });
+    });
+
+    settings_window.on_apply_bg_color_hex(|hex| {
+        crate::SETTINGS_WIN.with(|handle| {
+            let guard = handle.borrow();
+            let Some(settings_window) = guard.as_ref() else {
+                return;
+            };
+
+            if let Some((red, green, blue)) = parse_rgb_hex(&hex) {
+                apply_background_color(settings_window, red, green, blue);
+            } else {
+                let red = settings_window.get_bg_red_value();
+                let green = settings_window.get_bg_green_value();
+                let blue = settings_window.get_bg_blue_value();
+                apply_background_color(settings_window, red, green, blue);
+            }
+        });
+    });
+
+    settings_window.on_apply_bg_color_rgb(|red, green, blue| {
+        crate::SETTINGS_WIN.with(|handle| {
+            let guard = handle.borrow();
+            let Some(settings_window) = guard.as_ref() else {
+                return;
+            };
+
+            apply_background_color(settings_window, red, green, blue);
         });
     });
 
@@ -612,6 +674,7 @@ fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut
 
 fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
     let runtime = collect_runtime_ui_options(state);
+    let profiles = available_profile_options();
     window.set_theme_options(build_string_model(theme_catalog::theme_labels()));
     window.set_current_profile_label(SharedString::from(current_profile_label(
         state.profile_name.as_deref(),
@@ -620,6 +683,13 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
         state.profile_name.clone().unwrap_or_default(),
     ));
     window.set_known_profiles_label(SharedString::from(known_profiles_label()));
+    let selected_profile_label = current_profile_label(state.profile_name.as_deref());
+    let profile_index = profiles
+        .iter()
+        .position(|profile| profile == &selected_profile_label)
+        .map_or(0, |index| index as i32);
+    window.set_available_profile_options(build_string_model(profiles));
+    window.set_available_profile_index(profile_index);
 
     let mut monitor_options = vec![panopticon::i18n::t("tray.all_monitors").to_owned()];
     monitor_options.extend(runtime.monitors.iter().cloned());
@@ -728,7 +798,7 @@ fn sync_about_window_from_state(window: &AboutWindow, state: &AppState) {
 
 fn known_profiles_label() -> String {
     use panopticon::i18n;
-    match AppSettings::list_profiles() {
+    match AppSettings::list_profiles_with_default() {
         Ok(profiles) if profiles.is_empty() => i18n::t("settings.no_saved_profiles").to_owned(),
         Ok(profiles) => i18n::t_fmt("settings.saved_profiles_fmt", &profiles.join(", ")),
         Err(error) => {
@@ -736,6 +806,71 @@ fn known_profiles_label() -> String {
             i18n::t("settings.no_saved_profiles").to_owned()
         }
     }
+}
+
+pub(crate) fn load_profile_into_current_instance(
+    state: &Rc<RefCell<AppState>>,
+    main_weak: &slint::Weak<MainWindow>,
+    requested_profile: Option<String>,
+) -> bool {
+    let loaded_settings = match AppSettings::load_or_default(requested_profile.as_deref()) {
+        Ok(settings) => settings.normalized(),
+        Err(error) => {
+            tracing::error!(%error, profile = ?requested_profile, "failed to load profile");
+            return false;
+        }
+    };
+
+    let (hwnd, previous_language, settings_snapshot) = {
+        let mut guard = state.borrow_mut();
+        let previous_language = guard.settings.language;
+        if guard.is_appbar {
+            unregister_appbar(guard.hwnd);
+            guard.is_appbar = false;
+        }
+        guard.profile_name = requested_profile;
+        guard.settings = loaded_settings;
+        guard.current_layout = guard.settings.initial_layout;
+        guard.loaded_background_path = None;
+        guard.current_theme = theme_catalog::resolve_ui_theme(
+            guard.settings.theme_id.as_deref(),
+            &guard.settings.background_color_hex,
+        );
+        guard.theme_animation = None;
+        (guard.hwnd, previous_language, guard.settings.clone())
+    };
+
+    global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
+    apply_window_appearance(hwnd, &settings_snapshot);
+
+    if let Some(main_window) = main_weak.upgrade() {
+        if settings_snapshot.dock_edge.is_some() {
+            let mut guard = state.borrow_mut();
+            apply_dock_mode(&mut guard);
+        } else {
+            restore_floating_style(hwnd);
+            apply_topmost_mode(hwnd, settings_snapshot.always_on_top);
+            let _ = apply_configured_main_window_size(&main_window, &settings_snapshot);
+            center_window_on_owner_monitor(hwnd, HWND::default());
+        }
+
+        apply_main_window_theme_snapshot(&main_window, &state.borrow().current_theme);
+        let _ = crate::refresh_windows(state);
+        crate::recompute_and_update_ui(state, &main_window);
+    }
+
+    if previous_language != settings_snapshot.language {
+        let _ = panopticon::i18n::set_locale(settings_snapshot.language);
+        if let Some(main_window) = main_weak.upgrade() {
+            crate::populate_tr_global(&main_window);
+        }
+        refresh_open_about_window(state);
+        refresh_open_tag_dialog_window(state);
+        refresh_tray_locale(state);
+    }
+
+    refresh_open_settings_window(state);
+    true
 }
 
 fn refresh_open_tag_dialog_window(state: &Rc<RefCell<AppState>>) {
@@ -833,4 +968,38 @@ fn close_about_window() {
     if let Some(window) = taken {
         window.hide().ok();
     }
+}
+
+fn apply_background_color(window: &SettingsWindow, red: i32, green: i32, blue: i32) {
+    let red = clamp_rgb(red);
+    let green = clamp_rgb(green);
+    let blue = clamp_rgb(blue);
+    let hex = format!("{red:02X}{green:02X}{blue:02X}");
+
+    window.set_bg_red_value(red);
+    window.set_bg_green_value(green);
+    window.set_bg_blue_value(blue);
+    window.set_bg_color_hex(SharedString::from(hex));
+    window.set_bg_preview_color(slint::Color::from_rgb_u8(
+        red as u8,
+        green as u8,
+        blue as u8,
+    ));
+    window.invoke_apply();
+}
+
+fn clamp_rgb(value: i32) -> i32 {
+    value.clamp(0, 255)
+}
+
+fn parse_rgb_hex(input: &str) -> Option<(i32, i32, i32)> {
+    let hex = input.trim().trim_start_matches('#');
+    if hex.len() != 6 || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
+        return None;
+    }
+
+    let red = i32::from(u8::from_str_radix(&hex[0..2], 16).ok()?);
+    let green = i32::from(u8::from_str_radix(&hex[2..4], 16).ok()?);
+    let blue = i32::from(u8::from_str_radix(&hex[4..6], 16).ok()?);
+    Some((red, green, blue))
 }

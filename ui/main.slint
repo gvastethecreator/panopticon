@@ -41,6 +41,7 @@ export component MainWindow inherits Window {
     in property <image> background-image;
     in property <color> canvas-background-color: ThemeGlobal.bg;
     in property <int> background-image-fit-index: 0;
+    in property <float> background-image-opacity: 0.25;
 
     in-out property <float> viewport-x: 0;
     in-out property <float> viewport-y: 0;
@@ -51,7 +52,7 @@ export component MainWindow inherits Window {
     callback thumbnail-drag-ended(/* index */ int, /* drop_x */ float, /* drop_y */ float);
     callback toolbar-clicked();
     callback app-context-menu-requested(/* x */ float, /* y */ float);
-    callback key-pressed(/* key */ string) -> bool;
+    callback key-pressed(/* key */ string, /* shift_pressed */ bool) -> bool;
     callback resize-drag-started(/* index */ int, /* x */ float, /* y */ float);
     callback resize-drag-moved(/* index */ int, /* x */ float, /* y */ float);
     callback resize-drag-ended(/* index */ int);
@@ -70,7 +71,7 @@ export component MainWindow inherits Window {
                     : root.background-image-fit-index == 2 ? fill
                     : root.background-image-fit-index == 3 ? preserve
                     : cover;
-                opacity: 0.25;
+                opacity: root.background-image-opacity;
             }
 
             if root.thumbnails.length == 0: EmptyState {}
@@ -159,7 +160,7 @@ export component MainWindow inherits Window {
     forward-focus: key-handler;
     key-handler := FocusScope {
         key-pressed(event) => {
-            if root.key-pressed(event.text) {
+            if root.key-pressed(event.text, event.modifiers.shift) {
                 return accept;
             }
             reject

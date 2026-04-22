@@ -99,6 +99,7 @@ export global Tr {
     in property <string> all-apps-label: "All applications";
     in property <string> no-hidden-label: "No hidden apps";
     in property <string> no-saved-profiles-label: "No saved profiles";
+    in property <string> default-profile-label: "default";
 
     // Empty state
     in property <string> empty-message: "No windows available to preview";
@@ -114,6 +115,7 @@ export global Tr {
     in property <string> action-refresh-now: "Refresh now";
     in property <string> action-auto-apply: "Changes apply automatically.";
     in property <string> action-about: "About";
+    in property <string> action-load-profile: "Load profile";
 
     // About window
     in property <string> about-title: "About Panopticon";
@@ -150,7 +152,7 @@ export global Tr {
     in property <string> settings-nav-shortcuts-title: "Keyboard Shortcuts";
     in property <string> settings-nav-shortcuts-subtitle: "Customize the dashboard key map";
     in property <string> settings-nav-advanced-title: "Advanced Options";
-    in property <string> settings-nav-advanced-subtitle: "Layout, refresh cadence and dock behaviour";
+    in property <string> settings-nav-advanced-subtitle: "Refresh cadence and manual runtime tools";
 
     // Behaviour page
     in property <string> settings-page-behaviour-display-title: "Behaviour & Display";
@@ -178,7 +180,7 @@ export global Tr {
     in property <string> settings-option-lock-cell-resize-title: "Lock cell resizing";
     in property <string> settings-option-lock-cell-resize-description: "Disable separator dragging to protect the current composition.";
     in property <string> settings-section-display-title: "Display";
-    in property <string> settings-section-display-helper: "Controls that change readability and the information shown on the dashboard.";
+    in property <string> settings-section-display-helper: "Controls for layout-at-startup, dock placement, sizing, and dashboard readability.";
     in property <string> settings-option-show-toolbar-title: "Show status bar";
     in property <string> settings-option-show-toolbar-description: "Show the bottom status bar with status summary and quick access to the menu.";
     in property <string> settings-option-show-info-title: "Show window info above thumbnails";
@@ -211,6 +213,10 @@ export global Tr {
     in property <string> settings-section-canvas-background-helper: "The canvas colour sits behind the cards and the optional background image.";
     in property <string> settings-option-custom-canvas-colour-title: "Custom canvas colour";
     in property <string> settings-option-custom-canvas-colour-description: "Enter a manual RGB hex value if you want a colour outside the quick palette.";
+    in property <string> settings-option-rgb-picker-title: "RGB color picker";
+    in property <string> settings-channel-red-label: "R";
+    in property <string> settings-channel-green-label: "G";
+    in property <string> settings-channel-blue-label: "B";
     in property <string> settings-section-preview-title: "Preview";
     in property <string> settings-section-preview-helper: "Quick summary of the active background with colour and optional image.";
     in property <string> settings-section-background-image-title: "Background image";
@@ -219,6 +225,8 @@ export global Tr {
     in property <string> settings-option-image-file-description: "You can paste a path manually or choose it with the native picker.";
     in property <string> settings-option-image-fit-title: "Image fit";
     in property <string> settings-option-image-fit-description: "Control whether the image covers, contains, or fills the visible dashboard area.";
+    in property <string> settings-option-image-opacity-title: "Image opacity";
+    in property <string> settings-option-image-opacity-description: "Control how strong the background image should appear over the canvas colour.";
 
     // Profiles page
     in property <string> settings-page-profiles-title: "Profiles";
@@ -230,6 +238,10 @@ export global Tr {
     in property <string> settings-option-profile-name-description: "Name used to save this setup or launch another instance with it.";
     in property <string> settings-section-saved-profiles-title: "Saved profiles";
     in property <string> settings-section-saved-profiles-helper: "Summary of detected profiles plus a reminder of the recommended multi-instance workflow.";
+    in property <string> settings-section-load-profile-title: "Switch current instance";
+    in property <string> settings-section-load-profile-helper: "Load another saved profile into this running Panopticon window.";
+    in property <string> settings-option-available-profile-title: "Available profiles";
+    in property <string> settings-option-available-profile-description: "Choose which saved profile this instance should load right now.";
     in property <string> settings-tips-title: "Tips";
     in property <string> settings-tips-body: "- Save the current profile first if you are about to open another instance.\n- Use simple names like work, stream, or review.\n- Theme, background, and shortcut settings travel with the profile.";
 
@@ -259,7 +271,7 @@ export global Tr {
     in property <string> settings-section-dashboard-actions-title: "Dashboard actions";
     in property <string> settings-section-dashboard-actions-helper: "Shortcuts for opening panels, refreshing state, and toggling visible options.";
     in property <string> settings-shortcut-cycle-theme-title: "Cycle theme";
-    in property <string> settings-shortcut-cycle-theme-description: "Rotate between presets without opening the settings window.";
+    in property <string> settings-shortcut-cycle-theme-description: "Press T for the next theme or Shift+T for the previous one.";
     in property <string> settings-shortcut-toggle-animations-title: "Toggle animations";
     in property <string> settings-shortcut-toggle-animations-description: "Enable or disable dashboard transitions.";
     in property <string> settings-shortcut-toggle-toolbar-title: "Toggle status bar";
@@ -283,7 +295,7 @@ export global Tr {
 
     // Advanced page
     in property <string> settings-page-advanced-title: "Advanced Options";
-    in property <string> settings-page-advanced-subtitle: "Initial layout, refresh cadence, docked dimensions, and appbar position.";
+    in property <string> settings-page-advanced-subtitle: "Manual refresh controls and the base cadence used for background window discovery.";
     in property <string> settings-option-default-layout-title: "Default layout";
     in property <string> settings-option-default-layout-description: "Choose which layout Panopticon should use each time this profile starts.";
     in property <string> settings-option-refresh-interval-title: "Refresh interval";

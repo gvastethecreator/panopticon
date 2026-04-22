@@ -5,6 +5,7 @@ import {
     ScrollView,
     Button,
     SpinBox,
+    Slider,
 } from "std-widgets.slint";
 import { Tr, Theme, ThemePreviewData } from "../common.slint";
 
@@ -465,12 +466,18 @@ export component SettingsWindow inherits Window {
     in property <string> current-profile-label: "default";
     in-out property <string> profile-name: "";
     in property <string> known-profiles-label: Tr.no-saved-profiles-label;
+    in property <[string]> available-profile-options: [Tr.default-profile-label];
+    in-out property <int> available-profile-index: 0;
     in-out property <color> bg-preview-color: Theme.accent;
     in-out property <color> theme-preview-color: Theme.accent;
     in-out property <string> bg-color-hex: "181513";
+    in-out property <int> bg-red-value: 24;
+    in-out property <int> bg-green-value: 21;
+    in-out property <int> bg-blue-value: 19;
     in-out property <string> bg-image-path: "";
     in-out property <image> bg-image-preview;
     in-out property <int> bg-image-fit-index: 0;
+    in-out property <int> bg-image-opacity-value: 25;
     in-out property <int> fixed-width-value: 0;
     in-out property <int> fixed-height-value: 0;
     in-out property <int> dock-edge-index: 0;
@@ -502,6 +509,7 @@ export component SettingsWindow inherits Window {
     callback apply();
     callback request-live-apply();
     callback save-profile();
+    callback load-selected-profile();
     callback open-profile-instance();
     callback open-about();
     callback reset-to-defaults();
@@ -510,6 +518,8 @@ export component SettingsWindow inherits Window {
     callback restore-hidden-all();
     callback browse-background-image();
     callback clear-background-image();
+    callback apply-bg-color-hex(string);
+    callback apply-bg-color-rgb(int, int, int);
     callback closed();
 
     request-live-apply => {
@@ -579,6 +589,9 @@ export component SettingsWindow inherits Window {
         root.request-live-apply();
     }
     changed bg-image-fit-index => {
+        root.request-live-apply();
+    }
+    changed bg-image-opacity-value => {
         root.request-live-apply();
     }
     changed fixed-width-value => {
@@ -851,6 +864,71 @@ export component SettingsWindow inherits Window {
                             subtitle: Tr.settings-section-display-helper;
                         }
 
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                            title: Tr.settings-option-default-layout-title;
+                            description: Tr.settings-option-default-layout-description;
+                            options: Tr.layout-options;
+                            selected-index <=> root.layout-index;
+                        }
+
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-dock.svg");
+                            title: Tr.settings-option-dock-position-title;
+                            description: Tr.settings-option-dock-position-description;
+                            options: Tr.dock-options;
+                            selected-index <=> root.dock-edge-index;
+                        }
+
+                        Rectangle {
+                            border-radius: 12px;
+                            border-width: 1px;
+                            border-color: Theme.border.with-alpha(70%);
+                            background: Theme.card_bg.with-alpha(92%);
+
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
+
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/option-dock.svg");
+                                    text: Tr.settings-section-dock-thickness-title;
+                                    helper: Tr.settings-section-dock-thickness-helper;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 12px;
+                                    Text {
+                                        text: Tr.settings-width-label;
+                                        color: Theme.label;
+                                        vertical-alignment: center;
+                                        font-size: 13px;
+                                    }
+
+                                    SpinBox {
+                                        height: 30px;
+                                        value <=> root.fixed-width-value;
+                                        minimum: 0;
+                                        maximum: 3840;
+                                    }
+
+                                    Text {
+                                        text: Tr.settings-height-label;
+                                        color: Theme.label;
+                                        vertical-alignment: center;
+                                        font-size: 13px;
+                                    }
+
+                                    SpinBox {
+                                        height: 30px;
+                                        value <=> root.fixed-height-value;
+                                        minimum: 0;
+                                        maximum: 2160;
+                                    }
+                                }
+                            }
+                        }
+
                         ToggleSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
                             title: Tr.settings-option-show-toolbar-title;
@@ -923,12 +1001,6 @@ export component SettingsWindow inherits Window {
                             }
                         }
 
-                        Rectangle {
-                            border-radius: 12px;
-                            border-width: 1px;
-                            border-color: Theme.border.with-alpha(70%);
-                            background: Theme.card_bg.with-alpha(92%);
-                            min-height: 148px;
 
                             VerticalLayout {
                                 padding: 14px;
@@ -975,14 +1047,7 @@ export component SettingsWindow inherits Window {
                                     }
                                 }
 
-                                if !root.can-restore-hidden: Text {
-                                    text: Tr.no-hidden-hint;
-                                    color: Theme.muted;
-                                    font-size: 11.5px;
-                                    wrap: word-wrap;
-                                }
                             }
-                        }
                     }
 
                     if root.current-page == 2: VerticalLayout {
@@ -1032,7 +1097,85 @@ export component SettingsWindow inherits Window {
 
                         HorizontalLayout {
                             spacing: 16px;
-                            height: 165px;
+                            height: 250px;
+
+                            
+                            Rectangle {
+                                border-radius: 4px;
+                                border-width: 2px;
+                                width: 430px;
+                                border-color: Theme.border.with-alpha(72%);
+                                background: Theme.card_bg.with-alpha(92%);
+
+                                VerticalLayout {
+                                    padding: 8px;
+                                    spacing: 5px;
+
+                                    SectionTitle {
+                                        height: 30px;
+                                        icon: @image-url("../../assets/ui-icons/option-image.svg");
+                                        text: Tr.settings-section-background-image-title;
+                                    }
+
+                                    SelectSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-image-fit.svg");
+                                        title: Tr.settings-option-image-fit-title;
+                                        description: Tr.settings-option-image-fit-description;
+                                        options: Tr.image-fit-options;
+                                        selected-index <=> root.bg-image-fit-index;
+                                    }
+
+                                    VerticalLayout {
+                                        spacing: 6px;
+
+                                        Text {
+                                            text: Tr.settings-option-image-opacity-title;
+                                            color: Theme.label;
+                                            font-size: 12px;
+                                        }
+
+                                        HorizontalLayout {
+                                            spacing: 10px;
+
+                                            Slider {
+                                                horizontal-stretch: 1;
+                                                minimum: 0;
+                                                maximum: 100;
+                                                value: root.bg-image-opacity-value;
+                                                changed value => {
+                                                    root.bg-image-opacity-value = self.value;
+                                                }
+                                            }
+
+                                            SpinBox {
+                                                width: 72px;
+                                                minimum: 0;
+                                                maximum: 100;
+                                                value <=> root.bg-image-opacity-value;
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 10px;
+                                        Button {
+                                            height: 40px;
+                                            text: Tr.action-browse-image;
+                                            clicked => {
+                                                root.browse-background-image();
+                                            }
+                                        }
+
+                                        Button {
+                                            height: 40px;
+                                            text: Tr.action-clear-image;
+                                            clicked => {
+                                                root.clear-background-image();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 
                             Rectangle {
                                 horizontal-stretch: 1;
@@ -1052,93 +1195,110 @@ export component SettingsWindow inherits Window {
                                         text: Tr.settings-section-canvas-background-title;
                                     }
 
-                                    HorizontalLayout {
-                                        spacing: 5px;
-                                        ColorSwatch {
-                                            swatch: #181513;
-                                            hex: "181513";
-                                            active: root.bg-color-hex == "181513";
-                                            picked => {
-                                                root.bg-color-hex = "181513";
-                                                root.bg-preview-color = #181513;
-                                                root.apply();
+                                   
+
+                                    VerticalLayout {
+                                        spacing: 4px;
+
+                                        Text {
+                                            text: Tr.settings-option-rgb-picker-title;
+                                            color: Theme.label;
+                                            font-size: 12px;
+                                        }
+
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text {
+                                                width: 16px;
+                                                text: Tr.settings-channel-red-label;
+                                                color: Theme.muted;
+                                                vertical-alignment: center;
+                                                horizontal-alignment: center;
+                                            }
+
+                                            Slider {
+                                                horizontal-stretch: 1;
+                                                minimum: 0;
+                                                maximum: 255;
+                                                value: root.bg-red-value;
+                                                changed value => {
+                                                    root.bg-red-value = self.value;
+                                                    root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                }
+                                            }
+
+                                            SpinBox {
+                                                width: 72px;
+                                                minimum: 0;
+                                                maximum: 255;
+                                                value <=> root.bg-red-value;
+                                                changed value => {
+                                                    root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                }
                                             }
                                         }
 
-                                        ColorSwatch {
-                                            swatch: #101820;
-                                            hex: "101820";
-                                            active: root.bg-color-hex == "101820";
-                                            picked => {
-                                                root.bg-color-hex = "101820";
-                                                root.bg-preview-color = #101820;
-                                                root.apply();
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text {
+                                                width: 16px;
+                                                text: Tr.settings-channel-green-label;
+                                                color: Theme.muted;
+                                                vertical-alignment: center;
+                                                horizontal-alignment: center;
+                                            }
+
+                                            Slider {
+                                                horizontal-stretch: 1;
+                                                minimum: 0;
+                                                maximum: 255;
+                                                value: root.bg-green-value;
+                                                changed value => {
+                                                    root.bg-green-value = self.value;
+                                                    root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                }
+                                            }
+
+                                            SpinBox {
+                                                width: 72px;
+                                                minimum: 0;
+                                                maximum: 255;
+                                                value <=> root.bg-green-value;
+                                                changed value => {
+                                                    root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                }
                                             }
                                         }
 
-                                        ColorSwatch {
-                                            swatch: #1C2430;
-                                            hex: "1C2430";
-                                            active: root.bg-color-hex == "1C2430";
-                                            picked => {
-                                                root.bg-color-hex = "1C2430";
-                                                root.bg-preview-color = #1C2430;
-                                                root.apply();
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text {
+                                                width: 16px;
+                                                text: Tr.settings-channel-blue-label;
+                                                color: Theme.muted;
+                                                vertical-alignment: center;
+                                                horizontal-alignment: center;
                                             }
-                                        }
 
-                                        ColorSwatch {
-                                            swatch: #202633;
-                                            hex: "202633";
-                                            active: root.bg-color-hex == "202633";
-                                            picked => {
-                                                root.bg-color-hex = "202633";
-                                                root.bg-preview-color = #202633;
-                                                root.apply();
+                                            Slider {
+                                                horizontal-stretch: 1;
+                                                minimum: 0;
+                                                maximum: 255;
+                                                value: root.bg-blue-value;
+                                                changed value => {
+                                                    root.bg-blue-value = self.value;
+                                                    root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                }
                                             }
-                                        }
 
-                                        ColorSwatch {
-                                            swatch: #122027;
-                                            hex: "122027";
-                                            active: root.bg-color-hex == "122027";
-                                            picked => {
-                                                root.bg-color-hex = "122027";
-                                                root.bg-preview-color = #122027;
-                                                root.apply();
-                                            }
-                                        }
-
-                                        ColorSwatch {
-                                            swatch: #2A1E1C;
-                                            hex: "2A1E1C";
-                                            active: root.bg-color-hex == "2A1E1C";
-                                            picked => {
-                                                root.bg-color-hex = "2A1E1C";
-                                                root.bg-preview-color = #2A1E1C;
-                                                root.apply();
-                                            }
-                                        }
-
-                                        ColorSwatch {
-                                            swatch: #2A2522;
-                                            hex: "2A2522";
-                                            active: root.bg-color-hex == "2A2522";
-                                            picked => {
-                                                root.bg-color-hex = "2A2522";
-                                                root.bg-preview-color = #2A2522;
-                                                root.apply();
-                                            }
-                                        }
-
-                                        ColorSwatch {
-                                            swatch: #22303A;
-                                            hex: "22303A";
-                                            active: root.bg-color-hex == "22303A";
-                                            picked => {
-                                                root.bg-color-hex = "22303A";
-                                                root.bg-preview-color = #22303A;
-                                                root.apply();
+                                            SpinBox {
+                                                width: 72px;
+                                                minimum: 0;
+                                                maximum: 255;
+                                                value <=> root.bg-blue-value;
+                                                changed value => {
+                                                    root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                }
                                             }
                                         }
                                     }
@@ -1149,7 +1309,7 @@ export component SettingsWindow inherits Window {
                                         value <=> root.bg-color-hex;
                                         placeholder: "181513";
                                         committed => {
-                                            root.apply();
+                                            root.apply-bg-color-hex(root.bg-color-hex);
                                         }
                                     }
                                 }
@@ -1184,6 +1344,7 @@ export component SettingsWindow inherits Window {
                                             height: 100%;
                                             source: root.bg-image-preview;
                                             image-fit: root.bg-image-fit-index == 1 ? contain : root.bg-image-fit-index == 2 ? fill : root.bg-image-fit-index == 3 ? preserve : cover;
+                                            opacity: root.bg-image-opacity-value / 100;
                                         }
 
                                         Rectangle {
@@ -1207,51 +1368,6 @@ export component SettingsWindow inherits Window {
                                 }
                             }
 
-                            Rectangle {
-                                border-radius: 4px;
-                                border-width: 2px;
-                                width: 430px;
-                                border-color: Theme.border.with-alpha(72%);
-                                background: Theme.card_bg.with-alpha(92%);
-
-                                VerticalLayout {
-                                    padding: 8px;
-                                    spacing: 5px;
-
-                                    SectionTitle {
-                                        height: 30px;
-                                        icon: @image-url("../../assets/ui-icons/option-image.svg");
-                                        text: Tr.settings-section-background-image-title;
-                                    }
-
-                                    SelectSettingCard {
-                                        icon: @image-url("../../assets/ui-icons/option-image-fit.svg");
-                                        title: Tr.settings-option-image-fit-title;
-                                        description: Tr.settings-option-image-fit-description;
-                                        options: Tr.image-fit-options;
-                                        selected-index <=> root.bg-image-fit-index;
-                                    }
-
-                                    HorizontalLayout {
-                                        spacing: 10px;
-                                        Button {
-                                            height: 40px;
-                                            text: Tr.action-browse-image;
-                                            clicked => {
-                                                root.browse-background-image();
-                                            }
-                                        }
-
-                                        Button {
-                                            height: 40px;
-                                            text: Tr.action-clear-image;
-                                            clicked => {
-                                                root.clear-background-image();
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
 
@@ -1277,6 +1393,39 @@ export component SettingsWindow inherits Window {
                                 VerticalLayout {
                                     padding: 14px;
                                     spacing: 10px;
+
+                                    SectionTitle {
+                                        icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                        text: Tr.settings-section-load-profile-title;
+                                        helper: Tr.settings-section-load-profile-helper;
+                                    }
+
+                                    SelectSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                        title: Tr.settings-option-available-profile-title;
+                                        description: Tr.settings-option-available-profile-description;
+                                        options: root.available-profile-options;
+                                        selected-index <=> root.available-profile-index;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 10px;
+
+                                        Button {
+                                            height: 40px;
+                                            text: Tr.action-load-profile;
+                                            clicked => {
+                                                root.load-selected-profile();
+                                            }
+                                        }
+
+                                        Button {
+                                            text: Tr.open-instance-btn;
+                                            clicked => {
+                                                root.open-profile-instance();
+                                            }
+                                        }
+                                    }
 
                                     SectionTitle {
                                         icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
@@ -1326,13 +1475,6 @@ export component SettingsWindow inherits Window {
                                             text: Tr.save-profile-btn;
                                             clicked => {
                                                 root.save-profile();
-                                            }
-                                        }
-
-                                        Button {
-                                            text: Tr.open-instance-btn;
-                                            clicked => {
-                                                root.open-profile-instance();
                                             }
                                         }
                                     }
@@ -1407,7 +1549,7 @@ export component SettingsWindow inherits Window {
                             title: Tr.settings-shortcut-alt-toolbar-title;
                             description: Tr.settings-shortcut-alt-toolbar-description;
                             checked <=> root.alt-toolbar-shortcut-enabled;
-                    }
+                        }
 
                         Rectangle {
                             height: 540px;
@@ -1427,8 +1569,6 @@ export component SettingsWindow inherits Window {
                                         text: Tr.settings-section-layout-bindings-title;
                                         helper: Tr.settings-section-layout-bindings-helper;
                                     }
-
-                                    
 
                                     HorizontalLayout {
                                         TextFieldSettingCard {
@@ -1669,11 +1809,7 @@ export component SettingsWindow inherits Window {
                                                 root.apply();
                                             }
                                         }
-
-                                        
-                                        }
-
-                                        
+                                    }
                                 }
                             }
                         }
@@ -1689,14 +1825,6 @@ export component SettingsWindow inherits Window {
                         }
 
                         SelectSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                            title: Tr.settings-option-default-layout-title;
-                            description: Tr.settings-option-default-layout-description;
-                            options: Tr.layout-options;
-                            selected-index <=> root.layout-index;
-                        }
-
-                        SelectSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-refresh.svg");
                             title: Tr.settings-option-refresh-interval-title;
                             description: Tr.settings-option-refresh-interval-description;
@@ -1704,84 +1832,26 @@ export component SettingsWindow inherits Window {
                             selected-index <=> root.refresh-index;
                         }
 
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 10px;
 
-                            VerticalLayout {
-                                padding: 14px;
-                                spacing: 10px;
+                            SectionTitle {
+                                icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                                text: Tr.settings-section-manual-refresh-title;
+                                helper: Tr.settings-section-manual-refresh-helper;
+                            }
 
-                                SectionTitle {
-                                    icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                                    text: Tr.settings-section-manual-refresh-title;
-                                    helper: Tr.settings-section-manual-refresh-helper;
-                                }
-
-                                Button {
-                                    height: 40px;
-                                    width: 120px;
-                                    text: Tr.action-refresh-now;
-                                    clicked => {
-                                        root.refresh-now();
-                                    }
-                                }
-                            
-                        }
-
-                        Rectangle {
-                            border-radius: 12px;
-                            border-width: 1px;
-                            border-color: Theme.border.with-alpha(70%);
-                            background: Theme.card_bg.with-alpha(92%);
-
-                            VerticalLayout {
-                                padding: 14px;
-                                spacing: 10px;
-
-                                SectionTitle {
-                                    icon: @image-url("../../assets/ui-icons/option-dock.svg");
-                                    text: Tr.settings-section-dock-thickness-title;
-                                    helper: Tr.settings-section-dock-thickness-helper;
-                                }
-
-                                HorizontalLayout {
-                                    spacing: 12px;
-                                    Text {
-                                        text: Tr.settings-width-label;
-                                        color: Theme.label;
-                                        vertical-alignment: center;
-                                        font-size: 13px;
-                                    }
-
-                                    SpinBox {
-                                        height: 30px;
-                                        value <=> root.fixed-width-value;
-                                        minimum: 0;
-                                        maximum: 3840;
-                                    }
-
-                                    Text {
-                                        text: Tr.settings-height-label;
-                                        color: Theme.label;
-                                        vertical-alignment: center;
-                                        font-size: 13px;
-                                    }
-
-                                    SpinBox {
-                                        height: 30px;
-                                        value <=> root.fixed-height-value;
-                                        minimum: 0;
-                                        maximum: 2160;
-                                    }
+                            Button {
+                                height: 40px;
+                                width: 120px;
+                                text: Tr.action-refresh-now;
+                                clicked => {
+                                    root.refresh-now();
                                 }
                             }
                         }
 
-                        SelectSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-dock.svg");
-                            title: Tr.settings-option-dock-position-title;
-                            description: Tr.settings-option-dock-position-description;
-                            options: Tr.dock-options;
-                            selected-index <=> root.dock-edge-index;
-                        }
                     }
                 }
             }

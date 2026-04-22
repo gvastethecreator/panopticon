@@ -24,6 +24,7 @@ enum ShortcutAction {
     ToggleAlwaysOnTop,
     RefreshNow,
     CycleTheme,
+    CycleThemePrevious,
     CycleLayout,
     Exit,
 }
@@ -32,10 +33,11 @@ pub(crate) fn handle_key(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
     key: &str,
+    shift_pressed: bool,
 ) -> bool {
     let Some(action) = ({
         let state = state.borrow();
-        matched_shortcut_action(&state.settings, key)
+        matched_shortcut_action(&state.settings, key, shift_pressed)
     }) else {
         return false;
     };
@@ -80,7 +82,8 @@ pub(crate) fn handle_key(
                 refresh_ui(state, weak);
             }
         }
-        ShortcutAction::CycleTheme => cycle_theme(state, weak),
+        ShortcutAction::CycleTheme => cycle_theme(state, weak, 1),
+        ShortcutAction::CycleThemePrevious => cycle_theme(state, weak, -1),
         ShortcutAction::CycleLayout => {
             layout_actions::cycle_layout(state);
             refresh_ui(state, weak);
@@ -91,7 +94,11 @@ pub(crate) fn handle_key(
     true
 }
 
-fn matched_shortcut_action(settings: &AppSettings, key: &str) -> Option<ShortcutAction> {
+fn matched_shortcut_action(
+    settings: &AppSettings,
+    key: &str,
+    shift_pressed: bool,
+) -> Option<ShortcutAction> {
     let shortcuts = &settings.shortcuts;
 
     if shortcut_matches(&shortcuts.layout_grid, key) {
@@ -125,7 +132,11 @@ fn matched_shortcut_action(settings: &AppSettings, key: &str) -> Option<Shortcut
     } else if shortcut_matches(&shortcuts.refresh_now, key) {
         Some(ShortcutAction::RefreshNow)
     } else if shortcut_matches(&shortcuts.cycle_theme, key) {
-        Some(ShortcutAction::CycleTheme)
+        Some(if shift_pressed {
+            ShortcutAction::CycleThemePrevious
+        } else {
+            ShortcutAction::CycleTheme
+        })
     } else if shortcut_matches(&shortcuts.cycle_layout, key) {
         Some(ShortcutAction::CycleLayout)
     } else if shortcut_matches(&shortcuts.exit_app, key) {
@@ -145,17 +156,22 @@ fn shortcut_matches(binding: &str, key: &str) -> bool {
     }
 }
 
-fn cycle_theme(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
+fn cycle_theme(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, direction: i32) {
     let current_idx = {
         let state = state.borrow();
         panopticon::theme::theme_index(state.settings.theme_id.as_deref())
     };
     let total = panopticon::theme::theme_labels().len() as i32;
-    let next_idx = (current_idx + 1) % total;
+    let next_idx = (current_idx + direction).rem_euclid(total);
     let new_id = panopticon::theme::theme_id_by_index(next_idx);
+    let next_background_hex =
+        panopticon::theme::theme_base_background_hex(new_id.as_deref(), "181513");
 
     update_settings(state, |settings| {
         settings.theme_id = new_id;
+        if settings.theme_id.is_some() {
+            settings.background_color_hex.clone_from(&next_background_hex);
+        }
     });
 
     let state_ref = state.borrow();
@@ -187,13 +203,23 @@ mod tests {
         settings.shortcuts.open_menu = "Q".to_owned();
 
         assert_eq!(
-            matched_shortcut_action(&settings, "g"),
+            matched_shortcut_action(&settings, "g", false),
             Some(ShortcutAction::SetLayout(LayoutType::Grid))
         );
         assert_eq!(
-            matched_shortcut_action(&settings, "Q"),
+            matched_shortcut_action(&settings, "Q", false),
             Some(ShortcutAction::OpenMenu)
         );
-        assert_eq!(matched_shortcut_action(&settings, "1"), None);
+        assert_eq!(matched_shortcut_action(&settings, "1", false), None);
+    }
+
+    #[test]
+    fn shift_plus_cycle_theme_goes_backwards() {
+        let settings = AppSettings::default();
+
+        assert_eq!(
+            matched_shortcut_action(&settings, "T", true),
+            Some(ShortcutAction::CycleThemePrevious)
+        );
     }
 }
