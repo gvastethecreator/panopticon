@@ -9,6 +9,7 @@ use slint::ComponentHandle;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{IsWindowVisible, SetForegroundWindow};
 
+use super::dock::center_window_on_owner_monitor;
 use super::dock::{apply_dock_mode, apply_topmost_mode, restore_floating_style, unregister_appbar};
 use super::native_runtime::apply_configured_main_window_size;
 use super::secondary_windows;
@@ -54,6 +55,12 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
         locked_layout: state.settings.locked_layout,
         lock_cell_resize: state.settings.lock_cell_resize,
         group_windows_by: state.settings.group_windows_by,
+        current_profile: state.profile_name.clone(),
+        available_profiles: panopticon::settings::AppSettings::list_profiles_with_default()
+            .unwrap_or_else(|error| {
+                tracing::warn!(%error, "failed to enumerate profiles for tray menu");
+                vec!["default".to_owned()]
+            }),
     }
 }
 
@@ -233,6 +240,10 @@ pub(crate) fn handle_tray_action(
         TrayAction::OpenAboutWindow => {
             secondary_windows::open_about_window(state);
         }
+        TrayAction::LoadProfile(profile_name) => {
+            let _ =
+                secondary_windows::load_profile_into_current_instance(state, weak, profile_name);
+        }
         TrayAction::Exit => {
             queue_exit_request();
         }
@@ -287,6 +298,9 @@ pub(crate) fn activate_main_window(state: &Rc<RefCell<AppState>>, weak: &slint::
             && unsafe { IsWindowVisible(state.borrow().hwnd).as_bool() };
         window.show().ok();
         let hwnd = state.borrow().hwnd;
+        if !was_visible && state.borrow().settings.dock_edge.is_none() {
+            center_window_on_owner_monitor(hwnd, HWND::default());
+        }
         unsafe {
             let _ = SetForegroundWindow(hwnd);
         }

@@ -30,7 +30,7 @@ Panopticon is useful when you want to:
 - **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
 - **Grouping and filters** by app, monitor, title, class, and tag.
 - **Tray utility + appbar/dock mode** for always-available workflows.
-- **Themes, background images with fit modes, animations, customizable shortcuts, profiles, and persistence** through local TOML files.
+- **Themes, background images with fit modes + opacity, animations, customizable shortcuts, profiles, and persistence** through local TOML files.
 - **Bilingual UI** with English and Spanish support.
 
 ## Quick start
@@ -91,7 +91,8 @@ These are the **default** bindings. You can rebind the dashboard/global shortcut
 | `H` | Show/hide status bar |
 | `I` | Show/hide window metadata |
 | `P` | Toggle always-on-top |
-| `T` | Change theme |
+| `T` | Next theme |
+| `Shift` + `T` | Previous theme |
 | `O` | Open settings |
 | `F1` | Open About window |
 | `M` | Open application menu |

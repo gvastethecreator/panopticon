@@ -50,6 +50,7 @@ show_window_info = true
 start_in_tray = false
 background_image_path = "C:\\wallpapers\\workspace.png"
 background_image_fit = "cover"
+background_image_opacity_pct = 25
 locked_layout = false
 lock_cell_resize = false
 show_app_icons = true
@@ -124,6 +125,7 @@ row_ratios = [0.4, 0.6]
 | `start_in_tray` | `bool` | `false` | starts hidden | releases thumbnails before hiding |
 | `background_image_path` | `Option<String>` | `None` | draws an image behind the dashboard | silently cleared on load failure |
 | `background_image_fit` | `BackgroundImageFit` | `Cover` | scales the dashboard background image | values: `cover`, `contain`, `fill`, `preserve` |
+| `background_image_opacity_pct` | `u8` | `25` | controls the dashboard background-image opacity | clamped to `0..=100`; `0` keeps the file configured but makes it visually transparent |
 | `locked_layout` | `bool` | `false` | locks layout changes | disables shortcuts and menu-driven layout changes |
 | `lock_cell_resize` | `bool` | `false` | locks separator dragging | can coexist with `locked_layout` |
 | `show_app_icons` | `bool` | `true` | shows icons on cards | uses cache + GDI rasterisation |
@@ -163,6 +165,7 @@ alt_toggles_toolbar = true
 Important notes:
 
 - dashboard bindings are **single keys** or the named special keys `Tab`, `Esc`, `Enter`, and `Space`;
+- `cycle_theme = "T"` moves forward, while pressing `Shift+T` at runtime cycles back to the previous theme;
 - invalid dashboard expressions such as `Ctrl+T` are normalised back to the default binding;
 - `global_activate` is optional, accepts `Ctrl` / `Alt` / `Shift` plus a final key such as `P`, `Space`, or `F12`, and clearing it disables the global hotkey;
 - `alt_toggles_toolbar` is a separate compatibility switch for the Win32 `Alt` status-bar toggle and is not part of the general shortcut parser.

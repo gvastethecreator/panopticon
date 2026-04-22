@@ -29,10 +29,15 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_show_app_icons_setting(settings.show_app_icons);
     window.set_theme_index(theme::theme_index(settings.theme_id.as_deref()));
     window.set_bg_color_hex(SharedString::from(&settings.background_color_hex));
+    let (bg_red, bg_green, bg_blue) = rgb_components_from_hex(&settings.background_color_hex);
+    window.set_bg_red_value(i32::from(bg_red));
+    window.set_bg_green_value(i32::from(bg_green));
+    window.set_bg_blue_value(i32::from(bg_blue));
     let next_bg_image_path = settings.background_image_path.as_deref().unwrap_or("");
     let previous_bg_image_path = window.get_bg_image_path().to_string();
     window.set_bg_image_path(SharedString::from(next_bg_image_path));
     window.set_bg_image_fit_index(background_fit_to_index(settings.background_image_fit));
+    window.set_bg_image_opacity_value(i32::from(settings.background_image_opacity_pct));
     window.set_fixed_width_value(settings.fixed_width.unwrap_or(0) as i32);
     window.set_fixed_height_value(settings.fixed_height.unwrap_or(0) as i32);
     window.set_refresh_index(refresh_to_index(settings.refresh_interval_ms));
@@ -97,8 +102,15 @@ pub fn apply_settings_window_changes(
     settings.locked_layout = window.get_locked_layout_setting();
     settings.lock_cell_resize = window.get_lock_cell_resize_setting();
     settings.show_app_icons = window.get_show_app_icons_setting();
-    settings.theme_id = theme::theme_id_by_index(window.get_theme_index());
-    settings.background_color_hex = window.get_bg_color_hex().to_string();
+    let next_theme_id = theme::theme_id_by_index(window.get_theme_index());
+    let theme_changed = settings.theme_id != next_theme_id;
+    settings.theme_id = next_theme_id;
+    let requested_bg_hex = window.get_bg_color_hex().to_string();
+    settings.background_color_hex = if theme_changed && settings.theme_id.is_some() {
+        theme::theme_base_background_hex(settings.theme_id.as_deref(), &requested_bg_hex)
+    } else {
+        requested_bg_hex
+    };
     let img_path = window.get_bg_image_path().to_string();
     settings.background_image_path = if img_path.is_empty() {
         None
@@ -106,6 +118,7 @@ pub fn apply_settings_window_changes(
         Some(img_path)
     };
     settings.background_image_fit = index_to_background_fit(window.get_bg_image_fit_index());
+    settings.background_image_opacity_pct = window.get_bg_image_opacity_value().clamp(0, 100) as u8;
 
     let fixed_width = window.get_fixed_width_value();
     settings.fixed_width = if fixed_width > 0 {
@@ -270,6 +283,14 @@ fn hex_to_color(hex: &str) -> slint::Color {
     let green = u8::from_str_radix(sanitized.get(2..4).unwrap_or("9A"), 16).unwrap_or(0x9A);
     let blue = u8::from_str_radix(sanitized.get(4..6).unwrap_or("5C"), 16).unwrap_or(0x5C);
     slint::Color::from_rgb_u8(red, green, blue)
+}
+
+fn rgb_components_from_hex(hex: &str) -> (u8, u8, u8) {
+    let sanitized = hex.trim().trim_start_matches('#');
+    let red = u8::from_str_radix(sanitized.get(0..2).unwrap_or("18"), 16).unwrap_or(0x18);
+    let green = u8::from_str_radix(sanitized.get(2..4).unwrap_or("15"), 16).unwrap_or(0x15);
+    let blue = u8::from_str_radix(sanitized.get(4..6).unwrap_or("13"), 16).unwrap_or(0x13);
+    (red, green, blue)
 }
 
 fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {

@@ -92,12 +92,18 @@ pub fn theme_presets() -> &'static [ThemePreset] {
 
 #[must_use]
 pub fn resolve_ui_theme(theme_id: Option<&str>, fallback_background_hex: &str) -> UiTheme {
-    theme_id
-        .and_then(|id| theme_presets().iter().find(|preset| preset.id == id))
-        .map_or_else(
-            || classic_theme(fallback_background_hex),
-            |preset| preset.ui.clone(),
-        )
+    theme_id.and_then(resolve_preset_ui_theme).map_or_else(
+        || classic_theme(fallback_background_hex),
+        |preset| theme_with_background_override(&preset, fallback_background_hex),
+    )
+}
+
+#[must_use]
+pub fn theme_base_background_hex(theme_id: Option<&str>, fallback_background_hex: &str) -> String {
+    theme_id.and_then(resolve_preset_ui_theme).map_or_else(
+        || classic_theme(fallback_background_hex).bg_hex,
+        |preset| preset.bg_hex,
+    )
 }
 
 /// Pre-parsed RGB representation of a `UiTheme` for fast interpolation.
@@ -251,6 +257,13 @@ impl ThemePreset {
     }
 }
 
+fn resolve_preset_ui_theme(theme_id: &str) -> Option<UiTheme> {
+    theme_presets()
+        .iter()
+        .find(|preset| preset.id == theme_id)
+        .map(|preset| preset.ui.clone())
+}
+
 fn theme_catalog_id(name: &str, variant: &str) -> String {
     let mut parts = vec![slugify_theme_part(name)];
     let variant = slugify_theme_part(variant);
@@ -300,6 +313,50 @@ fn classic_theme(fallback_background_hex: &str) -> UiTheme {
         placeholder_hex: "141210".to_owned(),
         footer_bg_hex: "1A1814".to_owned(),
         surface_hex: "221E1C".to_owned(),
+    }
+}
+
+fn theme_with_background_override(base: &UiTheme, background_hex: &str) -> UiTheme {
+    let bg = parse_hex_rgb(background_hex)
+        .or_else(|| parse_hex_rgb(&base.bg_hex))
+        .unwrap_or(Rgb {
+            r: 0x18,
+            g: 0x15,
+            b: 0x13,
+        });
+    let fg = parse_hex_rgb(&base.text_hex).unwrap_or(Rgb {
+        r: 0xE6,
+        g: 0xE2,
+        b: 0xDE,
+    });
+    let accent = parse_hex_rgb(&base.accent_hex).unwrap_or(Rgb {
+        r: 0xD2,
+        g: 0x9A,
+        b: 0x5C,
+    });
+    let placeholder_seed = parse_hex_rgb(&base.placeholder_hex).unwrap_or(bg);
+
+    UiTheme {
+        id: base.id.clone(),
+        label: base.label.clone(),
+        bg_hex: to_hex(bg),
+        toolbar_bg_hex: to_hex(elevate(bg, 0.03)),
+        panel_bg_hex: to_hex(elevate(bg, 0.08)),
+        card_bg_hex: to_hex(elevate(bg, 0.05)),
+        border_hex: to_hex(mix(bg, fg, 0.22)),
+        accent_hex: to_hex(accent),
+        accent_soft_hex: to_hex(mix(bg, accent, 0.34)),
+        text_hex: to_hex(fg),
+        label_hex: to_hex(mix(bg, fg, 0.78)),
+        muted_hex: to_hex(mix(bg, fg, 0.56)),
+        hover_border_hex: to_hex(accent),
+        placeholder_hex: to_hex(if is_dark(bg) {
+            mix(bg, placeholder_seed, 0.55)
+        } else {
+            mix(bg, placeholder_seed, 0.35)
+        }),
+        footer_bg_hex: to_hex(elevate(bg, 0.025)),
+        surface_hex: to_hex(elevate(bg, 0.04)),
     }
 }
 
@@ -420,6 +477,15 @@ mod tests {
         let theme = resolve_ui_theme(Some("missing"), "181513");
         assert_eq!(theme.label, "Classic Panopticon");
         assert_eq!(theme.bg_hex, "181513");
+    }
+
+    #[test]
+    fn bundled_theme_uses_override_background_color() {
+        let bundled = theme_presets().first().expect("bundled theme exists");
+        let resolved = resolve_ui_theme(Some(&bundled.id), "224466");
+
+        assert_eq!(resolved.bg_hex, "224466");
+        assert_eq!(resolved.accent_hex, bundled.ui.accent_hex);
     }
 
     #[test]

@@ -16,6 +16,7 @@ use crate::layout::{LayoutCustomization, LayoutType};
 const DEFAULT_REFRESH_INTERVAL_MS: u32 = 2_000;
 const REFRESH_INTERVALS_MS: [u32; 4] = [1_000, 2_000, 5_000, 10_000];
 const DEFAULT_BACKGROUND_COLOR_HEX: &str = "181513";
+const DEFAULT_BACKGROUND_IMAGE_OPACITY_PCT: u8 = 25;
 const DEFAULT_TAG_COLOR_HEX: &str = "D29A5C";
 const DEFAULT_SHORTCUT_LAYOUT_GRID: &str = "1";
 const DEFAULT_SHORTCUT_LAYOUT_MOSAIC: &str = "2";
@@ -456,6 +457,9 @@ pub struct AppSettings {
     /// How the optional background image should be fitted into the dashboard.
     #[serde(default)]
     pub background_image_fit: BackgroundImageFit,
+    /// Opacity percentage used when rendering the optional background image.
+    #[serde(default = "default_background_image_opacity_pct")]
+    pub background_image_opacity_pct: u8,
     /// Per-layout custom resize ratios (column/row proportions).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub layout_customizations: BTreeMap<String, LayoutCustomization>,
@@ -502,6 +506,7 @@ impl Default for AppSettings {
             start_in_tray: false,
             background_image_path: None,
             background_image_fit: BackgroundImageFit::default(),
+            background_image_opacity_pct: default_background_image_opacity_pct(),
             layout_customizations: BTreeMap::new(),
             locked_layout: false,
             lock_cell_resize: false,
@@ -581,6 +586,18 @@ impl AppSettings {
             }
         }
         profiles.sort();
+        profiles.dedup();
+        Ok(profiles)
+    }
+
+    /// Return all profile labels, always including the implicit `default` one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the named-profile directory cannot be enumerated.
+    pub fn list_profiles_with_default() -> Result<Vec<String>> {
+        let mut profiles = Self::list_profiles()?;
+        profiles.insert(0, "default".to_owned());
         profiles.dedup();
         Ok(profiles)
     }
@@ -1112,6 +1129,7 @@ impl AppSettings {
             start_in_tray: self.start_in_tray,
             background_image_path: self.background_image_path.clone(),
             background_image_fit: self.background_image_fit,
+            background_image_opacity_pct: self.background_image_opacity_pct.min(100),
             layout_customizations: self.layout_customizations.clone(),
             locked_layout: self.locked_layout,
             lock_cell_resize: self.lock_cell_resize,
@@ -1148,6 +1166,10 @@ impl AppSettings {
 
         rule
     }
+}
+
+const fn default_background_image_opacity_pct() -> u8 {
+    DEFAULT_BACKGROUND_IMAGE_OPACITY_PCT
 }
 
 fn normalize_filter_value(value: &str) -> Option<String> {
@@ -1421,6 +1443,7 @@ mod tests {
             start_in_tray: false,
             background_image_path: None,
             background_image_fit: BackgroundImageFit::Contain,
+            background_image_opacity_pct: 42,
             layout_customizations: std::collections::BTreeMap::default(),
             locked_layout: false,
             lock_cell_resize: false,
@@ -1463,6 +1486,7 @@ mod tests {
             start_in_tray: false,
             background_image_path: None,
             background_image_fit: BackgroundImageFit::default(),
+            background_image_opacity_pct: 255,
             layout_customizations: std::collections::BTreeMap::default(),
             locked_layout: false,
             lock_cell_resize: false,
@@ -1472,6 +1496,7 @@ mod tests {
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);
         assert_eq!(settings.normalized().background_color_hex, "181513");
+        assert_eq!(settings.normalized().background_image_opacity_pct, 100);
         assert_eq!(settings.normalized().theme_id.as_deref(), Some("work"));
     }
 

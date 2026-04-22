@@ -10,8 +10,8 @@ use slint::{ComponentHandle, LogicalSize};
 use windows::Win32::Foundation::HWND;
 
 use super::dock::{
-    apply_dock_mode, apply_topmost_mode, apply_window_appearance, sync_dock_system_menu,
-    unregister_appbar,
+    apply_dock_mode, apply_topmost_mode, apply_window_appearance, center_window_on_owner_monitor,
+    sync_dock_system_menu, unregister_appbar,
 };
 use super::dwm::release_thumbnail;
 use super::global_hotkey;
@@ -59,6 +59,9 @@ pub(crate) fn try_initialize_native_runtime(
     apply_window_appearance(hwnd, &settings_snapshot);
     apply_topmost_mode(hwnd, settings_snapshot.always_on_top);
     let _ = apply_configured_main_window_size(win, &settings_snapshot);
+    if settings_snapshot.dock_edge.is_none() {
+        center_window_on_owner_monitor(hwnd, HWND::default());
+    }
     sync_dock_system_menu(hwnd, settings_snapshot.dock_edge.is_some());
 
     {
