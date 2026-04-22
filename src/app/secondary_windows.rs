@@ -23,6 +23,7 @@ use super::dock::{
 use super::global_hotkey;
 use super::native_runtime::apply_configured_main_window_size;
 use super::settings_ui::{apply_settings_window_changes, populate_settings_window};
+use super::startup;
 use super::theme_ui::{
     apply_about_window_theme_snapshot, apply_main_window_theme_snapshot,
     apply_settings_window_theme_snapshot, apply_tag_dialog_theme_snapshot,
@@ -200,15 +201,16 @@ pub(crate) fn open_settings_window(
         let state = state.clone();
         let main_weak = main_weak.clone();
         move || {
-            let (hwnd, settings_snapshot) = {
+            let (hwnd, settings_snapshot, profile_name) = {
                 let mut state = state.borrow_mut();
                 let profile = state.profile_name.clone();
                 state.settings = AppSettings::default();
                 state.settings = state.settings.normalized();
-                state.current_layout = state.settings.initial_layout;
+                state.current_layout = state.settings.effective_layout();
                 let _ = state.settings.save(profile.as_deref());
-                (state.hwnd, state.settings.clone())
+                (state.hwnd, state.settings.clone(), profile)
             };
+            startup::sync_run_at_startup(settings_snapshot.run_at_startup, profile_name.as_deref());
             global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
             crate::SETTINGS_WIN.with(|handle| {
                 let guard = handle.borrow();
@@ -367,11 +369,10 @@ pub(crate) fn open_settings_window(
                 let mut state_guard = state.borrow_mut();
                 let prev_dock_edge = state_guard.settings.dock_edge;
                 let prev_language = state_guard.settings.language;
-                let layout =
-                    apply_settings_window_changes(settings_window, &mut state_guard.settings);
+                apply_settings_window_changes(settings_window, &mut state_guard.settings);
                 apply_runtime_settings_window_changes(settings_window, &mut state_guard.settings);
-                state_guard.current_layout = layout;
                 state_guard.settings = state_guard.settings.normalized();
+                state_guard.current_layout = state_guard.settings.effective_layout();
                 let _ = state_guard
                     .settings
                     .save(state_guard.profile_name.as_deref());
@@ -398,6 +399,10 @@ pub(crate) fn open_settings_window(
                 }
 
                 drop(state_guard);
+                startup::sync_run_at_startup(
+                    settings_clone.run_at_startup,
+                    profile_name.as_deref(),
+                );
                 global_hotkey::sync_activate_hotkey(hwnd, &settings_clone);
                 let _ = crate::refresh_windows(&state);
                 if locale_changed {
@@ -821,7 +826,7 @@ pub(crate) fn load_profile_into_current_instance(
         }
     };
 
-    let (hwnd, previous_language, settings_snapshot) = {
+    let (hwnd, previous_language, settings_snapshot, profile_name) = {
         let mut guard = state.borrow_mut();
         let previous_language = guard.settings.language;
         if guard.is_appbar {
@@ -830,16 +835,22 @@ pub(crate) fn load_profile_into_current_instance(
         }
         guard.profile_name = requested_profile;
         guard.settings = loaded_settings;
-        guard.current_layout = guard.settings.initial_layout;
+        guard.current_layout = guard.settings.effective_layout();
         guard.loaded_background_path = None;
         guard.current_theme = theme_catalog::resolve_ui_theme(
             guard.settings.theme_id.as_deref(),
             &guard.settings.background_color_hex,
         );
         guard.theme_animation = None;
-        (guard.hwnd, previous_language, guard.settings.clone())
+        (
+            guard.hwnd,
+            previous_language,
+            guard.settings.clone(),
+            guard.profile_name.clone(),
+        )
     };
 
+    startup::sync_run_at_startup(settings_snapshot.run_at_startup, profile_name.as_deref());
     global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
     apply_window_appearance(hwnd, &settings_snapshot);
 

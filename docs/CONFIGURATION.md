@@ -42,15 +42,19 @@ group_windows_by = "application"
 fixed_width = 320
 fixed_height = 220
 dock_edge = "left"
+dock_column_thickness = 320
+dock_row_thickness = 180
 theme_id = "nord"
 background_color_hex = "181513"
 use_system_backdrop = true
 show_toolbar = true
 show_window_info = true
 start_in_tray = false
+run_at_startup = false
 background_image_path = "C:\\wallpapers\\workspace.png"
 background_image_fit = "cover"
 background_image_opacity_pct = 25
+thumbnail_render_scale_pct = 100
 locked_layout = false
 lock_cell_resize = false
 show_app_icons = true
@@ -114,18 +118,22 @@ row_ratios = [0.4, 0.6]
 | `active_tag_filter` | `Option<String>` | `None` | filters windows by tag | mutually exclusive with `active_app_filter` |
 | `active_app_filter` | `Option<String>` | `None` | filters windows by app | mutually exclusive with `active_tag_filter` |
 | `group_windows_by` | `WindowGrouping` | `None` | reorders visible windows | does not filter; only groups/sorts |
-| `fixed_width` | `Option<u32>` | `None` | lateral dock thickness or floating window width | when undocked and set, it resizes the main window width at runtime |
-| `fixed_height` | `Option<u32>` | `None` | top/bottom dock thickness or floating window height | when undocked and set, it resizes the main window height at runtime |
-| `dock_edge` | `Option<DockEdge>` | `None` | activates appbar mode | values: `left`, `right`, `top`, `bottom` |
+| `fixed_width` | `Option<u32>` | `None` | floating window width | when undocked and set, it resizes the main window width at runtime |
+| `fixed_height` | `Option<u32>` | `None` | floating window height | when undocked and set, it resizes the main window height at runtime |
+| `dock_edge` | `Option<DockEdge>` | `None` | activates appbar mode | values: `left`, `right`, `top`, `bottom`; runtime forces `Column` on left/right and `Row` on top/bottom |
+| `dock_column_thickness` | `Option<u32>` | `None` | dock thickness for left/right mode | `0` or `None` keeps the width automatic |
+| `dock_row_thickness` | `Option<u32>` | `None` | dock thickness for top/bottom mode | `0` or `None` keeps the height automatic |
 | `theme_id` | `Option<String>` | `None` | selects a preset from `assets/themes.json` | `None` = classic theme |
 | `background_color_hex` | `String` | `181513` | base client colour | also participates in the classic theme fallback |
 | `use_system_backdrop` | `bool` | `true` | backdrop + rounded corners on Windows 11 | via `DwmSetWindowAttribute` |
 | `show_toolbar` | `bool` | `true` | show/hide the bottom status bar | also changes the usable viewport area |
 | `show_window_info` | `bool` | `true` | shows title/app on the thumbnail | affects the usable thumbnail height |
 | `start_in_tray` | `bool` | `false` | starts hidden | releases thumbnails before hiding |
+| `run_at_startup` | `bool` | `false` | registers Panopticon in the current user Windows startup sequence | implemented through `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` |
 | `background_image_path` | `Option<String>` | `None` | draws an image behind the dashboard | silently cleared on load failure |
 | `background_image_fit` | `BackgroundImageFit` | `Cover` | scales the dashboard background image | values: `cover`, `contain`, `fill`, `preserve` |
 | `background_image_opacity_pct` | `u8` | `25` | controls the dashboard background-image opacity | clamped to `0..=100`; `0` keeps the file configured but makes it visually transparent |
+| `thumbnail_render_scale_pct` | `u8` | `100` | reduces DWM thumbnail destination size to trade sharpness for performance | clamped to `50..=100` |
 | `locked_layout` | `bool` | `false` | locks layout changes | disables shortcuts and menu-driven layout changes |
 | `lock_cell_resize` | `bool` | `false` | locks separator dragging | can coexist with `locked_layout` |
 | `show_app_icons` | `bool` | `true` | shows icons on cards | uses cache + GDI rasterisation |
@@ -288,7 +296,10 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 ### Dock
 
 - if `dock_edge` is active, `hide_on_select_for(app)` returns `false` at runtime even if an override exists;
-- `fixed_width` / `fixed_height` act as dock thickness while docked and as requested floating size while undocked.
+- when `dock_edge` is `left` or `right`, the effective runtime layout is forced to `Column`;
+- when `dock_edge` is `top` or `bottom`, the effective runtime layout is forced to `Row`;
+- `fixed_width` / `fixed_height` are now reserved for floating mode sizing;
+- `dock_column_thickness` only applies to left/right dock mode and `dock_row_thickness` only applies to top/bottom dock mode.
 
 ### Themes
 

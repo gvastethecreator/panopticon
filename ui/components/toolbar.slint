@@ -1,5 +1,45 @@
 import { Tr, Theme } from "../common.slint";
 
+component ToolbarChip inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <color> tint: Theme.label;
+    in property <bool> emphasized: false;
+    in property <bool> stretch: false;
+
+    height: 28px;
+    border-radius: 14px;
+    border-width: 1px;
+    border-color: root.emphasized ? Theme.accent.with-alpha(48%) : Theme.border.with-alpha(56%);
+    background: root.emphasized ? Theme.accent-soft.with-alpha(34%) : Theme.surface.with-alpha(42%);
+    horizontal-stretch: root.stretch ? 1 : 0;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 7px;
+        alignment: start;
+
+        Image {
+            width: 14px;
+            height: 14px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: root.tint;
+        }
+
+        Text {
+            text: root.label;
+            color: Theme.text;
+            font-size: 11px;
+            font-weight: root.emphasized ? 700 : 500;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+    }
+}
+
 export component Toolbar inherits Rectangle {
     in property <string> layout-label;
     in property <int> window-count;
@@ -12,7 +52,17 @@ export component Toolbar inherits Rectangle {
     callback clicked();
     callback context-menu-requested(/* x */ float, /* y */ float);
 
-    height: 48px;
+    property <bool> compact: root.width < 820px;
+    property <bool> narrow: root.width < 560px;
+    property <bool> ultra-compact: root.width < 390px;
+
+    property <string> visible-summary: root.window-count + " " + Tr.visible-label;
+    property <string> hidden-summary: root.hidden-count + " " + Tr.hidden-label;
+    property <string> status-summary: root.always-on-top ? Tr.always-on-top-label : Tr.normal-window-label;
+    property <string> animation-summary: root.animate-transitions ? Tr.anim-on : Tr.anim-off;
+    property <string> hint-summary: Tr.toolbar-hint;
+
+    height: root.ultra-compact ? 118px : root.compact ? 72px : 44px;
     background: Theme.toolbar-bg;
 
     Rectangle {
@@ -31,32 +81,213 @@ export component Toolbar inherits Rectangle {
         }
     }
 
-    HorizontalLayout {
+    if !root.compact: HorizontalLayout {
         padding-left: 14px;
         padding-right: 14px;
         spacing: 12px;
         alignment: space-between;
 
-        Text {
-            text: root.layout-label + "  |  " + root.window-count + " " + Tr.visible-label + "  |  "
-                + root.hidden-count + " " + Tr.hidden-label + "  |  " + root.refresh-label
-                + (root.filters-label != "" ? ("  |  " + root.filters-label) : "");
-            color: Theme.text;
-            vertical-alignment: center;
-            font-size: 13px;
-            overflow: elide;
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
             horizontal-stretch: 1;
-            horizontal-alignment: left;
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                label: root.layout-label;
+                tint: Theme.accent;
+                emphasized: true;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-visibility.svg");
+                label: root.visible-summary;
+                tint: Theme.text;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
+                label: root.hidden-summary;
+                tint: Theme.muted;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                label: root.refresh-label;
+                tint: Theme.accent;
+            }
+
+            if root.filters-label != "": ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                label: root.filters-label;
+                tint: Theme.label;
+                stretch: true;
+            }
         }
 
-        Text {
-            text: (root.always-on-top ? Tr.always-on-top-label : Tr.normal-window-label) + "  |  "
-                  + (root.animate-transitions ? Tr.anim-on : Tr.anim-off)
-                + "  |  " + Tr.toolbar-hint;
-            color: Theme.muted;
-            vertical-alignment: center;
-            font-size: 12px;
-            horizontal-alignment: right;
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: end;
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-always-on-top.svg");
+                label: root.status-summary;
+                tint: root.always-on-top ? Theme.accent : Theme.label;
+                emphasized: root.always-on-top;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-animate.svg");
+                label: root.animation-summary;
+                tint: root.animate-transitions ? Theme.accent : Theme.muted;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-menu.svg");
+                label: root.hint-summary;
+                tint: Theme.muted;
+            }
+        }
+    }
+
+    if root.compact && !root.ultra-compact: VerticalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+        spacing: 6px;
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                label: root.layout-label;
+                tint: Theme.accent;
+                emphasized: true;
+                stretch: true;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                label: root.refresh-label;
+                tint: Theme.accent;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-always-on-top.svg");
+                label: root.status-summary;
+                tint: root.always-on-top ? Theme.accent : Theme.label;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-visibility.svg");
+                label: root.visible-summary;
+                tint: Theme.text;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
+                label: root.hidden-summary;
+                tint: Theme.muted;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-animate.svg");
+                label: root.animation-summary;
+                tint: root.animate-transitions ? Theme.accent : Theme.muted;
+            }
+
+            if root.filters-label != "": ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                label: root.filters-label;
+                tint: Theme.label;
+                stretch: true;
+            }
+
+            if root.filters-label == "": ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-menu.svg");
+                label: root.hint-summary;
+                tint: Theme.muted;
+                stretch: true;
+            }
+        }
+    }
+
+    if root.ultra-compact: VerticalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        spacing: 6px;
+
+        HorizontalLayout {
+            spacing: 6px;
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                label: root.layout-label;
+                tint: Theme.accent;
+                emphasized: true;
+                stretch: true;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                label: root.refresh-label;
+                tint: Theme.accent;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 6px;
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-visibility.svg");
+                label: root.visible-summary;
+                tint: Theme.text;
+                stretch: true;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
+                label: root.hidden-summary;
+                tint: Theme.muted;
+                stretch: true;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 6px;
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-always-on-top.svg");
+                label: root.status-summary;
+                tint: root.always-on-top ? Theme.accent : Theme.label;
+                stretch: true;
+            }
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/option-animate.svg");
+                label: root.animation-summary;
+                tint: root.animate-transitions ? Theme.accent : Theme.muted;
+                stretch: true;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 6px;
+
+            ToolbarChip {
+                icon: @image-url("../../assets/ui-icons/section-filter.svg");
+                label: root.filters-label != "" ? root.filters-label : root.hint-summary;
+                tint: Theme.muted;
+                stretch: true;
+            }
         }
     }
 }

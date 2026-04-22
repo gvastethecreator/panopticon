@@ -311,6 +311,16 @@ where
     );
     set_tr!(
         tr,
+        set_settings_option_run_at_startup_title,
+        "settings.option.run_at_startup.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_run_at_startup_description,
+        "settings.option.run_at_startup.description"
+    );
+    set_tr!(
+        tr,
         set_settings_option_lock_layout_title,
         "settings.option.lock_layout.title"
     );
@@ -848,6 +858,11 @@ where
     );
     set_tr!(
         tr,
+        set_settings_option_default_layout_docked_description,
+        "settings.option.default_layout.docked_description"
+    );
+    set_tr!(
+        tr,
         set_settings_option_refresh_interval_title,
         "settings.option.refresh_interval.title"
     );
@@ -875,6 +890,26 @@ where
         tr,
         set_settings_section_dock_thickness_helper,
         "settings.section.dock_thickness.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_floating_window_size_title,
+        "settings.section.floating_window_size.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_floating_window_size_helper,
+        "settings.section.floating_window_size.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_thumbnail_render_scale_title,
+        "settings.option.thumbnail_render_scale.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_thumbnail_render_scale_description,
+        "settings.option.thumbnail_render_scale.description"
     );
     set_tr!(tr, set_settings_width_label, "settings.label.width");
     set_tr!(tr, set_settings_height_label, "settings.label.height");
@@ -986,6 +1021,7 @@ fn run_app(profile: Option<String>) {
         tracing::error!(%error, "settings load failed; using defaults");
         AppSettings::default()
     });
+    app::startup::sync_run_at_startup(settings.run_at_startup, profile.as_deref());
     panopticon::i18n::init(settings.language);
     app::secondary_windows::ensure_default_profiles_exist(&settings);
 
@@ -1010,7 +1046,7 @@ fn run_app(profile: Option<String>) {
     let state = Rc::new(RefCell::new(AppState {
         hwnd: HWND::default(),
         windows: Vec::new(),
-        current_layout: settings.initial_layout,
+        current_layout: settings.effective_layout(),
         active_hwnd: None,
         tray_icon: None,
         icons,
@@ -1314,13 +1350,14 @@ pub(crate) fn update_settings(
     state: &Rc<RefCell<AppState>>,
     mutate: impl FnOnce(&mut AppSettings),
 ) {
-    let (hwnd, settings_snapshot) = {
+    let (hwnd, settings_snapshot, profile_name) = {
         let mut s = state.borrow_mut();
         mutate(&mut s.settings);
         s.settings = s.settings.normalized();
         let _ = s.settings.save(s.profile_name.as_deref());
-        (s.hwnd, s.settings.clone())
+        (s.hwnd, s.settings.clone(), s.profile_name.clone())
     };
+    app::startup::sync_run_at_startup(settings_snapshot.run_at_startup, profile_name.as_deref());
     app::global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
 }
 

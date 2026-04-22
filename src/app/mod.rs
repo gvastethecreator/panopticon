@@ -11,6 +11,7 @@ pub mod model_sync;
 pub mod native_runtime;
 pub mod secondary_windows;
 pub mod settings_ui;
+pub mod startup;
 pub mod theme_ui;
 pub mod thumbnail_interactions;
 pub mod tray;

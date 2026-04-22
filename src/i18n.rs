@@ -296,6 +296,10 @@ fn en(key: &str) -> &'static str {
         "settings.option.start_in_tray.description" => {
             "Launch directly in the background for a quieter startup."
         }
+        "settings.option.run_at_startup.title" => "Run at startup",
+        "settings.option.run_at_startup.description" => {
+            "Register Panopticon in the current Windows session so it launches automatically when you sign in."
+        }
         "settings.option.lock_layout.title" => "Lock layout changes",
         "settings.option.lock_layout.description" => {
             "Prevent layout changes from the keyboard or the application menu."
@@ -501,6 +505,9 @@ fn en(key: &str) -> &'static str {
         "settings.option.default_layout.description" => {
             "Choose which layout Panopticon should use each time this profile starts."
         }
+        "settings.option.default_layout.docked_description" => {
+            "Dock mode automatically uses Column on the sides and Row on the top or bottom, so this selector only applies while floating."
+        }
         "settings.option.refresh_interval.title" => "Refresh interval",
         "settings.option.refresh_interval.description" => {
             "Base cadence for enumerating windows and refreshing the dashboard when you do not force a manual refresh."
@@ -512,6 +519,14 @@ fn en(key: &str) -> &'static str {
         "settings.section.dock_thickness.title" => "Dock thickness",
         "settings.section.dock_thickness.helper" => {
             "For a side dock, width is used; for top/bottom, height is used. 0 leaves the size automatic."
+        }
+        "settings.section.floating_window_size.title" => "Floating window size",
+        "settings.section.floating_window_size.helper" => {
+            "When dock mode is disabled, these values define the default width and height used by the floating window."
+        }
+        "settings.option.thumbnail_render_scale.title" => "Thumbnail render scale",
+        "settings.option.thumbnail_render_scale.description" => {
+            "Lower values reduce thumbnail rendering size to improve performance, at the cost of preview sharpness."
         }
         "settings.label.width" => "Width",
         "settings.label.height" => "Height",
@@ -797,6 +812,10 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.option.start_in_tray.description" => {
             "Inicia directamente en segundo plano para un arranque más silencioso."
         }
+        "settings.option.run_at_startup.title" => "Ejecutar al iniciar",
+        "settings.option.run_at_startup.description" => {
+            "Registra Panopticon en la sesión actual de Windows para que se inicie automáticamente al entrar al sistema."
+        }
         "settings.option.lock_layout.title" => "Bloquear cambios de layout",
         "settings.option.lock_layout.description" => {
             "Bloquea cambios de layout por teclado o desde el menú de la aplicación."
@@ -1002,6 +1021,9 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.option.default_layout.description" => {
             "Define con qué layout debe arrancar Panopticon cada vez que abras este perfil."
         }
+        "settings.option.default_layout.docked_description" => {
+            "El modo dock usa automáticamente Column en los laterales y Row en arriba o abajo, así que este selector sólo aplica en modo flotante."
+        }
         "settings.option.refresh_interval.title" => "Intervalo de refresco",
         "settings.option.refresh_interval.description" => {
             "Cadencia base para enumerar ventanas y actualizar el dashboard cuando no fuerzas un refresh manual."
@@ -1013,6 +1035,14 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.section.dock_thickness.title" => "Grosor del dock",
         "settings.section.dock_thickness.helper" => {
             "Para dock lateral se usa width; para top/bottom se usa height. 0 deja el tamaño en automático."
+        }
+        "settings.section.floating_window_size.title" => "Tamaño de ventana flotante",
+        "settings.section.floating_window_size.helper" => {
+            "Cuando el dock está desactivado, estos valores definen el ancho y alto por defecto de la ventana flotante."
+        }
+        "settings.option.thumbnail_render_scale.title" => "Escala de render de thumbnails",
+        "settings.option.thumbnail_render_scale.description" => {
+            "Valores menores reducen el tamaño de render de las miniaturas para mejorar rendimiento, a cambio de perder nitidez."
         }
         "settings.label.width" => "Ancho",
         "settings.label.height" => "Alto",
