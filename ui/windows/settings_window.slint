@@ -10,192 +10,276 @@ import {
 import { Tr, Theme, ThemePreviewData } from "../common.slint";
 
     component Divider inherits Rectangle {
-        height: 1px;
-        background: Theme.border.with-alpha(72%);
-    }
+    height: 1px;
+    background: Theme.border.with-alpha(72%);
+}
 
     component SidebarItem inherits Rectangle {
-        in property <string> label;
-        in property <string> subtext;
-        in property <image> icon;
-        in property <bool> active: false;
-        callback clicked();
+    in property <string> label;
+    in property <string> subtext;
+    in property <image> icon;
+    in property <bool> active: false;
+    callback clicked();
 
-        height: 34px;
-        border-radius: 4px;
-        border-width: 2px;
-        border-color: root.active ? Theme.accent.with-alpha(52%) : transparent;
-        background: root.active ? Theme.accent-soft.with-alpha(44%) : touch.has-hover ? Theme.surface.with-alpha(52%) : transparent;
+    height: 34px;
+    border-radius: 4px;
+    border-width: 2px;
+    border-color: root.active ? Theme.accent.with-alpha(52%) : transparent;
+    background: root.active ? Theme.accent-soft.with-alpha(44%) : touch.has-hover ? Theme.surface.with-alpha(52%) : transparent;
 
-        HorizontalLayout {
-            padding-left: 12px;
-            padding-right: 12px;
-            padding-top: 4px;
-            padding-bottom: 4px;
-            spacing: 10px;
-            alignment: start;
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: 10px;
+        alignment: start;
 
-            Image {
-                width: 24px;
-                height: 24px;
-                source: root.icon;
-                image-fit: contain;
-                colorize: root.active ? Theme.accent : Theme.muted;
-            }
-
-            VerticalLayout {
-                spacing: 1px;
-                alignment: start;
-                vertical-stretch: 1;
-                padding-top: 4px;
-
-                Text {
-                    text: root.label;
-                    color: root.active ? Theme.text : Theme.label;
-                    font-size: 14px;
-                    font-weight: root.active ? 650 : 500;
-                    overflow: elide;
-                }
-            }
+        Image {
+            width: 24px;
+            height: 24px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: root.active ? Theme.accent : Theme.muted;
         }
 
-        touch := TouchArea {
-            clicked => {
-                root.clicked();
+        VerticalLayout {
+            spacing: 1px;
+            alignment: start;
+            vertical-stretch: 1;
+            padding-top: 4px;
+
+            Text {
+                text: root.label;
+                color: root.active ? Theme.text : Theme.label;
+                font-size: 14px;
+                font-weight: root.active ? 650 : 500;
+                overflow: elide;
             }
         }
     }
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
 
     component PageHeader inherits Rectangle {
-        in property <image> icon;
-        in property <string> title;
-        in property <string> subtitle;
+    in property <image> icon;
+    in property <string> title;
+    in property <string> subtitle;
 
-        height: 55px;
-        border-radius: 0px;
-        background: transparent;
-        border-width: 0px;
-        border-color: transparent;
+    height: 55px;
+    border-radius: 0px;
+    background: transparent;
+    border-width: 0px;
+    border-color: transparent;
 
-        HorizontalLayout {
-            padding-left: 8px;
-            padding-right: 8px;
-            padding-top: 5px;
-            padding-bottom: 4px;
-            spacing: 10px;
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 5px;
+        padding-bottom: 4px;
+        spacing: 10px;
+        alignment: start;
+
+        Image {
+            width: 24px;
+            height: 24px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: Theme.accent;
+        }
+
+        VerticalLayout {
+            spacing: 3px;
             alignment: start;
+            vertical-stretch: 1;
 
-            Image {
-                width: 24px;
-                height: 24px;
-                source: root.icon;
-                image-fit: contain;
-                colorize: Theme.accent;
+            Text {
+                text: root.title;
+                color: Theme.text;
+                font-size: 18px;
+                font-weight: 500;
             }
 
-            VerticalLayout {
-                spacing: 3px;
-                alignment: start;
-                vertical-stretch: 1;
-
-                Text {
-                    text: root.title;
-                    color: Theme.text;
-                    font-size: 18px;
-                    font-weight: 500;
-                }
-
-                Text {
-                    text: root.subtitle;
-                    color: Theme.muted;
-                    font-size: 12px;
-                    wrap: word-wrap;
-                }
+            Text {
+                text: root.subtitle;
+                color: Theme.muted;
+                font-size: 12px;
+                wrap: word-wrap;
             }
         }
     }
+}
 
     component SectionTitle inherits Rectangle {
-        in property <image> icon;
-        in property <string> text;
-        in property <string> helper;
+    in property <image> icon;
+    in property <string> text;
+    in property <string> helper;
 
-        height: 42px;
-        background: transparent;
+    height: 42px;
+    background: transparent;
 
-        HorizontalLayout {
-            spacing: 10px;
-            padding: 8px;
+    HorizontalLayout {
+        spacing: 10px;
+        padding: 8px;
+        alignment: start;
+
+        Image {
+            width: 19px;
+            height: 19px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: Theme.accent;
+        }
+
+        VerticalLayout {
+            spacing: 1px;
             alignment: start;
+            vertical-stretch: 1;
 
-            Image {
-                width: 19px;
-                height: 19px;
-                source: root.icon;
-                image-fit: contain;
-                colorize: Theme.accent;
-            }
-
-            VerticalLayout {
-                spacing: 1px;
-                alignment: start;
-                vertical-stretch: 1;
-
-                Text {
-                    text: root.text;
-                    color: Theme.accent;
-                    font-size: 16px;
-                    font-weight: 400;
-                }
+            Text {
+                text: root.text;
+                color: Theme.accent;
+                font-size: 16px;
+                font-weight: 400;
             }
         }
     }
+}
 
     component ToggleSettingCard inherits Rectangle {
-        in property <image> icon;
-        in property <string> title;
-        in property <string> description;
-        in-out property <bool> checked: false;
-        in property <bool> enabled: true;
+    in property <image> icon;
+    in property <string> title;
+    in property <string> description;
+    in-out property <bool> checked: false;
+    in property <bool> enabled: true;
 
-        min-height: 44px;
-        border-radius: 0px;
-        border-width: 0px;
-        border-color: transparent;
-        background: transparent;
+    min-height: 44px;
+    border-radius: 0px;
+    border-width: 0px;
+    border-color: transparent;
+    background: transparent;
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 0px;
+        padding-bottom: 10px;
+        spacing: 15px;
+        alignment: start;
+
+        Image {
+            width: 22px;
+            height: 22px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: root.enabled ? Theme.label : Theme.muted;
+        }
+
+        CheckBox {
+            text: "";
+            checked <=> root.checked;
+            enabled: root.enabled;
+            height: 22px;
+        }
+
+        VerticalLayout {
+            spacing: 1px;
+            vertical-stretch: 1;
+
+            Text {
+                text: root.title;
+                color: root.enabled ? Theme.text : Theme.muted;
+                font-size: 14px;
+                font-weight: 400;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: root.description;
+                color: Theme.muted;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+    component SelectSettingCard inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> description;
+    in property <[string]> options: [];
+    in-out property <int> selected-index: 0;
+    in property <bool> enabled: true;
+
+    min-height: 30px;
+    border-radius: 0px;
+    border-width: 0px;
+    border-color: transparent;
+    background: transparent;
+
+    VerticalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 2px;
+        padding-bottom: 4px;
+        spacing: 8px;
+
+        ComboBox {
+            width: 140px;
+            height: 26px;
+            model: root.options;
+            current-index <=> root.selected-index;
+            enabled: root.enabled;
+        }
+    }
+}
+
+    component SelectSettingPanel inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> description;
+    in property <[string]> options: [];
+    in-out property <int> selected-index: 0;
+    in property <bool> enabled: true;
+    in property <length> combo-width: 220px;
+
+    min-height: 96px;
+    border-radius: 14px;
+    border-width: 1px;
+    border-color: Theme.border.with-alpha(72%);
+    background: Theme.card-bg.with-alpha(92%);
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 10px;
 
         HorizontalLayout {
-            padding-left: 8px;
-            padding-right: 8px;
-            padding-top: 0px;
-            padding-bottom: 10px;
-            spacing: 15px;
+            spacing: 10px;
             alignment: start;
 
             Image {
-                width: 22px;
-                height: 22px;
+                width: 20px;
+                height: 20px;
                 source: root.icon;
                 image-fit: contain;
-                colorize: root.enabled ? Theme.label : Theme.muted;
-            }
-
-            CheckBox {
-                text: "";
-                checked <=> root.checked;
-                enabled: root.enabled;
-                height: 22px;
+                colorize: root.enabled ? Theme.accent : Theme.muted;
             }
 
             VerticalLayout {
-                spacing: 1px;
+                spacing: 4px;
                 vertical-stretch: 1;
 
                 Text {
                     text: root.title;
                     color: root.enabled ? Theme.text : Theme.muted;
                     font-size: 14px;
-                    font-weight: 400;
+                    font-weight: 700;
                     wrap: word-wrap;
                 }
 
@@ -207,555 +291,471 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                 }
             }
         }
-    }
 
-    component SelectSettingCard inherits Rectangle {
-        in property <image> icon;
-        in property <string> title;
-        in property <string> description;
-        in property <[string]> options: [];
-        in-out property <int> selected-index: 0;
-        in property <bool> enabled: true;
-
-        min-height: 30px;
-        border-radius: 0px;
-        border-width: 0px;
-        border-color: transparent;
-        background: transparent;
-
-        VerticalLayout {
-            padding-left: 8px;
-            padding-right: 8px;
-            padding-top: 2px;
-            padding-bottom: 4px;
-            spacing: 8px;
-
-            ComboBox {
-                width: 140px;
-                height: 26px;
-                model: root.options;
-                current-index <=> root.selected-index;
-                enabled: root.enabled;
-            }
+        ComboBox {
+            width: root.combo-width;
+            height: 34px;
+            model: root.options;
+            current-index <=> root.selected-index;
+            enabled: root.enabled;
         }
     }
-
-    component SelectSettingPanel inherits Rectangle {
-        in property <image> icon;
-        in property <string> title;
-        in property <string> description;
-        in property <[string]> options: [];
-        in-out property <int> selected-index: 0;
-        in property <bool> enabled: true;
-        in property <length> combo-width: 220px;
-
-        min-height: 96px;
-        border-radius: 14px;
-        border-width: 1px;
-        border-color: Theme.border.with-alpha(72%);
-        background: Theme.card-bg.with-alpha(92%);
-
-        VerticalLayout {
-            padding: 14px;
-            spacing: 10px;
-
-            HorizontalLayout {
-                spacing: 10px;
-                alignment: start;
-
-                Image {
-                    width: 20px;
-                    height: 20px;
-                    source: root.icon;
-                    image-fit: contain;
-                    colorize: root.enabled ? Theme.accent : Theme.muted;
-                }
-
-                VerticalLayout {
-                    spacing: 4px;
-                    vertical-stretch: 1;
-
-                    Text {
-                        text: root.title;
-                        color: root.enabled ? Theme.text : Theme.muted;
-                        font-size: 14px;
-                        font-weight: 700;
-                        wrap: word-wrap;
-                    }
-
-                    Text {
-                        text: root.description;
-                        color: Theme.muted;
-                        font-size: 11px;
-                        wrap: word-wrap;
-                    }
-                }
-            }
-
-            ComboBox {
-                width: root.combo-width;
-                height: 34px;
-                model: root.options;
-                current-index <=> root.selected-index;
-                enabled: root.enabled;
-            }
-        }
-    }
+}
 
     component TextFieldSettingCard inherits Rectangle {
-        in property <image> icon;
-        in property <string> title;
-        in property <string> description;
-        in-out property <string> value: "";
-        in property <string> placeholder: "";
-        in property <bool> enabled: true;
-        callback committed();
+    in property <image> icon;
+    in property <string> title;
+    in property <string> description;
+    in-out property <string> value: "";
+    in property <string> placeholder: "";
+    in property <bool> enabled: true;
+    callback committed();
 
-        min-height: 64px;
-        border-radius: 0px;
-        border-width: 0px;
-        border-color: transparent;
-        background: transparent;
+    min-height: 64px;
+    border-radius: 0px;
+    border-width: 0px;
+    border-color: transparent;
+    background: transparent;
 
-        VerticalLayout {
-            padding-left: 8px;
-            padding-right: 8px;
-            padding-top: 10px;
-            padding-bottom: 10px;
-            spacing: 8px;
+    VerticalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 10px;
+
+            Image {
+                width: 18px;
+                height: 18px;
+                source: root.icon;
+                image-fit: contain;
+                colorize: Theme.label;
+            }
+
+            VerticalLayout {
+                spacing: 3px;
+                vertical-stretch: 1;
+
+                Text {
+                    text: root.title;
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        edit := LineEdit {
+            text <=> root.value;
+            height: 32px;
+            placeholder-text: root.placeholder;
+            enabled: root.enabled;
+            accepted(_) => {
+                root.committed();
+            }
+            changed has-focus => {
+                if !self.has-focus {
+                    root.committed();
+                }
+            }
+        }
+    }
+}
+
+    component ThemePreviewCard inherits Rectangle {
+    in property <ThemePreviewData> theme;
+    in property <bool> selected: false;
+    callback picked(/* index */ int);
+
+    border-radius: 14px;
+    border-width: selected ? 2px : 1px;
+    border-color: selected ? Theme.accent : Theme.border.with-alpha(62%);
+    background: theme.surface.with-alpha(94%);
+
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 44px;
+        border-radius: 14px;
+        background: theme.bg;
+
+        Rectangle {
+            x: 14px;
+            y: 11px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: theme.accent;
+        }
+
+        Rectangle {
+            x: 32px;
+            y: 11px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: theme.text;
+        }
+    }
+
+    VerticalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 56px;
+        padding-bottom: 12px;
+        spacing: 3px;
+
+        Text {
+            text: root.theme.label;
+            color: Theme.text;
+            font-size: 13px;
+            font-weight: 700;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.theme.subtitle;
+            color: Theme.muted;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => {
+            root.picked(root.theme.index);
+        }
+        scroll-event(_) => {
+            reject;
+        }
+    }
+}
+
+    component FooterButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> accent: false;
+    callback clicked();
+
+    height: 36px;
+    min-width: 122px;
+    border-radius: 4px;
+    border-width: accent ? 0px : 2px;
+    border-color: Theme.border.with-alpha(64%);
+    background: accent ? (touch.has-hover ? Theme.accent.darker(8%) : Theme.accent) : (touch.has-hover ? Theme.surface : transparent);
+
+    Text {
+        width: 100%;
+        height: 100%;
+        text: root.text;
+        color: accent ? Theme.bg : Theme.label;
+        font-size: 13px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+    export component SettingsWindow inherits Window {
+    title: Tr.settings-window-title;
+    icon: @image-url("../../assets/icon.svg");
+    background: Theme.bg;
+    preferred-width: 1180px;
+    preferred-height: 820px;
+    default-font-family: "Miranda Sans";
+    default-font-size: 14px;
+
+    in-out property <bool> always-on-top-setting: false;
+    in-out property <bool> animate-transitions-setting: true;
+    in-out property <bool> minimize-to-tray-setting: true;
+    in-out property <bool> close-to-tray-setting: true;
+    in-out property <bool> preserve-aspect-ratio-setting: false;
+    in-out property <bool> hide-on-select-setting: true;
+    in-out property <bool> show-toolbar-setting: true;
+    in-out property <bool> show-info-setting: true;
+    in-out property <bool> use-system-backdrop-setting: true;
+    in-out property <bool> start-in-tray-setting: false;
+    in-out property <bool> run-at-startup-setting: false;
+    in-out property <bool> locked-layout-setting: false;
+    in-out property <bool> lock-cell-resize-setting: false;
+    in-out property <bool> show-app-icons-setting: true;
+    in property <bool> hide-on-select-enabled: true;
+    in property <bool> default-layout-enabled: true;
+    in-out property <int> language-index: 0;
+    in-out property <int> refresh-index: 1;
+    in-out property <int> layout-index: 0;
+    in property <[string]> theme-options: ["Classic Panopticon"];
+    in property <[ThemePreviewData]> theme-preview-model: [];
+    in-out property <int> theme-index: 0;
+    in property <[string]> monitor-filter-options: [Tr.all-monitors-label];
+    in-out property <int> monitor-filter-index: 0;
+    in property <[string]> tag-filter-options: [Tr.all-tags-label];
+    in-out property <int> tag-filter-index: 0;
+    in property <[string]> app-filter-options: [Tr.all-apps-label];
+    in-out property <int> app-filter-index: 0;
+    in property <[string]> hidden-app-options: [Tr.no-hidden-label];
+    in-out property <int> hidden-app-index: 0;
+    in property <bool> can-restore-hidden: false;
+    in property <string> hidden-apps-summary: Tr.no-hidden-label;
+    in property <string> current-profile-label: "default";
+    in-out property <string> profile-name: "";
+    in property <string> known-profiles-label: Tr.no-saved-profiles-label;
+    in property <[string]> available-profile-options: [Tr.default-profile-label];
+    in-out property <int> available-profile-index: 0;
+    in-out property <color> bg-preview-color: Theme.accent;
+    in-out property <color> theme-preview-color: Theme.accent;
+    in-out property <string> bg-color-hex: "181513";
+    in-out property <int> bg-red-value: 24;
+    in-out property <int> bg-green-value: 21;
+    in-out property <int> bg-blue-value: 19;
+    in-out property <string> bg-image-path: "";
+    in-out property <image> bg-image-preview;
+    in-out property <int> bg-image-fit-index: 0;
+    in-out property <int> bg-image-opacity-value: 25;
+    in-out property <int> fixed-width-value: 0;
+    in-out property <int> fixed-height-value: 0;
+    in-out property <int> thumbnail-render-scale-value: 100;
+    in-out property <int> dock-edge-index: 0;
+    in-out property <int> dock-column-thickness-value: 0;
+    in-out property <int> dock-row-thickness-value: 0;
+    in-out property <int> group-windows-index: 0;
+    in-out property <string> shortcut-layout-grid: "1";
+    in-out property <string> shortcut-layout-mosaic: "2";
+    in-out property <string> shortcut-layout-bento: "3";
+    in-out property <string> shortcut-layout-fibonacci: "4";
+    in-out property <string> shortcut-layout-columns: "5";
+    in-out property <string> shortcut-layout-row: "6";
+    in-out property <string> shortcut-layout-column: "7";
+    in-out property <string> shortcut-reset-layout: "0";
+    in-out property <string> shortcut-cycle-layout: "Tab";
+    in-out property <string> shortcut-cycle-theme: "T";
+    in-out property <string> shortcut-toggle-animations: "A";
+    in-out property <string> shortcut-toggle-toolbar: "H";
+    in-out property <string> shortcut-toggle-window-info: "I";
+    in-out property <string> shortcut-toggle-always-on-top: "P";
+    in-out property <string> shortcut-open-settings: "O";
+    in-out property <string> shortcut-open-menu: "M";
+    in-out property <string> shortcut-global-activate: "Ctrl+Alt+P";
+    in-out property <string> shortcut-refresh-now: "R";
+    in-out property <string> shortcut-exit-app: "Esc";
+    in-out property <bool> alt-toolbar-shortcut-enabled: true;
+    in-out property <bool> suspend-live-apply: false;
+
+    in-out property <int> current-page: 0;
+    property <bool> dock-mode-active: root.dock-edge-index != 0;
+    property <bool> dock-column-mode: root.dock-edge-index == 1 || root.dock-edge-index == 2;
+
+    callback apply();
+    callback request-live-apply();
+    callback save-profile();
+    callback load-selected-profile();
+    callback open-profile-instance();
+    callback open-about();
+    callback reset-to-defaults();
+    callback refresh-now();
+    callback restore-hidden-selected();
+    callback restore-hidden-all();
+    callback browse-background-image();
+    callback clear-background-image();
+    callback apply-bg-color-hex(string);
+    callback apply-bg-color-rgb(int, int, int);
+    callback closed();
+
+    request-live-apply => {
+        if (!root.suspend-live-apply) {
+            root.apply();
+        }
+    }
+
+    changed always-on-top-setting => {
+        root.request-live-apply();
+    }
+    changed animate-transitions-setting => {
+        root.request-live-apply();
+    }
+    changed minimize-to-tray-setting => {
+        root.request-live-apply();
+    }
+    changed close-to-tray-setting => {
+        root.request-live-apply();
+    }
+    changed preserve-aspect-ratio-setting => {
+        root.request-live-apply();
+    }
+    changed hide-on-select-setting => {
+        root.request-live-apply();
+    }
+    changed show-toolbar-setting => {
+        root.request-live-apply();
+    }
+    changed show-info-setting => {
+        root.request-live-apply();
+    }
+    changed use-system-backdrop-setting => {
+        root.request-live-apply();
+    }
+    changed start-in-tray-setting => {
+        root.request-live-apply();
+    }
+    changed run-at-startup-setting => {
+        root.request-live-apply();
+    }
+    changed locked-layout-setting => {
+        root.request-live-apply();
+    }
+    changed lock-cell-resize-setting => {
+        root.request-live-apply();
+    }
+    changed show-app-icons-setting => {
+        root.request-live-apply();
+    }
+    changed language-index => {
+        root.request-live-apply();
+    }
+    changed refresh-index => {
+        root.request-live-apply();
+    }
+    changed layout-index => {
+        root.request-live-apply();
+    }
+    changed theme-index => {
+        root.request-live-apply();
+    }
+    changed monitor-filter-index => {
+        root.request-live-apply();
+    }
+    changed tag-filter-index => {
+        root.request-live-apply();
+    }
+    changed app-filter-index => {
+        root.request-live-apply();
+    }
+    changed bg-image-fit-index => {
+        root.request-live-apply();
+    }
+    changed bg-image-opacity-value => {
+        root.request-live-apply();
+    }
+    changed fixed-width-value => {
+        root.request-live-apply();
+    }
+    changed fixed-height-value => {
+        root.request-live-apply();
+    }
+    changed thumbnail-render-scale-value => {
+        root.request-live-apply();
+    }
+    changed dock-edge-index => {
+        root.request-live-apply();
+    }
+    changed dock-column-thickness-value => {
+        root.request-live-apply();
+    }
+    changed dock-row-thickness-value => {
+        root.request-live-apply();
+    }
+    changed group-windows-index => {
+        root.request-live-apply();
+    }
+    changed alt-toolbar-shortcut-enabled => {
+        root.request-live-apply();
+    }
+
+    VerticalLayout {
+        spacing: 0px;
+
+        Rectangle {
+            height: 45px;
+            background: Theme.bg;
 
             HorizontalLayout {
-                spacing: 10px;
-
-                Image {
-                    width: 18px;
-                    height: 18px;
-                    source: root.icon;
-                    image-fit: contain;
-                    colorize: Theme.label;
-                }
+                padding-left: 24px;
+                padding-right: 24px;
+                padding-top: 12px;
+                padding-bottom: 12px;
+                alignment: space-between;
 
                 VerticalLayout {
                     spacing: 3px;
-                    vertical-stretch: 1;
+                    alignment: center;
 
                     Text {
-                        text: root.title;
+                        text: Tr.settings-title;
                         color: Theme.text;
-                        font-size: 14px;
-                        font-weight: 600;
-                        wrap: word-wrap;
+                        font-size: 24px;
+                        font-weight: 400;
                     }
                 }
-            }
-
-            edit := LineEdit {
-                text <=> root.value;
-                height: 32px;
-                placeholder-text: root.placeholder;
-                enabled: root.enabled;
-                accepted(_) => {
-                    root.committed();
-                }
-                changed has-focus => {
-                    if !self.has-focus {
-                        root.committed();
-                    }
-                }
-            }
-        }
-    }
-
-    component ThemePreviewCard inherits Rectangle {
-        in property <ThemePreviewData> theme;
-        in property <bool> selected: false;
-        callback picked(/* index */ int);
-
-        border-radius: 14px;
-        border-width: selected ? 2px : 1px;
-        border-color: selected ? Theme.accent : Theme.border.with-alpha(62%);
-        background: theme.surface.with-alpha(94%);
-
-        Rectangle {
-            x: 0;
-            y: 0;
-            width: 100%;
-            height: 44px;
-            border-radius: 14px;
-            background: theme.bg;
-
-            Rectangle {
-                x: 14px;
-                y: 11px;
-                width: 12px;
-                height: 12px;
-                border-radius: 6px;
-                background: theme.accent;
-            }
-
-            Rectangle {
-                x: 32px;
-                y: 11px;
-                width: 12px;
-                height: 12px;
-                border-radius: 6px;
-                background: theme.text;
-            }
-        }
-
-        VerticalLayout {
-            padding-left: 14px;
-            padding-right: 14px;
-            padding-top: 56px;
-            padding-bottom: 12px;
-            spacing: 3px;
-
-            Text {
-                text: root.theme.label;
-                color: Theme.text;
-                font-size: 13px;
-                font-weight: 700;
-                overflow: elide;
-            }
-
-            Text {
-                text: root.theme.subtitle;
-                color: Theme.muted;
-                font-size: 11px;
-                wrap: word-wrap;
-            }
-        }
-
-        touch := TouchArea {
-            clicked => {
-                root.picked(root.theme.index);
-            }
-            scroll-event(_) => {
-                reject;
-            }
-        }
-    }
-
-    component FooterButton inherits Rectangle {
-        in property <string> text;
-        in property <bool> accent: false;
-        callback clicked();
-
-        height: 36px;
-        min-width: 122px;
-        border-radius: 4px;
-        border-width: accent ? 0px : 2px;
-        border-color: Theme.border.with-alpha(64%);
-        background: accent ? (touch.has-hover ? Theme.accent.darker(8%) : Theme.accent) : (touch.has-hover ? Theme.surface : transparent);
-
-        Text {
-            width: 100%;
-            height: 100%;
-            text: root.text;
-            color: accent ? Theme.bg : Theme.label;
-            font-size: 13px;
-            font-weight: 600;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-        }
-
-        touch := TouchArea {
-            clicked => {
-                root.clicked();
-            }
-        }
-    }
-
-    export component SettingsWindow inherits Window {
-        title: Tr.settings-window-title;
-        icon: @image-url("../../assets/icon.svg");
-        background: Theme.bg;
-        preferred-width: 1180px;
-        preferred-height: 820px;
-        default-font-family: "Miranda Sans";
-        default-font-size: 14px;
-
-        in-out property <bool> always-on-top-setting: false;
-        in-out property <bool> animate-transitions-setting: true;
-        in-out property <bool> minimize-to-tray-setting: true;
-        in-out property <bool> close-to-tray-setting: true;
-        in-out property <bool> preserve-aspect-ratio-setting: false;
-        in-out property <bool> hide-on-select-setting: true;
-        in-out property <bool> show-toolbar-setting: true;
-        in-out property <bool> show-info-setting: true;
-        in-out property <bool> use-system-backdrop-setting: true;
-        in-out property <bool> start-in-tray-setting: false;
-        in-out property <bool> run-at-startup-setting: false;
-        in-out property <bool> locked-layout-setting: false;
-        in-out property <bool> lock-cell-resize-setting: false;
-        in-out property <bool> show-app-icons-setting: true;
-        in property <bool> hide-on-select-enabled: true;
-        in property <bool> default-layout-enabled: true;
-        in-out property <int> language-index: 0;
-        in-out property <int> refresh-index: 1;
-        in-out property <int> layout-index: 0;
-        in property <[string]> theme-options: ["Classic Panopticon"];
-        in property <[ThemePreviewData]> theme-preview-model: [];
-        in-out property <int> theme-index: 0;
-        in property <[string]> monitor-filter-options: [Tr.all-monitors-label];
-        in-out property <int> monitor-filter-index: 0;
-        in property <[string]> tag-filter-options: [Tr.all-tags-label];
-        in-out property <int> tag-filter-index: 0;
-        in property <[string]> app-filter-options: [Tr.all-apps-label];
-        in-out property <int> app-filter-index: 0;
-        in property <[string]> hidden-app-options: [Tr.no-hidden-label];
-        in-out property <int> hidden-app-index: 0;
-        in property <bool> can-restore-hidden: false;
-        in property <string> hidden-apps-summary: Tr.no-hidden-label;
-        in property <string> current-profile-label: "default";
-        in-out property <string> profile-name: "";
-        in property <string> known-profiles-label: Tr.no-saved-profiles-label;
-        in property <[string]> available-profile-options: [Tr.default-profile-label];
-        in-out property <int> available-profile-index: 0;
-        in-out property <color> bg-preview-color: Theme.accent;
-        in-out property <color> theme-preview-color: Theme.accent;
-        in-out property <string> bg-color-hex: "181513";
-        in-out property <int> bg-red-value: 24;
-        in-out property <int> bg-green-value: 21;
-        in-out property <int> bg-blue-value: 19;
-        in-out property <string> bg-image-path: "";
-        in-out property <image> bg-image-preview;
-        in-out property <int> bg-image-fit-index: 0;
-        in-out property <int> bg-image-opacity-value: 25;
-        in-out property <int> fixed-width-value: 0;
-        in-out property <int> fixed-height-value: 0;
-        in-out property <int> thumbnail-render-scale-value: 100;
-        in-out property <int> dock-edge-index: 0;
-        in-out property <int> dock-column-thickness-value: 0;
-        in-out property <int> dock-row-thickness-value: 0;
-        in-out property <int> group-windows-index: 0;
-        in-out property <string> shortcut-layout-grid: "1";
-        in-out property <string> shortcut-layout-mosaic: "2";
-        in-out property <string> shortcut-layout-bento: "3";
-        in-out property <string> shortcut-layout-fibonacci: "4";
-        in-out property <string> shortcut-layout-columns: "5";
-        in-out property <string> shortcut-layout-row: "6";
-        in-out property <string> shortcut-layout-column: "7";
-        in-out property <string> shortcut-reset-layout: "0";
-        in-out property <string> shortcut-cycle-layout: "Tab";
-        in-out property <string> shortcut-cycle-theme: "T";
-        in-out property <string> shortcut-toggle-animations: "A";
-        in-out property <string> shortcut-toggle-toolbar: "H";
-        in-out property <string> shortcut-toggle-window-info: "I";
-        in-out property <string> shortcut-toggle-always-on-top: "P";
-        in-out property <string> shortcut-open-settings: "O";
-        in-out property <string> shortcut-open-menu: "M";
-        in-out property <string> shortcut-global-activate: "Ctrl+Alt+P";
-        in-out property <string> shortcut-refresh-now: "R";
-        in-out property <string> shortcut-exit-app: "Esc";
-        in-out property <bool> alt-toolbar-shortcut-enabled: true;
-        in-out property <bool> suspend-live-apply: false;
-
-        in-out property <int> current-page: 0;
-        property <bool> dock-mode-active: root.dock-edge-index != 0;
-        property <bool> dock-column-mode: root.dock-edge-index == 1 || root.dock-edge-index == 2;
-
-        callback apply();
-        callback request-live-apply();
-        callback save-profile();
-        callback load-selected-profile();
-        callback open-profile-instance();
-        callback open-about();
-        callback reset-to-defaults();
-        callback refresh-now();
-        callback restore-hidden-selected();
-        callback restore-hidden-all();
-        callback browse-background-image();
-        callback clear-background-image();
-        callback apply-bg-color-hex(string);
-        callback apply-bg-color-rgb(int, int, int);
-        callback closed();
-
-        request-live-apply => {
-            if (!root.suspend-live-apply) {
-                root.apply();
-            }
-        }
-
-        changed always-on-top-setting => {
-            root.request-live-apply();
-        }
-        changed animate-transitions-setting => {
-            root.request-live-apply();
-        }
-        changed minimize-to-tray-setting => {
-            root.request-live-apply();
-        }
-        changed close-to-tray-setting => {
-            root.request-live-apply();
-        }
-        changed preserve-aspect-ratio-setting => {
-            root.request-live-apply();
-        }
-        changed hide-on-select-setting => {
-            root.request-live-apply();
-        }
-        changed show-toolbar-setting => {
-            root.request-live-apply();
-        }
-        changed show-info-setting => {
-            root.request-live-apply();
-        }
-        changed use-system-backdrop-setting => {
-            root.request-live-apply();
-        }
-        changed start-in-tray-setting => {
-            root.request-live-apply();
-        }
-        changed run-at-startup-setting => {
-            root.request-live-apply();
-        }
-        changed locked-layout-setting => {
-            root.request-live-apply();
-        }
-        changed lock-cell-resize-setting => {
-            root.request-live-apply();
-        }
-        changed show-app-icons-setting => {
-            root.request-live-apply();
-        }
-        changed language-index => {
-            root.request-live-apply();
-        }
-        changed refresh-index => {
-            root.request-live-apply();
-        }
-        changed layout-index => {
-            root.request-live-apply();
-        }
-        changed theme-index => {
-            root.request-live-apply();
-        }
-        changed monitor-filter-index => {
-            root.request-live-apply();
-        }
-        changed tag-filter-index => {
-            root.request-live-apply();
-        }
-        changed app-filter-index => {
-            root.request-live-apply();
-        }
-        changed bg-image-fit-index => {
-            root.request-live-apply();
-        }
-        changed bg-image-opacity-value => {
-            root.request-live-apply();
-        }
-        changed fixed-width-value => {
-            root.request-live-apply();
-        }
-        changed fixed-height-value => {
-            root.request-live-apply();
-        }
-        changed thumbnail-render-scale-value => {
-            root.request-live-apply();
-        }
-        changed dock-edge-index => {
-            root.request-live-apply();
-        }
-        changed dock-column-thickness-value => {
-            root.request-live-apply();
-        }
-        changed dock-row-thickness-value => {
-            root.request-live-apply();
-        }
-        changed group-windows-index => {
-            root.request-live-apply();
-        }
-        changed alt-toolbar-shortcut-enabled => {
-            root.request-live-apply();
-        }
-
-        VerticalLayout {
-            spacing: 0px;
-
-            Rectangle {
-                height: 45px;
-                background: Theme.bg;
-
-                HorizontalLayout {
-                    padding-left: 24px;
-                    padding-right: 24px;
-                    padding-top: 12px;
-                    padding-bottom: 12px;
-                    alignment: space-between;
-
-                    VerticalLayout {
-                        spacing: 3px;
-                        alignment: center;
-
-                        Text {
-                            text: Tr.settings-title;
-                            color: Theme.text;
-                            font-size: 24px;
-                            font-weight: 400;
-                        }
-                    }
-
-                    Rectangle {
-                        width: 170px;
-                        height: 42px;
-                        border-radius: 4px;
-                        border-width: 2px;
-
-                        HorizontalLayout {
-                            padding-left: 12px;
-                            padding-right: 12px;
-                            padding-top: 8px;
-                            padding-bottom: 8px;
-                            spacing: 10px;
-
-                            Rectangle {
-                                width: 18px;
-                                height: 18px;
-                                border-radius: 9px;
-                                background: Theme.accent;
-                            }
-
-                            VerticalLayout {
-                                spacing: 0px;
-                                alignment: start;
-
-                                Text {
-                                    text: Tr.settings-profile-badge;
-                                    color: Theme.muted;
-                                    font-size: 10px;
-                                }
-
-                                Text {
-                                    text: root.current-profile-label;
-                                    color: Theme.text;
-                                    font-size: 13px;
-                                    font-weight: 400;
-                                    overflow: elide;
-                                }
-                            }
-                        }
-
-                        profile-touch := TouchArea {
-                            mouse-cursor: pointer;
-                            clicked => {
-                                root.current-page = 3;
-                            }
-                        }
-                    }
-                }
-            }
-
-            HorizontalLayout {
-                vertical-stretch: 1;
-                visible: true;
 
                 Rectangle {
-                    width: 250px;
-                    background: Theme.bg;
+                    width: 170px;
+                    height: 42px;
+                    border-radius: 4px;
+                    border-width: 2px;
 
-                    VerticalLayout {
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        padding-top: 8px;
+                        padding-bottom: 8px;
+                        spacing: 10px;
+
+                        Rectangle {
+                            width: 18px;
+                            height: 18px;
+                            border-radius: 9px;
+                            background: Theme.accent;
+                        }
+
+                        VerticalLayout {
+                            spacing: 0px;
+                            alignment: start;
+
+                            Text {
+                                text: Tr.settings-profile-badge;
+                                color: Theme.muted;
+                                font-size: 10px;
+                            }
+
+                            Text {
+                                text: root.current-profile-label;
+                                color: Theme.text;
+                                font-size: 13px;
+                                font-weight: 400;
+                                overflow: elide;
+                            }
+                        }
+                    }
+
+                    profile-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.current-page = 3;
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            vertical-stretch: 1;
+            visible: true;
+
+            Rectangle {
+                width: 250px;
+                background: Theme.bg;
+
+                VerticalLayout {
                     padding: 10px;
                     spacing: 6px;
 
