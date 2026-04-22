@@ -73,7 +73,9 @@ export component Toolbar inherits Rectangle {
     }
 
     touch := TouchArea {
-        clicked => { root.clicked(); }
+        clicked => {
+            root.clicked();
+        }
         pointer-event(event) => {
             if event.kind == PointerEventKind.up && event.button == PointerEventButton.right {
                 root.context-menu-requested(touch.mouse-x / 1px, touch.mouse-y / 1px);
