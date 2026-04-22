@@ -19,7 +19,7 @@ use windows::Win32::Foundation::{HWND, RECT, SIZE};
 use windows::Win32::UI::WindowsAndMessaging::WNDPROC;
 
 use crate::app::tray::{AppIcons, TrayAction, TrayIcon};
-use crate::{MainWindow, SettingsWindow, TagDialogWindow};
+use crate::{AboutWindow, MainWindow, SettingsWindow, TagDialogWindow};
 
 // ───────────────────────── Constants ─────────────────────────
 
@@ -196,6 +196,10 @@ thread_local! {
 
     /// Tag-dialog window instance (if open).
     pub(crate) static TAG_DIALOG_WIN: RefCell<Option<TagDialogWindow>> =
+        const { RefCell::new(None) };
+
+    /// About window instance (if open).
+    pub(crate) static ABOUT_WIN: RefCell<Option<AboutWindow>> =
         const { RefCell::new(None) };
 
     /// Middle-button pan state.

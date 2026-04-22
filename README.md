@@ -1,6 +1,6 @@
 # Panopticon
 
-![Panopticon icon](docs/assets/icon.webp)
+![Panopticon icon](docs/assets/panopticon.webp)
 
 **A native Windows dashboard for viewing, organising, and activating your open windows through live DWM thumbnails.**
 
@@ -74,12 +74,12 @@ Panopticon also understands:
 2. Press `Tab` or `1` to `7` to explore the available layouts.
 3. Left-click a thumbnail to activate that window.
 4. Right-click a thumbnail to open per-window actions.
-5. Press `O` to open settings and review language, theme, filters, and profiles.
+5. Press `O` to open settings and review language, theme, filters, profiles, and the new About entry.
 6. Use the tray icon to hide/show the dashboard without closing it.
 
 ### Handy shortcuts
 
-These are the **default** bindings. You can rebind them from `Settings -> Keyboard Shortcuts`; the dashboard bindings stay single-key, while the global activation shortcut accepts `Ctrl` / `Alt` / `Shift` combinations and can be cleared to disable it.
+These are the **default** bindings. You can rebind the dashboard/global shortcuts from `Settings -> Keyboard Shortcuts`; `F1` remains a built-in shortcut for the About window.
 
 | Input | Action |
 | --- | --- |
@@ -88,14 +88,15 @@ These are the **default** bindings. You can rebind them from `Settings -> Keyboa
 | `0` | Reset custom ratios for the current layout |
 | `R` | Refresh windows |
 | `A` | Toggle animations |
-| `H` | Show/hide toolbar |
+| `H` | Show/hide status bar |
 | `I` | Show/hide window metadata |
 | `P` | Toggle always-on-top |
 | `T` | Change theme |
 | `O` | Open settings |
+| `F1` | Open About window |
 | `M` | Open application menu |
 | `Ctrl` + `Alt` + `P` | Activate and focus Panopticon globally |
-| `Alt` | Toggle toolbar |
+| `Alt` | Toggle status bar |
 | `Esc` | Exit |
 
 ## Where things are stored

@@ -96,9 +96,10 @@ fn en(key: &str) -> &'static str {
     match key {
         // ── App identity ──
         "app.name" => "Panopticon",
-        "window.main_title" => "Panopticon — Window Viewer",
+        "window.main_title" => "Panopticon",
         "window.settings_title" => "Panopticon — Settings",
         "window.tag_title" => "Panopticon — Create tag",
+        "window.about_title" => "Panopticon — About",
 
         // ── Locales ──
         "locale.english" => "English",
@@ -151,6 +152,7 @@ fn en(key: &str) -> &'static str {
         "tray.hide" => "Hide to tray",
         "tray.refresh" => "Refresh windows",
         "tray.open_settings" => "Open settings window",
+        "tray.open_about" => "About Panopticon",
         "tray.layout" => "Layout",
         "tray.next_layout" => "Next layout",
         "tray.lock_layout" => "Lock layout switching",
@@ -158,7 +160,7 @@ fn en(key: &str) -> &'static str {
         "tray.dock_position" => "Dock position",
         "tray.group_by" => "Group windows by",
         "tray.display" => "Display",
-        "tray.show_toolbar" => "Show header",
+        "tray.show_toolbar" => "Show status bar",
         "tray.show_info" => "Show window info",
         "tray.show_icons" => "Show app icons in cells",
         "tray.always_on_top" => "Keep Panopticon on top",
@@ -203,7 +205,7 @@ fn en(key: &str) -> &'static str {
         "ui.hidden" => "hidden",
         "ui.always_on_top" => "always on top",
         "ui.normal_window" => "normal window",
-        "ui.toolbar_hint" => "right-click header / M: menu  ·  Esc exit",
+        "ui.toolbar_hint" => "right-click status bar / M: menu  ·  Esc exit",
         "ui.anim_on" => "anim on",
         "ui.anim_off" => "anim off",
 
@@ -217,7 +219,7 @@ fn en(key: &str) -> &'static str {
         "settings.hidden_app_fallback" => "Hidden app",
         "settings.dock_hint" => "In dock mode this option is automatically disabled.",
         "settings.filters_hint" => {
-            "Filters and grouping are also reflected in the header and reorder visible cells."
+            "Filters and grouping are also reflected in the status bar and reorder visible cells."
         }
         "settings.no_saved_profiles" => "No saved profiles",
         "settings.saved_profiles" => "Saved profiles: default",
@@ -293,7 +295,7 @@ fn en(key: &str) -> &'static str {
         }
         "settings.option.lock_layout.title" => "Lock layout changes",
         "settings.option.lock_layout.description" => {
-            "Prevent layout changes from the keyboard or the top toolbar."
+            "Prevent layout changes from the keyboard or the application menu."
         }
         "settings.option.lock_cell_resize.title" => "Lock cell resizing",
         "settings.option.lock_cell_resize.description" => {
@@ -303,9 +305,9 @@ fn en(key: &str) -> &'static str {
         "settings.section.display.helper" => {
             "Controls that change readability and the information shown on the dashboard."
         }
-        "settings.option.show_toolbar.title" => "Show toolbar",
+        "settings.option.show_toolbar.title" => "Show status bar",
         "settings.option.show_toolbar.description" => {
-            "Show the top header with status summary and quick access to the menu."
+            "Show the bottom status bar with status summary and quick access to the menu."
         }
         "settings.option.show_info.title" => "Show window info above thumbnails",
         "settings.option.show_info.description" => {
@@ -442,9 +444,9 @@ fn en(key: &str) -> &'static str {
         "settings.shortcut.toggle_animations.description" => {
             "Enable or disable dashboard transitions."
         }
-        "settings.shortcut.toggle_toolbar.title" => "Toggle toolbar",
+        "settings.shortcut.toggle_toolbar.title" => "Toggle status bar",
         "settings.shortcut.toggle_toolbar.description" => {
-            "Show or hide the dashboard's top bar."
+            "Show or hide the dashboard's bottom status bar."
         }
         "settings.shortcut.toggle_window_info.title" => "Toggle window info",
         "settings.shortcut.toggle_window_info.description" => {
@@ -472,9 +474,9 @@ fn en(key: &str) -> &'static str {
         }
         "settings.shortcut.exit_app.title" => "Exit app",
         "settings.shortcut.exit_app.description" => "Close Panopticon from the keyboard.",
-        "settings.shortcut.alt_toolbar.title" => "Use Alt as a quick toolbar toggle",
+        "settings.shortcut.alt_toolbar.title" => "Use Alt as a quick status bar toggle",
         "settings.shortcut.alt_toolbar.description" => {
-            "Keep the legacy Windows shortcut to hide or show the toolbar with a single Alt press."
+            "Keep the legacy Windows shortcut to hide or show the status bar with a single Alt press."
         }
         "settings.page.advanced.title" => "Advanced Options",
         "settings.page.advanced.subtitle" => {
@@ -523,9 +525,25 @@ fn en(key: &str) -> &'static str {
         "action.clear_image" => "Clear image",
         "action.refresh_now" => "Refresh now",
         "action.auto_apply" => "Changes apply automatically.",
+        "action.about" => "About",
         "action.reset_defaults" => "Reset defaults",
         "action.close" => "Close",
         "dialog.choose_background_image" => "Choose dashboard background image",
+
+        // ── About window ──
+        "about.title" => "About Panopticon",
+        "about.subtitle" => {
+            "A native Windows dashboard for exploring open windows through live DWM thumbnails."
+        }
+        "about.version_title" => "Version",
+        "about.description_title" => "Application",
+        "about.description_body" => {
+            "Panopticon helps you preview, organize, and activate live desktop windows from a single local control room."
+        }
+        "about.credits_title" => "Credits",
+        "about.credits_body" => {
+            "Created by gvastethecreator.\nBuilt with Rust, Slint, windows-rs, and the Desktop Window Manager thumbnail APIs.\nLicense: MIT."
+        }
 
         // ── Validation / CLI ──
         "settings.profile_invalid_chars" => {
@@ -561,9 +579,10 @@ fn es(key: &str) -> Option<&'static str> {
     Some(match key {
         // ── App identity ──
         "app.name" => "Panopticon",
-        "window.main_title" => "Panopticon — Visor de ventanas",
+        "window.main_title" => "Panopticon",
         "window.settings_title" => "Panopticon — Configuración",
         "window.tag_title" => "Panopticon — Crear etiqueta",
+        "window.about_title" => "Panopticon — Acerca de",
 
         // ── Locales ──
         "locale.english" => "Inglés",
@@ -616,6 +635,7 @@ fn es(key: &str) -> Option<&'static str> {
         "tray.hide" => "Ocultar al tray",
         "tray.refresh" => "Refrescar ventanas",
         "tray.open_settings" => "Abrir configuración",
+        "tray.open_about" => "Acerca de Panopticon",
         "tray.layout" => "Layout",
         "tray.next_layout" => "Siguiente layout",
         "tray.lock_layout" => "Bloquear cambio de layout",
@@ -623,7 +643,7 @@ fn es(key: &str) -> Option<&'static str> {
         "tray.dock_position" => "Posición de dock",
         "tray.group_by" => "Agrupar ventanas por",
         "tray.display" => "Pantalla",
-        "tray.show_toolbar" => "Mostrar header",
+        "tray.show_toolbar" => "Mostrar barra de estado",
         "tray.show_info" => "Mostrar info de ventanas",
         "tray.show_icons" => "Mostrar iconos en celdas",
         "tray.always_on_top" => "Mantener Panopticon encima",
@@ -668,7 +688,7 @@ fn es(key: &str) -> Option<&'static str> {
         "ui.hidden" => "ocultas",
         "ui.always_on_top" => "siempre visible",
         "ui.normal_window" => "ventana normal",
-        "ui.toolbar_hint" => "click der. header / M: menú  ·  Esc salir",
+        "ui.toolbar_hint" => "click der. barra de estado / M: menú  ·  Esc salir",
         "ui.anim_on" => "anim on",
         "ui.anim_off" => "anim off",
 
@@ -682,7 +702,7 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.hidden_app_fallback" => "App oculta",
         "settings.dock_hint" => "En modo dock esta opción queda desactivada automáticamente.",
         "settings.filters_hint" => {
-            "Los filtros y el agrupado también se reflejan en el header y reordenan las celdas visibles."
+            "Los filtros y el agrupado también se reflejan en la barra de estado y reordenan las celdas visibles."
         }
         "settings.no_saved_profiles" => "Sin perfiles guardados",
         "settings.saved_profiles" => "Perfiles guardados: default",
@@ -760,7 +780,7 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.option.lock_layout.title" => "Bloquear cambios de layout",
         "settings.option.lock_layout.description" => {
-            "Bloquea cambios de layout por teclado o desde la barra superior."
+            "Bloquea cambios de layout por teclado o desde el menú de la aplicación."
         }
         "settings.option.lock_cell_resize.title" => "Bloquear redimensionado de celdas",
         "settings.option.lock_cell_resize.description" => {
@@ -770,9 +790,9 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.section.display.helper" => {
             "Controles que cambian la legibilidad y el contenido visible del dashboard."
         }
-        "settings.option.show_toolbar.title" => "Mostrar barra superior",
+        "settings.option.show_toolbar.title" => "Mostrar barra de estado",
         "settings.option.show_toolbar.description" => {
-            "Muestra la cabecera superior con resumen de estado y acceso rápido al menú."
+            "Muestra la barra de estado inferior con resumen de estado y acceso rápido al menú."
         }
         "settings.option.show_info.title" => "Mostrar info de ventana sobre las miniaturas",
         "settings.option.show_info.description" => {
@@ -909,9 +929,9 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.shortcut.toggle_animations.description" => {
             "Activa o desactiva transiciones del dashboard."
         }
-        "settings.shortcut.toggle_toolbar.title" => "Alternar barra superior",
+        "settings.shortcut.toggle_toolbar.title" => "Alternar barra de estado",
         "settings.shortcut.toggle_toolbar.description" => {
-            "Muestra u oculta la barra superior del dashboard."
+            "Muestra u oculta la barra de estado inferior del dashboard."
         }
         "settings.shortcut.toggle_window_info.title" => "Alternar info de ventanas",
         "settings.shortcut.toggle_window_info.description" => {
@@ -939,9 +959,9 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.shortcut.exit_app.title" => "Salir de la app",
         "settings.shortcut.exit_app.description" => "Cierra Panopticon desde teclado.",
-        "settings.shortcut.alt_toolbar.title" => "Usar Alt como atajo rápido para la barra",
+        "settings.shortcut.alt_toolbar.title" => "Usar Alt como atajo rápido para la barra de estado",
         "settings.shortcut.alt_toolbar.description" => {
-            "Mantiene el atajo legacy de Windows para esconder o mostrar la toolbar con una sola pulsación de Alt."
+            "Mantiene el atajo legacy de Windows para esconder o mostrar la barra de estado con una sola pulsación de Alt."
         }
         "settings.page.advanced.title" => "Opciones avanzadas",
         "settings.page.advanced.subtitle" => {
@@ -990,9 +1010,25 @@ fn es(key: &str) -> Option<&'static str> {
         "action.clear_image" => "Limpiar imagen",
         "action.refresh_now" => "Refrescar ahora",
         "action.auto_apply" => "Los cambios se aplican automáticamente.",
+        "action.about" => "Acerca de",
         "action.reset_defaults" => "Restablecer valores por defecto",
         "action.close" => "Cerrar",
         "dialog.choose_background_image" => "Elegir imagen de fondo del dashboard",
+
+        // ── About window ──
+        "about.title" => "Acerca de Panopticon",
+        "about.subtitle" => {
+            "Un dashboard nativo para Windows pensado para explorar ventanas abiertas mediante thumbnails DWM en vivo."
+        }
+        "about.version_title" => "Versión",
+        "about.description_title" => "Aplicación",
+        "about.description_body" => {
+            "Panopticon te ayuda a previsualizar, organizar y activar ventanas del escritorio desde un único panel local de control."
+        }
+        "about.credits_title" => "Créditos",
+        "about.credits_body" => {
+            "Creado por gvastethecreator.\nConstruido con Rust, Slint, windows-rs y las APIs de thumbnails del Desktop Window Manager.\nLicencia: MIT."
+        }
 
         // ── Validation / CLI ──
         "settings.profile_invalid_chars" => {

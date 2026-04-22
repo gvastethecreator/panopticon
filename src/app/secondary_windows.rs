@@ -22,9 +22,12 @@ use super::dock::{
 use super::global_hotkey;
 use super::native_runtime::apply_configured_main_window_size;
 use super::settings_ui::{apply_settings_window_changes, populate_settings_window};
-use super::theme_ui::{apply_settings_window_theme_snapshot, apply_tag_dialog_theme_snapshot};
+use super::theme_ui::{
+    apply_about_window_theme_snapshot, apply_settings_window_theme_snapshot,
+    apply_tag_dialog_theme_snapshot,
+};
 use super::tray::apply_window_icons;
-use crate::{AppState, MainWindow, SettingsWindow, TagDialogWindow};
+use crate::{AboutWindow, AppState, MainWindow, SettingsWindow, TagDialogWindow};
 
 struct RuntimeUiOptions {
     monitors: Vec<String>,
@@ -150,6 +153,13 @@ pub(crate) fn open_settings_window(
                 let _ = launch_additional_instance(requested.as_deref());
                 settings_window.set_known_profiles_label(SharedString::from(known_profiles_label()));
             });
+        }
+    });
+
+    settings_window.on_open_about({
+        let state = state.clone();
+        move || {
+            open_about_window(&state);
         }
     });
 
@@ -333,6 +343,7 @@ pub(crate) fn open_settings_window(
                     if let Some(main_window) = main_weak.upgrade() {
                         crate::populate_tr_global(&main_window);
                     }
+                    refresh_open_about_window(&state);
                     refresh_open_tag_dialog_window(&state);
                     refresh_tray_locale(&state);
                 }
@@ -398,6 +409,82 @@ pub(crate) fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
         sync_settings_window_from_state(window, &state);
         if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
             keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
+        }
+    });
+}
+
+pub(crate) fn open_about_window(state: &Rc<RefCell<AppState>>) {
+    let already_open = crate::ABOUT_WIN.with(|handle| {
+        let guard = handle.borrow();
+        if let Some(existing) = guard.as_ref() {
+            existing.show().ok();
+            if let Some(hwnd) = crate::get_hwnd(existing.window()) {
+                let state = state.borrow();
+                apply_window_icons(hwnd, &state.icons);
+                keep_dialog_above_owner(hwnd, state.hwnd, &state.settings);
+                center_window_on_owner_monitor(hwnd, state.hwnd);
+            }
+            true
+        } else {
+            false
+        }
+    });
+    if already_open {
+        return;
+    }
+
+    let about_window = match AboutWindow::new() {
+        Ok(window) => window,
+        Err(error) => {
+            tracing::error!(%error, "failed to create about window");
+            return;
+        }
+    };
+    crate::populate_tr_global(&about_window);
+
+    {
+        let state = state.borrow();
+        sync_about_window_from_state(&about_window, &state);
+    }
+
+    about_window.on_closed(close_about_window);
+
+    about_window.window().on_close_requested(|| {
+        close_about_window();
+        CloseRequestResponse::HideWindow
+    });
+
+    if let Err(error) = about_window.show() {
+        tracing::error!(%error, "failed to show about window");
+        return;
+    }
+
+    if let Some(about_hwnd) = crate::get_hwnd(about_window.window()) {
+        let state = state.borrow();
+        apply_window_icons(about_hwnd, &state.icons);
+        apply_window_appearance(about_hwnd, &state.settings);
+        apply_about_window_theme_snapshot(&about_window, &state.current_theme);
+        keep_dialog_above_owner(about_hwnd, state.hwnd, &state.settings);
+        center_window_on_owner_monitor(about_hwnd, state.hwnd);
+    }
+
+    crate::ABOUT_WIN.with(|handle| *handle.borrow_mut() = Some(about_window));
+}
+
+pub(crate) fn refresh_open_about_window(state: &Rc<RefCell<AppState>>) {
+    crate::ABOUT_WIN.with(|handle| {
+        let guard = handle.borrow();
+        let Some(window) = guard.as_ref() else {
+            return;
+        };
+        let Ok(state) = state.try_borrow() else {
+            tracing::debug!("skipping about window refresh while app state is busy");
+            return;
+        };
+        sync_about_window_from_state(window, &state);
+        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
+            keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
+            center_window_on_owner_monitor(dialog_hwnd, state.hwnd);
         }
     });
 }
@@ -630,6 +717,15 @@ fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
     }
 }
 
+fn sync_about_window_from_state(window: &AboutWindow, state: &AppState) {
+    crate::populate_tr_global(window);
+    window.set_version_text(SharedString::from(format!(
+        "v{}",
+        env!("CARGO_PKG_VERSION")
+    )));
+    apply_about_window_theme_snapshot(window, &state.current_theme);
+}
+
 fn known_profiles_label() -> String {
     use panopticon::i18n;
     match AppSettings::list_profiles() {
@@ -729,5 +825,12 @@ fn close_tag_dialog_window() {
     let taken = crate::TAG_DIALOG_WIN.with(|dialog| dialog.borrow_mut().take());
     if let Some(dialog) = taken {
         dialog.hide().ok();
+    }
+}
+
+fn close_about_window() {
+    let taken = crate::ABOUT_WIN.with(|handle| handle.borrow_mut().take());
+    if let Some(window) = taken {
+        window.hide().ok();
     }
 }

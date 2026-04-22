@@ -12,20 +12,21 @@ import "../assets/fonts/MirandaSans-BoldItalic.ttf";
 export global Tr {
     // App identity
     in property <string> app-name: "Panopticon";
-    in property <string> main-window-title: "Panopticon — Window Viewer";
+    in property <string> main-window-title: "Panopticon";
     in property <string> settings-window-title: "Panopticon — Settings";
     in property <string> tag-window-title: "Panopticon — Create tag";
+    in property <string> about-window-title: "Panopticon — About";
 
     // ThumbnailCard
     in property <string> minimized: "minimized";
     in property <string> last-seen: "LAST SEEN";
 
-    // Toolbar
+    // Status bar
     in property <string> visible-label: "visible";
     in property <string> hidden-label: "hidden";
     in property <string> always-on-top-label: "always on top";
     in property <string> normal-window-label: "normal window";
-    in property <string> toolbar-hint: "right-click header / M: menu | Esc exit";
+    in property <string> toolbar-hint: "right-click status bar / M: menu | Esc exit";
     in property <string> anim-on: "anim on";
     in property <string> anim-off: "anim off";
 
@@ -112,10 +113,20 @@ export global Tr {
     in property <string> action-clear-image: "Clear image";
     in property <string> action-refresh-now: "Refresh now";
     in property <string> action-auto-apply: "Changes apply automatically.";
+    in property <string> action-about: "About";
+
+    // About window
+    in property <string> about-title: "About Panopticon";
+    in property <string> about-subtitle: "A native Windows dashboard for exploring open windows through live DWM thumbnails.";
+    in property <string> about-version-title: "Version";
+    in property <string> about-description-title: "Application";
+    in property <string> about-description-body: "Panopticon helps you preview, organize, and activate live desktop windows from a single local control room.";
+    in property <string> about-credits-title: "Credits";
+    in property <string> about-credits-body: "Created by gvastethecreator.\nBuilt with Rust, Slint, windows-rs, and the Desktop Window Manager thumbnail APIs.\nLicense: MIT.";
 
     // Settings hints already used from Rust
     in property <string> dock-mode-hint: "In dock mode this option is automatically disabled.";
-    in property <string> filters-hint: "Filters and grouping are also reflected in the header and reorder visible cells.";
+    in property <string> filters-hint: "Filters and grouping are also reflected in the status bar and reorder visible cells.";
     in property <string> current-profile-prefix: "Current profile: ";
     in property <string> profile-input-label: "Profile:";
     in property <string> save-profile-btn: "Save profile";
@@ -163,13 +174,13 @@ export global Tr {
     in property <string> settings-option-start-in-tray-title: "Start hidden in tray";
     in property <string> settings-option-start-in-tray-description: "Launch directly in the background for a quieter startup.";
     in property <string> settings-option-lock-layout-title: "Lock layout changes";
-    in property <string> settings-option-lock-layout-description: "Prevent layout changes from the keyboard or the top toolbar.";
+    in property <string> settings-option-lock-layout-description: "Prevent layout changes from the keyboard or the application menu.";
     in property <string> settings-option-lock-cell-resize-title: "Lock cell resizing";
     in property <string> settings-option-lock-cell-resize-description: "Disable separator dragging to protect the current composition.";
     in property <string> settings-section-display-title: "Display";
     in property <string> settings-section-display-helper: "Controls that change readability and the information shown on the dashboard.";
-    in property <string> settings-option-show-toolbar-title: "Show toolbar";
-    in property <string> settings-option-show-toolbar-description: "Show the top header with status summary and quick access to the menu.";
+    in property <string> settings-option-show-toolbar-title: "Show status bar";
+    in property <string> settings-option-show-toolbar-description: "Show the bottom status bar with status summary and quick access to the menu.";
     in property <string> settings-option-show-info-title: "Show window info above thumbnails";
     in property <string> settings-option-show-info-description: "Add the window and application name above each preview for quick context.";
     in property <string> settings-option-show-app-icons-title: "Show app icons in cells";
@@ -251,8 +262,8 @@ export global Tr {
     in property <string> settings-shortcut-cycle-theme-description: "Rotate between presets without opening the settings window.";
     in property <string> settings-shortcut-toggle-animations-title: "Toggle animations";
     in property <string> settings-shortcut-toggle-animations-description: "Enable or disable dashboard transitions.";
-    in property <string> settings-shortcut-toggle-toolbar-title: "Toggle toolbar";
-    in property <string> settings-shortcut-toggle-toolbar-description: "Show or hide the dashboard's top bar.";
+    in property <string> settings-shortcut-toggle-toolbar-title: "Toggle status bar";
+    in property <string> settings-shortcut-toggle-toolbar-description: "Show or hide the dashboard's bottom status bar.";
     in property <string> settings-shortcut-toggle-window-info-title: "Toggle window info";
     in property <string> settings-shortcut-toggle-window-info-description: "Show or hide titles and info above thumbnails.";
     in property <string> settings-shortcut-toggle-always-on-top-title: "Toggle always on top";
@@ -267,8 +278,8 @@ export global Tr {
     in property <string> settings-shortcut-refresh-now-description: "Force a new window enumeration and refresh the dashboard.";
     in property <string> settings-shortcut-exit-app-title: "Exit app";
     in property <string> settings-shortcut-exit-app-description: "Close Panopticon from the keyboard.";
-    in property <string> settings-shortcut-alt-toolbar-title: "Use Alt as a quick toolbar toggle";
-    in property <string> settings-shortcut-alt-toolbar-description: "Keep the legacy Windows shortcut to hide or show the toolbar with a single Alt press.";
+    in property <string> settings-shortcut-alt-toolbar-title: "Use Alt as a quick status bar toggle";
+    in property <string> settings-shortcut-alt-toolbar-description: "Keep the legacy Windows shortcut to hide or show the status bar with a single Alt press.";
 
     // Advanced page
     in property <string> settings-page-advanced-title: "Advanced Options";

@@ -57,11 +57,11 @@ If `start_in_tray = true`, the application finishes startup hidden in the tray.
 
 On a correct first start:
 
-- a main window with an upper toolbar;
+- a main window with a bottom status bar;
 - dark cards with a colour stripe at the top;
 - live thumbnails inside each card;
 - an icon in the system tray;
-- visible and hidden window counts in the toolbar.
+- visible and hidden window counts in the status bar.
 
 If there are no candidate windows, the UI shows an empty state.
 
@@ -72,13 +72,14 @@ If there are no candidate windows, the UI shows an empty state.
 3. Right-click a thumbnail to open the per-window menu.
 4. Hide an application from the layout, then restore it from the tray.
 5. Create a tag from an application.
-6. Open `Settings` with `O` and review language, filters, theme, background options, shortcuts, and profiles.
+6. Open `Settings` with `O` and review language, filters, theme, background options, shortcuts, profiles, and the About entry.
 7. Try `T` to toggle between themes.
-8. If using `Row` or `Column`, scroll with the wheel or middle-button drag.
+8. Press `F1` while the dashboard is focused to open the About window.
+9. If using `Row` or `Column`, scroll with the wheel or middle-button drag.
 
 ## Useful shortcuts
 
-These are the default bindings shipped by Panopticon today. They can be edited from the settings window; the dashboard bindings stay single-key, while the global activation shortcut accepts `Ctrl` / `Alt` / `Shift` combinations and can be cleared to disable it.
+These are the default bindings shipped by Panopticon today. The dashboard/global shortcuts can be edited from the settings window; `F1` remains a built-in shortcut for the About window.
 
 | Key / gesture | Result |
 | --- | --- |
@@ -87,14 +88,15 @@ These are the default bindings shipped by Panopticon today. They can be edited f
 | `0` | reset custom ratios for the current layout |
 | `R` | refresh windows |
 | `A` | toggle animations |
-| `H` | toggle toolbar |
+| `H` | toggle status bar |
 | `I` | toggle window info |
 | `P` | toggle always-on-top |
 | `T` | change theme |
 | `O` | open settings |
+| `F1` | open About window |
 | `M` | open application menu |
 | `Ctrl` + `Alt` + `P` | activate and focus Panopticon globally |
-| `Alt` | toggle toolbar |
+| `Alt` | toggle status bar |
 | left-click thumbnail | activate window |
 | right-click thumbnail | per-app/window context menu |
 | left-click tray | show/hide main window |
