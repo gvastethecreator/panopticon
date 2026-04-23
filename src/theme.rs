@@ -4,6 +4,8 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+use crate::settings::ThemeColorOverrides;
+
 const CLASSIC_THEME_LABEL: &str = "Classic Panopticon";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,21 +83,37 @@ pub fn theme_presets() -> &'static [ThemePreset] {
     static PRESETS: OnceLock<Vec<ThemePreset>> = OnceLock::new();
     PRESETS
         .get_or_init(|| {
-            serde_json::from_str::<Vec<ThemeCatalogEntry>>(include_str!("../assets/themes.json"))
-                .unwrap_or_default()
-                .iter()
-                .map(ThemePreset::from_catalog)
-                .collect()
+            let mut presets = serde_json::from_str::<Vec<ThemeCatalogEntry>>(include_str!(
+                "../assets/themes.json"
+            ))
+            .unwrap_or_default()
+            .iter()
+            .map(ThemePreset::from_catalog)
+            .collect::<Vec<_>>();
+
+            if let Some(campbell_index) = presets.iter().position(|preset| preset.id == "campbell")
+            {
+                let campbell = presets.remove(campbell_index);
+                presets.insert(0, campbell);
+            }
+
+            presets
         })
         .as_slice()
 }
 
 #[must_use]
-pub fn resolve_ui_theme(theme_id: Option<&str>, fallback_background_hex: &str) -> UiTheme {
-    theme_id.and_then(resolve_preset_ui_theme).map_or_else(
+pub fn resolve_ui_theme(
+    theme_id: Option<&str>,
+    fallback_background_hex: &str,
+    overrides: &ThemeColorOverrides,
+) -> UiTheme {
+    let base = theme_id.and_then(resolve_preset_ui_theme).map_or_else(
         || classic_theme(fallback_background_hex),
         |preset| theme_with_background_override(&preset, fallback_background_hex),
-    )
+    );
+
+    apply_theme_color_overrides(base, overrides)
 }
 
 #[must_use]
@@ -360,6 +378,63 @@ fn theme_with_background_override(base: &UiTheme, background_hex: &str) -> UiThe
     }
 }
 
+fn apply_theme_color_overrides(base: UiTheme, overrides: &ThemeColorOverrides) -> UiTheme {
+    if overrides.is_empty() {
+        return base;
+    }
+
+    let bg = parse_hex_rgb(&base.bg_hex).unwrap_or(Rgb {
+        r: 0x18,
+        g: 0x15,
+        b: 0x13,
+    });
+    let text = overrides
+        .text_hex
+        .as_deref()
+        .and_then(parse_hex_rgb)
+        .or_else(|| parse_hex_rgb(&base.text_hex))
+        .unwrap_or(Rgb {
+            r: 0xE6,
+            g: 0xE2,
+            b: 0xDE,
+        });
+    let accent = overrides
+        .accent_hex
+        .as_deref()
+        .and_then(parse_hex_rgb)
+        .or_else(|| parse_hex_rgb(&base.accent_hex))
+        .unwrap_or(Rgb {
+            r: 0xD2,
+            g: 0x9A,
+            b: 0x5C,
+        });
+
+    UiTheme {
+        accent_hex: to_hex(accent),
+        accent_soft_hex: to_hex(mix(bg, accent, 0.34)),
+        border_hex: overrides
+            .border_hex
+            .clone()
+            .unwrap_or_else(|| to_hex(mix(bg, text, 0.22))),
+        card_bg_hex: overrides
+            .card_hex
+            .clone()
+            .unwrap_or_else(|| base.card_bg_hex.clone()),
+        hover_border_hex: to_hex(accent),
+        label_hex: to_hex(mix(bg, text, 0.78)),
+        muted_hex: overrides
+            .muted_hex
+            .clone()
+            .unwrap_or_else(|| to_hex(mix(bg, text, 0.56))),
+        surface_hex: overrides
+            .surface_hex
+            .clone()
+            .unwrap_or_else(|| base.surface_hex.clone()),
+        text_hex: to_hex(text),
+        ..base
+    }
+}
+
 fn display_label(name: &str, variant: &str) -> String {
     let name = name.trim();
     let variant = variant.trim();
@@ -456,6 +531,7 @@ mod tests {
         interpolate_ui_theme, resolve_ui_theme, theme_id_by_index, theme_index, theme_labels,
         theme_presets,
     };
+    use crate::settings::ThemeColorOverrides;
 
     #[test]
     fn bundled_theme_catalog_is_available() {
@@ -463,6 +539,10 @@ mod tests {
         assert_eq!(
             theme_labels().first().map(String::as_str),
             Some("Classic Panopticon")
+        );
+        assert_eq!(
+            theme_presets().first().map(|preset| preset.id.as_str()),
+            Some("campbell")
         );
     }
 
@@ -474,7 +554,7 @@ mod tests {
 
     #[test]
     fn unknown_theme_falls_back_to_classic() {
-        let theme = resolve_ui_theme(Some("missing"), "181513");
+        let theme = resolve_ui_theme(Some("missing"), "181513", &ThemeColorOverrides::default());
         assert_eq!(theme.label, "Classic Panopticon");
         assert_eq!(theme.bg_hex, "181513");
     }
@@ -482,16 +562,40 @@ mod tests {
     #[test]
     fn bundled_theme_uses_override_background_color() {
         let bundled = theme_presets().first().expect("bundled theme exists");
-        let resolved = resolve_ui_theme(Some(&bundled.id), "224466");
+        let resolved =
+            resolve_ui_theme(Some(&bundled.id), "224466", &ThemeColorOverrides::default());
 
         assert_eq!(resolved.bg_hex, "224466");
         assert_eq!(resolved.accent_hex, bundled.ui.accent_hex);
     }
 
     #[test]
+    fn manual_theme_overrides_replace_core_palette_slots() {
+        let resolved = resolve_ui_theme(
+            Some("campbell"),
+            "0C0C0C",
+            &ThemeColorOverrides {
+                accent_hex: Some("5CA9FF".to_owned()),
+                text_hex: Some("F5F5F5".to_owned()),
+                surface_hex: Some("202020".to_owned()),
+                card_hex: Some("181818".to_owned()),
+                muted_hex: Some("999999".to_owned()),
+                border_hex: Some("444444".to_owned()),
+            },
+        );
+
+        assert_eq!(resolved.accent_hex, "5CA9FF");
+        assert_eq!(resolved.text_hex, "F5F5F5");
+        assert_eq!(resolved.surface_hex, "202020");
+        assert_eq!(resolved.card_bg_hex, "181818");
+        assert_eq!(resolved.muted_hex, "999999");
+        assert_eq!(resolved.border_hex, "444444");
+    }
+
+    #[test]
     fn ui_theme_interpolation_respects_endpoints() {
-        let from = resolve_ui_theme(None, "181513");
-        let to = resolve_ui_theme(None, "223344");
+        let from = resolve_ui_theme(None, "181513", &ThemeColorOverrides::default());
+        let to = resolve_ui_theme(None, "223344", &ThemeColorOverrides::default());
 
         assert_eq!(interpolate_ui_theme(&from, &to, 0.0), from);
         assert_eq!(interpolate_ui_theme(&from, &to, 1.0).bg_hex, to.bg_hex);

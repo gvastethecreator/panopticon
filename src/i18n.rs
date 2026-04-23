@@ -324,10 +324,6 @@ fn en(key: &str) -> &'static str {
         "settings.option.show_app_icons.description" => {
             "Render the process icon inside each cell to identify apps faster."
         }
-        "settings.option.use_system_backdrop.title" => "Use system backdrop (Win11)",
-        "settings.option.use_system_backdrop.description" => {
-            "Enable more native system materials and borders when Windows 11 supports them."
-        }
         "settings.page.filters.title" => "Filters",
         "settings.page.filters.subtitle" => {
             "Limit the dashboard by monitor, tags, applications, or groups, and restore hidden apps without leaving this view."
@@ -354,11 +350,15 @@ fn en(key: &str) -> &'static str {
         }
         "settings.page.theme_background.title" => "Theme & Background",
         "settings.page.theme_background.subtitle" => {
-            "Combine a theme library with a custom canvas colour and an adjustable background image."
+            "Pick a theme preset, fine-tune core colours, and combine it with a custom canvas colour and background image."
         }
-        "settings.section.theme_grid.title" => "Theme grid",
+        "settings.section.theme_grid.title" => "Theme presets",
         "settings.section.theme_grid.helper" => {
-            "Pick a preset from a scrollable grid; the theme defines accents, panels, and overall contrast."
+            "Pick a preset from a compact list; the theme defines accents, panels, and overall contrast."
+        }
+        "settings.section.theme_colours.title" => "Theme colours",
+        "settings.section.theme_colours.helper" => {
+            "Adjust core colours of the active theme. Leave a field empty to keep the preset value."
         }
         "settings.section.canvas_background.title" => "Canvas background",
         "settings.section.canvas_background.helper" => {
@@ -388,6 +388,13 @@ fn en(key: &str) -> &'static str {
         "settings.option.image_opacity.description" => {
             "Control how strong the background image should appear over the canvas colour."
         }
+        "settings.theme_colours.accent" => "Accent",
+        "settings.theme_colours.surface" => "Surface",
+        "settings.theme_colours.card" => "Card",
+        "settings.theme_colours.text" => "Text",
+        "settings.theme_colours.muted" => "Muted",
+        "settings.theme_colours.border" => "Border",
+        "settings.theme_colours.hint" => "Leave blank to inherit the current preset colour.",
         "settings.fit.cover" => "Cover",
         "settings.fit.contain" => "Contain",
         "settings.fit.fill" => "Fill",
@@ -526,7 +533,7 @@ fn en(key: &str) -> &'static str {
         }
         "settings.option.thumbnail_render_scale.title" => "Thumbnail render scale",
         "settings.option.thumbnail_render_scale.description" => {
-            "Lower values reduce thumbnail internal detail to improve performance while preserving card footprint, at the cost of sharpness."
+            "Choose 25%, 50%, 75%, or 100% thumbnail detail. Lower values trade sharpness for better performance while keeping the card footprint nearly the same."
         }
         "settings.label.width" => "Width",
         "settings.label.height" => "Height",
@@ -574,6 +581,7 @@ fn en(key: &str) -> &'static str {
             "A native Windows dashboard for exploring open windows through live DWM thumbnails."
         }
         "about.version_title" => "Version",
+        "about.update_available" => "Update available",
         "about.description_title" => "Application",
         "about.description_body" => {
             "Panopticon helps you preview, organize, and activate live desktop windows from a single local control room."
@@ -847,10 +855,6 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.option.show_app_icons.description" => {
             "Pinta el icono del proceso dentro de cada celda para identificar apps más rápido."
         }
-        "settings.option.use_system_backdrop.title" => "Usar backdrop del sistema (Win11)",
-        "settings.option.use_system_backdrop.description" => {
-            "Activa materiales del sistema y bordes más nativos cuando Windows 11 los soporta."
-        }
         "settings.page.filters.title" => "Filtros",
         "settings.page.filters.subtitle" => {
             "Acotá el dashboard por monitor, tags, aplicaciones o grupos, y recuperá apps ocultas sin salir de esta vista."
@@ -877,11 +881,15 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.page.theme_background.title" => "Tema y fondo",
         "settings.page.theme_background.subtitle" => {
-            "Combina una librería de themes con un color de canvas propio y una imagen de fondo ajustable."
+            "Elegí un preset de tema, ajustá sus colores principales y combínalo con un color propio de canvas y una imagen de fondo."
         }
-        "settings.section.theme_grid.title" => "Grilla de temas",
+        "settings.section.theme_grid.title" => "Presets de tema",
         "settings.section.theme_grid.helper" => {
-            "Seleccioná un preset desde una grilla desplazable; el tema define acentos, paneles y contraste general."
+            "Seleccioná un preset desde una lista compacta; el tema define acentos, paneles y contraste general."
+        }
+        "settings.section.theme_colours.title" => "Colores del tema",
+        "settings.section.theme_colours.helper" => {
+            "Ajustá los colores principales del tema activo. Dejá un campo vacío para conservar el valor del preset."
         }
         "settings.section.canvas_background.title" => "Fondo del canvas",
         "settings.section.canvas_background.helper" => {
@@ -911,6 +919,13 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.option.image_opacity.description" => {
             "Controla qué tan presente debe verse la imagen de fondo sobre el color del canvas."
         }
+        "settings.theme_colours.accent" => "Acento",
+        "settings.theme_colours.surface" => "Superficie",
+        "settings.theme_colours.card" => "Tarjeta",
+        "settings.theme_colours.text" => "Texto",
+        "settings.theme_colours.muted" => "Atenuado",
+        "settings.theme_colours.border" => "Borde",
+        "settings.theme_colours.hint" => "Dejá el campo vacío para heredar el color actual del preset.",
         "settings.fit.cover" => "Cubrir",
         "settings.fit.contain" => "Contener",
         "settings.fit.fill" => "Rellenar",
@@ -1049,7 +1064,7 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.option.thumbnail_render_scale.title" => "Escala de render de thumbnails",
         "settings.option.thumbnail_render_scale.description" => {
-            "Valores menores reducen el detalle interno del thumbnail para mejorar rendimiento manteniendo el tamaño visual de la tarjeta, a cambio de perder nitidez."
+            "Elegí 25%, 50%, 75% o 100% de detalle para los thumbnails. Valores menores sacrifican nitidez para ganar rendimiento manteniendo casi intacta la huella visual de la tarjeta."
         }
         "settings.label.width" => "Ancho",
         "settings.label.height" => "Alto",
@@ -1097,6 +1112,7 @@ fn es(key: &str) -> Option<&'static str> {
             "Un dashboard nativo para Windows pensado para explorar ventanas abiertas mediante thumbnails DWM en vivo."
         }
         "about.version_title" => "Versión",
+        "about.update_available" => "Nueva versión",
         "about.description_title" => "Aplicación",
         "about.description_body" => {
             "Panopticon te ayuda a previsualizar, organizar y activar ventanas del escritorio desde un único panel local de control."

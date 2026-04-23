@@ -12,6 +12,7 @@ use windows::Win32::Graphics::Dwm::{
 use windows::Win32::UI::WindowsAndMessaging::{IsIconic, IsWindow, IsWindowVisible};
 
 use panopticon::constants::THUMBNAIL_ACCENT_HEIGHT;
+use panopticon::constants::TOOLBAR_HEIGHT;
 use panopticon::thumbnail::Thumbnail;
 
 use crate::{
@@ -88,6 +89,12 @@ pub(crate) fn update_dwm_thumbnails(
         let state = &mut *s;
         (&state.settings, &mut state.windows)
     };
+    let toolbar_phys_h = if settings.show_toolbar {
+        (TOOLBAR_HEIGHT as f32 * scale).round() as i32
+    } else {
+        0
+    };
+    let content_phys_h = (phys.height as i32 - toolbar_phys_h).max(1);
     let show_icons = settings.show_app_icons;
     let show_info = settings.show_window_info;
 
@@ -137,7 +144,7 @@ pub(crate) fn update_dwm_thumbnails(
                 render_scale_pct,
             );
             let (dest, visible) =
-                sanitize_thumbnail_rect(raw_dest, phys.width as i32, phys.height as i32);
+                sanitize_thumbnail_rect(raw_dest, phys.width as i32, content_phys_h);
             let props_changed = registered_thumbnail
                 || mw.last_thumb_dest != Some(dest)
                 || mw.last_thumb_visible != visible;
@@ -248,11 +255,13 @@ pub(crate) fn compute_dwm_rect(
         (l, t, r, b)
     };
 
-    let render_scale = (f32::from(render_scale_pct) / 100.0).clamp(0.5, 1.0);
-    // Keep thumbnails visually closer to their card size even at lower
-    // internal render scales so previews look intentionally pixelated instead
-    // of appearing too small inside each card.
-    let visual_scale = (0.82 + (render_scale - 0.5) * 0.36).clamp(0.82, 1.0);
+    let render_scale = (f32::from(render_scale_pct) / 100.0).clamp(0.25, 1.0);
+    // DWM thumbnails do not expose a separate internal render-resolution knob,
+    // so we approximate lower scales by nudging the destination rect inward
+    // while keeping the visual footprint close to the card size. That makes the
+    // preview look softer / a bit more pixelated without shrinking it as much
+    // as the previous implementation did.
+    let visual_scale = (0.88 + render_scale * 0.12).clamp(0.91, 1.0);
     let scaled_width = (fr - fl) * visual_scale;
     let scaled_height = (fb - ft) * visual_scale;
     let scaled_left = fl + ((fr - fl) - scaled_width) / 2.0;

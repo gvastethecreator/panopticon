@@ -15,10 +15,11 @@ use crate::layout::{LayoutCustomization, LayoutType};
 
 const DEFAULT_REFRESH_INTERVAL_MS: u32 = 2_000;
 const REFRESH_INTERVALS_MS: [u32; 4] = [1_000, 2_000, 5_000, 10_000];
-const DEFAULT_BACKGROUND_COLOR_HEX: &str = "181513";
+const DEFAULT_THEME_ID: &str = "campbell";
+const DEFAULT_BACKGROUND_COLOR_HEX: &str = "0C0C0C";
 const DEFAULT_BACKGROUND_IMAGE_OPACITY_PCT: u8 = 25;
 const DEFAULT_THUMBNAIL_RENDER_SCALE_PCT: u8 = 100;
-const MIN_THUMBNAIL_RENDER_SCALE_PCT: u8 = 50;
+const MIN_THUMBNAIL_RENDER_SCALE_PCT: u8 = 25;
 pub const MIN_FIXED_WINDOW_WIDTH: u32 = 320;
 pub const MIN_FIXED_WINDOW_HEIGHT: u32 = 220;
 pub const MIN_DOCK_COLUMN_THICKNESS: u32 = 180;
@@ -170,6 +171,48 @@ pub enum BackgroundImageFit {
     Contain,
     Fill,
     Preserve,
+}
+
+/// Optional manual overrides for key UI theme colours.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(default)]
+pub struct ThemeColorOverrides {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent_hex: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface_hex: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub card_hex: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_hex: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub muted_hex: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border_hex: Option<String>,
+}
+
+impl ThemeColorOverrides {
+    #[must_use]
+    pub fn normalized(&self) -> Self {
+        Self {
+            accent_hex: self.accent_hex.as_deref().and_then(normalize_color_hex),
+            surface_hex: self.surface_hex.as_deref().and_then(normalize_color_hex),
+            card_hex: self.card_hex.as_deref().and_then(normalize_color_hex),
+            text_hex: self.text_hex.as_deref().and_then(normalize_color_hex),
+            muted_hex: self.muted_hex.as_deref().and_then(normalize_color_hex),
+            border_hex: self.border_hex.as_deref().and_then(normalize_color_hex),
+        }
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.accent_hex.is_none()
+            && self.surface_hex.is_none()
+            && self.card_hex.is_none()
+            && self.text_hex.is_none()
+            && self.muted_hex.is_none()
+            && self.border_hex.is_none()
+    }
 }
 
 /// Customizable keyboard shortcuts used by the dashboard window.
@@ -465,8 +508,9 @@ pub struct AppSettings {
     pub theme_id: Option<String>,
     /// Base RGB background colour (`RRGGBB`) used for the client area.
     pub background_color_hex: String,
-    /// Use Windows 11 backdrop / rounded-corner chrome when available.
-    pub use_system_backdrop: bool,
+    /// Optional manual overrides for key colours in the active theme.
+    #[serde(default, skip_serializing_if = "ThemeColorOverrides::is_empty")]
+    pub theme_color_overrides: ThemeColorOverrides,
     /// Show the optional status bar at the bottom of the window.
     pub show_toolbar: bool,
     /// Show per-window title/app information below thumbnails.
@@ -529,9 +573,9 @@ impl Default for AppSettings {
             dock_edge: None,
             dock_column_thickness: None,
             dock_row_thickness: None,
-            theme_id: None,
+            theme_id: Some(DEFAULT_THEME_ID.to_owned()),
             background_color_hex: DEFAULT_BACKGROUND_COLOR_HEX.to_owned(),
-            use_system_backdrop: true,
+            theme_color_overrides: ThemeColorOverrides::default(),
             show_toolbar: true,
             show_window_info: true,
             start_in_tray: false,
@@ -865,7 +909,7 @@ impl AppSettings {
     /// Return the configured application background colour as BGR.
     #[must_use]
     pub fn background_color_bgr(&self) -> u32 {
-        rgb_hex_to_bgr(&self.background_color_hex).unwrap_or(0x0018_1513)
+        rgb_hex_to_bgr(&self.background_color_hex).unwrap_or(0x000C_0C0C)
     }
 
     /// Return the remembered tags for an application.
@@ -1201,7 +1245,7 @@ impl AppSettings {
             theme_id: self.theme_id.as_deref().and_then(normalize_profile_name),
             background_color_hex: normalize_color_hex(&self.background_color_hex)
                 .unwrap_or_else(|| DEFAULT_BACKGROUND_COLOR_HEX.to_owned()),
-            use_system_backdrop: self.use_system_backdrop,
+            theme_color_overrides: self.theme_color_overrides.normalized(),
             show_toolbar: self.show_toolbar,
             show_window_info: self.show_window_info,
             start_in_tray: self.start_in_tray,
@@ -1259,12 +1303,22 @@ const fn default_thumbnail_render_scale_pct() -> u8 {
 }
 
 const fn normalize_thumbnail_render_scale_pct(value: u8) -> u8 {
-    if value < MIN_THUMBNAIL_RENDER_SCALE_PCT {
+    let clamped = if value < MIN_THUMBNAIL_RENDER_SCALE_PCT {
         MIN_THUMBNAIL_RENDER_SCALE_PCT
     } else if value > 100 {
         100
     } else {
         value
+    };
+
+    if clamped < 38 {
+        25
+    } else if clamped < 63 {
+        50
+    } else if clamped < 88 {
+        75
+    } else {
+        100
     }
 }
 
@@ -1509,7 +1563,7 @@ mod tests {
         normalize_global_hotkey_binding, normalize_shortcut_binding, parse_global_hotkey_binding,
         validate_profile_name_input, AppRule, AppSettings, BackgroundImageFit, GlobalHotkeyBinding,
         GlobalHotkeyKey, HiddenAppEntry, ProfileNameValidation, ShortcutBindings, TagStyle,
-        ThumbnailRefreshMode,
+        ThemeColorOverrides, ThumbnailRefreshMode,
     };
     use crate::layout::LayoutType;
 
@@ -1543,7 +1597,10 @@ mod tests {
             dock_row_thickness: Some(180),
             theme_id: Some("theme:demo".to_owned()),
             background_color_hex: "101820".to_owned(),
-            use_system_backdrop: true,
+            theme_color_overrides: ThemeColorOverrides {
+                accent_hex: Some("5CA9FF".to_owned()),
+                ..ThemeColorOverrides::default()
+            },
             show_toolbar: false,
             show_window_info: false,
             start_in_tray: false,
@@ -1590,7 +1647,10 @@ mod tests {
             dock_row_thickness: Some(0),
             theme_id: Some("  work  ".to_owned()),
             background_color_hex: "ZZZZZZ".to_owned(),
-            use_system_backdrop: false,
+            theme_color_overrides: ThemeColorOverrides {
+                accent_hex: Some("oops".to_owned()),
+                ..ThemeColorOverrides::default()
+            },
             show_toolbar: true,
             show_window_info: true,
             start_in_tray: false,
@@ -1607,10 +1667,37 @@ mod tests {
         };
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);
-        assert_eq!(settings.normalized().background_color_hex, "181513");
+        assert_eq!(settings.normalized().background_color_hex, "0C0C0C");
         assert_eq!(settings.normalized().background_image_opacity_pct, 100);
-        assert_eq!(settings.normalized().thumbnail_render_scale_pct, 50);
+        assert_eq!(settings.normalized().thumbnail_render_scale_pct, 25);
         assert_eq!(settings.normalized().theme_id.as_deref(), Some("work"));
+        assert!(settings
+            .normalized()
+            .theme_color_overrides
+            .accent_hex
+            .is_none());
+    }
+
+    #[test]
+    fn theme_colour_overrides_are_normalized_and_empty_state_detected() {
+        let overrides = ThemeColorOverrides {
+            accent_hex: Some("#5ca9ff".to_owned()),
+            surface_hex: Some("   ".to_owned()),
+            card_hex: Some("223344".to_owned()),
+            text_hex: Some("badhex".to_owned()),
+            muted_hex: None,
+            border_hex: Some("556677".to_owned()),
+        };
+
+        let normalized = overrides.normalized();
+
+        assert_eq!(normalized.accent_hex.as_deref(), Some("5CA9FF"));
+        assert!(normalized.surface_hex.is_none());
+        assert_eq!(normalized.card_hex.as_deref(), Some("223344"));
+        assert!(normalized.text_hex.is_none());
+        assert_eq!(normalized.border_hex.as_deref(), Some("556677"));
+        assert!(!normalized.is_empty());
+        assert!(ThemeColorOverrides::default().is_empty());
     }
 
     #[test]

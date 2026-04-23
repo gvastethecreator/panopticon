@@ -122,6 +122,7 @@ export global Tr {
     in property <string> about-title: "About Panopticon";
     in property <string> about-subtitle: "A native Windows dashboard for exploring open windows through live DWM thumbnails.";
     in property <string> about-version-title: "Version";
+    in property <string> about-update-available: "Update available";
     in property <string> about-description-title: "Application";
     in property <string> about-description-body: "Panopticon helps you preview, organize, and activate live desktop windows from a single local control room.";
     in property <string> about-credits-title: "Credits";
@@ -190,8 +191,6 @@ export global Tr {
     in property <string> settings-option-show-info-description: "Add the window and application name above each preview for quick context.";
     in property <string> settings-option-show-app-icons-title: "Show app icons in cells";
     in property <string> settings-option-show-app-icons-description: "Render the process icon inside each cell to identify apps faster.";
-    in property <string> settings-option-use-system-backdrop-title: "Use system backdrop (Win11)";
-    in property <string> settings-option-use-system-backdrop-description: "Enable more native system materials and borders when Windows 11 supports them.";
 
     // Filters page
     in property <string> settings-page-filters-title: "Filters";
@@ -209,9 +208,11 @@ export global Tr {
 
     // Theme page
     in property <string> settings-page-theme-background-title: "Theme & Background";
-    in property <string> settings-page-theme-background-subtitle: "Combine a theme library with a custom canvas colour and an adjustable background image.";
-    in property <string> settings-section-theme-grid-title: "Theme grid";
-    in property <string> settings-section-theme-grid-helper: "Pick a preset from a scrollable grid; the theme defines accents, panels, and overall contrast.";
+    in property <string> settings-page-theme-background-subtitle: "Pick a theme preset, fine-tune core colours, and combine it with a custom canvas colour and background image.";
+    in property <string> settings-section-theme-grid-title: "Theme presets";
+    in property <string> settings-section-theme-grid-helper: "Pick a preset from a compact list; the theme defines accents, panels, and overall contrast.";
+    in property <string> settings-section-theme-colours-title: "Theme colours";
+    in property <string> settings-section-theme-colours-helper: "Adjust core colours of the active theme. Leave a field empty to keep the preset value.";
     in property <string> settings-section-canvas-background-title: "Canvas background";
     in property <string> settings-section-canvas-background-helper: "The canvas colour sits behind the cards and the optional background image.";
     in property <string> settings-option-custom-canvas-colour-title: "Custom canvas colour";
@@ -220,6 +221,13 @@ export global Tr {
     in property <string> settings-channel-red-label: "R";
     in property <string> settings-channel-green-label: "G";
     in property <string> settings-channel-blue-label: "B";
+    in property <string> settings-theme-accent-label: "Accent";
+    in property <string> settings-theme-surface-label: "Surface";
+    in property <string> settings-theme-card-label: "Card";
+    in property <string> settings-theme-text-label: "Text";
+    in property <string> settings-theme-muted-label: "Muted";
+    in property <string> settings-theme-border-label: "Border";
+    in property <string> settings-theme-override-hint: "Leave blank to inherit the current preset colour.";
     in property <string> settings-section-preview-title: "Preview";
     in property <string> settings-section-preview-helper: "Quick summary of the active background with colour and optional image.";
     in property <string> settings-section-background-image-title: "Background image";
