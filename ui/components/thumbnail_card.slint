@@ -203,10 +203,10 @@ export component ThumbnailCard inherits Rectangle {
         y: 3px + max((root.info-strip-height - self.height) / 2, 0px);
         width: 20px;
         height: 20px;
-        border-radius: 10px;
+        border-radius: 4px;
         background: close-touch.has-hover ? Theme.border : Theme.footer-bg.with-alpha(0.96);
-        border-width: 1px;
-        border-color: Theme.border.with-alpha(0.92);
+        border-width: 2px;
+        border-color: Theme.border.with-alpha(0.42);
         opacity: root.show-close-button ? 1.0 : 0.0;
 
         animate opacity, background { duration: 200ms; easing: ease-in-out; }
