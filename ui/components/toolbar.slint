@@ -7,16 +7,13 @@ component ToolbarChip inherits Rectangle {
     in property <bool> emphasized: false;
     in property <bool> stretch: false;
 
-    height: 28px;
-    border-radius: 14px;
-    border-width: 1px;
-    border-color: root.emphasized ? Theme.accent.with-alpha(48%) : Theme.border.with-alpha(56%);
     background: root.emphasized ? Theme.accent-soft.with-alpha(34%) : Theme.surface.with-alpha(42%);
     horizontal-stretch: root.stretch ? 1 : 0;
 
     HorizontalLayout {
         padding-left: 10px;
         padding-right: 10px;
+        padding-top: 10px;
         spacing: 7px;
         alignment: start;
 
@@ -32,6 +29,7 @@ component ToolbarChip inherits Rectangle {
             text: root.label;
             color: Theme.text;
             font-size: 11px;
+            height: 14px;
             font-weight: root.emphasized ? 700 : 500;
             vertical-alignment: center;
             overflow: elide;
@@ -59,17 +57,18 @@ export component Toolbar inherits Rectangle {
     property <string> visible-summary: root.window-count + " " + Tr.visible-label;
     property <string> hidden-summary: root.hidden-count + " " + Tr.hidden-label;
     property <string> status-summary: root.always-on-top ? Tr.always-on-top-label : Tr.normal-window-label;
+    animate-transitions: true;
     property <string> animation-summary: root.animate-transitions ? Tr.anim-on : Tr.anim-off;
     property <string> hint-summary: Tr.toolbar-hint;
 
-    height: root.ultra-compact ? 118px : root.compact ? 72px : 44px;
+    height: root.ultra-compact ? 118px : root.compact ? 72px : 34px;
     background: Theme.toolbar-bg;
 
     Rectangle {
         y: 0px;
         width: 100%;
-        height: 1px;
-        background: Theme.border;
+        height: 2px;
+        background: Theme.border.with-alpha(50%);
     }
 
     touch := TouchArea {

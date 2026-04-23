@@ -503,6 +503,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
     in property <string> current-profile-label: "default";
     in-out property <string> profile-name: "";
     in property <string> known-profiles-label: Tr.no-saved-profiles-label;
+    in property <string> app-version-text: "";
+    in property <string> update-status-text: "";
+    in property <bool> update-check-running: false;
     in property <[string]> available-profile-options: [Tr.default-profile-label];
     in-out property <int> available-profile-index: 0;
     in-out property <color> bg-preview-color: Theme.accent;
@@ -556,6 +559,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
     callback open-about();
     callback reset-to-defaults();
     callback refresh-now();
+    callback check-updates-now();
     callback restore-hidden-selected();
     callback restore-hidden-all();
     callback browse-background-image();
@@ -1441,14 +1445,17 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 16px;
-                                
 
                                 Rectangle {
-                                    height: 80px;
+                                    height: 208px;
                                     border-radius: 4px;
                                     border-width: 2px;
                                     border-color: Theme.border.with-alpha(50%);
                                     background: Theme.card_bg.with-alpha(92%);
+
+                                    VerticalLayout {
+                                        padding: 14px;
+                                        spacing: 10px;
 
                                         TextFieldSettingCard {
                                             icon: @image-url("../../assets/ui-icons/option-paint.svg");
@@ -1459,10 +1466,76 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 root.apply-bg-color-hex(root.bg-color-hex);
                                             }
                                         }
+
+                                        VerticalLayout {
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: Tr.settings-option-rgb-picker-title;
+                                                color: Theme.label;
+                                                font-size: 12px;
+                                            }
+
+                                            HorizontalLayout {
+                                                spacing: 8px;
+
+                                                Text {
+                                                    text: Tr.settings-channel-red-label;
+                                                    color: Theme.muted;
+                                                    vertical-alignment: center;
+                                                }
+
+                                                SpinBox {
+                                                    width: 72px;
+                                                    minimum: 0;
+                                                    maximum: 255;
+                                                    value: root.bg-red-value;
+                                                    changed value => {
+                                                        root.bg-red-value = self.value;
+                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                    }
+                                                }
+
+                                                Text {
+                                                    text: Tr.settings-channel-green-label;
+                                                    color: Theme.muted;
+                                                    vertical-alignment: center;
+                                                }
+
+                                                SpinBox {
+                                                    width: 72px;
+                                                    minimum: 0;
+                                                    maximum: 255;
+                                                    value: root.bg-green-value;
+                                                    changed value => {
+                                                        root.bg-green-value = self.value;
+                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                    }
+                                                }
+
+                                                Text {
+                                                    text: Tr.settings-channel-blue-label;
+                                                    color: Theme.muted;
+                                                    vertical-alignment: center;
+                                                }
+
+                                                SpinBox {
+                                                    width: 72px;
+                                                    minimum: 0;
+                                                    maximum: 255;
+                                                    value: root.bg-blue-value;
+                                                    changed value => {
+                                                        root.bg-blue-value = self.value;
+                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
                                 Rectangle {
-                                    height: 190px;
+                                    height: 290px;
                                     border-radius: 4px;
                                     border-width: 2px;
                                     border-color: Theme.border.with-alpha(50%);
@@ -1478,7 +1551,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             helper: Tr.settings-section-background-image-helper;
                                         }
 
-                                        
                                         HorizontalLayout {
                                             spacing: 10px;
 
@@ -1499,6 +1571,46 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             }
                                         }
 
+                                        VerticalLayout {
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: Tr.settings-option-image-file-title;
+                                                color: Theme.label;
+                                                font-size: 12px;
+                                            }
+
+                                            LineEdit {
+                                                text <=> root.bg-image-path;
+                                                height: 32px;
+                                                placeholder-text: "C:/Users/.../background.png";
+                                                accepted(_) => {
+                                                    root.apply();
+                                                }
+                                                changed has-focus => {
+                                                    if !self.has-focus {
+                                                        root.apply();
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: Tr.settings-option-image-fit-title;
+                                                color: Theme.label;
+                                                font-size: 12px;
+                                            }
+
+                                            ComboBox {
+                                                width: 180px;
+                                                height: 32px;
+                                                model: Tr.image-fit-options;
+                                                current-index <=> root.bg-image-fit-index;
+                                            }
+                                        }
 
                                         VerticalLayout {
                                             spacing: 6px;
@@ -1532,7 +1644,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 }
                                             }
                                         }
-
                                     }
                                 }
 
@@ -1602,8 +1713,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                             title: Tr.settings-page-profiles-title;
                             subtitle: Tr.settings-page-profiles-subtitle;
                         }
-
-                        
 
                         HorizontalLayout {
                             spacing: 16px;
@@ -1729,38 +1838,36 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                         font-size: 12px;
                                         wrap: word-wrap;
                                     }
-
                                 }
                             }
                         }
 
-                        
-                                    Rectangle {
-                                        border-radius: 4px;
-                                        border-color: Theme.border.with-alpha(20%);
-                                        background: Theme.surface.with-alpha(20%);
-                                        height: 90px;
-                                        width: 440px;
+                        Rectangle {
+                            border-radius: 4px;
+                            border-color: Theme.border.with-alpha(20%);
+                            background: Theme.surface.with-alpha(20%);
+                            height: 90px;
+                            width: 440px;
 
-                                        VerticalLayout {
-                                            padding: 12px;
-                                            spacing: 6px;
+                            VerticalLayout {
+                                padding: 12px;
+                                spacing: 6px;
 
-                                            Text {
-                                                text: Tr.settings-tips-title;
-                                                color: Theme.accent;
-                                                font-size: 11px;
-                                                font-weight: 700;
-                                            }
+                                Text {
+                                    text: Tr.settings-tips-title;
+                                    color: Theme.accent;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
 
-                                            Text {
-                                                text: Tr.settings-tips-body;
-                                                color: Theme.muted;
-                                                font-size: 11.5px;
-                                                wrap: word-wrap;
-                                            }
-                                        }
-                                    }
+                                Text {
+                                    text: Tr.settings-tips-body;
+                                    color: Theme.muted;
+                                    font-size: 11.5px;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
                     }
 
                     if root.current-page == 4: VerticalLayout {
@@ -2077,6 +2184,33 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                 clicked => {
                                     root.refresh-now();
                                 }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+
+                                Button {
+                                    height: 40px;
+                                    text: Tr.action-check-updates;
+                                    enabled: !root.update-check-running;
+                                    clicked => {
+                                        root.check-updates-now();
+                                    }
+                                }
+
+                                Text {
+                                    text: root.update-status-text;
+                                    color: Theme.label;
+                                    vertical-alignment: center;
+                                    wrap: word-wrap;
+                                }
+                            }
+
+                            Text {
+                                text: Tr.settings-version-label + " " + root.app-version-text;
+                                color: Theme.muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
                             }
                         }
                     }

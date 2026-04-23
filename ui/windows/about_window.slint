@@ -5,9 +5,7 @@ component AboutCard inherits Rectangle {
     in property <string> title;
     in property <string> body;
 
-    border-radius: 12px;
-    border-width: 1px;
-    border-color: Theme.border.with-alpha(72%);
+    border-radius: 4px;
     background: Theme.card_bg.with-alpha(92%);
 
     VerticalLayout {
@@ -54,9 +52,7 @@ export component AboutWindow inherits Window {
             Rectangle {
                 width: 220px;
                 min-height: 320px;
-                border-radius: 16px;
-                border-width: 1px;
-                border-color: Theme.border.with-alpha(72%);
+                border-radius: 4px;
                 background: Theme.card_bg.with-alpha(92%);
 
                 VerticalLayout {
@@ -69,14 +65,6 @@ export component AboutWindow inherits Window {
                         width: 170px;
                         height: 250px;
                         image-fit: contain;
-                    }
-
-                    Text {
-                        text: Tr.app-name;
-                        color: Theme.text;
-                        font-size: 15px;
-                        font-weight: 700;
-                        horizontal-alignment: center;
                     }
                 }
             }
