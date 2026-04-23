@@ -249,8 +249,12 @@ pub(crate) fn compute_dwm_rect(
     };
 
     let render_scale = (f32::from(render_scale_pct) / 100.0).clamp(0.5, 1.0);
-    let scaled_width = (fr - fl) * render_scale;
-    let scaled_height = (fb - ft) * render_scale;
+    // Keep thumbnails visually closer to their card size even at lower
+    // internal render scales so previews look intentionally pixelated instead
+    // of appearing too small inside each card.
+    let visual_scale = (0.82 + (render_scale - 0.5) * 0.36).clamp(0.82, 1.0);
+    let scaled_width = (fr - fl) * visual_scale;
+    let scaled_height = (fb - ft) * visual_scale;
     let scaled_left = fl + ((fr - fl) - scaled_width) / 2.0;
     let scaled_top = ft + ((fb - ft) - scaled_height) / 2.0;
     let scaled_right = scaled_left + scaled_width;

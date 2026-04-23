@@ -4,8 +4,13 @@ use std::cell::RefCell;
 use std::path::Path;
 use std::process::Command;
 use std::rc::Rc;
+use std::time::Duration;
 
-use panopticon::settings::{AppSelectionEntry, AppSettings, HiddenAppEntry, ProfileNameValidation};
+use panopticon::settings::{
+    AppSelectionEntry, AppSettings, HiddenAppEntry, ProfileNameValidation,
+    MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT,
+    MIN_FIXED_WINDOW_WIDTH,
+};
 use panopticon::theme as theme_catalog;
 use panopticon::ui_option_ops::{
     app_option_label, current_profile_label, hidden_app_option_label, parse_option_value,
@@ -13,7 +18,9 @@ use panopticon::ui_option_ops::{
 };
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 use panopticon::window_ops::{collect_available_apps, collect_available_monitors};
-use slint::{CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, VecModel};
+use slint::{
+    CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel,
+};
 use windows::Win32::Foundation::HWND;
 
 use super::dock::{
@@ -242,6 +249,13 @@ pub(crate) fn open_settings_window(
         }
     });
 
+    settings_window.on_check_updates_now({
+        let state = state.clone();
+        move || {
+            let _ = crate::request_update_check(&state, true);
+        }
+    });
+
     settings_window.on_restore_hidden_selected({
         let state = state.clone();
         let main_weak = main_weak.clone();
@@ -357,87 +371,21 @@ pub(crate) fn open_settings_window(
         });
     });
 
+    let apply_debounce_timer = Rc::new(Timer::default());
     settings_window.on_apply({
         let state = state.clone();
         let main_weak = main_weak.clone();
+        let apply_debounce_timer = apply_debounce_timer.clone();
         move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-                let mut state_guard = state.borrow_mut();
-                let prev_dock_edge = state_guard.settings.dock_edge;
-                let prev_language = state_guard.settings.language;
-                apply_settings_window_changes(settings_window, &mut state_guard.settings);
-                apply_runtime_settings_window_changes(settings_window, &mut state_guard.settings);
-                state_guard.settings = state_guard.settings.normalized();
-                state_guard.current_layout = state_guard.settings.effective_layout();
-                let _ = state_guard
-                    .settings
-                    .save(state_guard.profile_name.as_deref());
-                let hwnd = state_guard.hwnd;
-                let always_on_top = state_guard.settings.always_on_top;
-                let new_dock_edge = state_guard.settings.dock_edge;
-                let new_language = state_guard.settings.language;
-                let locale_changed = prev_language != new_language;
-                let settings_clone = state_guard.settings.clone();
-                let profile_name = state_guard.profile_name.clone();
-
-                if prev_dock_edge != new_dock_edge {
-                    if state_guard.is_appbar {
-                        unregister_appbar(hwnd);
-                        state_guard.is_appbar = false;
-                    }
-                    if new_dock_edge.is_some() {
-                        apply_dock_mode(&mut state_guard);
-                    } else {
-                        restore_floating_style(hwnd);
-                    }
-                } else if state_guard.is_appbar {
-                    reposition_appbar(&mut state_guard);
-                }
-
-                drop(state_guard);
-                startup::sync_run_at_startup(
-                    settings_clone.run_at_startup,
-                    profile_name.as_deref(),
-                );
-                global_hotkey::sync_activate_hotkey(hwnd, &settings_clone);
-                let _ = crate::refresh_windows(&state);
-                if locale_changed {
-                    let _ = panopticon::i18n::set_locale(new_language);
-                    if let Some(main_window) = main_weak.upgrade() {
-                        crate::populate_tr_global(&main_window);
-                    }
-                    refresh_open_about_window(&state);
-                    refresh_open_tag_dialog_window(&state);
-                    refresh_tray_locale(&state);
-                }
-                apply_window_appearance(hwnd, &settings_clone);
-                apply_topmost_mode(hwnd, always_on_top);
-                settings_window
-                    .set_known_profiles_label(SharedString::from(known_profiles_label()));
-                settings_window.set_current_profile_label(SharedString::from(
-                    current_profile_label(profile_name.as_deref()),
-                ));
-                {
-                    let refreshed = state.borrow();
-                    sync_settings_window_from_state(settings_window, &refreshed);
-                }
-                if let Some(main_window) = main_weak.upgrade() {
-                    let _ = apply_configured_main_window_size(&main_window, &settings_clone);
-                    crate::recompute_and_update_ui(&state, &main_window);
-                }
-
-                crate::TAG_DIALOG_WIN.with(|dialog| {
-                    if let Some(dialog) = dialog.borrow().as_ref() {
-                        if let Some(dialog_hwnd) = crate::get_hwnd(dialog.window()) {
-                            keep_dialog_above_owner(dialog_hwnd, hwnd, &settings_clone);
-                        }
-                    }
-                });
-            });
+            let state = state.clone();
+            let main_weak = main_weak.clone();
+            apply_debounce_timer.start(
+                TimerMode::SingleShot,
+                Duration::from_millis(140),
+                move || {
+                    apply_settings_window_to_state(&state, &main_weak);
+                },
+            );
         }
     });
 
@@ -461,6 +409,94 @@ pub(crate) fn open_settings_window(
         center_window_on_owner_monitor(settings_hwnd, state.hwnd);
     }
     crate::SETTINGS_WIN.with(|handle| *handle.borrow_mut() = Some(settings_window));
+}
+
+fn apply_settings_window_to_state(
+    state: &Rc<RefCell<AppState>>,
+    main_weak: &slint::Weak<MainWindow>,
+) {
+    crate::SETTINGS_WIN.with(|handle| {
+        let guard = handle.borrow();
+        let Some(settings_window) = guard.as_ref() else {
+            return;
+        };
+        let mut state_guard = state.borrow_mut();
+        let previous_settings = state_guard.settings.clone();
+        let prev_dock_edge = previous_settings.dock_edge;
+        let prev_language = previous_settings.language;
+
+        let mut next_settings = previous_settings.clone();
+        apply_settings_window_changes(settings_window, &mut next_settings);
+        apply_runtime_settings_window_changes(settings_window, &mut next_settings);
+        next_settings = next_settings.normalized();
+
+        if next_settings == previous_settings {
+            return;
+        }
+
+        state_guard.settings = next_settings;
+        state_guard.current_layout = state_guard.settings.effective_layout();
+        let _ = state_guard
+            .settings
+            .save(state_guard.profile_name.as_deref());
+        let hwnd = state_guard.hwnd;
+        let always_on_top = state_guard.settings.always_on_top;
+        let new_dock_edge = state_guard.settings.dock_edge;
+        let new_language = state_guard.settings.language;
+        let locale_changed = prev_language != new_language;
+        let settings_clone = state_guard.settings.clone();
+        let profile_name = state_guard.profile_name.clone();
+
+        if prev_dock_edge != new_dock_edge {
+            if state_guard.is_appbar {
+                unregister_appbar(hwnd);
+                state_guard.is_appbar = false;
+            }
+            if new_dock_edge.is_some() {
+                apply_dock_mode(&mut state_guard);
+            } else {
+                restore_floating_style(hwnd);
+            }
+        } else if state_guard.is_appbar {
+            reposition_appbar(&mut state_guard);
+        }
+
+        drop(state_guard);
+        startup::sync_run_at_startup(settings_clone.run_at_startup, profile_name.as_deref());
+        global_hotkey::sync_activate_hotkey(hwnd, &settings_clone);
+        let _ = crate::refresh_windows(state);
+        if locale_changed {
+            let _ = panopticon::i18n::set_locale(new_language);
+            if let Some(main_window) = main_weak.upgrade() {
+                crate::populate_tr_global(&main_window);
+            }
+            refresh_open_about_window(state);
+            refresh_open_tag_dialog_window(state);
+            refresh_tray_locale(state);
+        }
+        apply_window_appearance(hwnd, &settings_clone);
+        apply_topmost_mode(hwnd, always_on_top);
+        settings_window.set_known_profiles_label(SharedString::from(known_profiles_label()));
+        settings_window.set_current_profile_label(SharedString::from(current_profile_label(
+            profile_name.as_deref(),
+        )));
+        {
+            let refreshed = state.borrow();
+            sync_settings_window_from_state(settings_window, &refreshed);
+        }
+        if let Some(main_window) = main_weak.upgrade() {
+            let _ = apply_configured_main_window_size(&main_window, &settings_clone);
+            crate::recompute_and_update_ui(state, &main_window);
+        }
+
+        crate::TAG_DIALOG_WIN.with(|dialog| {
+            if let Some(dialog) = dialog.borrow().as_ref() {
+                if let Some(dialog_hwnd) = crate::get_hwnd(dialog.window()) {
+                    keep_dialog_above_owner(dialog_hwnd, hwnd, &settings_clone);
+                }
+            }
+        });
+    });
 }
 
 pub(crate) fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
@@ -677,10 +713,60 @@ fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "runtime settings population intentionally centralizes all combo/model synchronization"
+)]
 fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
     let runtime = collect_runtime_ui_options(state);
     let profiles = available_profile_options();
+    let fallback_fixed_width = u32::try_from(state.last_size.0)
+        .ok()
+        .filter(|value| *value > 0)
+        .map_or(MIN_FIXED_WINDOW_WIDTH, |value| {
+            value.max(MIN_FIXED_WINDOW_WIDTH)
+        });
+    let fallback_fixed_height = u32::try_from(state.last_size.1)
+        .ok()
+        .filter(|value| *value > 0)
+        .map_or(MIN_FIXED_WINDOW_HEIGHT, |value| {
+            value.max(MIN_FIXED_WINDOW_HEIGHT)
+        });
+
     window.set_theme_options(build_string_model(theme_catalog::theme_labels()));
+    window.set_app_version_text(SharedString::from(state.app_version.clone()));
+    window.set_update_status_text(SharedString::from(localized_update_status_text(
+        &state.update_status,
+    )));
+    window.set_update_check_running(matches!(state.update_status, crate::UpdateStatus::Checking));
+    window.set_fixed_width_value(
+        state
+            .settings
+            .fixed_width
+            .unwrap_or(fallback_fixed_width)
+            .max(MIN_FIXED_WINDOW_WIDTH) as i32,
+    );
+    window.set_fixed_height_value(
+        state
+            .settings
+            .fixed_height
+            .unwrap_or(fallback_fixed_height)
+            .max(MIN_FIXED_WINDOW_HEIGHT) as i32,
+    );
+    window.set_dock_column_thickness_value(
+        state
+            .settings
+            .dock_column_thickness
+            .unwrap_or(MIN_DOCK_COLUMN_THICKNESS)
+            .max(MIN_DOCK_COLUMN_THICKNESS) as i32,
+    );
+    window.set_dock_row_thickness_value(
+        state
+            .settings
+            .dock_row_thickness
+            .unwrap_or(MIN_DOCK_ROW_THICKNESS)
+            .max(MIN_DOCK_ROW_THICKNESS) as i32,
+    );
     window.set_current_profile_label(SharedString::from(current_profile_label(
         state.profile_name.as_deref(),
     )));
@@ -794,10 +880,7 @@ fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
 
 fn sync_about_window_from_state(window: &AboutWindow, state: &AppState) {
     crate::populate_tr_global(window);
-    window.set_version_text(SharedString::from(format!(
-        "v{}",
-        env!("CARGO_PKG_VERSION")
-    )));
+    window.set_version_text(SharedString::from(state.app_version.clone()));
     apply_about_window_theme_snapshot(window, &state.current_theme);
 }
 
@@ -809,6 +892,24 @@ fn known_profiles_label() -> String {
         Err(error) => {
             tracing::warn!(%error, "failed to list saved profiles");
             i18n::t("settings.no_saved_profiles").to_owned()
+        }
+    }
+}
+
+fn localized_update_status_text(status: &crate::UpdateStatus) -> String {
+    match status {
+        crate::UpdateStatus::Idle => panopticon::i18n::t("settings.update_status.idle").to_owned(),
+        crate::UpdateStatus::Checking => {
+            panopticon::i18n::t("settings.update_status.checking").to_owned()
+        }
+        crate::UpdateStatus::UpToDate { latest_version } => {
+            panopticon::i18n::t_fmt("settings.update_status.up_to_date", latest_version)
+        }
+        crate::UpdateStatus::Available { latest_version } => {
+            panopticon::i18n::t_fmt("settings.update_status.available", latest_version)
+        }
+        crate::UpdateStatus::Failed => {
+            panopticon::i18n::t("settings.update_status.failed").to_owned()
         }
     }
 }

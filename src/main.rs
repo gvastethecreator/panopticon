@@ -28,7 +28,7 @@ use app::dock::reposition_appbar;
 use app::dwm::{release_all_thumbnails, release_thumbnail, update_dwm_thumbnails};
 use app::theme_ui::{advance_theme_animation, apply_main_window_theme_snapshot};
 use app::tray::{AppIcons, INSTANCE_ACCENT_PALETTE};
-use panopticon::settings::AppSettings;
+use panopticon::settings::{AppSettings, MIN_FIXED_WINDOW_HEIGHT, MIN_FIXED_WINDOW_WIDTH};
 use panopticon::theme as theme_catalog;
 
 use std::cell::RefCell;
@@ -52,6 +52,8 @@ slint::include_modules!();
 
 /// Callback message posted by the shell when the app-bar needs repositioning.
 pub(crate) const WM_APPBAR_CALLBACK: u32 = WM_APP + 2;
+
+const FLOATING_SIZE_SYNC_DEBOUNCE_MS: u64 = 220;
 
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
@@ -129,6 +131,7 @@ where
     set_tr!(tr, set_action_browse_image, "action.browse_image");
     set_tr!(tr, set_action_clear_image, "action.clear_image");
     set_tr!(tr, set_action_refresh_now, "action.refresh_now");
+    set_tr!(tr, set_action_check_updates, "action.check_updates");
     set_tr!(tr, set_action_auto_apply, "action.auto_apply");
     set_tr!(tr, set_action_about, "action.about");
     set_tr!(tr, set_action_load_profile, "action.load_profile");
@@ -913,6 +916,7 @@ where
     );
     set_tr!(tr, set_settings_width_label, "settings.label.width");
     set_tr!(tr, set_settings_height_label, "settings.label.height");
+    set_tr!(tr, set_settings_version_label, "settings.version_label");
     set_tr!(
         tr,
         set_settings_option_dock_position_title,
@@ -1061,6 +1065,8 @@ fn run_app(profile: Option<String>) {
         loaded_background_path: None,
         current_theme: initial_theme,
         theme_animation: None,
+        app_version: format!("v{}", env!("CARGO_PKG_VERSION")),
+        update_status: UpdateStatus::Idle,
     }));
 
     // Show the window so the native HWND exists on next event-loop iteration.
@@ -1071,6 +1077,8 @@ fn run_app(profile: Option<String>) {
 
     // Slint callbacks (don't need HWND — they use state internally).
     setup_callbacks(&main_window, &state);
+
+    let _ = request_update_check(&state, false);
 
     // Handle close button.
     main_window.window().on_close_requested({
@@ -1103,16 +1111,22 @@ fn run_app(profile: Option<String>) {
     // ── Timers ──────────────────────────────────────
 
     // Fast UI timer: size polling, animation, DWM thumbnail sync, action drain.
+    let floating_size_sync_timer = Rc::new(Timer::default());
     let ui_timer = Timer::default();
     ui_timer.start(TimerMode::Repeated, Duration::from_millis(16), {
         let state = state.clone();
         let weak = main_window.as_weak();
+        let floating_size_sync_timer = floating_size_sync_timer.clone();
         move || {
             let Some(win) = weak.upgrade() else { return };
             if state.borrow().hwnd.0.is_null()
                 && !app::native_runtime::try_initialize_native_runtime(&state, &win)
             {
                 return;
+            }
+
+            if let Some(outcome) = app::updates::poll_latest_release_check() {
+                apply_update_check_outcome(&state, outcome);
             }
 
             // Drain pending actions without intermediate Vec allocation.
@@ -1143,7 +1157,16 @@ fn run_app(profile: Option<String>) {
                 logical_w != s.last_size.0 || logical_h != s.last_size.1
             };
             if needs_relayout {
-                state.borrow_mut().last_size = (logical_w, logical_h);
+                {
+                    let mut guard = state.borrow_mut();
+                    guard.last_size = (logical_w, logical_h);
+                }
+                sync_floating_window_size_with_resize(
+                    &state,
+                    logical_w,
+                    logical_h,
+                    &floating_size_sync_timer,
+                );
                 recompute_and_update_ui(&state, &win);
             }
 
@@ -1345,6 +1368,102 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
 }
 
 // ───────────────────────── Layout / State helpers ─────────────────────────
+
+pub(crate) fn request_update_check(state: &Rc<RefCell<AppState>>, user_initiated: bool) -> bool {
+    {
+        let mut guard = state.borrow_mut();
+        if matches!(guard.update_status, UpdateStatus::Checking) {
+            return false;
+        }
+        guard.update_status = UpdateStatus::Checking;
+    }
+    app::secondary_windows::refresh_open_settings_window(state);
+
+    if !app::updates::request_latest_release_check(env!("CARGO_PKG_VERSION")) {
+        let mut guard = state.borrow_mut();
+        guard.update_status = UpdateStatus::Failed;
+        drop(guard);
+        app::secondary_windows::refresh_open_settings_window(state);
+        if user_initiated {
+            tracing::warn!("manual update-check request could not be started");
+        }
+        return false;
+    }
+
+    true
+}
+
+fn apply_update_check_outcome(
+    state: &Rc<RefCell<AppState>>,
+    outcome: app::updates::UpdateCheckOutcome,
+) {
+    let next_status = match outcome {
+        app::updates::UpdateCheckOutcome::UpToDate { latest_version } => {
+            UpdateStatus::UpToDate { latest_version }
+        }
+        app::updates::UpdateCheckOutcome::Available {
+            latest_version,
+            release_url,
+        } => {
+            tracing::info!(%latest_version, %release_url, "new release available");
+            UpdateStatus::Available { latest_version }
+        }
+        app::updates::UpdateCheckOutcome::Failed { reason } => {
+            tracing::warn!(%reason, "update check failed");
+            UpdateStatus::Failed
+        }
+    };
+
+    state.borrow_mut().update_status = next_status;
+    app::secondary_windows::refresh_open_settings_window(state);
+}
+
+fn sync_floating_window_size_with_resize(
+    state: &Rc<RefCell<AppState>>,
+    logical_w: i32,
+    logical_h: i32,
+    size_sync_timer: &Rc<Timer>,
+) {
+    let Ok(width) = u32::try_from(logical_w) else {
+        return;
+    };
+    let Ok(height) = u32::try_from(logical_h) else {
+        return;
+    };
+    if width == 0 || height == 0 {
+        return;
+    }
+
+    let clamped_width = width.max(MIN_FIXED_WINDOW_WIDTH);
+    let clamped_height = height.max(MIN_FIXED_WINDOW_HEIGHT);
+
+    {
+        let mut guard = state.borrow_mut();
+        if guard.settings.dock_edge.is_some() {
+            return;
+        }
+        guard.settings.fixed_width = Some(clamped_width);
+        guard.settings.fixed_height = Some(clamped_height);
+    }
+
+    let state_for_save = state.clone();
+    size_sync_timer.start(
+        TimerMode::SingleShot,
+        Duration::from_millis(FLOATING_SIZE_SYNC_DEBOUNCE_MS),
+        move || {
+            let mut guard = state_for_save.borrow_mut();
+            if guard.settings.dock_edge.is_some() {
+                return;
+            }
+            guard.settings = guard.settings.normalized();
+            if let Err(error) = guard.settings.save(guard.profile_name.as_deref()) {
+                tracing::warn!(%error, "failed to persist floating window size after resize");
+            }
+            drop(guard);
+            app::secondary_windows::refresh_open_settings_window(&state_for_save);
+        },
+    );
+}
 
 pub(crate) fn update_settings(
     state: &Rc<RefCell<AppState>>,

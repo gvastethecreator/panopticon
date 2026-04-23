@@ -19,6 +19,10 @@ const DEFAULT_BACKGROUND_COLOR_HEX: &str = "181513";
 const DEFAULT_BACKGROUND_IMAGE_OPACITY_PCT: u8 = 25;
 const DEFAULT_THUMBNAIL_RENDER_SCALE_PCT: u8 = 100;
 const MIN_THUMBNAIL_RENDER_SCALE_PCT: u8 = 50;
+pub const MIN_FIXED_WINDOW_WIDTH: u32 = 320;
+pub const MIN_FIXED_WINDOW_HEIGHT: u32 = 220;
+pub const MIN_DOCK_COLUMN_THICKNESS: u32 = 180;
+pub const MIN_DOCK_ROW_THICKNESS: u32 = 120;
 const DEFAULT_TAG_COLOR_HEX: &str = "D29A5C";
 const DEFAULT_SHORTCUT_LAYOUT_GRID: &str = "1";
 const DEFAULT_SHORTCUT_LAYOUT_MOSAIC: &str = "2";
@@ -562,8 +566,13 @@ impl AppSettings {
             DockEdge::Left | DockEdge::Right => self.dock_column_thickness,
             DockEdge::Top | DockEdge::Bottom => self.dock_row_thickness,
         };
+        let minimum = match edge {
+            DockEdge::Left | DockEdge::Right => MIN_DOCK_COLUMN_THICKNESS,
+            DockEdge::Top | DockEdge::Bottom => MIN_DOCK_ROW_THICKNESS,
+        };
         match raw {
             Some(0) | None => None,
+            Some(value) if value < minimum => Some(minimum),
             Some(value) => Some(value),
         }
     }
@@ -1090,6 +1099,10 @@ impl AppSettings {
     /// Normalize values loaded from disk so invalid or surprising inputs do
     /// not leak into runtime behaviour.
     #[must_use]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "normalization intentionally centralizes migration/clamping logic in one place"
+    )]
     pub fn normalized(&self) -> Self {
         let refresh_interval_ms = REFRESH_INTERVALS_MS
             .iter()
@@ -1168,11 +1181,23 @@ impl AppSettings {
             group_windows_by: self.group_windows_by,
             app_rules,
             tag_styles,
-            fixed_width: self.fixed_width,
-            fixed_height: self.fixed_height,
+            fixed_width: normalize_positive_dimension_with_min(
+                self.fixed_width,
+                MIN_FIXED_WINDOW_WIDTH,
+            ),
+            fixed_height: normalize_positive_dimension_with_min(
+                self.fixed_height,
+                MIN_FIXED_WINDOW_HEIGHT,
+            ),
             dock_edge: self.dock_edge,
-            dock_column_thickness: normalize_positive_dimension(self.dock_column_thickness),
-            dock_row_thickness: normalize_positive_dimension(self.dock_row_thickness),
+            dock_column_thickness: normalize_positive_dimension_with_min(
+                self.dock_column_thickness,
+                MIN_DOCK_COLUMN_THICKNESS,
+            ),
+            dock_row_thickness: normalize_positive_dimension_with_min(
+                self.dock_row_thickness,
+                MIN_DOCK_ROW_THICKNESS,
+            ),
             theme_id: self.theme_id.as_deref().and_then(normalize_profile_name),
             background_color_hex: normalize_color_hex(&self.background_color_hex)
                 .unwrap_or_else(|| DEFAULT_BACKGROUND_COLOR_HEX.to_owned()),
@@ -1243,9 +1268,10 @@ const fn normalize_thumbnail_render_scale_pct(value: u8) -> u8 {
     }
 }
 
-const fn normalize_positive_dimension(value: Option<u32>) -> Option<u32> {
+const fn normalize_positive_dimension_with_min(value: Option<u32>, minimum: u32) -> Option<u32> {
     match value {
         Some(0) | None => None,
+        Some(value) if value < minimum => Some(minimum),
         Some(value) => Some(value),
     }
 }
@@ -1585,6 +1611,32 @@ mod tests {
         assert_eq!(settings.normalized().background_image_opacity_pct, 100);
         assert_eq!(settings.normalized().thumbnail_render_scale_pct, 50);
         assert_eq!(settings.normalized().theme_id.as_deref(), Some("work"));
+    }
+
+    #[test]
+    fn dimensions_and_dock_thickness_are_clamped_to_minimums() {
+        let settings = AppSettings {
+            fixed_width: Some(1),
+            fixed_height: Some(1),
+            dock_column_thickness: Some(2),
+            dock_row_thickness: Some(3),
+            ..AppSettings::default()
+        };
+
+        let normalized = settings.normalized();
+        assert_eq!(normalized.fixed_width, Some(super::MIN_FIXED_WINDOW_WIDTH));
+        assert_eq!(
+            normalized.fixed_height,
+            Some(super::MIN_FIXED_WINDOW_HEIGHT)
+        );
+        assert_eq!(
+            normalized.dock_column_thickness,
+            Some(super::MIN_DOCK_COLUMN_THICKNESS)
+        );
+        assert_eq!(
+            normalized.dock_row_thickness,
+            Some(super::MIN_DOCK_ROW_THICKNESS)
+        );
     }
 
     #[test]
