@@ -118,11 +118,11 @@ row_ratios = [0.4, 0.6]
 | `active_tag_filter` | `Option<String>` | `None` | filters windows by tag | mutually exclusive with `active_app_filter` |
 | `active_app_filter` | `Option<String>` | `None` | filters windows by app | mutually exclusive with `active_tag_filter` |
 | `group_windows_by` | `WindowGrouping` | `None` | reorders visible windows | does not filter; only groups/sorts |
-| `fixed_width` | `Option<u32>` | `None` | floating window width | when undocked and set, it resizes the main window width at runtime |
-| `fixed_height` | `Option<u32>` | `None` | floating window height | when undocked and set, it resizes the main window height at runtime |
+| `fixed_width` | `Option<u32>` | `None` | floating window width | when undocked and set, it resizes the main window width at runtime; values are clamped to at least `320` |
+| `fixed_height` | `Option<u32>` | `None` | floating window height | when undocked and set, it resizes the main window height at runtime; values are clamped to at least `220` |
 | `dock_edge` | `Option<DockEdge>` | `None` | activates appbar mode | values: `left`, `right`, `top`, `bottom`; runtime forces `Column` on left/right and `Row` on top/bottom |
-| `dock_column_thickness` | `Option<u32>` | `None` | dock thickness for left/right mode | `0` or `None` keeps the width automatic |
-| `dock_row_thickness` | `Option<u32>` | `None` | dock thickness for top/bottom mode | `0` or `None` keeps the height automatic |
+| `dock_column_thickness` | `Option<u32>` | `None` | dock thickness for left/right mode | clamped to at least `180` when set |
+| `dock_row_thickness` | `Option<u32>` | `None` | dock thickness for top/bottom mode | clamped to at least `120` when set |
 | `theme_id` | `Option<String>` | `None` | selects a preset from `assets/themes.json` | `None` = classic theme |
 | `background_color_hex` | `String` | `181513` | base client colour | also participates in the classic theme fallback |
 | `use_system_backdrop` | `bool` | `true` | backdrop + rounded corners on Windows 11 | via `DwmSetWindowAttribute` |
@@ -279,6 +279,7 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 - empty filters;
 - empty or duplicate tags;
 - invalid hex colours;
+- floating/dock dimensions lower than the configured safe minimums;
 - unsupported shortcut bindings (including multi-key expressions);
 - profile names not valid for Windows;
 - rules with an empty `app_id`;

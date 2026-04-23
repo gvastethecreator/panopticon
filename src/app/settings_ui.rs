@@ -4,7 +4,10 @@ use std::path::Path;
 
 use panopticon::i18n;
 use panopticon::layout::LayoutType;
-use panopticon::settings::{AppSettings, BackgroundImageFit, DockEdge, WindowGrouping};
+use panopticon::settings::{
+    AppSettings, BackgroundImageFit, DockEdge, WindowGrouping, MIN_DOCK_COLUMN_THICKNESS,
+    MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT, MIN_FIXED_WINDOW_WIDTH,
+};
 use panopticon::theme;
 use slint::SharedString;
 use slint::{ModelRc, VecModel};
@@ -41,10 +44,18 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_bg_image_path(SharedString::from(next_bg_image_path));
     window.set_bg_image_fit_index(background_fit_to_index(settings.background_image_fit));
     window.set_bg_image_opacity_value(i32::from(settings.background_image_opacity_pct));
-    window.set_fixed_width_value(settings.fixed_width.unwrap_or(0) as i32);
-    window.set_fixed_height_value(settings.fixed_height.unwrap_or(0) as i32);
-    window.set_dock_column_thickness_value(settings.dock_column_thickness.unwrap_or(0) as i32);
-    window.set_dock_row_thickness_value(settings.dock_row_thickness.unwrap_or(0) as i32);
+    window.set_fixed_width_value(settings.fixed_width.unwrap_or(MIN_FIXED_WINDOW_WIDTH) as i32);
+    window.set_fixed_height_value(settings.fixed_height.unwrap_or(MIN_FIXED_WINDOW_HEIGHT) as i32);
+    window.set_dock_column_thickness_value(
+        settings
+            .dock_column_thickness
+            .unwrap_or(MIN_DOCK_COLUMN_THICKNESS) as i32,
+    );
+    window.set_dock_row_thickness_value(
+        settings
+            .dock_row_thickness
+            .unwrap_or(MIN_DOCK_ROW_THICKNESS) as i32,
+    );
     window.set_refresh_index(refresh_to_index(settings.refresh_interval_ms));
     window.set_layout_index(layout_to_index(settings.initial_layout));
     window.set_dock_edge_index(dock_edge_to_index(settings.dock_edge));
@@ -125,33 +136,18 @@ pub fn apply_settings_window_changes(window: &SettingsWindow, settings: &mut App
     settings.background_image_fit = index_to_background_fit(window.get_bg_image_fit_index());
     settings.background_image_opacity_pct = window.get_bg_image_opacity_value().clamp(0, 100) as u8;
 
-    let fixed_width = window.get_fixed_width_value();
-    settings.fixed_width = if fixed_width > 0 {
-        Some(fixed_width as u32)
-    } else {
-        None
-    };
-
-    let fixed_height = window.get_fixed_height_value();
-    settings.fixed_height = if fixed_height > 0 {
-        Some(fixed_height as u32)
-    } else {
-        None
-    };
-
-    let dock_column_thickness = window.get_dock_column_thickness_value();
-    settings.dock_column_thickness = if dock_column_thickness > 0 {
-        Some(dock_column_thickness as u32)
-    } else {
-        None
-    };
-
-    let dock_row_thickness = window.get_dock_row_thickness_value();
-    settings.dock_row_thickness = if dock_row_thickness > 0 {
-        Some(dock_row_thickness as u32)
-    } else {
-        None
-    };
+    settings.fixed_width =
+        optional_dimension_with_min(window.get_fixed_width_value(), MIN_FIXED_WINDOW_WIDTH);
+    settings.fixed_height =
+        optional_dimension_with_min(window.get_fixed_height_value(), MIN_FIXED_WINDOW_HEIGHT);
+    settings.dock_column_thickness = optional_dimension_with_min(
+        window.get_dock_column_thickness_value(),
+        MIN_DOCK_COLUMN_THICKNESS,
+    );
+    settings.dock_row_thickness = optional_dimension_with_min(
+        window.get_dock_row_thickness_value(),
+        MIN_DOCK_ROW_THICKNESS,
+    );
 
     settings.dock_edge = index_to_dock_edge(window.get_dock_edge_index());
     settings.group_windows_by = index_to_grouping(window.get_group_windows_index());
@@ -292,6 +288,11 @@ fn index_to_grouping(index: i32) -> WindowGrouping {
         4 => WindowGrouping::ClassName,
         _ => WindowGrouping::None,
     }
+}
+
+fn optional_dimension_with_min(value: i32, minimum: u32) -> Option<u32> {
+    let value = u32::try_from(value).ok()?;
+    (value > 0).then_some(value.max(minimum))
 }
 
 fn hex_to_color(hex: &str) -> slint::Color {

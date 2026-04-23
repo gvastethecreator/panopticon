@@ -74,7 +74,7 @@ Panopticon also understands:
 2. Press `Tab` or `1` to `7` to explore the available layouts.
 3. Left-click a thumbnail to activate that window.
 4. Right-click a thumbnail to open per-window actions.
-5. Press `O` to open settings and review language, theme, filters, profiles, and the new About entry.
+5. Press `O` to open settings and review language, theme, filters, profiles, and click the sidebar mascot to open About (with live update status beside the version).
 6. Use the tray icon to hide/show the dashboard without closing it.
 
 ### Handy shortcuts
@@ -159,6 +159,10 @@ Panopticon is currently:
 - built with **Rust + Slint + Win32/DWM**;
 - focused on **desktop window observation and activation**;
 - not intended for Linux, macOS, web, or remote multi-user usage.
+
+## Credits
+
+- UI iconography includes assets from [HugeIcons](https://hugeicons.com/).
 
 ## License
 

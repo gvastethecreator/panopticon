@@ -211,15 +211,14 @@ export component ThumbnailCard inherits Rectangle {
 
         animate opacity, background { duration: 200ms; easing: ease-in-out; }
 
-        Text {
-            width: 100%;
-            height: 100%;
-            text: "X";
-            color: Theme.text;
-            font-size: 15px;
-            font-weight: 700;
-            horizontal-alignment: center;
-            vertical-alignment: center;
+        Image {
+            x: 3px;
+            y: 3px;
+            width: 14px;
+            height: 14px;
+            source: @image-url("../../assets/ui-icons/thumbnail-close.svg");
+            image-fit: contain;
+            colorize: Theme.text;
         }
 
         close-touch := TouchArea {

@@ -2,6 +2,14 @@ $base = "https://cdn.hugeicons.com/icons"
 $dir = "d:\DEV\panopticon\assets\ui-icons"
 
 $icons = @(
+    @{ file = "option-layout";       name = "layout-01" },
+    @{ file = "option-visibility";   name = "view" },
+    @{ file = "option-hide-select";  name = "cursor-pointer-01" },
+    @{ file = "option-refresh";      name = "arrow-reload-horizontal" },
+    @{ file = "section-filter";      name = "filter-horizontal" },
+    @{ file = "option-always-on-top"; name = "pin-02" },
+    @{ file = "option-animate";      name = "sparkles" },
+    @{ file = "thumbnail-close";     name = "cancel-01" },
     @{ file = "option-monitor";      name = "monitor-01" },
     @{ file = "option-tag";          name = "tag-01" },
     @{ file = "option-group";        name = "layers-02" },
@@ -15,6 +23,14 @@ $icons = @(
 )
 
 $fallbacks = @{
+    "option-layout"       = @("dashboard-square-01","grid-view")
+    "option-visibility"   = @("eye")
+    "option-hide-select"  = @("cursor-01")
+    "option-refresh"      = @("refresh")
+    "section-filter"      = @("filter")
+    "option-always-on-top" = @("pin")
+    "option-animate"      = @("flash")
+    "thumbnail-close"     = @("cancel-02")
     "option-monitor"      = @("monitor-02","screen","computer")
     "option-tag"          = @("tag-02","label","bookmark-02")
     "option-group"        = @("group-items","object-01","collection-01")
@@ -60,4 +76,9 @@ foreach ($icon in $icons) {
 }
 
 Write-Host "`n--- Final listing ---"
-Get-ChildItem $dir -Filter "option-*.svg" | Sort-Object Name | Select-Object Name,Length
+Get-ChildItem $dir -Filter "*.svg" |
+    Where-Object {
+        $_.Name -like "option-*.svg" -or $_.Name -eq "section-filter.svg" -or $_.Name -eq "thumbnail-close.svg"
+    } |
+    Sort-Object Name |
+    Select-Object Name,Length

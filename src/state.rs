@@ -59,6 +59,10 @@ pub(crate) struct AppState {
     pub(crate) current_theme: theme_catalog::UiTheme,
     /// Optional animated transition between theme snapshots.
     pub(crate) theme_animation: Option<ThemeAnimation>,
+    /// Formatted application version shown in Settings/About (e.g. `v0.1.21`).
+    pub(crate) app_version: String,
+    /// Last known update-check status for manual/automatic checks.
+    pub(crate) update_status: UpdateStatus,
 }
 
 /// A window tracked by Panopticon, including its DWM thumbnail handle.
@@ -116,6 +120,15 @@ pub(crate) enum PendingAction {
     HideToTray,
     Refresh,
     Exit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum UpdateStatus {
+    Idle,
+    Checking,
+    UpToDate { latest_version: String },
+    Available { latest_version: String },
+    Failed,
 }
 
 #[derive(Debug, PartialEq, Eq)]

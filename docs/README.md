@@ -102,7 +102,7 @@ If you are opening the app for the first time, this is the fastest useful walkth
 2. cycle layouts with `Tab` or jump directly with `1` to `7`;
 3. right-click a thumbnail to inspect app/window actions;
 4. hide an app and restore it from the tray;
-5. open settings with `O` to review filters, theme, and profile options;
+5. open settings with `O` to review filters, theme, and profile options, then click the sidebar mascot to open About/update details;
 6. try `Row` or `Column` and use the wheel or middle-button drag to navigate overflow.
 
 ## Important paths
@@ -128,6 +128,10 @@ If `%APPDATA%` is unavailable, Panopticon falls back to `%TEMP%\Panopticon\...`.
 ui/main.slint
 assets/themes.json
 ```
+
+## Credits
+
+- UI iconography includes assets from [HugeIcons](https://hugeicons.com/).
 
 ## Architecture snapshot
 

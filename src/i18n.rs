@@ -499,7 +499,7 @@ fn en(key: &str) -> &'static str {
         }
         "settings.page.advanced.title" => "Advanced Options",
         "settings.page.advanced.subtitle" => {
-            "Manual refresh controls and the base cadence used for background window discovery."
+            "Manual refresh/update controls and the base cadence used for background window discovery."
         }
         "settings.option.default_layout.title" => "Default layout",
         "settings.option.default_layout.description" => {
@@ -514,22 +514,28 @@ fn en(key: &str) -> &'static str {
         }
         "settings.section.manual_refresh.title" => "Manual refresh",
         "settings.section.manual_refresh.helper" => {
-            "Use this when you want to re-enumerate windows immediately instead of waiting for the timer."
+            "Use this section to force a window refresh or to check for updates immediately."
         }
         "settings.section.dock_thickness.title" => "Dock thickness",
         "settings.section.dock_thickness.helper" => {
-            "For a side dock, width is used; for top/bottom, height is used. 0 leaves the size automatic."
+            "For a side dock, width is used; for top/bottom, height is used. Values are clamped to safe minimums."
         }
         "settings.section.floating_window_size.title" => "Floating window size",
         "settings.section.floating_window_size.helper" => {
-            "When dock mode is disabled, these values define the default width and height used by the floating window."
+            "When dock mode is disabled, these values track the floating window size and are clamped to safe minimums."
         }
         "settings.option.thumbnail_render_scale.title" => "Thumbnail render scale",
         "settings.option.thumbnail_render_scale.description" => {
-            "Lower values reduce thumbnail rendering size to improve performance, at the cost of preview sharpness."
+            "Lower values reduce thumbnail internal detail to improve performance while preserving card footprint, at the cost of sharpness."
         }
         "settings.label.width" => "Width",
         "settings.label.height" => "Height",
+        "settings.version_label" => "Version:",
+        "settings.update_status.idle" => "Update check pending",
+        "settings.update_status.checking" => "Checking for updates…",
+        "settings.update_status.up_to_date" => "Up to date ({})",
+        "settings.update_status.available" => "New version available ({})",
+        "settings.update_status.failed" => "Update check failed",
         "settings.option.dock_position.title" => "Dock position",
         "settings.option.dock_position.description" => {
             "Turn the window into a docked appbar or leave it floating as a free panel."
@@ -554,6 +560,7 @@ fn en(key: &str) -> &'static str {
         "action.browse_image" => "Browse image…",
         "action.clear_image" => "Clear image",
         "action.refresh_now" => "Refresh now",
+        "action.check_updates" => "Check updates",
         "action.auto_apply" => "Changes apply automatically.",
         "action.about" => "About",
         "action.load_profile" => "Load profile",
@@ -573,7 +580,7 @@ fn en(key: &str) -> &'static str {
         }
         "about.credits_title" => "Credits",
         "about.credits_body" => {
-            "Created by gvastethecreator.\nBuilt with Rust, Slint, windows-rs, and the Desktop Window Manager thumbnail APIs.\nLicense: MIT."
+            "Created by gvastethecreator.\nBuilt with Rust, Slint, windows-rs, and the Desktop Window Manager thumbnail APIs.\nUI icons by HugeIcons.\nLicense: MIT."
         }
 
         // ── Validation / CLI ──
@@ -1015,7 +1022,7 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.page.advanced.title" => "Opciones avanzadas",
         "settings.page.advanced.subtitle" => {
-            "Controles de refresco manual y la cadencia base usada para descubrir ventanas en segundo plano."
+            "Controles de refresco/actualización manual y la cadencia base usada para descubrir ventanas en segundo plano."
         }
         "settings.option.default_layout.title" => "Layout por defecto",
         "settings.option.default_layout.description" => {
@@ -1030,22 +1037,28 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.section.manual_refresh.title" => "Refresco manual",
         "settings.section.manual_refresh.helper" => {
-            "Úsalo cuando quieras reenumerar ventanas inmediatamente sin esperar al temporizador."
+            "Usa esta sección para forzar un refresco de ventanas o comprobar actualizaciones al instante."
         }
         "settings.section.dock_thickness.title" => "Grosor del dock",
         "settings.section.dock_thickness.helper" => {
-            "Para dock lateral se usa width; para top/bottom se usa height. 0 deja el tamaño en automático."
+            "Para dock lateral se usa width; para top/bottom se usa height. Los valores se ajustan a mínimos seguros."
         }
         "settings.section.floating_window_size.title" => "Tamaño de ventana flotante",
         "settings.section.floating_window_size.helper" => {
-            "Cuando el dock está desactivado, estos valores definen el ancho y alto por defecto de la ventana flotante."
+            "Cuando el dock está desactivado, estos valores siguen el tamaño de la ventana flotante y se ajustan a mínimos seguros."
         }
         "settings.option.thumbnail_render_scale.title" => "Escala de render de thumbnails",
         "settings.option.thumbnail_render_scale.description" => {
-            "Valores menores reducen el tamaño de render de las miniaturas para mejorar rendimiento, a cambio de perder nitidez."
+            "Valores menores reducen el detalle interno del thumbnail para mejorar rendimiento manteniendo el tamaño visual de la tarjeta, a cambio de perder nitidez."
         }
         "settings.label.width" => "Ancho",
         "settings.label.height" => "Alto",
+        "settings.version_label" => "Versión:",
+        "settings.update_status.idle" => "Comprobación de actualizaciones pendiente",
+        "settings.update_status.checking" => "Buscando actualizaciones…",
+        "settings.update_status.up_to_date" => "Al día ({})",
+        "settings.update_status.available" => "Nueva versión disponible ({})",
+        "settings.update_status.failed" => "No se pudo comprobar actualizaciones",
         "settings.option.dock_position.title" => "Posición del dock",
         "settings.option.dock_position.description" => {
             "Convierte la ventana en appbar anclada o la deja flotando como panel libre."
@@ -1070,6 +1083,7 @@ fn es(key: &str) -> Option<&'static str> {
         "action.browse_image" => "Buscar imagen…",
         "action.clear_image" => "Limpiar imagen",
         "action.refresh_now" => "Refrescar ahora",
+        "action.check_updates" => "Buscar actualizaciones",
         "action.auto_apply" => "Los cambios se aplican automáticamente.",
         "action.about" => "Acerca de",
         "action.load_profile" => "Cargar perfil",
@@ -1089,7 +1103,7 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "about.credits_title" => "Créditos",
         "about.credits_body" => {
-            "Creado por gvastethecreator.\nConstruido con Rust, Slint, windows-rs y las APIs de thumbnails del Desktop Window Manager.\nLicencia: MIT."
+            "Creado por gvastethecreator.\nConstruido con Rust, Slint, windows-rs y las APIs de thumbnails del Desktop Window Manager.\nIconografía de UI por HugeIcons.\nLicencia: MIT."
         }
 
         // ── Validation / CLI ──

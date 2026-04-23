@@ -16,6 +16,7 @@ pub mod theme_ui;
 pub mod thumbnail_interactions;
 pub mod tray;
 pub mod tray_actions;
+pub mod updates;
 pub mod window_menu;
 pub mod window_subclass;
 pub mod window_sync;
