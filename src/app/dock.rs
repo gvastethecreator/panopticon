@@ -127,20 +127,18 @@ pub(crate) fn restore_floating_style(hwnd: HWND) {
 
 // ───────────────────────── Window appearance helpers ─────────────────────────
 
-pub(crate) fn apply_window_appearance(hwnd: HWND, settings: &panopticon::settings::AppSettings) {
+pub(crate) fn apply_window_appearance(
+    hwnd: HWND,
+    _settings: &panopticon::settings::AppSettings,
+) {
     use std::ffi::c_void;
     use windows::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMSBT_MAINWINDOW, DWMSBT_NONE, DWMWA_SYSTEMBACKDROP_TYPE,
-        DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+        DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE,
+        DWMWCP_ROUND,
     };
 
     let dark_mode: i32 = 1;
     let corner = DWMWCP_ROUND;
-    let backdrop = if settings.use_system_backdrop {
-        DWMSBT_MAINWINDOW
-    } else {
-        DWMSBT_NONE
-    };
     // SAFETY: hwnd is our live window; all values are stack-allocated with
     // correct sizes. DwmSetWindowAttribute is a read-only DWM configuration call.
     unsafe {
@@ -155,12 +153,6 @@ pub(crate) fn apply_window_appearance(hwnd: HWND, settings: &panopticon::setting
             DWMWA_WINDOW_CORNER_PREFERENCE,
             std::ptr::from_ref(&corner).cast::<c_void>(),
             mem::size_of_val(&corner) as u32,
-        );
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_SYSTEMBACKDROP_TYPE,
-            std::ptr::from_ref(&backdrop).cast::<c_void>(),
-            mem::size_of_val(&backdrop) as u32,
         );
     }
 }

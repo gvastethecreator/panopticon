@@ -30,7 +30,7 @@ Panopticon is useful when you want to:
 - **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
 - **Grouping and filters** by app, monitor, title, class, and tag.
 - **Tray utility + appbar/dock mode** for always-available workflows.
-- **Themes, background images with fit modes + opacity, animations, customizable shortcuts, profiles, and persistence** through local TOML files.
+- **Campbell-first themes, core colour overrides, backdrop opacity, background images with fit modes + opacity, animations, customizable shortcuts, profiles, and persistence** through local TOML files.
 - **Bilingual UI** with English and Spanish support.
 
 ## Quick start

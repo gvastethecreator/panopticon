@@ -138,6 +138,7 @@ where
     set_tr!(tr, set_about_title, "about.title");
     set_tr!(tr, set_about_subtitle, "about.subtitle");
     set_tr!(tr, set_about_version_title, "about.version_title");
+    set_tr!(tr, set_about_update_available, "about.update_available");
     set_tr!(tr, set_about_description_title, "about.description_title");
     set_tr!(tr, set_about_description_body, "about.description_body");
     set_tr!(tr, set_about_credits_title, "about.credits_title");
@@ -384,16 +385,6 @@ where
     );
     set_tr!(
         tr,
-        set_settings_option_use_system_backdrop_title,
-        "settings.option.use_system_backdrop.title"
-    );
-    set_tr!(
-        tr,
-        set_settings_option_use_system_backdrop_description,
-        "settings.option.use_system_backdrop.description"
-    );
-    set_tr!(
-        tr,
         set_settings_page_filters_title,
         "settings.page.filters.title"
     );
@@ -474,6 +465,16 @@ where
     );
     set_tr!(
         tr,
+        set_settings_section_theme_colours_title,
+        "settings.section.theme_colours.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_theme_colours_helper,
+        "settings.section.theme_colours.helper"
+    );
+    set_tr!(
+        tr,
         set_settings_section_canvas_background_title,
         "settings.section.canvas_background.title"
     );
@@ -541,6 +542,41 @@ where
         tr,
         set_settings_option_image_opacity_description,
         "settings.option.image_opacity.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_theme_accent_label,
+        "settings.theme_colours.accent"
+    );
+    set_tr!(
+        tr,
+        set_settings_theme_surface_label,
+        "settings.theme_colours.surface"
+    );
+    set_tr!(
+        tr,
+        set_settings_theme_card_label,
+        "settings.theme_colours.card"
+    );
+    set_tr!(
+        tr,
+        set_settings_theme_text_label,
+        "settings.theme_colours.text"
+    );
+    set_tr!(
+        tr,
+        set_settings_theme_muted_label,
+        "settings.theme_colours.muted"
+    );
+    set_tr!(
+        tr,
+        set_settings_theme_border_label,
+        "settings.theme_colours.border"
+    );
+    set_tr!(
+        tr,
+        set_settings_theme_override_hint,
+        "settings.theme_colours.hint"
     );
     set_tr!(
         tr,
@@ -1032,6 +1068,7 @@ fn run_app(profile: Option<String>) {
     let initial_theme = theme_catalog::resolve_ui_theme(
         settings.theme_id.as_deref(),
         &settings.background_color_hex,
+        &settings.theme_color_overrides,
     );
 
     let main_window = match MainWindow::new() {
@@ -1378,12 +1415,14 @@ pub(crate) fn request_update_check(state: &Rc<RefCell<AppState>>, user_initiated
         guard.update_status = UpdateStatus::Checking;
     }
     app::secondary_windows::refresh_open_settings_window(state);
+    app::secondary_windows::refresh_open_about_window(state);
 
     if !app::updates::request_latest_release_check(env!("CARGO_PKG_VERSION")) {
         let mut guard = state.borrow_mut();
         guard.update_status = UpdateStatus::Failed;
         drop(guard);
         app::secondary_windows::refresh_open_settings_window(state);
+        app::secondary_windows::refresh_open_about_window(state);
         if user_initiated {
             tracing::warn!("manual update-check request could not be started");
         }
@@ -1406,7 +1445,10 @@ fn apply_update_check_outcome(
             release_url,
         } => {
             tracing::info!(%latest_version, %release_url, "new release available");
-            UpdateStatus::Available { latest_version }
+            UpdateStatus::Available {
+                latest_version,
+                release_url,
+            }
         }
         app::updates::UpdateCheckOutcome::Failed { reason } => {
             tracing::warn!(%reason, "update check failed");
@@ -1416,6 +1458,7 @@ fn apply_update_check_outcome(
 
     state.borrow_mut().update_status = next_status;
     app::secondary_windows::refresh_open_settings_window(state);
+    app::secondary_windows::refresh_open_about_window(state);
 }
 
 fn sync_floating_window_size_with_resize(

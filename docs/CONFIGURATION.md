@@ -44,9 +44,8 @@ fixed_height = 220
 dock_edge = "left"
 dock_column_thickness = 320
 dock_row_thickness = 180
-theme_id = "nord"
-background_color_hex = "181513"
-use_system_backdrop = true
+theme_id = "campbell"
+background_color_hex = "0C0C0C"
 show_toolbar = true
 show_window_info = true
 start_in_tray = false
@@ -58,6 +57,14 @@ thumbnail_render_scale_pct = 100
 locked_layout = false
 lock_cell_resize = false
 show_app_icons = true
+
+[theme_color_overrides]
+accent_hex = "5CA9FF"
+surface_hex = "202020"
+card_hex = "181818"
+text_hex = "F5F5F5"
+muted_hex = "999999"
+border_hex = "444444"
 
 [shortcuts]
 layout_grid = "1"
@@ -123,9 +130,9 @@ row_ratios = [0.4, 0.6]
 | `dock_edge` | `Option<DockEdge>` | `None` | activates appbar mode | values: `left`, `right`, `top`, `bottom`; runtime forces `Column` on left/right and `Row` on top/bottom |
 | `dock_column_thickness` | `Option<u32>` | `None` | dock thickness for left/right mode | clamped to at least `180` when set |
 | `dock_row_thickness` | `Option<u32>` | `None` | dock thickness for top/bottom mode | clamped to at least `120` when set |
-| `theme_id` | `Option<String>` | `None` | selects a preset from `assets/themes.json` | `None` = classic theme |
-| `background_color_hex` | `String` | `181513` | base client colour | also participates in the classic theme fallback |
-| `use_system_backdrop` | `bool` | `true` | backdrop + rounded corners on Windows 11 | via `DwmSetWindowAttribute` |
+| `theme_id` | `Option<String>` | `Some("campbell")` | selects a preset from `assets/themes.json` | new profiles default to `campbell`; `None` = classic theme |
+| `background_color_hex` | `String` | `0C0C0C` | base client colour | defaults to Campbell's background for new profiles; classic still uses this as its fallback background |
+| `theme_color_overrides` | `ThemeColorOverrides` | empty | optional manual overrides for core theme slots | supported keys: `accent_hex`, `surface_hex`, `card_hex`, `text_hex`, `muted_hex`, `border_hex`; blank/invalid values are discarded during normalization |
 | `show_toolbar` | `bool` | `true` | show/hide the bottom status bar | also changes the usable viewport area |
 | `show_window_info` | `bool` | `true` | shows title/app on the thumbnail | affects the usable thumbnail height |
 | `start_in_tray` | `bool` | `false` | starts hidden | releases thumbnails before hiding |
@@ -133,7 +140,7 @@ row_ratios = [0.4, 0.6]
 | `background_image_path` | `Option<String>` | `None` | draws an image behind the dashboard | silently cleared on load failure |
 | `background_image_fit` | `BackgroundImageFit` | `Cover` | scales the dashboard background image | values: `cover`, `contain`, `fill`, `preserve` |
 | `background_image_opacity_pct` | `u8` | `25` | controls the dashboard background-image opacity | clamped to `0..=100`; `0` keeps the file configured but makes it visually transparent |
-| `thumbnail_render_scale_pct` | `u8` | `100` | reduces DWM thumbnail destination size to trade sharpness for performance | clamped to `50..=100` |
+| `thumbnail_render_scale_pct` | `u8` | `100` | reduces DWM thumbnail detail to trade sharpness for performance | normalized to the discrete set `25`, `50`, `75`, `100` |
 | `locked_layout` | `bool` | `false` | locks layout changes | disables shortcuts and menu-driven layout changes |
 | `lock_cell_resize` | `bool` | `false` | locks separator dragging | can coexist with `locked_layout` |
 | `show_app_icons` | `bool` | `true` | shows icons on cards | uses cache + GDI rasterisation |
@@ -183,6 +190,27 @@ Important notes:
 - `language = "english"` is the persisted default for every new or migrated profile;
 - `language = "spanish"` switches the full Slint UI, native dialogs, tray tooltip, and runtime labels to Spanish;
 - the optional `PANOPTICON_LANG` environment variable (`en`, `es`, `en-US`, `es-MX`, etc.) takes precedence over the saved value for the current process only.
+
+## Theme colour overrides
+
+Core theme slots can be overridden explicitly under the `[theme_color_overrides]` table.
+
+```toml
+[theme_color_overrides]
+accent_hex = "5CA9FF"
+surface_hex = "202020"
+card_hex = "181818"
+text_hex = "F5F5F5"
+muted_hex = "999999"
+border_hex = "444444"
+```
+
+Notes:
+
+- every value must be a 6-digit RGB hex string;
+- empty or invalid values are dropped during normalization;
+- unspecified keys continue using the active preset value;
+- changing `theme_id` keeps the manual overrides unless you clear them from the settings UI or TOML.
 
 ## Per-application rules
 
@@ -305,4 +333,5 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 ### Themes
 
 - `theme_id = None` uses the classic theme;
+- new profiles start with `theme_id = "campbell"` and a matching `background_color_hex = "0C0C0C"`;
 - if `theme_id` does not exist in `assets/themes.json`, the runtime falls back to the classic theme.

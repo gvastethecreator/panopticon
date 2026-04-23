@@ -91,6 +91,7 @@ pub(crate) fn sync_theme_target(state: &mut AppState) {
     let desired = theme_catalog::resolve_ui_theme(
         state.settings.theme_id.as_deref(),
         &state.settings.background_color_hex,
+        &state.settings.theme_color_overrides,
     );
     let already_targeting = state
         .theme_animation

@@ -550,6 +550,14 @@ pub(crate) fn open_about_window(state: &Rc<RefCell<AppState>>) {
         sync_about_window_from_state(&about_window, &state);
     }
 
+    about_window.on_open_github(|| {
+        open_external_url("https://github.com/gvastethecreator");
+    });
+
+    about_window.on_open_x(|| {
+        open_external_url("https://x.com/gvastethecreator");
+    });
+
     about_window.on_closed(close_about_window);
 
     about_window.window().on_close_requested(|| {
@@ -881,6 +889,12 @@ fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
 fn sync_about_window_from_state(window: &AboutWindow, state: &AppState) {
     crate::populate_tr_global(window);
     window.set_version_text(SharedString::from(state.app_version.clone()));
+    let (show_update_badge, latest_version_text) = match &state.update_status {
+        crate::UpdateStatus::Available { latest_version, .. } => (true, latest_version.clone()),
+        _ => (false, String::new()),
+    };
+    window.set_show_update_badge(show_update_badge);
+    window.set_latest_version_text(SharedString::from(latest_version_text));
     apply_about_window_theme_snapshot(window, &state.current_theme);
 }
 
@@ -905,7 +919,7 @@ fn localized_update_status_text(status: &crate::UpdateStatus) -> String {
         crate::UpdateStatus::UpToDate { latest_version } => {
             panopticon::i18n::t_fmt("settings.update_status.up_to_date", latest_version)
         }
-        crate::UpdateStatus::Available { latest_version } => {
+        crate::UpdateStatus::Available { latest_version, .. } => {
             panopticon::i18n::t_fmt("settings.update_status.available", latest_version)
         }
         crate::UpdateStatus::Failed => {
@@ -941,6 +955,7 @@ pub(crate) fn load_profile_into_current_instance(
         guard.current_theme = theme_catalog::resolve_ui_theme(
             guard.settings.theme_id.as_deref(),
             &guard.settings.background_color_hex,
+            &guard.settings.theme_color_overrides,
         );
         guard.theme_animation = None;
         (
@@ -1114,4 +1129,16 @@ fn parse_rgb_hex(input: &str) -> Option<(i32, i32, i32)> {
     let green = i32::from(u8::from_str_radix(&hex[2..4], 16).ok()?);
     let blue = i32::from(u8::from_str_radix(&hex[4..6], 16).ok()?);
     Some((red, green, blue))
+}
+
+fn open_external_url(url: &str) {
+    if let Err(error) = Command::new("cmd")
+        .arg("/C")
+        .arg("start")
+        .arg("")
+        .arg(url)
+        .spawn()
+    {
+        tracing::warn!(%error, %url, "failed to open external url");
+    }
 }

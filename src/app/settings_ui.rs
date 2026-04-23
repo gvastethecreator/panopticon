@@ -5,8 +5,9 @@ use std::path::Path;
 use panopticon::i18n;
 use panopticon::layout::LayoutType;
 use panopticon::settings::{
-    AppSettings, BackgroundImageFit, DockEdge, WindowGrouping, MIN_DOCK_COLUMN_THICKNESS,
-    MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT, MIN_FIXED_WINDOW_WIDTH,
+    AppSettings, BackgroundImageFit, DockEdge, ThemeColorOverrides, WindowGrouping,
+    MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT,
+    MIN_FIXED_WINDOW_WIDTH,
 };
 use panopticon::theme;
 use slint::SharedString;
@@ -26,7 +27,6 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_default_layout_enabled(settings.dock_edge.is_none());
     window.set_show_toolbar_setting(settings.show_toolbar);
     window.set_show_info_setting(settings.show_window_info);
-    window.set_use_system_backdrop_setting(settings.use_system_backdrop);
     window.set_start_in_tray_setting(settings.start_in_tray);
     window.set_run_at_startup_setting(settings.run_at_startup);
     window.set_locked_layout_setting(settings.locked_layout);
@@ -88,10 +88,14 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_shortcut_exit_app(SharedString::from(&settings.shortcuts.exit_app));
     window.set_alt_toolbar_shortcut_enabled(settings.shortcuts.alt_toggles_toolbar);
 
-    let resolved_theme =
-        theme::resolve_ui_theme(settings.theme_id.as_deref(), &settings.background_color_hex);
+    let resolved_theme = theme::resolve_ui_theme(
+        settings.theme_id.as_deref(),
+        &settings.background_color_hex,
+        &settings.theme_color_overrides,
+    );
     window.set_bg_preview_color(hex_to_color(&settings.background_color_hex));
     window.set_theme_preview_color(hex_to_color(&resolved_theme.accent_hex));
+    populate_theme_colour_overrides(window, settings, &resolved_theme);
     if previous_bg_image_path != next_bg_image_path {
         window.set_bg_image_preview(load_image_preview(
             settings.background_image_path.as_deref(),
@@ -110,14 +114,21 @@ pub fn apply_settings_window_changes(window: &SettingsWindow, settings: &mut App
     settings.hide_on_select = window.get_hide_on_select_setting();
     settings.show_toolbar = window.get_show_toolbar_setting();
     settings.show_window_info = window.get_show_info_setting();
-    settings.use_system_backdrop = window.get_use_system_backdrop_setting();
     settings.start_in_tray = window.get_start_in_tray_setting();
     settings.run_at_startup = window.get_run_at_startup_setting();
     settings.locked_layout = window.get_locked_layout_setting();
     settings.lock_cell_resize = window.get_lock_cell_resize_setting();
     settings.show_app_icons = window.get_show_app_icons_setting();
     settings.thumbnail_render_scale_pct =
-        window.get_thumbnail_render_scale_value().clamp(50, 100) as u8;
+        window.get_thumbnail_render_scale_value().clamp(25, 100) as u8;
+    settings.theme_color_overrides = ThemeColorOverrides {
+        accent_hex: optional_theme_override(&window.get_theme_accent_hex()),
+        surface_hex: optional_theme_override(&window.get_theme_surface_hex()),
+        card_hex: optional_theme_override(&window.get_theme_card_hex()),
+        text_hex: optional_theme_override(&window.get_theme_text_hex()),
+        muted_hex: optional_theme_override(&window.get_theme_muted_hex()),
+        border_hex: optional_theme_override(&window.get_theme_border_hex()),
+    };
     let next_theme_id = theme::theme_id_by_index(window.get_theme_index());
     let theme_changed = settings.theme_id != next_theme_id;
     settings.theme_id = next_theme_id;
@@ -339,6 +350,88 @@ fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
     );
 
     ModelRc::new(VecModel::from(previews))
+}
+
+fn populate_theme_colour_overrides(
+    window: &SettingsWindow,
+    settings: &AppSettings,
+    resolved_theme: &theme::UiTheme,
+) {
+    set_theme_override_field(
+        window,
+        settings.theme_color_overrides.accent_hex.as_deref(),
+        &resolved_theme.accent_hex,
+        SettingsWindow::set_theme_accent_hex,
+        SettingsWindow::set_theme_accent_placeholder,
+        SettingsWindow::set_theme_accent_preview_color,
+    );
+    set_theme_override_field(
+        window,
+        settings.theme_color_overrides.surface_hex.as_deref(),
+        &resolved_theme.surface_hex,
+        SettingsWindow::set_theme_surface_hex,
+        SettingsWindow::set_theme_surface_placeholder,
+        SettingsWindow::set_theme_surface_preview_color,
+    );
+    set_theme_override_field(
+        window,
+        settings.theme_color_overrides.card_hex.as_deref(),
+        &resolved_theme.card_bg_hex,
+        SettingsWindow::set_theme_card_hex,
+        SettingsWindow::set_theme_card_placeholder,
+        SettingsWindow::set_theme_card_preview_color,
+    );
+    set_theme_override_field(
+        window,
+        settings.theme_color_overrides.text_hex.as_deref(),
+        &resolved_theme.text_hex,
+        SettingsWindow::set_theme_text_hex,
+        SettingsWindow::set_theme_text_placeholder,
+        SettingsWindow::set_theme_text_preview_color,
+    );
+    set_theme_override_field(
+        window,
+        settings.theme_color_overrides.muted_hex.as_deref(),
+        &resolved_theme.muted_hex,
+        SettingsWindow::set_theme_muted_hex,
+        SettingsWindow::set_theme_muted_placeholder,
+        SettingsWindow::set_theme_muted_preview_color,
+    );
+    set_theme_override_field(
+        window,
+        settings.theme_color_overrides.border_hex.as_deref(),
+        &resolved_theme.border_hex,
+        SettingsWindow::set_theme_border_hex,
+        SettingsWindow::set_theme_border_placeholder,
+        SettingsWindow::set_theme_border_preview_color,
+    );
+}
+
+fn set_theme_override_field(
+    window: &SettingsWindow,
+    override_hex: Option<&str>,
+    resolved_hex: &str,
+    set_value: fn(&SettingsWindow, SharedString),
+    set_placeholder: fn(&SettingsWindow, SharedString),
+    set_preview: fn(&SettingsWindow, slint::Color),
+) {
+    set_value(window, SharedString::from(override_hex.unwrap_or_default()));
+    set_placeholder(window, SharedString::from(resolved_hex));
+    set_preview(window, hex_to_color(override_hex.unwrap_or(resolved_hex)));
+}
+
+fn optional_theme_override(value: &str) -> Option<String> {
+    let trimmed = value.trim().trim_start_matches('#');
+    if trimmed.is_empty()
+        || trimmed.len() != 6
+        || !trimmed
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    {
+        return None;
+    }
+
+    Some(trimmed.to_ascii_uppercase())
 }
 
 fn load_image_preview(path: Option<&str>) -> slint::Image {

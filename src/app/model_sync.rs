@@ -17,7 +17,7 @@ use windows::Win32::UI::WindowsAndMessaging::{IsIconic, IsWindowVisible};
 
 use super::icon::populate_cached_icon;
 use super::settings_ui::background_fit_to_index;
-use super::theme_ui::{hex_to_slint_color, sync_theme_target, thumbnail_accent_color};
+use super::theme_ui::{sync_theme_target, thumbnail_accent_color};
 use crate::{AppState, MainWindow, ResizeHandleData, ThumbnailData};
 
 pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &MainWindow) {
@@ -140,7 +140,7 @@ pub(crate) fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
     win.set_is_always_on_top(settings.always_on_top);
     win.set_animate_transitions(settings.animate_transitions);
     win.set_resize_locked(settings.locked_layout || settings.lock_cell_resize);
-    win.set_canvas_background_color(hex_to_slint_color(&settings.background_color_hex));
+    win.set_canvas_background_color(canvas_background_color(settings));
     win.set_background_image_fit_index(background_fit_to_index(settings.background_image_fit));
     win.set_background_image_opacity(settings.background_image_opacity_pct as f32 / 100.0);
     win.set_refresh_label(SharedString::from(settings.refresh_interval_label()));
@@ -406,6 +406,19 @@ fn lerp_rect(from: RECT, to: RECT, t: f32) -> RECT {
 
 fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
     (from as f32 + (to - from) as f32 * t).round() as i32
+}
+
+fn canvas_background_color(settings: &AppSettings) -> slint::Color {
+    let (red, green, blue) = rgb_components_from_hex(&settings.background_color_hex);
+    slint::Color::from_argb_u8(255, red, green, blue)
+}
+
+fn rgb_components_from_hex(hex: &str) -> (u8, u8, u8) {
+    let sanitized = hex.trim().trim_start_matches('#');
+    let red = u8::from_str_radix(sanitized.get(0..2).unwrap_or("18"), 16).unwrap_or(0x18);
+    let green = u8::from_str_radix(sanitized.get(2..4).unwrap_or("15"), 16).unwrap_or(0x15);
+    let blue = u8::from_str_radix(sanitized.get(4..6).unwrap_or("13"), 16).unwrap_or(0x13);
+    (red, green, blue)
 }
 
 #[cfg(test)]

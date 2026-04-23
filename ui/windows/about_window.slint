@@ -1,4 +1,3 @@
-import { Button } from "std-widgets.slint";
 import { Tr, Theme } from "../common.slint";
 
 component AboutCard inherits Rectangle {
@@ -28,22 +27,124 @@ component AboutCard inherits Rectangle {
     }
 }
 
+component VersionCard inherits Rectangle {
+    in property <string> title;
+    in property <string> version-text;
+    in property <bool> show-update-badge: false;
+    in property <string> latest-version-text: "";
+
+    border-radius: 4px;
+    background: Theme.card_bg.with-alpha(92%);
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 8px;
+
+        Text {
+            text: root.title;
+            color: Theme.accent;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: start;
+
+            Text {
+                text: root.version-text;
+                color: Theme.label;
+                font-size: 12.5px;
+                vertical-alignment: center;
+            }
+
+            if root.show-update-badge: Rectangle {
+                height: 24px;
+                border-radius: 4px;
+                border-width: 1px;
+                border-color: Theme.accent.with-alpha(72%);
+                background: Theme.accent-soft.with-alpha(56%);
+
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    alignment: center;
+
+                    Text {
+                        text: Tr.about-update-available + " · " + root.latest-version-text;
+                        color: Theme.text;
+                        font-size: 11px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}
+
+component IconActionButton inherits Rectangle {
+    in property <image> icon;
+    in property <length> button-size: 34px;
+    callback clicked();
+
+    width: root.button-size;
+    height: root.button-size;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: touch.has-hover ? Theme.accent.with-alpha(56%) : Theme.border.with-alpha(68%);
+    background: touch.has-hover ? Theme.surface.with-alpha(72%) : Theme.card_bg.with-alpha(92%);
+
+    Image {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: root.button-size - 16px;
+        height: root.button-size - 16px;
+        source: root.icon;
+        image-fit: contain;
+        colorize: touch.has-hover ? Theme.accent : Theme.label;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
 export component AboutWindow inherits Window {
     title: Tr.about-window-title;
     icon: @image-url("../../assets/icon.svg");
     background: Theme.bg;
     preferred-width: 720px;
-    preferred-height: 460px;
+    preferred-height: 500px;
     default-font-family: "Miranda Sans";
     default-font-size: 14px;
 
     in property <string> version-text: "";
+    in property <bool> show-update-badge: false;
+    in property <string> latest-version-text: "";
 
     callback closed();
+    callback open-github();
+    callback open-x();
 
     VerticalLayout {
         padding: 22px;
-        spacing: 18px;
+        spacing: 16px;
+
+        HorizontalLayout {
+            alignment: end;
+
+            IconActionButton {
+                button-size: 30px;
+                icon: @image-url("../../assets/ui-icons/thumbnail-close.svg");
+                clicked => {
+                    root.closed();
+                }
+            }
+        }
 
         HorizontalLayout {
             spacing: 20px;
@@ -51,13 +152,13 @@ export component AboutWindow inherits Window {
 
             Rectangle {
                 width: 220px;
-                min-height: 320px;
+                min-height: 360px;
                 border-radius: 4px;
                 background: Theme.card_bg.with-alpha(92%);
 
                 VerticalLayout {
                     padding: 16px;
-                    spacing: 12px;
+                    spacing: 14px;
                     alignment: center;
 
                     Image {
@@ -65,6 +166,25 @@ export component AboutWindow inherits Window {
                         width: 170px;
                         height: 250px;
                         image-fit: contain;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: center;
+
+                        IconActionButton {
+                            icon: @image-url("../../assets/ui-icons/social-github.svg");
+                            clicked => {
+                                root.open-github();
+                            }
+                        }
+
+                        IconActionButton {
+                            icon: @image-url("../../assets/ui-icons/social-x.svg");
+                            clicked => {
+                                root.open-x();
+                            }
+                        }
                     }
                 }
             }
@@ -88,14 +208,11 @@ export component AboutWindow inherits Window {
                     wrap: word-wrap;
                 }
 
-                AboutCard {
+                VersionCard {
                     title: Tr.about-version-title;
-                    body: root.version-text;
-                }
-
-                AboutCard {
-                    title: Tr.about-description-title;
-                    body: Tr.about-description-body;
+                    version-text: root.version-text;
+                    show-update-badge: root.show-update-badge;
+                    latest-version-text: root.latest-version-text;
                 }
 
                 AboutCard {
@@ -103,14 +220,6 @@ export component AboutWindow inherits Window {
                     body: Tr.about-credits-body;
                     vertical-stretch: 1;
                 }
-            }
-        }
-
-        HorizontalLayout {
-            alignment: end;
-            FooterButton := Button {
-                text: Tr.action-close;
-                clicked => { root.closed(); }
             }
         }
     }

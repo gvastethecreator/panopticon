@@ -359,63 +359,133 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
     }
 }
 
+    component ThemeColorSettingRow inherits Rectangle {
+    in property <string> label;
+    in-out property <string> value: "";
+    in property <string> placeholder: "";
+    in property <color> preview-color: Theme.accent;
+    callback committed();
+
+    height: 42px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: Theme.border.with-alpha(56%);
+    background: Theme.surface.with-alpha(48%);
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        spacing: 10px;
+        alignment: start;
+
+        Rectangle {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: Theme.border.with-alpha(72%);
+            background: root.preview-color;
+        }
+
+        Text {
+            text: root.label;
+            color: Theme.text;
+            font-size: 12.5px;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        edit := LineEdit {
+            width: 118px;
+            height: 28px;
+            text <=> root.value;
+            placeholder-text: root.placeholder;
+            accepted(_) => {
+                root.committed();
+            }
+            changed has-focus => {
+                if !self.has-focus {
+                    root.committed();
+                }
+            }
+        }
+    }
+}
+
     component ThemePreviewCard inherits Rectangle {
     in property <ThemePreviewData> theme;
     in property <bool> selected: false;
     callback picked(/* index */ int);
 
-    border-radius: 14px;
+    border-radius: 4px;
     border-width: selected ? 2px : 1px;
     border-color: selected ? Theme.accent : Theme.border.with-alpha(62%);
-    background: theme.surface.with-alpha(94%);
+    background: selected ? Theme.accent-soft.with-alpha(18%) : Theme.card_bg.with-alpha(92%);
 
-    Rectangle {
-        x: 0;
-        y: 0;
-        width: 100%;
-        height: 44px;
-        border-radius: 14px;
-        background: theme.bg;
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        padding-top: 9px;
+        padding-bottom: 9px;
+        spacing: 12px;
+        alignment: start;
 
-        Rectangle {
-            x: 14px;
-            y: 11px;
-            width: 12px;
-            height: 12px;
-            border-radius: 6px;
-            background: theme.accent;
+        VerticalLayout {
+            width: 28px;
+            spacing: 4px;
+            alignment: center;
+
+            Rectangle {
+                width: 100%;
+                height: 8px;
+                border-radius: 4px;
+                background: root.theme.bg;
+            }
+
+            Rectangle {
+                width: 100%;
+                height: 8px;
+                border-radius: 4px;
+                background: root.theme.surface;
+            }
+
+            Rectangle {
+                width: 100%;
+                height: 8px;
+                border-radius: 4px;
+                background: root.theme.accent;
+            }
         }
-
-        Rectangle {
-            x: 32px;
-            y: 11px;
-            width: 12px;
-            height: 12px;
-            border-radius: 6px;
-            background: theme.text;
-        }
-    }
-
-    VerticalLayout {
-        padding-left: 14px;
-        padding-right: 14px;
-        padding-top: 56px;
-        padding-bottom: 12px;
-        spacing: 3px;
 
         Text {
             text: root.theme.label;
             color: Theme.text;
             font-size: 13px;
             font-weight: 700;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
             overflow: elide;
         }
 
-        Text {
-            text: root.theme.subtitle;
-            color: Theme.muted;
-            font-size: 11px;
-            wrap: word-wrap;
+        Rectangle {
+            width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            border-width: 2px;
+            border-color: root.selected ? Theme.accent : Theme.border.with-alpha(80%);
+            background: root.selected ? Theme.accent-soft.with-alpha(34%) : transparent;
+
+            if root.selected: Rectangle {
+                x: 4px;
+                y: 4px;
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: Theme.accent;
+            }
         }
     }
 
@@ -476,7 +546,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
     in-out property <bool> hide-on-select-setting: true;
     in-out property <bool> show-toolbar-setting: true;
     in-out property <bool> show-info-setting: true;
-    in-out property <bool> use-system-backdrop-setting: true;
     in-out property <bool> start-in-tray-setting: false;
     in-out property <bool> run-at-startup-setting: false;
     in-out property <bool> locked-layout-setting: false;
@@ -514,6 +583,24 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
     in-out property <int> bg-red-value: 24;
     in-out property <int> bg-green-value: 21;
     in-out property <int> bg-blue-value: 19;
+    in-out property <string> theme-accent-hex: "";
+    in property <string> theme-accent-placeholder: "";
+    in property <color> theme-accent-preview-color: Theme.accent;
+    in-out property <string> theme-surface-hex: "";
+    in property <string> theme-surface-placeholder: "";
+    in property <color> theme-surface-preview-color: Theme.surface;
+    in-out property <string> theme-card-hex: "";
+    in property <string> theme-card-placeholder: "";
+    in property <color> theme-card-preview-color: Theme.card_bg;
+    in-out property <string> theme-text-hex: "";
+    in property <string> theme-text-placeholder: "";
+    in property <color> theme-text-preview-color: Theme.text;
+    in-out property <string> theme-muted-hex: "";
+    in property <string> theme-muted-placeholder: "";
+    in property <color> theme-muted-preview-color: Theme.muted;
+    in-out property <string> theme-border-hex: "";
+    in property <string> theme-border-placeholder: "";
+    in property <color> theme-border-preview-color: Theme.border;
     in-out property <string> bg-image-path: "";
     in-out property <image> bg-image-preview;
     in-out property <int> bg-image-fit-index: 0;
@@ -596,9 +683,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
         root.request-live-apply();
     }
     changed show-info-setting => {
-        root.request-live-apply();
-    }
-    changed use-system-backdrop-setting => {
         root.request-live-apply();
     }
     changed start-in-tray-setting => {
@@ -1236,25 +1320,18 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                 HorizontalLayout {
                                     spacing: 10px;
 
-                                    Slider {
-                                        horizontal-stretch: 1;
-                                        minimum: 50;
-                                        maximum: 100;
-                                        value: root.thumbnail-render-scale-value;
-                                        changed value => {
-                                            root.thumbnail-render-scale-value = self.value;
+                                    ComboBox {
+                                        width: 140px;
+                                        height: 34px;
+                                        model: ["25%", "50%", "75%", "100%"];
+                                        current-index: root.thumbnail-render-scale-value == 25 ? 0 : root.thumbnail-render-scale-value == 50 ? 1 : root.thumbnail-render-scale-value == 75 ? 2 : 3;
+                                        selected => {
+                                            root.thumbnail-render-scale-value = self.current-index == 0 ? 25 : self.current-index == 1 ? 50 : self.current-index == 2 ? 75 : 100;
                                         }
                                     }
 
-                                    SpinBox {
-                                        width: 76px;
-                                        minimum: 50;
-                                        maximum: 100;
-                                        value <=> root.thumbnail-render-scale-value;
-                                    }
-
                                     Text {
-                                        text: "%";
+                                        text: root.thumbnail-render-scale-value + "%";
                                         color: Theme.label;
                                         vertical-alignment: center;
                                     }
@@ -1281,13 +1358,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                             title: Tr.settings-option-show-app-icons-title;
                             description: Tr.settings-option-show-app-icons-description;
                             checked <=> root.show-app-icons-setting;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-backdrop.svg");
-                            title: Tr.settings-option-use-system-backdrop-title;
-                            description: Tr.settings-option-use-system-backdrop-description;
-                            checked <=> root.use-system-backdrop-setting;
                         }
                     }
 
@@ -1423,13 +1493,13 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             x: 12px;
                                             y: 12px;
                                             width: max(theme-list-scroll.width - 24px, 280px);
-                                            height: max((root.theme-preview-model.length * 118px) + 12px, theme-list-scroll.height - 24px);
+                                            height: max((root.theme-preview-model.length * 68px) + 12px, theme-list-scroll.height - 24px);
 
                                             for theme[index] in root.theme-preview-model: ThemePreviewCard {
                                                 width: theme-list-content.width;
-                                                height: 106px;
+                                                height: 56px;
                                                 x: 0px;
-                                                y: index * 118px;
+                                                y: index * 68px;
                                                 theme: theme;
                                                 selected: root.theme-index == theme.index;
                                                 picked(idx) => {
@@ -1447,7 +1517,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                 spacing: 16px;
 
                                 Rectangle {
-                                    height: 208px;
+                                    height: 296px;
                                     border-radius: 4px;
                                     border-width: 2px;
                                     border-color: Theme.border.with-alpha(50%);
@@ -1530,6 +1600,92 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                     }
                                                 }
                                             }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    height: 342px;
+                                    border-radius: 4px;
+                                    border-width: 2px;
+                                    border-color: Theme.border.with-alpha(50%);
+                                    background: Theme.card_bg.with-alpha(92%);
+
+                                    VerticalLayout {
+                                        padding: 14px;
+                                        spacing: 10px;
+
+                                        SectionTitle {
+                                            icon: @image-url("../../assets/ui-icons/option-palette.svg");
+                                            text: Tr.settings-section-theme-colours-title;
+                                            helper: Tr.settings-section-theme-colours-helper;
+                                        }
+
+                                        ThemeColorSettingRow {
+                                            label: Tr.settings-theme-accent-label;
+                                            value <=> root.theme-accent-hex;
+                                            placeholder: root.theme-accent-placeholder;
+                                            preview-color: root.theme-accent-preview-color;
+                                            committed => {
+                                                root.apply();
+                                            }
+                                        }
+
+                                        ThemeColorSettingRow {
+                                            label: Tr.settings-theme-surface-label;
+                                            value <=> root.theme-surface-hex;
+                                            placeholder: root.theme-surface-placeholder;
+                                            preview-color: root.theme-surface-preview-color;
+                                            committed => {
+                                                root.apply();
+                                            }
+                                        }
+
+                                        ThemeColorSettingRow {
+                                            label: Tr.settings-theme-card-label;
+                                            value <=> root.theme-card-hex;
+                                            placeholder: root.theme-card-placeholder;
+                                            preview-color: root.theme-card-preview-color;
+                                            committed => {
+                                                root.apply();
+                                            }
+                                        }
+
+                                        ThemeColorSettingRow {
+                                            label: Tr.settings-theme-text-label;
+                                            value <=> root.theme-text-hex;
+                                            placeholder: root.theme-text-placeholder;
+                                            preview-color: root.theme-text-preview-color;
+                                            committed => {
+                                                root.apply();
+                                            }
+                                        }
+
+                                        ThemeColorSettingRow {
+                                            label: Tr.settings-theme-muted-label;
+                                            value <=> root.theme-muted-hex;
+                                            placeholder: root.theme-muted-placeholder;
+                                            preview-color: root.theme-muted-preview-color;
+                                            committed => {
+                                                root.apply();
+                                            }
+                                        }
+
+                                        ThemeColorSettingRow {
+                                            label: Tr.settings-theme-border-label;
+                                            value <=> root.theme-border-hex;
+                                            placeholder: root.theme-border-placeholder;
+                                            preview-color: root.theme-border-preview-color;
+                                            committed => {
+                                                root.apply();
+                                            }
+                                        }
+
+                                        Text {
+                                            text: Tr.settings-theme-override-hint;
+                                            color: Theme.muted;
+                                            font-size: 10.5px;
+                                            wrap: word-wrap;
                                         }
                                     }
                                 }

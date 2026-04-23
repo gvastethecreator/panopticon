@@ -126,8 +126,13 @@ pub(crate) enum PendingAction {
 pub(crate) enum UpdateStatus {
     Idle,
     Checking,
-    UpToDate { latest_version: String },
-    Available { latest_version: String },
+    UpToDate {
+        latest_version: String,
+    },
+    Available {
+        latest_version: String,
+        release_url: String,
+    },
     Failed,
 }
 
