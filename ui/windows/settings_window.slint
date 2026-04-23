@@ -249,10 +249,10 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
     in property <bool> enabled: true;
     in property <length> combo-width: 220px;
 
-    min-height: 96px;
-    border-radius: 14px;
-    border-width: 1px;
-    border-color: Theme.border.with-alpha(72%);
+    min-height: 86px;
+    border-radius: 4px;
+    border-width: 2px;
+    border-color: Theme.border.with-alpha(52%);
     background: Theme.card-bg.with-alpha(92%);
 
     VerticalLayout {
@@ -280,13 +280,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                     color: root.enabled ? Theme.text : Theme.muted;
                     font-size: 14px;
                     font-weight: 700;
-                    wrap: word-wrap;
-                }
-
-                Text {
-                    text: root.description;
-                    color: Theme.muted;
-                    font-size: 11px;
                     wrap: word-wrap;
                 }
             }
@@ -711,10 +704,10 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                         spacing: 10px;
 
                         Rectangle {
-                            width: 18px;
-                            height: 18px;
-                            border-radius: 9px;
-                            background: Theme.accent;
+                            width: 3px;
+                            height: 32px;
+                            border-radius: 2px;
+                            background: Theme.accent.with-alpha(50%);
                         }
 
                         VerticalLayout {
@@ -953,7 +946,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                 combo-width: 220px;
                                 icon: @image-url("../../assets/ui-icons/option-layout.svg");
                                 title: Tr.settings-option-default-layout-title;
-                                description: root.default-layout-enabled ? Tr.settings-option-default-layout-description : Tr.settings-option-default-layout-docked-description;
                                 options: Tr.layout-options;
                                 selected-index <=> root.layout-index;
                                 enabled: root.default-layout-enabled;
@@ -964,16 +956,15 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                 combo-width: 220px;
                                 icon: @image-url("../../assets/ui-icons/option-dock.svg");
                                 title: Tr.settings-option-dock-position-title;
-                                description: Tr.settings-option-dock-position-description;
                                 options: Tr.dock-options;
                                 selected-index <=> root.dock-edge-index;
                             }
                         }
 
                         if root.dock-mode-active: Rectangle {
-                            border-radius: 14px;
-                            border-width: 1px;
-                            border-color: Theme.border.with-alpha(72%);
+                            border-radius: 4px;
+                            border-width: 2px;
+                            border-color: Theme.border.with-alpha(50%);
                             background: Theme.card-bg.with-alpha(92%);
 
                             VerticalLayout {
@@ -1107,10 +1098,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                         }
 
                         if !root.dock-mode-active: Rectangle {
-                            border-radius: 14px;
-                            border-width: 1px;
-                            border-color: Theme.border.with-alpha(72%);
-                            background: Theme.card-bg.with-alpha(92%);
 
                             VerticalLayout {
                                 padding: 14px;
@@ -1151,8 +1138,8 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
 
                                     Rectangle {
                                         horizontal-stretch: 1;
-                                        border-radius: 12px;
-                                        border-width: 1px;
+                                        border-radius: 4px;
+                                        border-width: 2px;
                                         border-color: Theme.border.with-alpha(64%);
                                         background: Theme.surface.with-alpha(48%);
 
@@ -1178,8 +1165,8 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
 
                                     Rectangle {
                                         horizontal-stretch: 1;
-                                        border-radius: 12px;
-                                        border-width: 1px;
+                                        border-radius: 4px;
+                                        border-width: 2px;
                                         border-color: Theme.border.with-alpha(64%);
                                         background: Theme.surface.with-alpha(48%);
 
@@ -1207,10 +1194,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                         }
 
                         Rectangle {
-                            border-radius: 14px;
-                            border-width: 1px;
-                            border-color: Theme.border.with-alpha(72%);
-                            background: Theme.card-bg.with-alpha(92%);
 
                             VerticalLayout {
                                 padding: 14px;
@@ -1406,13 +1389,14 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                         HorizontalLayout {
                             spacing: 16px;
                             alignment: start;
+                            vertical-stretch: 1;
 
                             Rectangle {
                                 width: 360px;
                                 height: 760px;
-                                border-radius: 14px;
-                                border-width: 1px;
-                                border-color: Theme.border.with-alpha(72%);
+                                border-radius: 4px;
+                                border-width: 2px;
+                                border-color: Theme.border.with-alpha(50%);
                                 background: Theme.card_bg.with-alpha(92%);
                                 clip: true;
 
@@ -1457,131 +1441,14 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 16px;
+                                
 
                                 Rectangle {
-                                    height: 320px;
-                                    border-radius: 14px;
-                                    border-width: 1px;
-                                    border-color: Theme.border.with-alpha(72%);
+                                    height: 80px;
+                                    border-radius: 4px;
+                                    border-width: 2px;
+                                    border-color: Theme.border.with-alpha(50%);
                                     background: Theme.card_bg.with-alpha(92%);
-
-                                    VerticalLayout {
-                                        padding-left: 14px;
-                                        padding-right: 14px;
-                                        padding-top: 8px;
-                                        spacing: 6px;
-
-                                        SectionTitle {
-                                            icon: @image-url("../../assets/ui-icons/option-paint.svg");
-                                            text: Tr.settings-section-canvas-background-title;
-                                            helper: Tr.settings-section-canvas-background-helper;
-                                        }
-
-                                        VerticalLayout {
-                                            spacing: 6px;
-
-                                            Text {
-                                                text: Tr.settings-option-rgb-picker-title;
-                                                color: Theme.label;
-                                                font-size: 12px;
-                                            }
-
-                                            HorizontalLayout {
-                                                spacing: 8px;
-                                                Text {
-                                                    width: 16px;
-                                                    text: Tr.settings-channel-red-label;
-                                                    color: Theme.muted;
-                                                    vertical-alignment: center;
-                                                    horizontal-alignment: center;
-                                                }
-
-                                                Slider {
-                                                    horizontal-stretch: 1;
-                                                    minimum: 0;
-                                                    maximum: 255;
-                                                    value: root.bg-red-value;
-                                                    changed value => {
-                                                        root.bg-red-value = self.value;
-                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
-                                                    }
-                                                }
-
-                                                SpinBox {
-                                                    width: 72px;
-                                                    minimum: 0;
-                                                    maximum: 255;
-                                                    value <=> root.bg-red-value;
-                                                    changed value => {
-                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
-                                                    }
-                                                }
-                                            }
-
-                                            HorizontalLayout {
-                                                spacing: 8px;
-                                                Text {
-                                                    width: 16px;
-                                                    text: Tr.settings-channel-green-label;
-                                                    color: Theme.muted;
-                                                    vertical-alignment: center;
-                                                    horizontal-alignment: center;
-                                                }
-
-                                                Slider {
-                                                    horizontal-stretch: 1;
-                                                    minimum: 0;
-                                                    maximum: 255;
-                                                    value: root.bg-green-value;
-                                                    changed value => {
-                                                        root.bg-green-value = self.value;
-                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
-                                                    }
-                                                }
-
-                                                SpinBox {
-                                                    width: 72px;
-                                                    minimum: 0;
-                                                    maximum: 255;
-                                                    value <=> root.bg-green-value;
-                                                    changed value => {
-                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
-                                                    }
-                                                }
-                                            }
-
-                                            HorizontalLayout {
-                                                spacing: 8px;
-                                                Text {
-                                                    width: 16px;
-                                                    text: Tr.settings-channel-blue-label;
-                                                    color: Theme.muted;
-                                                    vertical-alignment: center;
-                                                    horizontal-alignment: center;
-                                                }
-
-                                                Slider {
-                                                    horizontal-stretch: 1;
-                                                    minimum: 0;
-                                                    maximum: 255;
-                                                    value: root.bg-blue-value;
-                                                    changed value => {
-                                                        root.bg-blue-value = self.value;
-                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
-                                                    }
-                                                }
-
-                                                SpinBox {
-                                                    width: 72px;
-                                                    minimum: 0;
-                                                    maximum: 255;
-                                                    value <=> root.bg-blue-value;
-                                                    changed value => {
-                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
-                                                    }
-                                                }
-                                            }
-                                        }
 
                                         TextFieldSettingCard {
                                             icon: @image-url("../../assets/ui-icons/option-paint.svg");
@@ -1592,14 +1459,13 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 root.apply-bg-color-hex(root.bg-color-hex);
                                             }
                                         }
-                                    }
                                 }
 
                                 Rectangle {
-                                    height: 280px;
-                                    border-radius: 14px;
-                                    border-width: 1px;
-                                    border-color: Theme.border.with-alpha(72%);
+                                    height: 190px;
+                                    border-radius: 4px;
+                                    border-width: 2px;
+                                    border-color: Theme.border.with-alpha(50%);
                                     background: Theme.card_bg.with-alpha(92%);
 
                                     VerticalLayout {
@@ -1612,53 +1478,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             helper: Tr.settings-section-background-image-helper;
                                         }
 
-                                        SelectSettingPanel {
-                                            icon: @image-url("../../assets/ui-icons/option-image-fit.svg");
-                                            title: Tr.settings-option-image-fit-title;
-                                            description: Tr.settings-option-image-fit-description;
-                                            options: Tr.image-fit-options;
-                                            selected-index <=> root.bg-image-fit-index;
-                                            combo-width: 220px;
-                                        }
-
-                                        Text {
-                                            text: root.bg-image-path == "" ? Tr.settings-option-image-file-description : root.bg-image-path;
-                                            color: Theme.muted;
-                                            font-size: 11px;
-                                            wrap: word-wrap;
-                                        }
-
-                                        VerticalLayout {
-                                            spacing: 6px;
-
-                                            Text {
-                                                text: Tr.settings-option-image-opacity-title;
-                                                color: Theme.label;
-                                                font-size: 12px;
-                                            }
-
-                                            HorizontalLayout {
-                                                spacing: 10px;
-
-                                                Slider {
-                                                    horizontal-stretch: 1;
-                                                    minimum: 0;
-                                                    maximum: 100;
-                                                    value: root.bg-image-opacity-value;
-                                                    changed value => {
-                                                        root.bg-image-opacity-value = self.value;
-                                                    }
-                                                }
-
-                                                SpinBox {
-                                                    width: 72px;
-                                                    minimum: 0;
-                                                    maximum: 100;
-                                                    value <=> root.bg-image-opacity-value;
-                                                }
-                                            }
-                                        }
-
+                                        
                                         HorizontalLayout {
                                             spacing: 10px;
 
@@ -1678,14 +1498,49 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 }
                                             }
                                         }
+
+
+                                        VerticalLayout {
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: Tr.settings-option-image-opacity-title;
+                                                color: Theme.label;
+                                                font-size: 12px;
+                                                height: 20px;
+                                            }
+
+                                            HorizontalLayout {
+                                                spacing: 10px;
+
+                                                Slider {
+                                                    horizontal-stretch: 1;
+                                                    minimum: 0;
+                                                    maximum: 100;
+                                                    value: root.bg-image-opacity-value;
+                                                    changed value => {
+                                                        root.bg-image-opacity-value = self.value;
+                                                    }
+                                                }
+
+                                                SpinBox {
+                                                    width: 72px;
+                                                    height: 32px;
+                                                    minimum: 0;
+                                                    maximum: 100;
+                                                    value <=> root.bg-image-opacity-value;
+                                                }
+                                            }
+                                        }
+
                                     }
                                 }
 
                                 Rectangle {
                                     height: 220px;
-                                    border-radius: 14px;
-                                    border-width: 1px;
-                                    border-color: Theme.border.with-alpha(72%);
+                                    border-radius: 4px;
+                                    border-width: 2px;
+                                    border-color: Theme.border.with-alpha(50%);
                                     background: Theme.card_bg.with-alpha(92%);
 
                                     VerticalLayout {
@@ -1748,14 +1603,16 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                             subtitle: Tr.settings-page-profiles-subtitle;
                         }
 
+                        
+
                         HorizontalLayout {
                             spacing: 16px;
 
                             Rectangle {
                                 width: 430px;
-                                border-radius: 14px;
-                                border-width: 1px;
-                                border-color: Theme.border.with-alpha(72%);
+                                border-radius: 4px;
+                                border-width: 2px;
+                                border-color: Theme.border.with-alpha(50%);
                                 background: Theme.card_bg.with-alpha(92%);
 
                                 VerticalLayout {
@@ -1851,9 +1708,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
 
                             Rectangle {
                                 horizontal-stretch: 1;
-                                border-radius: 14px;
-                                border-width: 1px;
-                                border-color: Theme.border.with-alpha(72%);
+                                border-radius: 4px;
+                                border-width: 2px;
+                                border-color: Theme.border.with-alpha(50%);
                                 background: Theme.card_bg.with-alpha(92%);
 
                                 VerticalLayout {
@@ -1873,11 +1730,17 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                         wrap: word-wrap;
                                     }
 
+                                }
+                            }
+                        }
+
+                        
                                     Rectangle {
-                                        border-radius: 12px;
-                                        border-width: 1px;
-                                        border-color: Theme.border.with-alpha(64%);
-                                        background: Theme.surface.with-alpha(50%);
+                                        border-radius: 4px;
+                                        border-color: Theme.border.with-alpha(20%);
+                                        background: Theme.surface.with-alpha(20%);
+                                        height: 90px;
+                                        width: 440px;
 
                                         VerticalLayout {
                                             padding: 12px;
@@ -1898,9 +1761,6 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             }
                                         }
                                     }
-                                }
-                            }
-                        }
                     }
 
                     if root.current-page == 4: VerticalLayout {
@@ -1921,9 +1781,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
 
                         Rectangle {
                             height: 540px;
-                            border-radius: 14px;
-                            border-width: 1px;
-                            border-color: Theme.border.with-alpha(72%);
+                            border-radius: 4px;
+                            border-width: 2px;
+                            border-color: Theme.border.with-alpha(50%);
                             background: Theme.card_bg.with-alpha(92%);
                             clip: true;
 
