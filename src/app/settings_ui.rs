@@ -486,7 +486,8 @@ mod tests {
     }
 
     #[test]
-    fn theme_preview_model_is_capped_for_settings_rendering() {
-        assert_eq!(build_theme_preview_model().row_count(), 48);
+    fn theme_preview_model_includes_all_available_themes() {
+        // Classic theme + all preset themes (~365)
+        assert_eq!(build_theme_preview_model().row_count(), 366);
     }
 }

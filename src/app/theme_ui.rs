@@ -5,14 +5,33 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use slint::{ComponentHandle, Model};
+use slint::language::ColorScheme;
 
 use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 
 use crate::{
-    AppState, MainWindow, SettingsWindow, TagDialogWindow, Theme, ABOUT_WIN, SETTINGS_WIN,
-    TAG_DIALOG_WIN, THEME_TRANSITION_DURATION_MS,
+    AboutWindow, AppState, MainWindow, Palette, SettingsWindow, TagDialogWindow, Theme,
+    ABOUT_WIN, SETTINGS_WIN, TAG_DIALOG_WIN, THEME_TRANSITION_DURATION_MS,
 };
+
+fn palette_color_scheme_for_theme(resolved: &theme_catalog::UiTheme) -> ColorScheme {
+    if theme_catalog::is_ui_theme_dark(resolved) {
+        ColorScheme::Dark
+    } else {
+        ColorScheme::Light
+    }
+}
+
+fn apply_palette_color_scheme<Component>(window: &Component, resolved: &theme_catalog::UiTheme)
+where
+    Component: ComponentHandle,
+    for<'a> Palette<'a>: slint::Global<'a, Component>,
+{
+    window
+        .global::<Palette>()
+        .set_color_scheme(palette_color_scheme_for_theme(resolved));
+}
 
 // ───────────────────────── Macro ─────────────────────────
 
@@ -43,6 +62,7 @@ pub(crate) fn apply_main_window_theme_snapshot(
     window: &MainWindow,
     resolved: &theme_catalog::UiTheme,
 ) {
+    apply_palette_color_scheme(window, resolved);
     apply_runtime_theme!(window, resolved);
 }
 
@@ -50,6 +70,7 @@ pub(crate) fn apply_settings_window_theme_snapshot(
     window: &SettingsWindow,
     resolved: &theme_catalog::UiTheme,
 ) {
+    apply_palette_color_scheme(window, resolved);
     apply_runtime_theme!(window, resolved);
 }
 
@@ -57,13 +78,15 @@ pub(crate) fn apply_tag_dialog_theme_snapshot(
     window: &TagDialogWindow,
     resolved: &theme_catalog::UiTheme,
 ) {
+    apply_palette_color_scheme(window, resolved);
     apply_runtime_theme!(window, resolved);
 }
 
 pub(crate) fn apply_about_window_theme_snapshot(
-    window: &crate::AboutWindow,
+    window: &AboutWindow,
     resolved: &theme_catalog::UiTheme,
 ) {
+    apply_palette_color_scheme(window, resolved);
     apply_runtime_theme!(window, resolved);
 }
 

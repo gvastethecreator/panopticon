@@ -1,13 +1,15 @@
 import {
-    CheckBox,
-    ComboBox,
-    LineEdit,
     ScrollView,
-    Button,
-    SpinBox,
-    Slider,
 } from "std-widgets.slint";
 import { Tr, Theme, ThemePreviewData } from "../common.slint";
+import {
+    CustomCheckBox,
+    CustomComboBox,
+    CustomLineEdit,
+    CustomButton,
+    CustomSpinBox,
+    CustomSlider,
+} from "../components/custom_themed_widgets.slint";
 
     component Divider inherits Rectangle {
     height: 1px;
@@ -180,11 +182,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
             colorize: root.enabled ? Theme.label : Theme.muted;
         }
 
-        CheckBox {
-            text: "";
+        CustomCheckBox {
             checked <=> root.checked;
             enabled: root.enabled;
-            height: 22px;
         }
 
         VerticalLayout {
@@ -230,11 +230,11 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
         padding-bottom: 4px;
         spacing: 8px;
 
-        ComboBox {
+        CustomComboBox {
             width: 140px;
             height: 26px;
-            model: root.options;
-            current-index <=> root.selected-index;
+            options: root.options;
+            selected-index <=> root.selected-index;
             enabled: root.enabled;
         }
     }
@@ -285,11 +285,11 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
             }
         }
 
-        ComboBox {
+        CustomComboBox {
             width: root.combo-width;
             height: 34px;
-            model: root.options;
-            current-index <=> root.selected-index;
+            options: root.options;
+            selected-index <=> root.selected-index;
             enabled: root.enabled;
         }
     }
@@ -342,18 +342,16 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
             }
         }
 
-        edit := LineEdit {
+        edit := CustomLineEdit {
             text <=> root.value;
             height: 32px;
-            placeholder-text: root.placeholder;
+            placeholder: root.placeholder;
             enabled: root.enabled;
             accepted(_) => {
                 root.committed();
             }
-            changed has-focus => {
-                if !self.has-focus {
-                    root.committed();
-                }
+            focus-lost => {
+                root.committed();
             }
         }
     }
@@ -398,18 +396,16 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
             horizontal-stretch: 1;
         }
 
-        edit := LineEdit {
+        edit := CustomLineEdit {
             width: 118px;
             height: 28px;
             text <=> root.value;
-            placeholder-text: root.placeholder;
+            placeholder: root.placeholder;
             accepted(_) => {
                 root.committed();
             }
-            changed has-focus => {
-                if !self.has-focus {
-                    root.committed();
-                }
+            focus-lost => {
+                root.committed();
             }
         }
     }
@@ -1163,7 +1159,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 font-size: 11px;
                                             }
 
-                                            SpinBox {
+                                            CustomSpinBox {
                                                 height: 34px;
                                                 value <=> root.dock-column-thickness-value;
                                                 minimum: 0;
@@ -1196,7 +1192,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 font-size: 11px;
                                             }
 
-                                            SpinBox {
+                                            CustomSpinBox {
                                                 height: 34px;
                                                 value <=> root.dock-row-thickness-value;
                                                 minimum: 0;
@@ -1265,7 +1261,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 font-weight: 700;
                                             }
 
-                                            SpinBox {
+                                            CustomSpinBox {
                                                 height: 34px;
                                                 value <=> root.fixed-width-value;
                                                 minimum: 0;
@@ -1292,7 +1288,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 font-weight: 700;
                                             }
 
-                                            SpinBox {
+                                            CustomSpinBox {
                                                 height: 34px;
                                                 value <=> root.fixed-height-value;
                                                 minimum: 0;
@@ -1343,13 +1339,13 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                 HorizontalLayout {
                                     spacing: 10px;
 
-                                    ComboBox {
+                                    CustomComboBox {
                                         width: 140px;
                                         height: 34px;
-                                        model: ["25%", "50%", "75%", "100%"];
-                                        current-index: root.thumbnail-render-scale-value == 25 ? 0 : root.thumbnail-render-scale-value == 50 ? 1 : root.thumbnail-render-scale-value == 75 ? 2 : 3;
-                                        selected => {
-                                            root.thumbnail-render-scale-value = self.current-index == 0 ? 25 : self.current-index == 1 ? 50 : self.current-index == 2 ? 75 : 100;
+                                        options: ["25%", "50%", "75%", "100%"];
+                                        selected-index: root.thumbnail-render-scale-value == 25 ? 0 : root.thumbnail-render-scale-value == 50 ? 1 : root.thumbnail-render-scale-value == 75 ? 2 : 3;
+                                        selected(index, _) => {
+                                            root.thumbnail-render-scale-value = index == 0 ? 25 : index == 1 ? 50 : index == 2 ? 75 : 100;
                                         }
                                     }
 
@@ -1453,16 +1449,16 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                 wrap: word-wrap;
                             }
 
-                            ComboBox {
+                            CustomComboBox {
                                 height: 40px;
-                                model: root.hidden-app-options;
-                                current-index <=> root.hidden-app-index;
+                                options: root.hidden-app-options;
+                                selected-index <=> root.hidden-app-index;
                                 enabled: root.can-restore-hidden;
                             }
 
                             HorizontalLayout {
                                 spacing: 10px;
-                                Button {
+                                CustomButton {
                                     height: 30px;
                                     text: Tr.action-restore-selected;
                                     enabled: root.can-restore-hidden;
@@ -1471,7 +1467,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                     }
                                 }
 
-                                Button {
+                                CustomButton {
                                     height: 30px;
                                     text: Tr.action-restore-all;
                                     enabled: root.can-restore-hidden;
@@ -1591,7 +1587,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                     vertical-alignment: center;
                                                 }
 
-                                                SpinBox {
+                                                CustomSpinBox {
                                                     width: 72px;
                                                     minimum: 0;
                                                     maximum: 255;
@@ -1609,7 +1605,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                     vertical-alignment: center;
                                                 }
 
-                                                SpinBox {
+                                                CustomSpinBox {
                                                     width: 72px;
                                                     minimum: 0;
                                                     maximum: 255;
@@ -1627,7 +1623,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                     vertical-alignment: center;
                                                 }
 
-                                                SpinBox {
+                                                CustomSpinBox {
                                                     width: 72px;
                                                     minimum: 0;
                                                     maximum: 255;
@@ -1761,7 +1757,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                         HorizontalLayout {
                                             spacing: 10px;
 
-                                            Button {
+                                            CustomButton {
                                                 height: 40px;
                                                 text: Tr.action-browse-image;
                                                 clicked => {
@@ -1769,7 +1765,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 }
                                             }
 
-                                            Button {
+                                            CustomButton {
                                                 height: 40px;
                                                 text: Tr.action-clear-image;
                                                 clicked => {
@@ -1787,17 +1783,17 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 font-size: 12px;
                                             }
 
-                                            LineEdit {
+                                            CustomLineEdit {
                                                 text <=> root.bg-image-path;
                                                 height: 32px;
-                                                placeholder-text: "C:/Users/.../background.png";
+                                                placeholder: "C:/Users/.../background.png";
                                                 accepted(_) => {
                                                     if !root.suspend-live-apply {
                                                         root.apply();
                                                     }
                                                 }
-                                                changed has-focus => {
-                                                    if !self.has-focus && !root.suspend-live-apply {
+                                                focus-lost => {
+                                                    if !root.suspend-live-apply {
                                                         root.apply();
                                                     }
                                                 }
@@ -1813,11 +1809,11 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 font-size: 12px;
                                             }
 
-                                            ComboBox {
+                                            CustomComboBox {
                                                 width: 180px;
                                                 height: 32px;
-                                                model: Tr.image-fit-options;
-                                                current-index <=> root.bg-image-fit-index;
+                                                options: Tr.image-fit-options;
+                                                selected-index <=> root.bg-image-fit-index;
                                             }
                                         }
 
@@ -1834,17 +1830,14 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             HorizontalLayout {
                                                 spacing: 10px;
 
-                                                Slider {
+                                                CustomSlider {
                                                     horizontal-stretch: 1;
                                                     minimum: 0;
                                                     maximum: 100;
-                                                    value: root.bg-image-opacity-value;
-                                                    changed value => {
-                                                        root.bg-image-opacity-value = self.value;
-                                                    }
+                                                    value <=> root.bg-image-opacity-value;
                                                 }
 
-                                                SpinBox {
+                                                CustomSpinBox {
                                                     width: 72px;
                                                     height: 32px;
                                                     minimum: 0;
@@ -1954,7 +1947,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                     HorizontalLayout {
                                         spacing: 10px;
 
-                                        Button {
+                                        CustomButton {
                                             height: 40px;
                                             text: Tr.action-load-profile;
                                             clicked => {
@@ -1962,7 +1955,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             }
                                         }
 
-                                        Button {
+                                        CustomButton {
                                             text: Tr.open-instance-btn;
                                             clicked => {
                                                 root.open-profile-instance();
@@ -2013,7 +2006,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
 
                                     HorizontalLayout {
                                         spacing: 10px;
-                                        Button {
+                                        CustomButton {
                                             height: 40px;
                                             text: Tr.save-profile-btn;
                                             clicked => {
@@ -2386,7 +2379,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                 helper: Tr.settings-section-manual-refresh-helper;
                             }
 
-                            Button {
+                            CustomButton {
                                 height: 40px;
                                 width: 120px;
                                 text: Tr.action-refresh-now;
@@ -2398,7 +2391,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                             HorizontalLayout {
                                 spacing: 10px;
 
-                                Button {
+                                CustomButton {
                                     height: 40px;
                                     text: Tr.action-check-updates;
                                     enabled: !root.update-check-running;

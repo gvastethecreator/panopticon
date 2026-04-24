@@ -1,0 +1,398 @@
+import {
+    ScrollView,
+} from "std-widgets.slint";
+import { Theme } from "../common.slint";
+
+/// Custom CheckBox using Theme colors - not a wrapper, fully custom
+export component CustomCheckBox inherits Rectangle {
+    in-out property <bool> checked: false;
+    in property <bool> enabled: true;
+
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border-width: 2px;
+    border-color: root.enabled ? (root.checked ? Theme.accent : Theme.border.with-alpha(76%)) : Theme.border.with-alpha(40%);
+    background: root.enabled ? (root.checked ? Theme.accent-soft.with-alpha(56%) : Theme.surface.with-alpha(64%)) : Theme.surface.with-alpha(36%);
+
+    Image {
+        x: 4px;
+        y: 4px;
+        width: 14px;
+        height: 14px;
+        visible: root.checked;
+        source: @image-url("../../assets/ui-icons/lucide-check.svg");
+        image-fit: contain;
+        colorize: Theme.accent;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.checked = !root.checked;
+        }
+    }
+}
+
+/// Custom ComboBox using Theme colors - not a wrapper, fully custom
+export component CustomComboBox inherits Rectangle {
+    in property <[string]> options: [];
+    in-out property <int> selected-index: 0;
+    in property <bool> enabled: true;
+    in property <length> field-height: 32px;
+    in property <length> max-popup-height: 220px;
+    in property <length> row-height: 30px;
+    in-out property <bool> open: false;
+    callback selected(/* index */ int, /* value */ string);
+
+    property <int> safe-index: root.selected-index < 0 ? 0 : root.selected-index >= root.options.length ? max(root.options.length - 1, 0) : root.selected-index;
+    property <string> selected-text: root.options.length > 0 ? root.options[root.safe-index] : "";
+    property <length> popup-height: min(root.options.length * root.row-height, root.max-popup-height);
+
+    border-radius: 4px;
+    border-width: 2px;
+    border-color: root.enabled ? Theme.border.with-alpha(72%) : Theme.border.with-alpha(40%);
+    background: root.enabled ? Theme.surface.with-alpha(84%) : Theme.surface.with-alpha(46%);
+    clip: false;
+    height: root.open ? root.field-height + root.popup-height + 4px : root.field-height;
+
+    Rectangle {
+        width: parent.width;
+        height: root.field-height;
+        border-radius: 4px;
+        border-width: 0px;
+        background: touch.has-hover && root.enabled ? Theme.accent-soft.with-alpha(22%) : transparent;
+
+        Text {
+            x: 10px;
+            y: 0px;
+            width: parent.width - 34px;
+            height: parent.height;
+            text: root.selected-text;
+            color: root.enabled ? Theme.text : Theme.muted;
+            vertical-alignment: center;
+            overflow: elide;
+            font-size: 12.5px;
+        }
+
+        Image {
+            x: parent.width - 22px;
+            y: (parent.height - self.height) / 2;
+            width: 12px;
+            height: 12px;
+            source: root.open ? @image-url("../../assets/ui-icons/lucide-chevron-up.svg") : @image-url("../../assets/ui-icons/lucide-chevron-down.svg");
+            image-fit: contain;
+            colorize: root.enabled ? Theme.accent : Theme.muted;
+        }
+
+        touch := TouchArea {
+            enabled: root.enabled;
+            clicked => {
+                if root.options.length > 0 {
+                    root.open = !root.open;
+                }
+            }
+        }
+    }
+
+    if root.open && root.options.length > 0: Rectangle {
+        x: 0px;
+        y: root.field-height + 4px;
+        width: parent.width;
+        height: root.popup-height;
+        border-radius: 4px;
+        border-width: 2px;
+        border-color: Theme.border.with-alpha(78%);
+        background: Theme.card-bg.with-alpha(96%);
+        clip: true;
+
+        ScrollView {
+            width: parent.width;
+            height: parent.height;
+
+            VerticalLayout {
+                width: parent.width;
+                spacing: 0px;
+
+                for option[index] in root.options: Rectangle {
+                    width: parent.width;
+                    height: root.row-height;
+                    background: index == root.safe-index ? Theme.accent-soft.with-alpha(36%) : row-touch.has-hover ? Theme.surface.with-alpha(52%) : transparent;
+
+                    Text {
+                        x: 10px;
+                        width: parent.width - 38px;
+                        height: parent.height;
+                        text: option;
+                        color: index == root.safe-index ? Theme.text : Theme.label;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        font-size: 12px;
+                    }
+
+                    Image {
+                        x: parent.width - 24px;
+                        y: (parent.height - self.height) / 2;
+                        width: 14px;
+                        height: 14px;
+                        visible: index == root.safe-index;
+                        source: @image-url("../../assets/ui-icons/lucide-check.svg");
+                        image-fit: contain;
+                        colorize: Theme.accent;
+                    }
+
+                    row-touch := TouchArea {
+                        clicked => {
+                            root.selected-index = index;
+                            root.open = false;
+                            root.selected(index, option);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Custom SpinBox using Theme colors - not a wrapper, fully custom
+export component CustomSpinBox inherits Rectangle {
+    in-out property <int> value: 0;
+    in property <int> minimum: 0;
+    in property <int> maximum: 100;
+    in property <int> step: 1;
+    in property <bool> enabled: true;
+
+    height: 32px;
+
+    border-radius: 4px;
+    border-width: 2px;
+    border-color: root.enabled ? Theme.border.with-alpha(72%) : Theme.border.with-alpha(40%);
+    background: root.enabled ? Theme.surface.with-alpha(84%) : Theme.surface.with-alpha(42%);
+
+    changed minimum => {
+        if root.value < root.minimum {
+            root.value = root.minimum;
+        }
+    }
+
+    changed maximum => {
+        if root.value > root.maximum {
+            root.value = root.maximum;
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 2px;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        spacing: 8px;
+
+        Text {
+            horizontal-stretch: 1;
+            text: root.value;
+            color: root.enabled ? Theme.text : Theme.muted;
+            vertical-alignment: center;
+            font-size: 12.5px;
+        }
+
+        Rectangle {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            border-width: 1px;
+            border-color: Theme.border.with-alpha(68%);
+            background: Theme.surface.with-alpha(48%);
+
+            VerticalLayout {
+                spacing: 0px;
+
+                Rectangle {
+                    height: 10px;
+                    background: up-touch.has-hover && root.enabled ? Theme.accent-soft.with-alpha(32%) : transparent;
+
+                    Image {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: 12px;
+                        height: 8px;
+                        source: @image-url("../../assets/ui-icons/lucide-chevron-up.svg");
+                        image-fit: contain;
+                        colorize: root.enabled ? Theme.accent : Theme.muted;
+                    }
+
+                    up-touch := TouchArea {
+                        enabled: root.enabled;
+                        clicked => {
+                            root.value = min(root.maximum, root.value + root.step);
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 10px;
+                    background: down-touch.has-hover && root.enabled ? Theme.accent-soft.with-alpha(32%) : transparent;
+
+                    Image {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: 12px;
+                        height: 8px;
+                        source: @image-url("../../assets/ui-icons/lucide-chevron-down.svg");
+                        image-fit: contain;
+                        colorize: root.enabled ? Theme.accent : Theme.muted;
+                    }
+
+                    down-touch := TouchArea {
+                        enabled: root.enabled;
+                        clicked => {
+                            root.value = max(root.minimum, root.value - root.step);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Custom Slider using Theme colors - keeps visual consistency with custom inputs
+export component CustomSlider inherits Rectangle {
+    in-out property <int> value: 0;
+    in property <int> minimum: 0;
+    in property <int> maximum: 100;
+    in property <bool> enabled: true;
+
+    height: 20px;
+    background: transparent;
+
+    border-radius: 10px;
+
+    property <int> safe-range: max(root.maximum - root.minimum, 1);
+
+    Rectangle {
+        x: 4px;
+        y: 8px;
+        width: max(parent.width - 8px, 1px);
+        height: 4px;
+        border-radius: 2px;
+        background: Theme.border.with-alpha(56%);
+
+        Rectangle {
+            width: max((parent.width * (root.value - root.minimum)) / root.safe-range, 0px);
+            height: parent.height;
+            border-radius: 2px;
+            background: root.enabled ? Theme.accent : Theme.muted;
+        }
+    }
+
+    Rectangle {
+        y: 3px;
+        width: 14px;
+        height: 14px;
+        x: 4px + ((max(root.width - 8px - self.width, 0px) * (root.value - root.minimum)) / root.safe-range);
+        border-radius: 7px;
+        border-width: 2px;
+        border-color: root.enabled ? Theme.accent : Theme.muted;
+        background: root.enabled ? Theme.card-bg : Theme.surface;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+
+        clicked => {
+            if touch.mouse-x > (4px + ((max(root.width - 8px, 1px) * (root.value - root.minimum)) / root.safe-range)) {
+                root.value = min(root.maximum, root.value + 1);
+            } else {
+                root.value = max(root.minimum, root.value - 1);
+            }
+        }
+
+        moved => {
+            if self.pressed {
+                if touch.mouse-x > (4px + ((max(root.width - 8px, 1px) * (root.value - root.minimum)) / root.safe-range)) {
+                    root.value = min(root.maximum, root.value + 1);
+                } else {
+                    root.value = max(root.minimum, root.value - 1);
+                }
+            }
+        }
+    }
+}
+
+/// Custom LineEdit using Theme colors - not a wrapper, fully custom
+export component CustomLineEdit inherits Rectangle {
+    in-out property <string> text: "";
+    in property <string> placeholder: "";
+    in property <bool> enabled: true;
+    callback accepted(string);
+    callback focus-lost();
+
+    border-radius: 4px;
+    border-width: 2px;
+    border-color: root.enabled ? (edit.has-focus ? Theme.accent.with-alpha(78%) : Theme.border.with-alpha(72%)) : Theme.border.with-alpha(40%);
+    background: root.enabled ? Theme.surface.with-alpha(84%) : Theme.surface.with-alpha(42%);
+
+    edit := TextInput {
+        x: 8px;
+        y: 2px;
+        width: parent.width - 16px;
+        height: parent.height - 4px;
+        text <=> root.text;
+        color: root.enabled ? Theme.text : Theme.muted;
+        enabled: root.enabled;
+
+        accepted => {
+            root.accepted(root.text);
+        }
+
+        changed has-focus => {
+            if !self.has-focus {
+                root.focus-lost();
+            }
+        }
+    }
+
+    if root.text == "" && !edit.has-focus: Text {
+        x: 10px;
+        y: 0px;
+        width: parent.width - 20px;
+        height: parent.height;
+        text: root.placeholder;
+        color: Theme.placeholder;
+        vertical-alignment: center;
+        overflow: elide;
+        font-size: 12.5px;
+    }
+}
+
+/// Custom Button using Theme colors - not a wrapper, fully custom
+export component CustomButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> enabled: true;
+    in property <bool> accent: false;
+    callback clicked();
+
+    border-radius: 4px;
+    border-width: accent ? 0px : 2px;
+    border-color: root.enabled ? Theme.border.with-alpha(68%) : Theme.border.with-alpha(36%);
+    background: root.enabled ? (accent ? (touch.has-hover ? Theme.accent.darker(8%) : Theme.accent) : (touch.has-hover ? Theme.surface : Theme.surface.with-alpha(72%))) : Theme.surface.with-alpha(38%);
+
+    Text {
+        width: 100%;
+        height: 100%;
+        text: root.text;
+        color: root.enabled ? (accent ? Theme.bg : Theme.text) : Theme.muted;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        font-size: 12.5px;
+        font-weight: 600;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
