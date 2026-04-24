@@ -913,7 +913,12 @@ fn sync_settings_window_from_state(window: &SettingsWindow, state: &AppState) {
     window.set_suspend_live_apply(true);
     populate_settings_window(window, &state.settings);
     populate_settings_window_runtime_fields(window, state);
-    apply_settings_window_theme_snapshot(window, &state.current_theme);
+    let resolved_theme = theme_catalog::resolve_ui_theme(
+        state.settings.theme_id.as_deref(),
+        &state.settings.background_color_hex,
+        &state.settings.theme_color_overrides,
+    );
+    apply_settings_window_theme_snapshot(window, &resolved_theme);
     if !draft_profile_name.is_empty() {
         window.set_profile_name(draft_profile_name);
     }
