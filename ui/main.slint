@@ -7,6 +7,7 @@ import { OverlayScrollbar } from "components/overlay_scrollbar.slint";
 
 export { Tr, Theme, ThumbnailData, ResizeHandleData } from "common.slint";
 export { ThemePreviewData } from "common.slint";
+export { Palette } from "std-widgets.slint";
 export { SettingsWindow } from "windows/settings_window.slint";
 export { TagDialogWindow } from "windows/tag_dialog_window.slint";
 export { AboutWindow } from "windows/about_window.slint";
@@ -23,6 +24,7 @@ export component MainWindow inherits Window {
     in property <[ThumbnailModel]> thumbnails;
     in property <[ResizeHandleModel]> resize-handles;
     in property <bool> show-toolbar: true;
+    in property <bool> toolbar-on-top: false;
     in property <bool> show-window-info: true;
     in property <string> layout-label: Tr.layout-grid-label;
     in property <int> window-count: 0;
@@ -45,6 +47,7 @@ export component MainWindow inherits Window {
 
     in-out property <float> viewport-x: 0;
     in-out property <float> viewport-y: 0;
+    out property <float> content-y-offset: root.show-toolbar && root.toolbar-on-top ? 48 : 0;
 
     callback thumbnail-clicked(/* index */ int);
     callback thumbnail-close-clicked(/* index */ int);
@@ -58,7 +61,20 @@ export component MainWindow inherits Window {
     callback resize-drag-ended(/* index */ int);
 
     VerticalLayout {
+        if root.show-toolbar && root.toolbar-on-top: Toolbar {
+            layout-label: root.layout-label;
+            window-count: root.window-count;
+            hidden-count: root.hidden-count;
+            refresh-label: root.refresh-label;
+            always-on-top: root.is-always-on-top;
+            animate-transitions: root.animate-transitions;
+            filters-label: root.filters-label;
+            clicked => { root.toolbar-clicked(); }
+            context-menu-requested(x, y) => { root.app-context-menu-requested(x, y); }
+        }
+
         content-frame := Rectangle {
+            vertical-stretch: 1;
             clip: true;
             property <float> max-scroll-x: max(root.content-width - self.width / 1px, 0);
             property <float> max-scroll-y: max(root.content-height - self.height / 1px, 0);
@@ -144,7 +160,7 @@ export component MainWindow inherits Window {
             }
         }
 
-        if root.show-toolbar: Toolbar {
+        if root.show-toolbar && !root.toolbar-on-top: Toolbar {
             layout-label: root.layout-label;
             window-count: root.window-count;
             hidden-count: root.hidden-count;

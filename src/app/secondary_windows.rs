@@ -1,6 +1,6 @@
 //! Secondary Slint windows: settings, tag dialog, and profile helpers.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::Path;
 use std::process::Command;
 use std::rc::Rc;
@@ -37,6 +37,38 @@ use super::theme_ui::{
 };
 use super::tray::apply_window_icons;
 use crate::{AboutWindow, AppState, MainWindow, SettingsWindow, TagDialogWindow};
+
+thread_local! {
+    static SETTINGS_APPLY_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
+    static BG_COLOR_SYNC_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
+}
+
+struct SettingsApplyGuard;
+
+impl SettingsApplyGuard {
+    fn enter() -> Option<Self> {
+        let already_running = SETTINGS_APPLY_IN_PROGRESS.with(|flag| {
+            if flag.get() {
+                true
+            } else {
+                flag.set(true);
+                false
+            }
+        });
+
+        if already_running {
+            None
+        } else {
+            Some(Self)
+        }
+    }
+}
+
+impl Drop for SettingsApplyGuard {
+    fn drop(&mut self) {
+        SETTINGS_APPLY_IN_PROGRESS.with(|flag| flag.set(false));
+    }
+}
 
 fn available_profile_options() -> Vec<String> {
     AppSettings::list_profiles_with_default().unwrap_or_else(|error| {
@@ -377,6 +409,17 @@ pub(crate) fn open_settings_window(
         let main_weak = main_weak.clone();
         let apply_debounce_timer = apply_debounce_timer.clone();
         move || {
+            let should_skip = crate::SETTINGS_WIN.with(|handle| {
+                handle
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(SettingsWindow::get_suspend_live_apply)
+            });
+            if should_skip {
+                tracing::debug!("skipping apply while settings window sync is suspended");
+                return;
+            }
+
             let state = state.clone();
             let main_weak = main_weak.clone();
             apply_debounce_timer.start(
@@ -415,6 +458,11 @@ fn apply_settings_window_to_state(
     state: &Rc<RefCell<AppState>>,
     main_weak: &slint::Weak<MainWindow>,
 ) {
+    let Some(_guard) = SettingsApplyGuard::enter() else {
+        tracing::debug!("skipping nested apply_settings_window_to_state invocation");
+        return;
+    };
+
     crate::SETTINGS_WIN.with(|handle| {
         let guard = handle.borrow();
         let Some(settings_window) = guard.as_ref() else {
@@ -1098,6 +1146,19 @@ fn close_about_window() {
 }
 
 fn apply_background_color(window: &SettingsWindow, red: i32, green: i32, blue: i32) {
+    let already_syncing = BG_COLOR_SYNC_IN_PROGRESS.with(|flag| {
+        if flag.get() {
+            true
+        } else {
+            flag.set(true);
+            false
+        }
+    });
+    if already_syncing {
+        tracing::debug!("skipping re-entrant background color sync");
+        return;
+    }
+
     let red = clamp_rgb(red);
     let green = clamp_rgb(green);
     let blue = clamp_rgb(blue);
@@ -1112,7 +1173,11 @@ fn apply_background_color(window: &SettingsWindow, red: i32, green: i32, blue: i
         green as u8,
         blue as u8,
     ));
-    window.invoke_apply();
+    if !window.get_suspend_live_apply() {
+        window.invoke_apply();
+    }
+
+    BG_COLOR_SYNC_IN_PROGRESS.with(|flag| flag.set(false));
 }
 
 fn clamp_rgb(value: i32) -> i32 {

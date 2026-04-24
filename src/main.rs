@@ -31,7 +31,7 @@ use app::tray::{AppIcons, INSTANCE_ACCENT_PALETTE};
 use panopticon::settings::{AppSettings, MIN_FIXED_WINDOW_HEIGHT, MIN_FIXED_WINDOW_WIDTH};
 use panopticon::theme as theme_catalog;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
@@ -362,6 +362,26 @@ where
         tr,
         set_settings_option_show_toolbar_description,
         "settings.option.show_toolbar.description"
+    );
+    set_tr!(
+        tr,
+        set_toolbar_position_top_label,
+        "settings.toolbar_position.top"
+    );
+    set_tr!(
+        tr,
+        set_toolbar_position_bottom_label,
+        "settings.toolbar_position.bottom"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_toolbar_position_title,
+        "settings.option.toolbar_position.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_toolbar_position_description,
+        "settings.option.toolbar_position.description"
     );
     set_tr!(
         tr,
@@ -1145,6 +1165,12 @@ fn run_app(profile: Option<String>) {
         }
     });
 
+    // Retry native-HWND init on a slower cadence so we don't recurse from the hot 16ms loop.
+    let native_init_retry_timer = Rc::new(Timer::default());
+
+    // Decouple refresh discovery from recompute to avoid re-entrant recompute chains.
+    let refresh_recompute_pending = Rc::new(Cell::new(false));
+
     // ── Timers ──────────────────────────────────────
 
     // Fast UI timer: size polling, animation, DWM thumbnail sync, action drain.
@@ -1154,11 +1180,30 @@ fn run_app(profile: Option<String>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         let floating_size_sync_timer = floating_size_sync_timer.clone();
+        let native_init_retry_timer = native_init_retry_timer.clone();
+        let refresh_recompute_pending = refresh_recompute_pending.clone();
         move || {
             let Some(win) = weak.upgrade() else { return };
-            if state.borrow().hwnd.0.is_null()
-                && !app::native_runtime::try_initialize_native_runtime(&state, &win)
-            {
+
+            if state.borrow().hwnd.0.is_null() {
+                if !native_init_retry_timer.running()
+                    && !app::native_runtime::try_initialize_native_runtime(&state, &win)
+                {
+                    let state_retry = state.clone();
+                    let weak_retry = weak.clone();
+                    native_init_retry_timer.start(
+                        TimerMode::SingleShot,
+                        Duration::from_millis(350),
+                        move || {
+                            if let Some(win_retry) = weak_retry.upgrade() {
+                                let _ = app::native_runtime::try_initialize_native_runtime(
+                                    &state_retry,
+                                    &win_retry,
+                                );
+                            }
+                        },
+                    );
+                }
                 return;
             }
 
@@ -1207,6 +1252,10 @@ fn run_app(profile: Option<String>) {
                 recompute_and_update_ui(&state, &win);
             }
 
+            if refresh_recompute_pending.replace(false) {
+                recompute_and_update_ui(&state, &win);
+            }
+
             // Advance animations.
             advance_animation(&state, &win);
 
@@ -1225,7 +1274,7 @@ fn run_app(profile: Option<String>) {
         Duration::from_millis((state.borrow().settings.refresh_interval_ms as u64).max(50)),
         {
             let state = state.clone();
-            let weak = main_window.as_weak();
+            let refresh_recompute_pending = refresh_recompute_pending.clone();
             move || {
                 let visible = UI_STATE.with(|s| {
                     s.borrow().as_ref().is_some_and(|rc| {
@@ -1237,9 +1286,7 @@ fn run_app(profile: Option<String>) {
                     return;
                 }
                 if refresh_windows(&state) {
-                    if let Some(win) = weak.upgrade() {
-                        recompute_and_update_ui(&state, &win);
-                    }
+                    refresh_recompute_pending.set(true);
                 }
             }
         },
@@ -1670,6 +1717,7 @@ mod tests {
                 bottom: 140,
             },
             120,
+            0,
             90,
         );
 
@@ -1690,6 +1738,7 @@ mod tests {
                 bottom: 110,
             },
             200,
+            0,
             120,
         );
 

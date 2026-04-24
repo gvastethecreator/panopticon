@@ -478,13 +478,16 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
             border-color: root.selected ? Theme.accent : Theme.border.with-alpha(80%);
             background: root.selected ? Theme.accent-soft.with-alpha(34%) : transparent;
 
-            if root.selected: Rectangle {
+            // Always-present inner dot avoids conditional instantiation inside
+            // the `for` loop which can push Slint's layout recursion depth over
+            // the Windows default 1 MB stack limit.
+            Rectangle {
                 x: 4px;
                 y: 4px;
                 width: 8px;
                 height: 8px;
                 border-radius: 4px;
-                background: Theme.accent;
+                background: root.selected ? Theme.accent : transparent;
             }
         }
     }
@@ -556,6 +559,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
     in-out property <int> language-index: 0;
     in-out property <int> refresh-index: 1;
     in-out property <int> layout-index: 0;
+    in-out property <int> toolbar-position-index: 1;
     in property <[string]> theme-options: ["Classic Panopticon"];
     in property <[ThemePreviewData]> theme-preview-model: [];
     in-out property <int> theme-index: 0;
@@ -707,6 +711,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
         root.request-live-apply();
     }
     changed layout-index => {
+        root.request-live-apply();
+    }
+    changed toolbar-position-index => {
         root.request-live-apply();
     }
     changed theme-index => {
@@ -927,6 +934,10 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
             ScrollView {
                 horizontal-stretch: 1;
                 vertical-stretch: 1;
+                // Lock the scrollable viewport to the visible width so that
+                // children using horizontal-stretch do not create a feedback
+                // cycle between their preferred width and the viewport width.
+                viewport-width: self.width;
 
                 VerticalLayout {
                     padding: 10px;
@@ -1346,6 +1357,15 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                             checked <=> root.show-toolbar-setting;
                         }
 
+                        SelectSettingPanel {
+                            icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
+                            title: Tr.settings-option-toolbar-position-title;
+                            description: Tr.settings-option-toolbar-position-description;
+                            options: Tr.toolbar-position-options;
+                            selected-index <=> root.toolbar-position-index;
+                            enabled: root.show-toolbar-setting;
+                        }
+
                         ToggleSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-window-info.svg");
                             title: Tr.settings-option-show-info-title;
@@ -1463,9 +1483,8 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                         HorizontalLayout {
                             spacing: 16px;
                             alignment: start;
-                            vertical-stretch: 1;
 
-                            Rectangle {
+                            themes-card-rect := Rectangle {
                                 width: 360px;
                                 height: 760px;
                                 border-radius: 4px;
@@ -1486,14 +1505,12 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
 
                                     theme-list-scroll := ScrollView {
                                         vertical-stretch: 1;
-                                        viewport-width: theme-list-content.width + 24px;
-                                        viewport-height: theme-list-content.height + 24px;
 
                                         theme-list-content := Rectangle {
                                             x: 12px;
                                             y: 12px;
-                                            width: max(theme-list-scroll.width - 24px, 280px);
-                                            height: max((root.theme-preview-model.length * 68px) + 12px, theme-list-scroll.height - 24px);
+                                            width: max(themes-card-rect.width - 28px - 24px, 280px);
+                                            height: (root.theme-preview-model.length * 68px) + 24px;
 
                                             for theme[index] in root.theme-preview-model: ThemePreviewCard {
                                                 width: theme-list-content.width;
@@ -1533,7 +1550,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             value <=> root.bg-color-hex;
                                             placeholder: "181513";
                                             committed => {
-                                                root.apply-bg-color-hex(root.bg-color-hex);
+                                                if !root.suspend-live-apply {
+                                                    root.apply-bg-color-hex(root.bg-color-hex);
+                                                }
                                             }
                                         }
 
@@ -1559,10 +1578,11 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                     width: 72px;
                                                     minimum: 0;
                                                     maximum: 255;
-                                                    value: root.bg-red-value;
+                                                    value <=> root.bg-red-value;
                                                     changed value => {
-                                                        root.bg-red-value = self.value;
-                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                        if !root.suspend-live-apply {
+                                                            root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                        }
                                                     }
                                                 }
 
@@ -1576,10 +1596,11 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                     width: 72px;
                                                     minimum: 0;
                                                     maximum: 255;
-                                                    value: root.bg-green-value;
+                                                    value <=> root.bg-green-value;
                                                     changed value => {
-                                                        root.bg-green-value = self.value;
-                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                        if !root.suspend-live-apply {
+                                                            root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                        }
                                                     }
                                                 }
 
@@ -1593,10 +1614,11 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                     width: 72px;
                                                     minimum: 0;
                                                     maximum: 255;
-                                                    value: root.bg-blue-value;
+                                                    value <=> root.bg-blue-value;
                                                     changed value => {
-                                                        root.bg-blue-value = self.value;
-                                                        root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                        if !root.suspend-live-apply {
+                                                            root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1627,7 +1649,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             placeholder: root.theme-accent-placeholder;
                                             preview-color: root.theme-accent-preview-color;
                                             committed => {
-                                                root.apply();
+                                                if !root.suspend-live-apply {
+                                                    root.apply();
+                                                }
                                             }
                                         }
 
@@ -1637,7 +1661,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             placeholder: root.theme-surface-placeholder;
                                             preview-color: root.theme-surface-preview-color;
                                             committed => {
-                                                root.apply();
+                                                if !root.suspend-live-apply {
+                                                    root.apply();
+                                                }
                                             }
                                         }
 
@@ -1647,7 +1673,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             placeholder: root.theme-card-placeholder;
                                             preview-color: root.theme-card-preview-color;
                                             committed => {
-                                                root.apply();
+                                                if !root.suspend-live-apply {
+                                                    root.apply();
+                                                }
                                             }
                                         }
 
@@ -1657,7 +1685,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             placeholder: root.theme-text-placeholder;
                                             preview-color: root.theme-text-preview-color;
                                             committed => {
-                                                root.apply();
+                                                if !root.suspend-live-apply {
+                                                    root.apply();
+                                                }
                                             }
                                         }
 
@@ -1667,7 +1697,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             placeholder: root.theme-muted-placeholder;
                                             preview-color: root.theme-muted-preview-color;
                                             committed => {
-                                                root.apply();
+                                                if !root.suspend-live-apply {
+                                                    root.apply();
+                                                }
                                             }
                                         }
 
@@ -1677,7 +1709,9 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                             placeholder: root.theme-border-placeholder;
                                             preview-color: root.theme-border-preview-color;
                                             committed => {
-                                                root.apply();
+                                                if !root.suspend-live-apply {
+                                                    root.apply();
+                                                }
                                             }
                                         }
 
@@ -1741,10 +1775,12 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                                 height: 32px;
                                                 placeholder-text: "C:/Users/.../background.png";
                                                 accepted(_) => {
-                                                    root.apply();
+                                                    if !root.suspend-live-apply {
+                                                        root.apply();
+                                                    }
                                                 }
                                                 changed has-focus => {
-                                                    if !self.has-focus {
+                                                    if !self.has-focus && !root.suspend-live-apply {
                                                         root.apply();
                                                     }
                                                 }

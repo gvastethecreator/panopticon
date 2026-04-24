@@ -117,6 +117,11 @@ pub fn resolve_ui_theme(
 }
 
 #[must_use]
+pub fn is_ui_theme_dark(theme: &UiTheme) -> bool {
+    parse_hex_rgb(&theme.bg_hex).is_some_and(is_dark)
+}
+
+#[must_use]
 pub fn theme_base_background_hex(theme_id: Option<&str>, fallback_background_hex: &str) -> String {
     theme_id.and_then(resolve_preset_ui_theme).map_or_else(
         || classic_theme(fallback_background_hex).bg_hex,

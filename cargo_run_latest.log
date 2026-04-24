@@ -1,0 +1,26 @@
+warning: static `SLINT_EMBEDDED_RESOURCE_38` is never used
+      --> D:\DEV\panopticon\target\debug\build\panopticon-9a7dbace8c361345\out\main.rs:140501:13
+       |
+140501 |      static SLINT_EMBEDDED_RESOURCE_38 : & 'static [u8] = :: core :...
+       |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+       |
+       = note: `#[warn(dead_code)]` on by default
+
+warning: static `SLINT_EMBEDDED_RESOURCE_36` is never used
+      --> D:\DEV\panopticon\target\debug\build\panopticon-9a7dbace8c361345\out\main.rs:140510:13
+       |
+140510 |      static SLINT_EMBEDDED_RESOURCE_36 : & 'static [u8] = :: core :...
+       |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: static `SLINT_EMBEDDED_RESOURCE_37` is never used
+      --> D:\DEV\panopticon\target\debug\build\panopticon-9a7dbace8c361345\out\main.rs:140519:13
+       |
+140519 |      static SLINT_EMBEDDED_RESOURCE_37 : & 'static [u8] = :: core :...
+       |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `panopticon` (bin "panopticon") generated 3 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.97s
+     Running `target\debug\panopticon.exe`
+
+thread 'main' has overflowed its stack
+error: process didn't exit successfully: `target\debug\panopticon.exe` (exit code: 0xc00000fd, STATUS_STACK_OVERFLOW)

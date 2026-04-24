@@ -33,6 +33,7 @@ macro_rules! apply_runtime_theme {
         globals.set_placeholder(hex_to_slint_color(&$resolved.placeholder_hex));
         globals.set_footer_bg(hex_to_slint_color(&$resolved.footer_bg_hex));
         globals.set_surface(hex_to_slint_color(&$resolved.surface_hex));
+        globals.set_dark_scheme(theme_catalog::is_ui_theme_dark($resolved));
     }};
 }
 
@@ -113,10 +114,6 @@ pub(crate) fn sync_theme_target(state: &mut AppState) {
 pub(crate) fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let mut s = state.borrow_mut();
     let Some(ref animation) = s.theme_animation else {
-        let current = s.current_theme.clone();
-        drop(s);
-        apply_theme_snapshot_everywhere(win, &current);
-        refresh_thumbnail_accent_rows(state, win);
         return;
     };
 
