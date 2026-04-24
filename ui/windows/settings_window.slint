@@ -460,14 +460,26 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
             }
         }
 
-        Text {
-            text: root.theme.label;
-            color: Theme.text;
-            font-size: 13px;
-            font-weight: 700;
-            vertical-alignment: center;
+        VerticalLayout {
+            spacing: 2px;
             horizontal-stretch: 1;
-            overflow: elide;
+
+            Text {
+                text: root.theme.label;
+                color: root.theme.text;
+                font-size: 13px;
+                font-weight: 700;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            Text {
+                text: root.theme.subtitle;
+                color: root.theme.text.with-alpha(68%);
+                font-size: 10.5px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
         }
 
         Rectangle {
@@ -475,7 +487,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
             height: 18px;
             border-radius: 9px;
             border-width: 2px;
-            border-color: root.selected ? Theme.accent : Theme.border.with-alpha(80%);
+            border-color: root.selected ? root.theme.accent : Theme.border.with-alpha(80%);
             background: root.selected ? Theme.accent-soft.with-alpha(34%) : transparent;
 
             // Always-present inner dot avoids conditional instantiation inside
@@ -487,7 +499,7 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                 width: 8px;
                 height: 8px;
                 border-radius: 4px;
-                background: root.selected ? Theme.accent : transparent;
+                background: root.selected ? root.theme.accent : transparent;
             }
         }
     }
@@ -1494,6 +1506,8 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                 clip: true;
 
                                 VerticalLayout {
+                                    width: parent.width;
+                                    height: parent.height;
                                     padding: 14px;
                                     spacing: 10px;
 
@@ -1504,7 +1518,10 @@ import { Tr, Theme, ThemePreviewData } from "../common.slint";
                                     }
 
                                     theme-list-scroll := ScrollView {
-                                        vertical-stretch: 1;
+                                        width: parent.width;
+                                        // Keep this explicit to avoid ScrollView taking content
+                                        // height and swallowing internal scrolling.
+                                        height: max(themes-card-rect.height - 28px - 42px - 10px, 120px);
 
                                         theme-list-content := Rectangle {
                                             x: 12px;

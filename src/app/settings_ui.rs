@@ -15,8 +15,6 @@ use slint::{ModelRc, VecModel};
 
 use crate::{SettingsWindow, ThemePreviewData};
 
-const MAX_THEME_PREVIEW_CARDS: usize = 48;
-
 pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings) {
     window.set_language_index(locale_to_index(settings.language));
     window.set_always_on_top_setting(settings.always_on_top);
@@ -341,9 +339,7 @@ fn rgb_components_from_hex(hex: &str) -> (u8, u8, u8) {
 }
 
 fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
-    let preset_preview_count = theme::theme_presets()
-        .len()
-        .min(MAX_THEME_PREVIEW_CARDS.saturating_sub(1));
+    let preset_preview_count = theme::theme_presets().len();
     let mut previews = Vec::with_capacity(preset_preview_count + 1);
     previews.push(ThemePreviewData {
         index: 0,
