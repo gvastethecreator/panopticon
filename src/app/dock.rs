@@ -3,6 +3,7 @@
 use std::mem;
 
 use panopticon::settings::DockEdge;
+use panopticon::theme as theme_catalog;
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
@@ -127,17 +128,19 @@ pub(crate) fn restore_floating_style(hwnd: HWND) {
 
 // ───────────────────────── Window appearance helpers ─────────────────────────
 
-pub(crate) fn apply_window_appearance(
-    hwnd: HWND,
-    _settings: &panopticon::settings::AppSettings,
-) {
+pub(crate) fn apply_window_appearance(hwnd: HWND, settings: &panopticon::settings::AppSettings) {
     use std::ffi::c_void;
     use windows::Win32::Graphics::Dwm::{
         DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE,
         DWMWCP_ROUND,
     };
 
-    let dark_mode: i32 = 1;
+    let resolved_theme = theme_catalog::resolve_ui_theme(
+        settings.theme_id.as_deref(),
+        &settings.background_color_hex,
+        &settings.theme_color_overrides,
+    );
+    let dark_mode: i32 = i32::from(theme_catalog::is_ui_theme_dark(&resolved_theme));
     let corner = DWMWCP_ROUND;
     // SAFETY: hwnd is our live window; all values are stack-allocated with
     // correct sizes. DwmSetWindowAttribute is a read-only DWM configuration call.

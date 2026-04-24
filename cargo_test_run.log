@@ -1,0 +1,25 @@
+   Compiling panopticon v0.1.21 (D:\DEV\panopticon)
+warning: static `SLINT_EMBEDDED_RESOURCE_38` is never used
+      --> D:\DEV\panopticon\target\debug\build\panopticon-9a7dbace8c361345\out\main.rs:145163:13
+       |
+145163 |      static SLINT_EMBEDDED_RESOURCE_38 : & 'static [u8] = :: core :: include_bytes ! ("D:\\DEV\\panopticon\\assets\\ui-icons\\option-grou...
+       |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+       |
+       = note: `#[warn(dead_code)]` on by default
+
+warning: static `SLINT_EMBEDDED_RESOURCE_36` is never used
+      --> D:\DEV\panopticon\target\debug\build\panopticon-9a7dbace8c361345\out\main.rs:145172:13
+       |
+145172 |      static SLINT_EMBEDDED_RESOURCE_36 : & 'static [u8] = :: core :: include_bytes ! ("D:\\DEV\\panopticon\\assets\\ui-icons\\option-moni...
+       |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: static `SLINT_EMBEDDED_RESOURCE_37` is never used
+      --> D:\DEV\panopticon\target\debug\build\panopticon-9a7dbace8c361345\out\main.rs:145181:13
+       |
+145181 |      static SLINT_EMBEDDED_RESOURCE_37 : & 'static [u8] = :: core :: include_bytes ! ("D:\\DEV\\panopticon\\assets\\ui-icons\\option-tag....
+       |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `panopticon` (bin "panopticon") generated 3 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 59.33s
+     Running `target\debug\panopticon.exe`
+error: process didn't exit successfully: `target\debug\panopticon.exe` (exit code: 0xffffffff)

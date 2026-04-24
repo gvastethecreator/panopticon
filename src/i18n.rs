@@ -314,7 +314,13 @@ fn en(key: &str) -> &'static str {
         }
         "settings.option.show_toolbar.title" => "Show status bar",
         "settings.option.show_toolbar.description" => {
-            "Show the bottom status bar with status summary and quick access to the menu."
+            "Show the dashboard status bar with status summary and quick access to the menu."
+        }
+        "settings.toolbar_position.top" => "Top",
+        "settings.toolbar_position.bottom" => "Bottom",
+        "settings.option.toolbar_position.title" => "Status bar position",
+        "settings.option.toolbar_position.description" => {
+            "Choose whether the status bar stays at the top or bottom of the dashboard."
         }
         "settings.option.show_info.title" => "Show window info above thumbnails",
         "settings.option.show_info.description" => {
@@ -845,7 +851,13 @@ fn es(key: &str) -> Option<&'static str> {
         }
         "settings.option.show_toolbar.title" => "Mostrar barra de estado",
         "settings.option.show_toolbar.description" => {
-            "Muestra la barra de estado inferior con resumen de estado y acceso rápido al menú."
+            "Muestra la barra de estado del dashboard con resumen y acceso rápido al menú."
+        }
+        "settings.toolbar_position.top" => "Arriba",
+        "settings.toolbar_position.bottom" => "Abajo",
+        "settings.option.toolbar_position.title" => "Posición de la barra de estado",
+        "settings.option.toolbar_position.description" => {
+            "Elegí si la barra de estado se mantiene arriba o abajo del dashboard."
         }
         "settings.option.show_info.title" => "Mostrar info de ventana sobre las miniaturas",
         "settings.option.show_info.description" => {

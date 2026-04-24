@@ -47,6 +47,7 @@ dock_row_thickness = 180
 theme_id = "campbell"
 background_color_hex = "0C0C0C"
 show_toolbar = true
+toolbar_position = "bottom"
 show_window_info = true
 start_in_tray = false
 run_at_startup = false
@@ -133,7 +134,8 @@ row_ratios = [0.4, 0.6]
 | `theme_id` | `Option<String>` | `Some("campbell")` | selects a preset from `assets/themes.json` | new profiles default to `campbell`; `None` = classic theme |
 | `background_color_hex` | `String` | `0C0C0C` | base client colour | defaults to Campbell's background for new profiles; classic still uses this as its fallback background |
 | `theme_color_overrides` | `ThemeColorOverrides` | empty | optional manual overrides for core theme slots | supported keys: `accent_hex`, `surface_hex`, `card_hex`, `text_hex`, `muted_hex`, `border_hex`; blank/invalid values are discarded during normalization |
-| `show_toolbar` | `bool` | `true` | show/hide the bottom status bar | also changes the usable viewport area |
+| `show_toolbar` | `bool` | `true` | show/hide the status bar | also changes the usable viewport area |
+| `toolbar_position` | `ToolbarPosition` | `bottom` | places the status bar on top or bottom | values: `top`, `bottom`; only matters when `show_toolbar = true` |
 | `show_window_info` | `bool` | `true` | shows title/app on the thumbnail | affects the usable thumbnail height |
 | `start_in_tray` | `bool` | `false` | starts hidden | releases thumbnails before hiding |
 | `run_at_startup` | `bool` | `false` | registers Panopticon in the current user Windows startup sequence | implemented through `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` |

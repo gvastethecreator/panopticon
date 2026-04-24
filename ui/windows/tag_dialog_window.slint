@@ -13,12 +13,7 @@ export component TagDialogWindow inherits Window {
     in property <string> app-label: "";
     in-out property <string> tag-name: "";
     in-out property <int> color-index: 0;
-    property <color> selected-color: color-index == 1 ? #5CA9FF
-        : color-index == 2 ? #3CCF91
-        : color-index == 3 ? #FF6B8A
-        : color-index == 4 ? #9B7BFF
-        : color-index == 5 ? #F4B740
-        : #D29A5C;
+    property <color> selected-color: color-index == 1 ? #5CA9FF : color-index == 2 ? #3CCF91 : color-index == 3 ? #FF6B8A : color-index == 4 ? #9B7BFF : color-index == 5 ? #F4B740 : #D29A5C;
 
     callback create();
     callback closed();
@@ -41,7 +36,9 @@ export component TagDialogWindow inherits Window {
             wrap: word-wrap;
         }
 
-        Rectangle { height: 4px; }
+        Rectangle {
+            height: 4px;
+        }
 
         Text {
             text: Tr.tag-name-label;
@@ -72,6 +69,7 @@ export component TagDialogWindow inherits Window {
                 background: root.selected-color;
                 y: 0px;
             }
+
             ComboBox {
                 model: Tr.tag-colour-options;
                 current-index <=> root.color-index;
@@ -79,7 +77,9 @@ export component TagDialogWindow inherits Window {
             }
         }
 
-        Rectangle { vertical-stretch: 1; }
+        Rectangle {
+            vertical-stretch: 1;
+        }
 
         HorizontalLayout {
             spacing: 12px;
@@ -87,12 +87,16 @@ export component TagDialogWindow inherits Window {
 
             Button {
                 text: Tr.tag-create-assign;
-                clicked => { root.create(); }
+                clicked => {
+                    root.create();
+                }
             }
 
             Button {
                 text: Tr.action-close;
-                clicked => { root.closed(); }
+                clicked => {
+                    root.closed();
+                }
             }
         }
     }

@@ -1,6 +1,6 @@
 //! Layout recomputation, Slint model synchronization, and thumbnail animation.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::Path;
 use std::rc::Rc;
 use std::time::Instant;
@@ -8,7 +8,7 @@ use std::time::Instant;
 use panopticon::constants::{ANIMATION_DURATION_MS, TOOLBAR_HEIGHT};
 use panopticon::i18n;
 use panopticon::layout::{compute_layout_custom, AspectHint, ScrollDirection};
-use panopticon::settings::AppSettings;
+use panopticon::settings::{AppSettings, ToolbarPosition};
 use panopticon::window_ops::{active_filter_summary, truncate_title};
 use slint::ComponentHandle;
 use slint::{Model, ModelRc, SharedString, VecModel};
@@ -20,7 +20,71 @@ use super::settings_ui::background_fit_to_index;
 use super::theme_ui::{sync_theme_target, thumbnail_accent_color};
 use crate::{AppState, MainWindow, ResizeHandleData, ThumbnailData};
 
+thread_local! {
+    static RECOMPUTE_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
+    static MODEL_SYNC_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
+}
+
+struct RecomputeGuard;
+
+impl RecomputeGuard {
+    fn enter() -> Option<Self> {
+        let already_running = RECOMPUTE_IN_PROGRESS.with(|flag| {
+            if flag.get() {
+                true
+            } else {
+                flag.set(true);
+                false
+            }
+        });
+        if already_running {
+            None
+        } else {
+            Some(Self)
+        }
+    }
+}
+
+impl Drop for RecomputeGuard {
+    fn drop(&mut self) {
+        RECOMPUTE_IN_PROGRESS.with(|flag| flag.set(false));
+    }
+}
+
+struct ModelSyncGuard;
+
+impl ModelSyncGuard {
+    fn enter() -> Option<Self> {
+        let already_running = MODEL_SYNC_IN_PROGRESS.with(|flag| {
+            if flag.get() {
+                true
+            } else {
+                flag.set(true);
+                false
+            }
+        });
+        if already_running {
+            None
+        } else {
+            Some(Self)
+        }
+    }
+}
+
+impl Drop for ModelSyncGuard {
+    fn drop(&mut self) {
+        MODEL_SYNC_IN_PROGRESS.with(|flag| flag.set(false));
+    }
+}
+
 pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &MainWindow) {
+    let Some(_guard) = RecomputeGuard::enter() else {
+        tracing::debug!("skipping nested recompute_and_update_ui invocation");
+        return;
+    };
+
+    tracing::info!("recompute checkpoint: entered");
+
     let mut state = app_state.borrow_mut();
     if state.windows.is_empty() {
         state.animation_started_at = None;
@@ -65,6 +129,10 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         state.windows.len(),
         &aspects,
         custom.as_ref(),
+    );
+    tracing::info!(
+        window_count = state.windows.len(),
+        "recompute checkpoint: layout computed"
     );
     let rects = result.rects;
     state.separators = result.separators;
@@ -118,6 +186,7 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
     win.set_scroll_vertical(scroll_v);
     win.set_content_width(state.content_extent as f32);
     win.set_content_height(state.content_extent as f32);
+    tracing::info!("recompute checkpoint: scroll properties applied");
     clamp_viewport_offsets(
         win,
         scroll_dir,
@@ -125,17 +194,23 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         logical_w,
         content_area.bottom,
     );
+    tracing::info!("recompute checkpoint: viewport clamped");
 
     sync_theme_target(&mut state);
+    tracing::info!("recompute checkpoint: theme synced");
     sync_settings_to_ui(win, &state.settings);
+    tracing::info!("recompute checkpoint: settings synced");
     sync_background_image(&mut state, win);
+    tracing::info!("recompute checkpoint: background synced");
 
     drop(state);
+    tracing::info!("recompute reached pre-model-sync checkpoint");
     sync_model_to_slint(app_state, win);
 }
 
 pub(crate) fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
     win.set_show_toolbar(settings.show_toolbar);
+    win.set_toolbar_on_top(matches!(settings.toolbar_position, ToolbarPosition::Top));
     win.set_show_window_info(settings.show_window_info);
     win.set_is_always_on_top(settings.always_on_top);
     win.set_animate_transitions(settings.animate_transitions);
@@ -150,6 +225,13 @@ pub(crate) fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
 }
 
 pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
+    let Some(_guard) = ModelSyncGuard::enter() else {
+        tracing::debug!("skipping nested sync_model_to_slint invocation");
+        return;
+    };
+
+    tracing::info!("model sync checkpoint: entered");
+
     let mut state = state.borrow_mut();
     let show_footer = state.settings.show_window_info;
     let show_icons = state.settings.show_app_icons;
@@ -164,12 +246,21 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
             managed_window.cached_icon = None;
         }
     }
+    tracing::info!(
+        show_icons,
+        window_count = state.windows.len(),
+        "model sync checkpoint: icons ready"
+    );
 
     let data: Vec<ThumbnailData> = state
         .windows
         .iter()
         .map(|managed_window| build_thumbnail_data(managed_window, &state, show_footer, show_icons))
         .collect();
+    tracing::info!(
+        thumbnail_rows = data.len(),
+        "model sync checkpoint: thumbnail data built"
+    );
 
     let handle_thickness: f32 = 14.0;
     let handles: Vec<ResizeHandleData> = if resize_locked {
@@ -208,6 +299,11 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
         .drag_separator
         .as_ref()
         .map_or(-1, |drag| drag.separator_index as i32);
+    tracing::info!(
+        handle_rows = handles.len(),
+        dragging,
+        "model sync checkpoint: resize handles built"
+    );
 
     win.set_layout_label(SharedString::from(i18n::t(
         state.current_layout.translation_key(),
@@ -216,7 +312,9 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
     win.set_hidden_count(state.settings.hidden_app_entries().len() as i32);
 
     drop(state);
+    tracing::info!("model sync checkpoint: window labels applied");
     win.set_thumbnails(ModelRc::new(VecModel::from(data)));
+    tracing::info!("model sync checkpoint: thumbnails model set");
 
     if dragging {
         let model = win.get_resize_handles();
@@ -229,7 +327,9 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
     } else {
         win.set_resize_handles(ModelRc::new(VecModel::from(handles)));
     }
+    tracing::info!("model sync checkpoint: resize handles set");
     win.set_active_drag_index(active_drag);
+    tracing::info!("model sync checkpoint: finished");
 }
 
 pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {

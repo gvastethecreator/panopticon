@@ -5,8 +5,8 @@ use std::path::Path;
 use panopticon::i18n;
 use panopticon::layout::LayoutType;
 use panopticon::settings::{
-    AppSettings, BackgroundImageFit, DockEdge, ThemeColorOverrides, WindowGrouping,
-    MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT,
+    AppSettings, BackgroundImageFit, DockEdge, ThemeColorOverrides, ToolbarPosition,
+    WindowGrouping, MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT,
     MIN_FIXED_WINDOW_WIDTH,
 };
 use panopticon::theme;
@@ -14,6 +14,8 @@ use slint::SharedString;
 use slint::{ModelRc, VecModel};
 
 use crate::{SettingsWindow, ThemePreviewData};
+
+const MAX_THEME_PREVIEW_CARDS: usize = 48;
 
 pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings) {
     window.set_language_index(locale_to_index(settings.language));
@@ -26,6 +28,7 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_hide_on_select_enabled(settings.dock_edge.is_none());
     window.set_default_layout_enabled(settings.dock_edge.is_none());
     window.set_show_toolbar_setting(settings.show_toolbar);
+    window.set_toolbar_position_index(toolbar_position_to_index(settings.toolbar_position));
     window.set_show_info_setting(settings.show_window_info);
     window.set_start_in_tray_setting(settings.start_in_tray);
     window.set_run_at_startup_setting(settings.run_at_startup);
@@ -113,6 +116,7 @@ pub fn apply_settings_window_changes(window: &SettingsWindow, settings: &mut App
     settings.preserve_aspect_ratio = window.get_preserve_aspect_ratio_setting();
     settings.hide_on_select = window.get_hide_on_select_setting();
     settings.show_toolbar = window.get_show_toolbar_setting();
+    settings.toolbar_position = index_to_toolbar_position(window.get_toolbar_position_index());
     settings.show_window_info = window.get_show_info_setting();
     settings.start_in_tray = window.get_start_in_tray_setting();
     settings.run_at_startup = window.get_run_at_startup_setting();
@@ -216,6 +220,20 @@ fn index_to_background_fit(index: i32) -> BackgroundImageFit {
         2 => BackgroundImageFit::Fill,
         3 => BackgroundImageFit::Preserve,
         _ => BackgroundImageFit::Cover,
+    }
+}
+
+const fn toolbar_position_to_index(position: ToolbarPosition) -> i32 {
+    match position {
+        ToolbarPosition::Top => 0,
+        ToolbarPosition::Bottom => 1,
+    }
+}
+
+const fn index_to_toolbar_position(index: i32) -> ToolbarPosition {
+    match index {
+        0 => ToolbarPosition::Top,
+        _ => ToolbarPosition::Bottom,
     }
 }
 
@@ -323,7 +341,10 @@ fn rgb_components_from_hex(hex: &str) -> (u8, u8, u8) {
 }
 
 fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
-    let mut previews = Vec::with_capacity(theme::theme_presets().len() + 1);
+    let preset_preview_count = theme::theme_presets()
+        .len()
+        .min(MAX_THEME_PREVIEW_CARDS.saturating_sub(1));
+    let mut previews = Vec::with_capacity(preset_preview_count + 1);
     previews.push(ThemePreviewData {
         index: 0,
         label: SharedString::from(i18n::t("theme.classic_name")),
@@ -337,6 +358,7 @@ fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
     previews.extend(
         theme::theme_presets()
             .iter()
+            .take(preset_preview_count)
             .enumerate()
             .map(|(offset, preset)| ThemePreviewData {
                 index: offset as i32 + 1,
@@ -442,8 +464,9 @@ fn load_image_preview(path: Option<&str>) -> slint::Image {
 
 #[cfg(test)]
 mod tests {
-    use super::{background_fit_to_index, index_to_background_fit};
+    use super::{background_fit_to_index, build_theme_preview_model, index_to_background_fit};
     use panopticon::settings::BackgroundImageFit;
+    use slint::Model;
 
     #[test]
     fn background_fit_indices_roundtrip_all_supported_modes() {
@@ -464,5 +487,10 @@ mod tests {
     fn unknown_background_fit_index_falls_back_to_cover() {
         assert_eq!(index_to_background_fit(-1), BackgroundImageFit::Cover);
         assert_eq!(index_to_background_fit(99), BackgroundImageFit::Cover);
+    }
+
+    #[test]
+    fn theme_preview_model_is_capped_for_settings_rendering() {
+        assert_eq!(build_theme_preview_model().row_count(), 48);
     }
 }

@@ -1,5 +1,6 @@
 //! DWM thumbnail registration, update, and geometry helpers.
 
+use std::cell::Cell;
 use std::ffi::c_void;
 use std::mem;
 use std::time::Instant;
@@ -13,11 +14,42 @@ use windows::Win32::UI::WindowsAndMessaging::{IsIconic, IsWindow, IsWindowVisibl
 
 use panopticon::constants::THUMBNAIL_ACCENT_HEIGHT;
 use panopticon::constants::TOOLBAR_HEIGHT;
+use panopticon::settings::ToolbarPosition;
 use panopticon::thumbnail::Thumbnail;
 
 use crate::{
     ManagedWindow, HIDDEN_THUMBNAIL_RECT, THUMBNAIL_CONTENT_PADDING, THUMBNAIL_INFO_STRIP_HEIGHT,
 };
+
+thread_local! {
+    static DWM_SYNC_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
+}
+
+struct DwmSyncGuard;
+
+impl DwmSyncGuard {
+    fn enter() -> Option<Self> {
+        let already_running = DWM_SYNC_IN_PROGRESS.with(|flag| {
+            if flag.get() {
+                true
+            } else {
+                flag.set(true);
+                false
+            }
+        });
+        if already_running {
+            None
+        } else {
+            Some(Self)
+        }
+    }
+}
+
+impl Drop for DwmSyncGuard {
+    fn drop(&mut self) {
+        DWM_SYNC_IN_PROGRESS.with(|flag| flag.set(false));
+    }
+}
 
 // ───────────────────────── Thumbnail lifecycle ─────────────────────────
 
@@ -70,6 +102,11 @@ pub(crate) fn update_dwm_thumbnails(
     state: &std::rc::Rc<std::cell::RefCell<crate::AppState>>,
     win: &crate::MainWindow,
 ) {
+    let Some(_guard) = DwmSyncGuard::enter() else {
+        tracing::debug!("skipping nested update_dwm_thumbnails invocation");
+        return;
+    };
+
     let Ok(mut s) = state.try_borrow_mut() else {
         return;
     };
@@ -94,7 +131,18 @@ pub(crate) fn update_dwm_thumbnails(
     } else {
         0
     };
-    let content_phys_h = (phys.height as i32 - toolbar_phys_h).max(1);
+    let content_phys_top =
+        if settings.show_toolbar && matches!(settings.toolbar_position, ToolbarPosition::Top) {
+            toolbar_phys_h
+        } else {
+            0
+        };
+    let content_phys_bottom =
+        if settings.show_toolbar && matches!(settings.toolbar_position, ToolbarPosition::Bottom) {
+            (phys.height as i32 - toolbar_phys_h).max(1)
+        } else {
+            phys.height as i32
+        };
     let show_icons = settings.show_app_icons;
     let show_info = settings.show_window_info;
 
@@ -138,13 +186,18 @@ pub(crate) fn update_dwm_thumbnails(
                 mw.source_size,
                 preserve,
                 overlay_top_h,
+                content_phys_top,
                 viewport_x,
                 viewport_y,
                 scale,
                 render_scale_pct,
             );
-            let (dest, visible) =
-                sanitize_thumbnail_rect(raw_dest, phys.width as i32, content_phys_h);
+            let (dest, visible) = sanitize_thumbnail_rect(
+                raw_dest,
+                phys.width as i32,
+                content_phys_top,
+                content_phys_bottom,
+            );
             let props_changed = registered_thumbnail
                 || mw.last_thumb_dest != Some(dest)
                 || mw.last_thumb_visible != visible;
@@ -179,23 +232,30 @@ pub(crate) fn update_dwm_thumbnails(
 pub(crate) fn sanitize_thumbnail_rect(
     dest: RECT,
     client_width: i32,
-    client_height: i32,
+    client_top: i32,
+    client_bottom: i32,
 ) -> (RECT, bool) {
-    if client_width <= 0 || client_height <= 0 || dest.right <= dest.left || dest.bottom <= dest.top
+    if client_width <= 0
+        || client_bottom <= client_top
+        || dest.right <= dest.left
+        || dest.bottom <= dest.top
     {
         return (HIDDEN_THUMBNAIL_RECT, false);
     }
 
-    if dest.right <= 0 || dest.bottom <= 0 || dest.left >= client_width || dest.top >= client_height
+    if dest.right <= 0
+        || dest.bottom <= client_top
+        || dest.left >= client_width
+        || dest.top >= client_bottom
     {
         return (HIDDEN_THUMBNAIL_RECT, false);
     }
 
     let clipped = RECT {
         left: dest.left.clamp(0, client_width.saturating_sub(1)),
-        top: dest.top.clamp(0, client_height.saturating_sub(1)),
+        top: dest.top.clamp(client_top, client_bottom.saturating_sub(1)),
         right: dest.right.clamp(1, client_width),
-        bottom: dest.bottom.clamp(1, client_height),
+        bottom: dest.bottom.clamp(client_top + 1, client_bottom),
     };
 
     if clipped.right <= clipped.left || clipped.bottom <= clipped.top {
@@ -226,6 +286,7 @@ pub(crate) fn compute_dwm_rect(
     source_size: SIZE,
     preserve_aspect: bool,
     overlay_top_h: i32,
+    content_offset_y: i32,
     viewport_x: f32,
     viewport_y: f32,
     scale: f32,
@@ -271,8 +332,8 @@ pub(crate) fn compute_dwm_rect(
 
     RECT {
         left: ((scaled_left + viewport_x) * scale).round() as i32,
-        top: ((scaled_top + viewport_y) * scale).round() as i32,
+        top: ((scaled_top + viewport_y + content_offset_y as f32) * scale).round() as i32,
         right: ((scaled_right + viewport_x) * scale).round() as i32,
-        bottom: ((scaled_bottom + viewport_y) * scale).round() as i32,
+        bottom: ((scaled_bottom + viewport_y + content_offset_y as f32) * scale).round() as i32,
     }
 }

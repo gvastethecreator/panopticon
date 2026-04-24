@@ -185,8 +185,13 @@ export global Tr {
     in property <string> settings-option-lock-cell-resize-description: "Disable separator dragging to protect the current composition.";
     in property <string> settings-section-display-title: "Display";
     in property <string> settings-section-display-helper: "Controls for layout-at-startup, dock placement, sizing, and dashboard readability.";
+    in property <string> toolbar-position-top-label: "Top";
+    in property <string> toolbar-position-bottom-label: "Bottom";
+    in property <[string]> toolbar-position-options: [toolbar-position-top-label, toolbar-position-bottom-label];
     in property <string> settings-option-show-toolbar-title: "Show status bar";
-    in property <string> settings-option-show-toolbar-description: "Show the bottom status bar with status summary and quick access to the menu.";
+    in property <string> settings-option-show-toolbar-description: "Show the dashboard status bar with status summary and quick access to the menu.";
+    in property <string> settings-option-toolbar-position-title: "Status bar position";
+    in property <string> settings-option-toolbar-position-description: "Choose whether the status bar stays at the top or bottom of the dashboard.";
     in property <string> settings-option-show-info-title: "Show window info above thumbnails";
     in property <string> settings-option-show-info-description: "Add the window and application name above each preview for quick context.";
     in property <string> settings-option-show-app-icons-title: "Show app icons in cells";
@@ -363,6 +368,7 @@ export global Theme {
     in-out property <color> placeholder:  #141210;
     in-out property <color> footer-bg:    #1a1814;
     in-out property <color> surface:      #221E1C;
+    in-out property <bool> dark-scheme:   true;
 }
 
 export struct ThumbnailData {

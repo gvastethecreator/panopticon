@@ -173,6 +173,15 @@ pub enum BackgroundImageFit {
     Preserve,
 }
 
+/// Placement of the optional dashboard status bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum ToolbarPosition {
+    Top,
+    #[default]
+    Bottom,
+}
+
 /// Optional manual overrides for key UI theme colours.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(default)]
@@ -513,6 +522,9 @@ pub struct AppSettings {
     pub theme_color_overrides: ThemeColorOverrides,
     /// Show the optional status bar at the bottom of the window.
     pub show_toolbar: bool,
+    /// Place the optional status bar at the top or bottom of the dashboard.
+    #[serde(default)]
+    pub toolbar_position: ToolbarPosition,
     /// Show per-window title/app information below thumbnails.
     pub show_window_info: bool,
     /// Start the application hidden in the system tray.
@@ -577,6 +589,7 @@ impl Default for AppSettings {
             background_color_hex: DEFAULT_BACKGROUND_COLOR_HEX.to_owned(),
             theme_color_overrides: ThemeColorOverrides::default(),
             show_toolbar: true,
+            toolbar_position: ToolbarPosition::Bottom,
             show_window_info: true,
             start_in_tray: false,
             run_at_startup: false,
@@ -1247,6 +1260,7 @@ impl AppSettings {
                 .unwrap_or_else(|| DEFAULT_BACKGROUND_COLOR_HEX.to_owned()),
             theme_color_overrides: self.theme_color_overrides.normalized(),
             show_toolbar: self.show_toolbar,
+            toolbar_position: self.toolbar_position,
             show_window_info: self.show_window_info,
             start_in_tray: self.start_in_tray,
             run_at_startup: self.run_at_startup,
@@ -1563,7 +1577,7 @@ mod tests {
         normalize_global_hotkey_binding, normalize_shortcut_binding, parse_global_hotkey_binding,
         validate_profile_name_input, AppRule, AppSettings, BackgroundImageFit, GlobalHotkeyBinding,
         GlobalHotkeyKey, HiddenAppEntry, ProfileNameValidation, ShortcutBindings, TagStyle,
-        ThemeColorOverrides, ThumbnailRefreshMode,
+        ThemeColorOverrides, ThumbnailRefreshMode, ToolbarPosition,
     };
     use crate::layout::LayoutType;
 
@@ -1602,6 +1616,7 @@ mod tests {
                 ..ThemeColorOverrides::default()
             },
             show_toolbar: false,
+            toolbar_position: ToolbarPosition::Top,
             show_window_info: false,
             start_in_tray: false,
             run_at_startup: true,
@@ -1652,6 +1667,7 @@ mod tests {
                 ..ThemeColorOverrides::default()
             },
             show_toolbar: true,
+            toolbar_position: ToolbarPosition::Bottom,
             show_window_info: true,
             start_in_tray: false,
             run_at_startup: false,
