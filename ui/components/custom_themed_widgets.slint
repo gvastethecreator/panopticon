@@ -448,3 +448,191 @@ export component CustomButton inherits Rectangle {
         }
     }
 }
+
+/// Reusable section card for settings pages.
+export component SectionCard inherits Rectangle {
+    in property <length> inner-padding: 14px;
+    in property <length> inner-spacing: 10px;
+    in property <bool> highlighted: false;
+    in property <bool> subtle: false;
+
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: root.highlighted ? Theme.accent.with-alpha(44%) : Theme.border.with-alpha(48%);
+    background: root.highlighted ? Theme.accent-soft.with-alpha(12%) : root.subtle ? Theme.surface.with-alpha(38%) : Theme.card-bg.with-alpha(92%);
+    clip: true;
+
+    VerticalLayout {
+        width: parent.width;
+        padding-left: root.inner-padding;
+        padding-right: root.inner-padding;
+        padding-top: root.inner-padding;
+        padding-bottom: root.inner-padding;
+        spacing: root.inner-spacing;
+
+        @children
+    }
+}
+
+/// Reusable section heading for settings cards.
+export component SectionHeader inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> helper;
+
+    min-height: root.helper == "" ? 28px : 42px;
+    background: transparent;
+
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: start;
+
+        Image {
+            width: 20px;
+            height: 20px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: Theme.accent;
+        }
+
+        VerticalLayout {
+            spacing: 3px;
+            alignment: start;
+            vertical-stretch: 1;
+
+            Text {
+                text: root.title;
+                color: Theme.text;
+                font-size: 14px;
+                font-weight: 700;
+                wrap: word-wrap;
+            }
+
+            if root.helper != "": Text {
+                text: root.helper;
+                color: Theme.muted;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+/// Compact accent pill for active states.
+export component StatusPill inherits Rectangle {
+    in property <string> text;
+    in property <color> tone: Theme.accent;
+    in property <bool> subtle: false;
+
+    min-width: 72px;
+    height: 28px;
+    border-radius: self.height / 2;
+    border-width: 1px;
+    border-color: root.subtle ? Theme.border.with-alpha(60%) : root.tone.with-alpha(60%);
+    background: root.subtle ? Theme.surface.with-alpha(56%) : root.tone.with-alpha(14%);
+
+    Text {
+        width: 100%;
+        height: 100%;
+        text: root.text;
+        color: root.subtle ? Theme.label : Theme.text;
+        font-size: 11px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+/// Inline informational or warning card for settings hints.
+export component InlineWarning inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> text;
+    in property <bool> subtle: false;
+
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: root.subtle ? Theme.border.with-alpha(48%) : Theme.accent.with-alpha(42%);
+    background: root.subtle ? Theme.surface.with-alpha(36%) : Theme.accent-soft.with-alpha(18%);
+
+    HorizontalLayout {
+        padding: 12px;
+        spacing: 10px;
+        alignment: start;
+
+        Image {
+            width: 20px;
+            height: 20px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: root.subtle ? Theme.label : Theme.accent;
+        }
+
+        VerticalLayout {
+            spacing: 4px;
+            vertical-stretch: 1;
+
+            Text {
+                text: root.title;
+                color: Theme.text;
+                font-size: 13px;
+                font-weight: 700;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: root.text;
+                color: Theme.muted;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+/// Generic row for settings pages with custom trailing content.
+export component SettingRow inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> description;
+    in property <bool> enabled: true;
+
+    min-height: 56px;
+    background: transparent;
+
+    HorizontalLayout {
+        spacing: 12px;
+        alignment: start;
+
+        Image {
+            width: 20px;
+            height: 20px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: root.enabled ? Theme.label : Theme.muted;
+        }
+
+        VerticalLayout {
+            spacing: 3px;
+            vertical-stretch: 1;
+
+            Text {
+                text: root.title;
+                color: root.enabled ? Theme.text : Theme.muted;
+                font-size: 13px;
+                font-weight: 700;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: root.description;
+                color: Theme.muted;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+
+        @children
+    }
+}

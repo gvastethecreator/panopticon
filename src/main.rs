@@ -857,6 +857,16 @@ where
     );
     set_tr!(
         tr,
+        set_settings_shortcut_open_command_palette_title,
+        "settings.shortcut.open_command_palette.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_shortcut_open_command_palette_description,
+        "settings.shortcut.open_command_palette.description"
+    );
+    set_tr!(
+        tr,
         set_settings_shortcut_global_activate_title,
         "settings.shortcut.global_activate.title"
     );

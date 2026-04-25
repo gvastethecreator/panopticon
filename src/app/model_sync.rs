@@ -218,7 +218,7 @@ pub(crate) fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
     win.set_canvas_background_color(canvas_background_color(settings));
     win.set_background_image_fit_index(background_fit_to_index(settings.background_image_fit));
     win.set_background_image_opacity(settings.background_image_opacity_pct as f32 / 100.0);
-    win.set_refresh_label(SharedString::from(settings.refresh_interval_label()));
+    win.set_refresh_label(SharedString::from(settings.refresh_status_label()));
     win.set_filters_label(SharedString::from(
         active_filter_summary(settings).unwrap_or_default(),
     ));

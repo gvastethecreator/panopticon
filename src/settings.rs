@@ -15,6 +15,9 @@ use crate::layout::{LayoutCustomization, LayoutType};
 
 const DEFAULT_REFRESH_INTERVAL_MS: u32 = 2_000;
 const REFRESH_INTERVALS_MS: [u32; 4] = [1_000, 2_000, 5_000, 10_000];
+const REALTIME_REFRESH_INTERVAL_MS: u32 = 1_000;
+const BALANCED_REFRESH_INTERVAL_MS: u32 = 2_000;
+const BATTERY_SAVER_REFRESH_INTERVAL_MS: u32 = 5_000;
 const DEFAULT_THEME_ID: &str = "campbell";
 const DEFAULT_BACKGROUND_COLOR_HEX: &str = "0C0C0C";
 const DEFAULT_BACKGROUND_IMAGE_OPACITY_PCT: u8 = 25;
@@ -41,6 +44,7 @@ const DEFAULT_SHORTCUT_TOGGLE_WINDOW_INFO: &str = "I";
 const DEFAULT_SHORTCUT_TOGGLE_ALWAYS_ON_TOP: &str = "P";
 const DEFAULT_SHORTCUT_OPEN_SETTINGS: &str = "O";
 const DEFAULT_SHORTCUT_OPEN_MENU: &str = "M";
+const DEFAULT_SHORTCUT_OPEN_COMMAND_PALETTE: &str = "K";
 const DEFAULT_SHORTCUT_GLOBAL_ACTIVATE: &str = "Ctrl+Alt+P";
 const DEFAULT_SHORTCUT_REFRESH: &str = "R";
 const DEFAULT_SHORTCUT_EXIT: &str = "Esc";
@@ -150,6 +154,43 @@ pub enum ThumbnailRefreshMode {
     Interval,
 }
 
+/// Global dashboard refresh profile controlling the base discovery cadence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum RefreshPerformanceMode {
+    /// Highest cadence for the most responsive updates.
+    Realtime,
+    /// Balanced default between responsiveness and overhead.
+    #[default]
+    Balanced,
+    /// Lower cadence to reduce background work.
+    BatterySaver,
+    /// Manual selection based on the explicit refresh interval option.
+    Manual,
+}
+
+impl RefreshPerformanceMode {
+    #[must_use]
+    pub const fn fixed_interval_ms(self) -> Option<u32> {
+        match self {
+            Self::Realtime => Some(REALTIME_REFRESH_INTERVAL_MS),
+            Self::Balanced => Some(BALANCED_REFRESH_INTERVAL_MS),
+            Self::BatterySaver => Some(BATTERY_SAVER_REFRESH_INTERVAL_MS),
+            Self::Manual => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn translation_key(self) -> &'static str {
+        match self {
+            Self::Realtime => "settings.refresh_mode.realtime",
+            Self::Balanced => "settings.refresh_mode.balanced",
+            Self::BatterySaver => "settings.refresh_mode.battery_saver",
+            Self::Manual => "settings.refresh_mode.manual",
+        }
+    }
+}
+
 /// Strategy used to keep related windows visually grouped together.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -244,6 +285,7 @@ pub struct ShortcutBindings {
     pub toggle_always_on_top: String,
     pub open_settings: String,
     pub open_menu: String,
+    pub open_command_palette: String,
     #[serde(
         default = "default_global_activate_shortcut",
         skip_serializing_if = "Option::is_none"
@@ -274,6 +316,7 @@ impl Default for ShortcutBindings {
             toggle_always_on_top: DEFAULT_SHORTCUT_TOGGLE_ALWAYS_ON_TOP.to_owned(),
             open_settings: DEFAULT_SHORTCUT_OPEN_SETTINGS.to_owned(),
             open_menu: DEFAULT_SHORTCUT_OPEN_MENU.to_owned(),
+            open_command_palette: DEFAULT_SHORTCUT_OPEN_COMMAND_PALETTE.to_owned(),
             global_activate: default_global_activate_shortcut(),
             refresh_now: DEFAULT_SHORTCUT_REFRESH.to_owned(),
             exit_app: DEFAULT_SHORTCUT_EXIT.to_owned(),
@@ -344,6 +387,10 @@ impl ShortcutBindings {
                 DEFAULT_SHORTCUT_OPEN_SETTINGS,
             ),
             open_menu: normalize_shortcut_binding(&self.open_menu, DEFAULT_SHORTCUT_OPEN_MENU),
+            open_command_palette: normalize_shortcut_binding(
+                &self.open_command_palette,
+                DEFAULT_SHORTCUT_OPEN_COMMAND_PALETTE,
+            ),
             global_activate: normalize_global_hotkey_binding(
                 self.global_activate.as_deref(),
                 Some(DEFAULT_SHORTCUT_GLOBAL_ACTIVATE),
@@ -352,6 +399,130 @@ impl ShortcutBindings {
             exit_app: normalize_shortcut_binding(&self.exit_app, DEFAULT_SHORTCUT_EXIT),
             alt_toggles_toolbar: self.alt_toggles_toolbar,
         }
+    }
+
+    /// Returns dashboard shortcut conflicts grouped by normalized key value.
+    #[must_use]
+    pub fn dashboard_conflicts(&self) -> Vec<(String, Vec<&'static str>)> {
+        let mut by_key: BTreeMap<String, Vec<&'static str>> = BTreeMap::new();
+
+        for (label, binding) in [
+            (
+                i18n::t("settings.shortcut.layout_grid.title"),
+                self.layout_grid.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.layout_mosaic.title"),
+                self.layout_mosaic.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.layout_bento.title"),
+                self.layout_bento.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.layout_fibonacci.title"),
+                self.layout_fibonacci.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.layout_columns.title"),
+                self.layout_columns.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.layout_row.title"),
+                self.layout_row.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.layout_column.title"),
+                self.layout_column.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.reset_layout.title"),
+                self.reset_layout.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.cycle_layout.title"),
+                self.cycle_layout.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.cycle_theme.title"),
+                self.cycle_theme.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.toggle_animations.title"),
+                self.toggle_animations.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.toggle_toolbar.title"),
+                self.toggle_toolbar.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.toggle_window_info.title"),
+                self.toggle_window_info.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.toggle_always_on_top.title"),
+                self.toggle_always_on_top.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.open_settings.title"),
+                self.open_settings.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.open_menu.title"),
+                self.open_menu.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.open_command_palette.title"),
+                self.open_command_palette.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.refresh_now.title"),
+                self.refresh_now.as_str(),
+            ),
+            (
+                i18n::t("settings.shortcut.exit_app.title"),
+                self.exit_app.as_str(),
+            ),
+        ] {
+            let normalized = normalize_shortcut_binding(binding, "");
+            if normalized.is_empty() {
+                continue;
+            }
+
+            by_key.entry(normalized).or_default().push(label);
+        }
+
+        by_key
+            .into_iter()
+            .filter_map(|(key, mut labels)| {
+                labels.sort_unstable();
+                labels.dedup();
+                (labels.len() > 1).then_some((key, labels))
+            })
+            .collect()
+    }
+
+    /// Returns localized summary/detail strings suitable for warnings in Settings UI.
+    #[must_use]
+    pub fn conflict_banner(&self) -> Option<(String, String)> {
+        let conflicts = self.dashboard_conflicts();
+        if conflicts.is_empty() {
+            return None;
+        }
+
+        let summary = if conflicts.len() == 1 {
+            "1 shortcut conflict needs attention.".to_owned()
+        } else {
+            format!("{} shortcut conflicts need attention.", conflicts.len())
+        };
+
+        let detail = conflicts
+            .iter()
+            .map(|(key, labels)| format!("{}: {}", key, labels.join(", ")))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        Some((summary, detail))
     }
 }
 
@@ -475,6 +646,9 @@ pub struct AppSettings {
     pub initial_layout: LayoutType,
     /// Refresh interval for window enumeration and layout updates.
     pub refresh_interval_ms: u32,
+    /// Global performance profile for refresh cadence.
+    #[serde(default)]
+    pub refresh_performance_mode: RefreshPerformanceMode,
     /// Whether minimizing the main window should hide it to the tray.
     pub minimize_to_tray: bool,
     /// Whether closing the main window should hide it to the tray.
@@ -568,6 +742,7 @@ impl Default for AppSettings {
             language: i18n::Locale::English,
             initial_layout: LayoutType::Grid,
             refresh_interval_ms: DEFAULT_REFRESH_INTERVAL_MS,
+            refresh_performance_mode: RefreshPerformanceMode::Balanced,
             minimize_to_tray: true,
             close_to_tray: true,
             preserve_aspect_ratio: false,
@@ -762,6 +937,7 @@ impl AppSettings {
             .position(|interval| *interval == current)
             .map_or(0, |index| (index + 1) % REFRESH_INTERVALS_MS.len());
         self.refresh_interval_ms = REFRESH_INTERVALS_MS[next_index];
+        self.refresh_performance_mode = RefreshPerformanceMode::Manual;
     }
 
     /// Return a human-friendly refresh-interval label.
@@ -777,6 +953,22 @@ impl AppSettings {
         } else {
             format!("{:.1}s", f64::from(interval) / 1_000.0)
         }
+    }
+
+    /// Return a human-friendly global refresh mode label.
+    #[must_use]
+    pub fn refresh_performance_mode_label(&self) -> &'static str {
+        i18n::t(self.refresh_performance_mode.translation_key())
+    }
+
+    /// Return a compact status label combining mode and effective interval.
+    #[must_use]
+    pub fn refresh_status_label(&self) -> String {
+        format!(
+            "{} · {}",
+            self.refresh_performance_mode_label(),
+            self.refresh_interval_label()
+        )
     }
 
     /// Returns `true` when the application identified by `app_id` is hidden.
@@ -1161,11 +1353,15 @@ impl AppSettings {
         reason = "normalization intentionally centralizes migration/clamping logic in one place"
     )]
     pub fn normalized(&self) -> Self {
-        let refresh_interval_ms = REFRESH_INTERVALS_MS
+        let normalized_interval_ms = REFRESH_INTERVALS_MS
             .iter()
             .copied()
             .find(|interval| *interval == self.refresh_interval_ms)
             .unwrap_or(DEFAULT_REFRESH_INTERVAL_MS);
+        let refresh_interval_ms = self
+            .refresh_performance_mode
+            .fixed_interval_ms()
+            .unwrap_or(normalized_interval_ms);
 
         let mut app_rules = self.app_rules.clone();
         app_rules.retain(|app_id, _| !app_id.trim().is_empty());
@@ -1226,6 +1422,7 @@ impl AppSettings {
             language: self.language,
             initial_layout: self.initial_layout,
             refresh_interval_ms,
+            refresh_performance_mode: self.refresh_performance_mode,
             minimize_to_tray: self.minimize_to_tray,
             close_to_tray: self.close_to_tray,
             preserve_aspect_ratio: self.preserve_aspect_ratio,
@@ -1576,8 +1773,8 @@ mod tests {
     use super::{
         normalize_global_hotkey_binding, normalize_shortcut_binding, parse_global_hotkey_binding,
         validate_profile_name_input, AppRule, AppSettings, BackgroundImageFit, GlobalHotkeyBinding,
-        GlobalHotkeyKey, HiddenAppEntry, ProfileNameValidation, ShortcutBindings, TagStyle,
-        ThemeColorOverrides, ThumbnailRefreshMode, ToolbarPosition,
+        GlobalHotkeyKey, HiddenAppEntry, ProfileNameValidation, RefreshPerformanceMode,
+        ShortcutBindings, TagStyle, ThemeColorOverrides, ThumbnailRefreshMode, ToolbarPosition,
     };
     use crate::layout::LayoutType;
 
@@ -1587,6 +1784,7 @@ mod tests {
             language: crate::i18n::Locale::English,
             initial_layout: LayoutType::Bento,
             refresh_interval_ms: 5_000,
+            refresh_performance_mode: RefreshPerformanceMode::Manual,
             minimize_to_tray: false,
             close_to_tray: true,
             preserve_aspect_ratio: true,
@@ -1643,6 +1841,7 @@ mod tests {
             language: crate::i18n::Locale::English,
             initial_layout: LayoutType::Columns,
             refresh_interval_ms: 777,
+            refresh_performance_mode: RefreshPerformanceMode::Manual,
             minimize_to_tray: true,
             close_to_tray: false,
             preserve_aspect_ratio: false,
@@ -2119,6 +2318,38 @@ mod tests {
         assert_eq!(normalize_shortcut_binding("q", "X"), "Q");
         assert_eq!(normalize_shortcut_binding("", "X"), "X");
         assert_eq!(normalize_shortcut_binding("ctrl+t", "X"), "X");
+    }
+
+    #[test]
+    fn shortcut_conflicts_detect_duplicate_dashboard_bindings() {
+        let mut shortcuts = ShortcutBindings::default();
+        shortcuts.layout_grid = "H".to_owned();
+        shortcuts.toggle_toolbar = "H".to_owned();
+
+        let conflicts = shortcuts.dashboard_conflicts();
+
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].0, "H");
+        assert!(conflicts[0]
+            .1
+            .contains(&crate::i18n::t("settings.shortcut.layout_grid.title")));
+        assert!(conflicts[0]
+            .1
+            .contains(&crate::i18n::t("settings.shortcut.toggle_toolbar.title")));
+    }
+
+    #[test]
+    fn shortcut_conflict_banner_returns_summary_and_detail() {
+        let mut shortcuts = ShortcutBindings::default();
+        shortcuts.layout_grid = "R".to_owned();
+        shortcuts.refresh_now = "R".to_owned();
+
+        let banner = shortcuts.conflict_banner();
+
+        assert!(banner.is_some());
+        let (summary, detail) = banner.expect("banner should exist");
+        assert!(summary.contains("conflict"));
+        assert!(detail.contains("R:"));
     }
 
     #[test]

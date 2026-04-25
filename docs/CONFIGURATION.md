@@ -29,6 +29,7 @@ Panopticon stores its preferences in local TOML files. There is no database or r
 language = "english"
 initial_layout = "grid"
 refresh_interval_ms = 2000
+refresh_performance_mode = "balanced"
 minimize_to_tray = true
 close_to_tray = true
 preserve_aspect_ratio = false
@@ -84,6 +85,7 @@ toggle_window_info = "I"
 toggle_always_on_top = "P"
 open_settings = "O"
 open_menu = "M"
+open_command_palette = "K"
 global_activate = "Ctrl+Alt+P"
 refresh_now = "R"
 exit_app = "Esc"
@@ -116,6 +118,7 @@ row_ratios = [0.4, 0.6]
 | `language` | `Locale` | `English` | selects the application UI language | supported values: `english`, `spanish`; `PANOPTICON_LANG` can override it at runtime |
 | `initial_layout` | `LayoutType` | `Grid` | active layout at startup | also updated when changing layout at runtime |
 | `refresh_interval_ms` | `u32` | `2000` | frequency of `refresh_windows()` | normalised to `1000`, `2000`, `5000`, or `10000` |
+| `refresh_performance_mode` | `RefreshPerformanceMode` | `balanced` | high-level refresh profile for global discovery cadence | `realtime`→`1000`, `balanced`→`2000`, `battery-saver`→`5000`, `manual` keeps `refresh_interval_ms` |
 | `minimize_to_tray` | `bool` | `true` | minimise hides the app to tray | affects `WM_SIZE` |
 | `close_to_tray` | `bool` | `true` | close hides the app to tray | affects `WM_CLOSE` |
 | `preserve_aspect_ratio` | `bool` | `false` | global default for thumbnails | can be overridden per app |
@@ -173,6 +176,7 @@ toggle_window_info = "I"
 toggle_always_on_top = "P"
 open_settings = "O"
 open_menu = "M"
+open_command_palette = "K"
 global_activate = "Ctrl+Alt+P"
 refresh_now = "R"
 exit_app = "Esc"
@@ -306,6 +310,7 @@ Panopticon supports separate per-file profiles.
 Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 
 - refresh intervals outside the allowed set;
+- fixed refresh mode mappings (`realtime`, `balanced`, `battery-saver`) override the explicit interval with their canonical cadence;
 - empty filters;
 - empty or duplicate tags;
 - invalid hex colours;
