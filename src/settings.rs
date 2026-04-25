@@ -48,7 +48,7 @@ const DEFAULT_SHORTCUT_OPEN_COMMAND_PALETTE: &str = "K";
 const DEFAULT_SHORTCUT_GLOBAL_ACTIVATE: &str = "Ctrl+Alt+P";
 const DEFAULT_SHORTCUT_REFRESH: &str = "R";
 const DEFAULT_SHORTCUT_EXIT: &str = "Esc";
-const INVALID_PROFILE_NAME_CHARACTERS: [char; 9] = [':', '"', '<', '>', '|', '?', '*', '/', '\\'];
+const INVALID_WORKSPACE_NAME_CHARACTERS: [char; 9] = [':', '"', '<', '>', '|', '?', '*', '/', '\\'];
 
 const fn default_true() -> bool {
     true
@@ -114,12 +114,12 @@ impl GlobalHotkeyBinding {
     }
 }
 
-/// Validation result for an interactively supplied profile name.
+/// Validation result for an interactively supplied workspace name.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProfileNameValidation {
+pub enum WorkspaceNameValidation {
     /// Input was blank after trimming surrounding whitespace.
     Empty,
-    /// Input is valid and can be stored as a profile filename.
+    /// Input is valid and can be stored as a workspace filename.
     Valid(String),
     /// Input contains characters that Windows filenames cannot represent.
     Invalid(String),
@@ -832,66 +832,68 @@ impl AppSettings {
         self.layout_customizations.remove(layout.storage_key());
     }
 
-    /// Resolve the on-disk settings path for a given instance profile.
+    /// Resolve the on-disk settings path for a given instance workspace.
     #[must_use]
-    pub fn path_for(profile: Option<&str>) -> PathBuf {
+    pub fn path_for(workspace: Option<&str>) -> PathBuf {
         let base_dir = std::env::var_os("APPDATA")
             .map_or_else(|| std::env::temp_dir().join("Panopticon"), PathBuf::from);
         let base = base_dir.join("Panopticon");
-        match profile.filter(|p| !p.trim().is_empty()) {
-            Some(name) => base.join("profiles").join(format!("{}.toml", name.trim())),
+        match workspace.filter(|p| !p.trim().is_empty()) {
+            Some(name) => base
+                .join("workspaces")
+                .join(format!("{}.toml", name.trim())),
             None => base.join("settings.toml"),
         }
     }
 
-    /// Resolve the on-disk settings path (default profile).
+    /// Resolve the on-disk settings path (default workspace).
     #[must_use]
     pub fn path() -> PathBuf {
         Self::path_for(None)
     }
 
-    /// Return known saved profile names discovered on disk.
+    /// Return known saved workspace names discovered on disk.
     ///
     /// # Errors
     ///
-    /// Returns an error if the profile directory exists but cannot be enumerated.
-    pub fn list_profiles() -> Result<Vec<String>> {
-        let profiles_dir = Self::path_for(Some("sample"))
+    /// Returns an error if the workspace directory exists but cannot be enumerated.
+    pub fn list_workspaces() -> Result<Vec<String>> {
+        let workspaces_dir = Self::path_for(Some("sample"))
             .parent()
-            .map_or_else(|| Self::path().with_file_name("profiles"), PathBuf::from);
+            .map_or_else(|| Self::path().with_file_name("workspaces"), PathBuf::from);
 
-        if !profiles_dir.exists() {
+        if !workspaces_dir.exists() {
             return Ok(Vec::new());
         }
 
-        let mut profiles = Vec::new();
-        for entry in std::fs::read_dir(profiles_dir)? {
+        let mut workspaces = Vec::new();
+        for entry in std::fs::read_dir(workspaces_dir)? {
             let entry = entry?;
             let path = entry.path();
             if path.extension().and_then(|ext| ext.to_str()) != Some("toml") {
                 continue;
             }
             if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
-                if let Some(profile) = normalize_profile_name(stem) {
-                    profiles.push(profile);
+                if let Some(workspace) = normalize_workspace_name(stem) {
+                    workspaces.push(workspace);
                 }
             }
         }
-        profiles.sort();
-        profiles.dedup();
-        Ok(profiles)
+        workspaces.sort();
+        workspaces.dedup();
+        Ok(workspaces)
     }
 
-    /// Return all profile labels, always including the implicit `default` one.
+    /// Return all workspace labels, always including the implicit `default` one.
     ///
     /// # Errors
     ///
-    /// Returns an error when the named-profile directory cannot be enumerated.
-    pub fn list_profiles_with_default() -> Result<Vec<String>> {
-        let mut profiles = Self::list_profiles()?;
-        profiles.insert(0, "default".to_owned());
-        profiles.dedup();
-        Ok(profiles)
+    /// Returns an error when the named-workspace directory cannot be enumerated.
+    pub fn list_workspaces_with_default() -> Result<Vec<String>> {
+        let mut workspaces = Self::list_workspaces()?;
+        workspaces.insert(0, "default".to_owned());
+        workspaces.dedup();
+        Ok(workspaces)
     }
 
     /// Load settings from disk, returning defaults if the file does not exist.
@@ -899,8 +901,8 @@ impl AppSettings {
     /// # Errors
     ///
     /// Returns an error if the file exists but cannot be read or parsed.
-    pub fn load_or_default(profile: Option<&str>) -> Result<Self> {
-        let path = Self::path_for(profile);
+    pub fn load_or_default(workspace: Option<&str>) -> Result<Self> {
+        let path = Self::path_for(workspace);
         if !path.exists() {
             return Ok(Self::default());
         }
@@ -917,8 +919,8 @@ impl AppSettings {
     ///
     /// Returns an error if the settings directory cannot be created or if the
     /// TOML payload cannot be serialized.
-    pub fn save(&self, profile: Option<&str>) -> Result<()> {
-        let path = Self::path_for(profile);
+    pub fn save(&self, workspace: Option<&str>) -> Result<()> {
+        let path = Self::path_for(workspace);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -1452,7 +1454,7 @@ impl AppSettings {
                 self.dock_row_thickness,
                 MIN_DOCK_ROW_THICKNESS,
             ),
-            theme_id: self.theme_id.as_deref().and_then(normalize_profile_name),
+            theme_id: self.theme_id.as_deref().and_then(normalize_workspace_name),
             background_color_hex: normalize_color_hex(&self.background_color_hex)
                 .unwrap_or_else(|| DEFAULT_BACKGROUND_COLOR_HEX.to_owned()),
             theme_color_overrides: self.theme_color_overrides.normalized(),
@@ -1546,21 +1548,21 @@ fn normalize_filter_value(value: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
 }
 
-fn is_invalid_profile_name_character(character: char) -> bool {
-    character.is_control() || INVALID_PROFILE_NAME_CHARACTERS.contains(&character)
+fn is_invalid_workspace_name_character(character: char) -> bool {
+    character.is_control() || INVALID_WORKSPACE_NAME_CHARACTERS.contains(&character)
 }
 
-fn invalid_profile_name_characters(value: &str) -> Vec<char> {
+fn invalid_workspace_name_characters(value: &str) -> Vec<char> {
     let mut invalid = Vec::new();
     for character in value.chars() {
-        if is_invalid_profile_name_character(character) && !invalid.contains(&character) {
+        if is_invalid_workspace_name_character(character) && !invalid.contains(&character) {
             invalid.push(character);
         }
     }
     invalid
 }
 
-fn format_profile_name_character(character: char) -> String {
+fn format_workspace_name_character(character: char) -> String {
     if character.is_control() {
         format!("U+{:04X}", u32::from(character))
     } else {
@@ -1568,38 +1570,38 @@ fn format_profile_name_character(character: char) -> String {
     }
 }
 
-/// Validate a user-supplied profile name before it is used as a settings file stem.
+/// Validate a user-supplied workspace name before it is used as a settings file stem.
 #[must_use]
-pub fn validate_profile_name_input(value: &str) -> ProfileNameValidation {
+pub fn validate_workspace_name_input(value: &str) -> WorkspaceNameValidation {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return ProfileNameValidation::Empty;
+        return WorkspaceNameValidation::Empty;
     }
 
-    let invalid = invalid_profile_name_characters(trimmed);
+    let invalid = invalid_workspace_name_characters(trimmed);
     if !invalid.is_empty() {
         let invalid_chars = invalid
             .into_iter()
-            .map(format_profile_name_character)
+            .map(format_workspace_name_character)
             .collect::<Vec<_>>()
             .join(", ");
-        return ProfileNameValidation::Invalid(i18n::t_fmt(
-            "settings.profile_invalid_chars",
+        return WorkspaceNameValidation::Invalid(i18n::t_fmt(
+            "settings.workspace_invalid_chars",
             &invalid_chars,
         ));
     }
 
-    match normalize_profile_name(trimmed) {
-        Some(profile_name) => ProfileNameValidation::Valid(profile_name),
-        None => ProfileNameValidation::Empty,
+    match normalize_workspace_name(trimmed) {
+        Some(workspace_name) => WorkspaceNameValidation::Valid(workspace_name),
+        None => WorkspaceNameValidation::Empty,
     }
 }
 
 #[must_use]
-pub fn normalize_profile_name(value: &str) -> Option<String> {
+pub fn normalize_workspace_name(value: &str) -> Option<String> {
     let sanitized = value
         .chars()
-        .filter(|character| !is_invalid_profile_name_character(*character))
+        .filter(|character| !is_invalid_workspace_name_character(*character))
         .collect::<String>();
 
     normalize_filter_value(&sanitized)
@@ -1772,9 +1774,10 @@ fn derive_tag_from_label(label: &str) -> Option<String> {
 mod tests {
     use super::{
         normalize_global_hotkey_binding, normalize_shortcut_binding, parse_global_hotkey_binding,
-        validate_profile_name_input, AppRule, AppSettings, BackgroundImageFit, GlobalHotkeyBinding,
-        GlobalHotkeyKey, HiddenAppEntry, ProfileNameValidation, RefreshPerformanceMode,
+        validate_workspace_name_input, AppRule, AppSettings, BackgroundImageFit,
+        GlobalHotkeyBinding, GlobalHotkeyKey, HiddenAppEntry, RefreshPerformanceMode,
         ShortcutBindings, TagStyle, ThemeColorOverrides, ThumbnailRefreshMode, ToolbarPosition,
+        WorkspaceNameValidation,
     };
     use crate::layout::LayoutType;
 
@@ -2396,22 +2399,22 @@ mod tests {
     }
 
     #[test]
-    fn profile_name_validation_distinguishes_blank_valid_and_invalid_input() {
+    fn workspace_name_validation_distinguishes_blank_valid_and_invalid_input() {
         assert_eq!(
-            validate_profile_name_input("  work  "),
-            ProfileNameValidation::Valid("work".to_owned())
+            validate_workspace_name_input("  work  "),
+            WorkspaceNameValidation::Valid("work".to_owned())
         );
         assert_eq!(
-            validate_profile_name_input("   "),
-            ProfileNameValidation::Empty
+            validate_workspace_name_input("   "),
+            WorkspaceNameValidation::Empty
         );
         assert!(matches!(
-            validate_profile_name_input("ops?board"),
-            ProfileNameValidation::Invalid(ref reason) if reason.contains('?')
+            validate_workspace_name_input("ops?board"),
+            WorkspaceNameValidation::Invalid(ref reason) if reason.contains('?')
         ));
         assert!(matches!(
-            validate_profile_name_input("ops\u{0007}board"),
-            ProfileNameValidation::Invalid(ref reason) if reason.contains("U+0007")
+            validate_workspace_name_input("ops\u{0007}board"),
+            WorkspaceNameValidation::Invalid(ref reason) if reason.contains("U+0007")
         ));
     }
 }

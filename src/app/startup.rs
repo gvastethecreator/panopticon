@@ -14,21 +14,21 @@ const RUN_SUBKEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const STARTUP_VALUE_NAME: &str = "Panopticon";
 
 /// Synchronize the Windows logon entry with the persisted setting.
-pub(crate) fn sync_run_at_startup(enabled: bool, profile_name: Option<&str>) {
+pub(crate) fn sync_run_at_startup(enabled: bool, workspace_name: Option<&str>) {
     let result = if enabled {
-        register_run_at_startup(profile_name)
+        register_run_at_startup(workspace_name)
     } else {
         unregister_run_at_startup()
     };
 
     if let Err(error) = result {
-        tracing::warn!(%error, enabled, profile = ?profile_name, "failed to sync run-at-startup state");
+        tracing::warn!(%error, enabled, workspace = ?workspace_name, "failed to sync run-at-startup state");
     }
 }
 
-fn register_run_at_startup(profile_name: Option<&str>) -> Result<()> {
+fn register_run_at_startup(workspace_name: Option<&str>) -> Result<()> {
     let executable = std::env::current_exe().context("resolve current executable path")?;
-    let command = startup_command_for_path(&executable, profile_name);
+    let command = startup_command_for_path(&executable, workspace_name);
     let value_name = encode_wide(STARTUP_VALUE_NAME);
     let subkey = encode_wide(RUN_SUBKEY);
     let value_data = encode_wide(&command);
@@ -71,11 +71,11 @@ fn unregister_run_at_startup() -> Result<()> {
     }
 }
 
-fn startup_command_for_path(executable: &Path, profile_name: Option<&str>) -> String {
+fn startup_command_for_path(executable: &Path, workspace_name: Option<&str>) -> String {
     let mut command = quote_argument(&executable.display().to_string());
-    if let Some(profile_name) = profile_name.filter(|value| !value.trim().is_empty()) {
-        command.push_str(" --profile ");
-        command.push_str(&quote_argument(profile_name));
+    if let Some(workspace_name) = workspace_name.filter(|value| !value.trim().is_empty()) {
+        command.push_str(" --workspace ");
+        command.push_str(&quote_argument(workspace_name));
     }
     command
 }
@@ -90,7 +90,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn startup_command_quotes_executable_and_omits_default_profile() {
+    fn startup_command_quotes_executable_and_omits_default_workspace() {
         let command =
             startup_command_for_path(Path::new(r"C:\Apps\Panopticon\panopticon.exe"), None);
 
@@ -98,7 +98,7 @@ mod tests {
     }
 
     #[test]
-    fn startup_command_includes_profile_argument_when_present() {
+    fn startup_command_includes_workspace_argument_when_present() {
         let command = startup_command_for_path(
             Path::new(r"C:\Apps\Panopticon\panopticon.exe"),
             Some("focus board"),
@@ -106,7 +106,7 @@ mod tests {
 
         assert_eq!(
             command,
-            r#""C:\Apps\Panopticon\panopticon.exe" --profile "focus board""#
+            r#""C:\Apps\Panopticon\panopticon.exe" --workspace "focus board""#
         );
     }
 }

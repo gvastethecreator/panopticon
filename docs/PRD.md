@@ -133,15 +133,15 @@ The product must:
 - allow creating and assigning manual tags from the UI;
 - associate colours with tags and specific applications.
 
-### 5.6. Persistence and profiles
+### 5.6. Persistence and workspaces
 
 The product must:
 
 - save global configuration and per-app rules in TOML;
-- support multiple profiles via `--profile <name>`;
-- allow saving a profile from the settings window;
-- allow opening another instance using a different profile;
-- seed default profiles if none exist.
+- support multiple workspaces via `--workspace <name>`;
+- allow saving a workspace from the settings window;
+- allow opening another instance using a different workspace;
+- seed default workspaces if none exist.
 
 ### 5.7. Tray utility and lifecycle
 
@@ -169,7 +169,7 @@ The product must:
 
 - ship with English as the default UI language;
 - support Spanish as a bundled alternative locale;
-- persist the selected language per profile;
+- persist the selected language per workspace;
 - allow the current process to override the saved locale via `PANOPTICON_LANG`.
 
 ### 5.10. Dock / appbar

@@ -62,8 +62,8 @@ const CMD_TRAY_TOGGLE_START_IN_TRAY: u16 = 17;
 const CMD_TRAY_TOGGLE_LOCKED_LAYOUT: u16 = 18;
 const CMD_TRAY_TOGGLE_LOCK_CELL_RESIZE: u16 = 19;
 const CMD_TRAY_OPEN_ABOUT: u16 = 20;
-const CMD_TRAY_LOAD_DEFAULT_PROFILE: u16 = 30;
-const CMD_TRAY_LOAD_PROFILE_BASE: u16 = 40;
+const CMD_TRAY_LOAD_DEFAULT_WORKSPACE: u16 = 30;
+const CMD_TRAY_LOAD_WORKSPACE_BASE: u16 = 40;
 
 /// Snapshot of UI preferences needed to render the tray menu.
 #[derive(Debug, Clone)]
@@ -117,10 +117,10 @@ pub struct TrayMenuState {
     pub lock_cell_resize: bool,
     /// Preferred grouping mode for ordering visible windows.
     pub group_windows_by: WindowGrouping,
-    /// Active profile label (`None` = default profile).
-    pub current_profile: Option<String>,
-    /// Profiles that can be loaded into the current instance.
-    pub available_profiles: Vec<String>,
+    /// Active workspace label (`None` = default workspace).
+    pub current_workspace: Option<String>,
+    /// Workspaces that can be loaded into the current instance.
+    pub available_workspaces: Vec<String>,
 }
 
 /// Commands emitted by the tray icon.
@@ -176,8 +176,8 @@ pub enum TrayAction {
     OpenSettingsWindow,
     /// Open the About window.
     OpenAboutWindow,
-    /// Load another saved profile into the current instance.
-    LoadProfile(Option<String>),
+    /// Load another saved workspace into the current instance.
+    LoadWorkspace(Option<String>),
     /// Exit the application.
     Exit,
 }
@@ -515,8 +515,8 @@ pub fn show_application_context_menu_at(
         let group_class_name = encode_wide(i18n::t("group.class"));
         let restore_hidden_title = encode_wide(i18n::t("tray.restore_hidden"));
         let restore_all_hidden = encode_wide(i18n::t("tray.restore_all"));
-        let profiles_title = encode_wide(i18n::t("tray.profiles"));
-        let default_profile = encode_wide(i18n::t("tray.profile_default"));
+        let workspaces_title = encode_wide(i18n::t("tray.workspaces"));
+        let default_workspace = encode_wide(i18n::t("tray.workspace_default"));
         let monitor_filter_title = encode_wide(i18n::t("tray.filter_monitor"));
         let monitor_all = encode_wide(i18n::t("tray.all_monitors"));
         let tag_filter_title = encode_wide(i18n::t("tray.filter_tag"));
@@ -529,14 +529,15 @@ pub fn show_application_context_menu_at(
         let mut monitor_labels: Vec<Vec<u16>> = Vec::with_capacity(state.available_monitors.len());
         let mut tag_labels: Vec<Vec<u16>> = Vec::with_capacity(state.available_tags.len());
         let mut app_labels: Vec<Vec<u16>> = Vec::with_capacity(state.available_apps.len());
-        let mut profile_labels: Vec<Vec<u16>> = Vec::with_capacity(state.available_profiles.len());
+        let mut workspace_labels: Vec<Vec<u16>> =
+            Vec::with_capacity(state.available_workspaces.len());
         let mut restore_actions: Vec<(u16, String)> = Vec::with_capacity(state.hidden_apps.len());
         let mut monitor_actions: Vec<(u16, String)> =
             Vec::with_capacity(state.available_monitors.len());
         let mut tag_actions: Vec<(u16, String)> = Vec::with_capacity(state.available_tags.len());
         let mut app_actions: Vec<(u16, String)> = Vec::with_capacity(state.available_apps.len());
-        let mut profile_actions: Vec<(u16, String)> =
-            Vec::with_capacity(state.available_profiles.len());
+        let mut workspace_actions: Vec<(u16, String)> =
+            Vec::with_capacity(state.available_workspaces.len());
 
         let _ = AppendMenuW(
             menu,
@@ -569,42 +570,43 @@ pub fn show_application_context_menu_at(
             PCWSTR(open_about.as_ptr()),
         );
 
-        if !state.available_profiles.is_empty() {
-            let profiles_menu = CreatePopupMenu().ok()?;
+        if !state.available_workspaces.is_empty() {
+            let workspaces_menu = CreatePopupMenu().ok()?;
             let _ = AppendMenuW(
-                profiles_menu,
-                MF_STRING | checked_flag(state.current_profile.is_none()),
-                CMD_TRAY_LOAD_DEFAULT_PROFILE as usize,
-                PCWSTR(default_profile.as_ptr()),
+                workspaces_menu,
+                MF_STRING | checked_flag(state.current_workspace.is_none()),
+                CMD_TRAY_LOAD_DEFAULT_WORKSPACE as usize,
+                PCWSTR(default_workspace.as_ptr()),
             );
 
-            for (index, profile) in state.available_profiles.iter().enumerate() {
-                if profile.eq_ignore_ascii_case("default") {
+            for (index, workspace) in state.available_workspaces.iter().enumerate() {
+                if workspace.eq_ignore_ascii_case("default") {
                     continue;
                 }
-                let Some(command_id) = CMD_TRAY_LOAD_PROFILE_BASE.checked_add(index as u16) else {
+                let Some(command_id) = CMD_TRAY_LOAD_WORKSPACE_BASE.checked_add(index as u16)
+                else {
                     break;
                 };
-                profile_labels.push(encode_wide(profile));
-                if let Some(label) = profile_labels.last() {
+                workspace_labels.push(encode_wide(workspace));
+                if let Some(label) = workspace_labels.last() {
                     let _ = AppendMenuW(
-                        profiles_menu,
+                        workspaces_menu,
                         MF_STRING
                             | checked_flag(
-                                state.current_profile.as_deref() == Some(profile.as_str()),
+                                state.current_workspace.as_deref() == Some(workspace.as_str()),
                             ),
                         command_id as usize,
                         PCWSTR(label.as_ptr()),
                     );
                 }
-                profile_actions.push((command_id, profile.clone()));
+                workspace_actions.push((command_id, workspace.clone()));
             }
 
             let _ = AppendMenuW(
                 menu,
                 MF_POPUP,
-                profiles_menu.0 as usize,
-                PCWSTR(profiles_title.as_ptr()),
+                workspaces_menu.0 as usize,
+                PCWSTR(workspaces_title.as_ptr()),
             );
         }
 
@@ -1009,7 +1011,7 @@ pub fn show_application_context_menu_at(
             CMD_TRAY_TOGGLE_LOCK_CELL_RESIZE => Some(TrayAction::ToggleLockCellResize),
             CMD_TRAY_OPEN_SETTINGS => Some(TrayAction::OpenSettingsWindow),
             CMD_TRAY_OPEN_ABOUT => Some(TrayAction::OpenAboutWindow),
-            CMD_TRAY_LOAD_DEFAULT_PROFILE => Some(TrayAction::LoadProfile(None)),
+            CMD_TRAY_LOAD_DEFAULT_WORKSPACE => Some(TrayAction::LoadWorkspace(None)),
             CMD_TRAY_DOCK_NONE => Some(TrayAction::SetDockEdge(None)),
             CMD_TRAY_DOCK_LEFT => Some(TrayAction::SetDockEdge(Some(DockEdge::Left))),
             CMD_TRAY_DOCK_RIGHT => Some(TrayAction::SetDockEdge(Some(DockEdge::Right))),
@@ -1047,11 +1049,11 @@ pub fn show_application_context_menu_at(
                     })
                 })
                 .or_else(|| {
-                    profile_actions
+                    workspace_actions
                         .into_iter()
-                        .find_map(|(command_id, profile)| {
+                        .find_map(|(command_id, workspace)| {
                             (dynamic == command_id)
-                                .then_some(TrayAction::LoadProfile(Some(profile)))
+                                .then_some(TrayAction::LoadWorkspace(Some(workspace)))
                         })
                 })
                 .or_else(|| {

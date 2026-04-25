@@ -4,23 +4,23 @@ Panopticon stores its preferences in local TOML files. There is no database or r
 
 ## Configuration locations
 
-### Default profile
+### Default workspace
 
 ```text
 %APPDATA%\Panopticon\settings.toml
 ```
 
-### Named profiles
+### Named workspaces
 
 ```text
-%APPDATA%\Panopticon\profiles\<profile>.toml
+%APPDATA%\Panopticon\workspaces\<workspace>.toml
 ```
 
 ### Fallback if `%APPDATA%` does not exist
 
 ```text
 %TEMP%\Panopticon\settings.toml
-%TEMP%\Panopticon\profiles\<profile>.toml
+%TEMP%\Panopticon\workspaces\<workspace>.toml
 ```
 
 ## General schema
@@ -118,7 +118,7 @@ row_ratios = [0.4, 0.6]
 | `language` | `Locale` | `English` | selects the application UI language | supported values: `english`, `spanish`; `PANOPTICON_LANG` can override it at runtime |
 | `initial_layout` | `LayoutType` | `Grid` | active layout at startup | also updated when changing layout at runtime |
 | `refresh_interval_ms` | `u32` | `2000` | frequency of `refresh_windows()` | normalised to `1000`, `2000`, `5000`, or `10000` |
-| `refresh_performance_mode` | `RefreshPerformanceMode` | `balanced` | high-level refresh profile for global discovery cadence | `realtime`→`1000`, `balanced`→`2000`, `battery-saver`→`5000`, `manual` keeps `refresh_interval_ms` |
+| `refresh_performance_mode` | `RefreshPerformanceMode` | `balanced` | high-level refresh preset for global discovery cadence | `realtime`→`1000`, `balanced`→`2000`, `battery-saver`→`5000`, `manual` keeps `refresh_interval_ms` |
 | `minimize_to_tray` | `bool` | `true` | minimise hides the app to tray | affects `WM_SIZE` |
 | `close_to_tray` | `bool` | `true` | close hides the app to tray | affects `WM_CLOSE` |
 | `preserve_aspect_ratio` | `bool` | `false` | global default for thumbnails | can be overridden per app |
@@ -193,7 +193,7 @@ Important notes:
 
 ## Language and locale
 
-- `language = "english"` is the persisted default for every new or migrated profile;
+- `language = "english"` is the persisted default for every new or migrated workspace;
 - `language = "spanish"` switches the full Slint UI, native dialogs, tray tooltip, and runtime labels to Spanish;
 - the optional `PANOPTICON_LANG` environment variable (`en`, `es`, `en-US`, `es-MX`, etc.) takes precedence over the saved value for the current process only.
 
@@ -291,19 +291,19 @@ Notes:
 - `Row` and `Column` persist per-item ratios on the scrollable axis.
 - `Fibonacci` does not use persistent separator customisation.
 
-## Profiles
+## Workspaces
 
-Panopticon supports separate per-file profiles.
+Panopticon supports separate per-file workspaces.
 
 ### How they work
 
-- the app can start with `--profile <name>`;
-- the CLI also accepts `--profile=<name>` for the same behaviour;
+- the app can start with `--workspace <name>`;
+- the CLI also accepts `--workspace=<name>` for the same behaviour;
 - `--help` prints the available startup flags and `--version` prints the current app version;
-- interactive profile names must be valid Windows filename stems, so avoid `<>:"/\\|?*` and control characters;
-- the settings window allows saving the current state to another profile;
-- it also allows opening another instance with a different profile;
-- if no extra profiles exist, the runtime seeds `profile-1` and `profile-2`.
+- interactive workspace names must be valid Windows filename stems, so avoid `<>:"/\\|?*` and control characters;
+- the settings window allows saving the current state to another workspace;
+- it also allows opening another instance with a different workspace;
+- if no extra workspaces exist, the runtime seeds `workspace-1` and `workspace-2`.
 
 ## Automatic normalisation
 
@@ -316,7 +316,7 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 - invalid hex colours;
 - floating/dock dimensions lower than the configured safe minimums;
 - unsupported shortcut bindings (including multi-key expressions);
-- profile names not valid for Windows;
+- workspace names not valid for Windows;
 - rules with an empty `app_id`;
 - orphaned tag styles;
 - legacy inherited per-app copies of `preserve_aspect_ratio` and `hide_on_select`, so old global defaults do not stay pinned unless an explicit `*_override` exists.
@@ -340,5 +340,5 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 ### Themes
 
 - `theme_id = None` uses the classic theme;
-- new profiles start with `theme_id = "campbell"` and a matching `background_color_hex = "0C0C0C"`;
+- new workspaces start with `theme_id = "campbell"` and a matching `background_color_hex = "0C0C0C"`;
 - if `theme_id` does not exist in `assets/themes.json`, the runtime falls back to the classic theme.

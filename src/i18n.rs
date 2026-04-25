@@ -153,8 +153,10 @@ fn en(key: &str) -> &'static str {
         "tray.refresh" => "Refresh windows",
         "tray.open_settings" => "Open settings window",
         "tray.open_about" => "About Panopticon",
-        "tray.profiles" => "Profiles",
+        "tray.profiles" => "Workspaces",
         "tray.profile_default" => "default",
+        "tray.workspaces" => "Workspaces",
+        "tray.workspace_default" => "default",
         "tray.layout" => "Layout",
         "tray.next_layout" => "Next layout",
         "tray.lock_layout" => "Lock layout switching",
@@ -227,9 +229,9 @@ fn en(key: &str) -> &'static str {
         "settings.default_profile" => "default",
         "settings.saved_profiles" => "Saved workspaces: default",
         "settings.saved_profiles_fmt" => "Saved workspaces: default, {}",
-        "settings.current_profile" => "Current profile: ",
-        "settings.profile_label" => "Profile:",
-        "settings.save_profile" => "Save profile",
+        "settings.current_profile" => "Current workspace: ",
+        "settings.profile_label" => "Workspace:",
+        "settings.save_profile" => "Save workspace",
         "settings.open_instance" => "Open another instance",
         "settings.no_hidden_hint" => "No hidden apps to restore right now.",
         "settings.no_hidden" => "No hidden apps",
@@ -354,6 +356,68 @@ fn en(key: &str) -> &'static str {
         "settings.section.hidden_apps.helper" => {
             "Restore hidden apps one by one or all at once from persisted state."
         }
+        "settings.section.app_rules.title" => "App Rules Manager",
+        "settings.section.app_rules.helper" => {
+            "Edit per-app rules for visibility, aspect ratio, hide-on-select, refresh mode, tags, and color."
+        }
+        "settings.option.app_rules.app.title" => "Application",
+        "settings.option.app_rules.app.description" => {
+            "Includes running apps and apps with saved rules."
+        }
+        "settings.option.app_rules.search.placeholder" => "Search by app, id, or tags...",
+        "settings.app_rules.filter.all" => "All apps",
+        "settings.app_rules.filter.running" => "Running apps",
+        "settings.app_rules.filter.saved" => "Saved rules only",
+        "settings.app_rules.filter.hidden" => "Hidden apps",
+        "settings.app_rules.filter.tagged" => "Tagged apps",
+        "settings.app_rules.filter.refresh" => "Custom refresh",
+        "settings.app_rules.filter.pinned" => "Pinned apps",
+        "settings.app_rules.active.title" => "Active rule",
+        "settings.app_rules.active.badge" => "APP RULE",
+        "settings.app_rules.hidden.title" => "Hide app in dashboard",
+        "settings.app_rules.hidden.description" => {
+            "When enabled, this app does not appear in the main grid."
+        }
+        "settings.app_rules.preserve_aspect.title" => "Preserve aspect ratio",
+        "settings.app_rules.preserve_aspect.description" => {
+            "Per-app override for the global aspect setting."
+        }
+        "settings.app_rules.hide_on_select.title" => "Hide Panopticon on select",
+        "settings.app_rules.hide_on_select.description" => {
+            "Per-app override for hide-on-select behavior."
+        }
+        "settings.app_rules.refresh_mode.title" => "Thumbnail refresh mode",
+        "settings.app_rules.refresh_mode.description" => "Realtime, Frozen, or Interval.",
+        "settings.app_rules.refresh_mode.realtime" => "Realtime",
+        "settings.app_rules.refresh_mode.frozen" => "Frozen",
+        "settings.app_rules.refresh_mode.interval" => "Interval",
+        "settings.app_rules.interval.title" => "Interval (ms)",
+        "settings.app_rules.interval.description" => {
+            "Applied only when mode is Interval."
+        }
+        "settings.app_rules.tags.title" => "Tags (CSV)",
+        "settings.app_rules.tags.description" => "Example: work, browser, stream",
+        "settings.app_rules.tags.placeholder" => "work, browser",
+        "settings.app_rules.tags.helper" => "Add tags one by one and remove them with a click.",
+        "settings.app_rules.tags.add" => "Add tag",
+        "settings.app_rules.tags.remove_hint" => "Click a chip to remove it.",
+        "settings.app_rules.tags.suggestions_title" => "Quick suggestions",
+        "settings.app_rules.tags.suggestion.work" => "work",
+        "settings.app_rules.tags.suggestion.browser" => "browser",
+        "settings.app_rules.tags.suggestion.dev" => "dev",
+        "settings.app_rules.tags.suggestion.stream" => "stream",
+        "settings.app_rules.color.title" => "Hex color (optional)",
+        "settings.app_rules.color.description" => {
+            "Use RRGGBB format, or empty to clear override."
+        }
+        "settings.app_rules.color.placeholder" => "5CA9FF",
+        "settings.app_rules.apply" => "Apply rule",
+        "settings.app_rules.reset" => "Reset rule",
+        "settings.app_rules.clear_unused" => "Clear inactive rules",
+        "settings.app_rules.no_selection" => "Select an application to edit its rule.",
+        "settings.app_rules.select_option" => "Select application rule…",
+        "settings.app_rules.cleanup.none" => "No inactive rules to clean.",
+        "settings.app_rules.cleanup.count" => "{} inactive rules can be cleaned.",
         "settings.page.theme_background.title" => "Theme & Background",
         "settings.page.theme_background.subtitle" => {
             "Pick a theme preset, fine-tune core colours, and combine it with a custom canvas colour and background image."
@@ -405,34 +469,34 @@ fn en(key: &str) -> &'static str {
         "settings.fit.contain" => "Contain",
         "settings.fit.fill" => "Fill",
         "settings.fit.preserve" => "Preserve",
-        "settings.page.profiles.title" => "Profiles (Workspaces)",
+        "settings.page.profiles.title" => "Workspaces",
         "settings.page.profiles.subtitle" => {
-            "Save complete combinations of settings and open new instances already pointed at the profile you want."
+            "Save complete combinations of settings and open new instances already pointed at the workspace you want."
         }
-        "settings.section.edit_profile.title" => "Edit profile",
+        "settings.section.edit_profile.title" => "Edit workspace",
         "settings.section.edit_profile.helper" => {
             "Use a short, descriptive name to save or open the current snapshot in another instance."
         }
-        "settings.current_profile_card.title" => "Current profile",
-        "settings.option.profile_name.title" => "Profile name",
+        "settings.current_profile_card.title" => "Current workspace",
+        "settings.option.profile_name.title" => "Workspace name",
         "settings.option.profile_name.description" => {
             "Name used to save this setup or launch another instance with it."
         }
         "settings.section.saved_profiles.title" => "Saved workspaces",
         "settings.section.saved_profiles.helper" => {
-            "Summary of detected profiles plus a reminder of the recommended multi-instance workflow."
+            "Summary of detected workspaces plus a reminder of the recommended multi-instance workflow."
         }
         "settings.section.load_profile.title" => "Switch current instance",
         "settings.section.load_profile.helper" => {
-            "Load another saved profile into this running Panopticon window."
+            "Load another saved workspace into this running Panopticon window."
         }
-        "settings.option.available_profile.title" => "Available profiles",
+        "settings.option.available_profile.title" => "Available workspaces",
         "settings.option.available_profile.description" => {
-            "Choose which saved profile this instance should load right now."
+            "Choose which saved workspace this instance should load right now."
         }
         "settings.tips.title" => "Tips",
         "settings.tips.body" => {
-            "- Save the current profile first if you are about to open another instance.\n- Use simple names like work, stream, or review.\n- Theme, background, and shortcut settings travel with the profile."
+            "- Save the current workspace first if you are about to open another instance.\n- Use simple names like work, stream, or review.\n- Theme, background, and shortcut settings travel with the workspace."
         }
         "settings.page.shortcuts.title" => "Keyboard Shortcuts",
         "settings.page.shortcuts.subtitle" => {
@@ -533,6 +597,19 @@ fn en(key: &str) -> &'static str {
         "settings.refresh_mode.balanced" => "Balanced",
         "settings.refresh_mode.battery_saver" => "Battery Saver",
         "settings.refresh_mode.manual" => "Manual",
+        "settings.section.refresh_performance.title" => "Refresh performance mode",
+        "settings.section.refresh_performance.helper" => {
+            "Realtime/Balanced/Battery Saver set cadence automatically. Manual uses the explicit interval below."
+        }
+        "settings.option.refresh_performance_mode.title" => "Refresh performance mode",
+        "settings.option.refresh_performance_mode.description" => {
+            "Global cadence profile for window discovery and refresh."
+        }
+        "settings.refresh_mode.active.title" => "Active mode",
+        "settings.refresh_mode.active.realtime" => "Realtime (1s)",
+        "settings.refresh_mode.active.balanced" => "Balanced (2s)",
+        "settings.refresh_mode.active.battery" => "Battery Saver (5s)",
+        "settings.refresh_mode.active.manual" => "Manual (uses explicit interval)",
         "settings.section.manual_refresh.title" => "Manual refresh",
         "settings.section.manual_refresh.helper" => {
             "Use this section to force a window refresh or to check for updates immediately."
@@ -609,15 +686,23 @@ fn en(key: &str) -> &'static str {
         "settings.profile_invalid_chars" => {
             "Profile name contains invalid Windows filename characters: {}"
         }
+        "settings.workspace_invalid_chars" => {
+            "Workspace name contains invalid Windows filename characters: {}"
+        }
         "settings.profile_empty_name" => "Profile name cannot be empty",
+        "settings.workspace_empty_name" => "Workspace name cannot be empty",
         "cli.usage_heading" => "Usage:",
         "cli.options_heading" => "Options:",
         "cli.profile_option_help" => {
             "Load or create the named profile from %APPDATA%\\Panopticon\\profiles\\<name>.toml"
         }
+        "cli.workspace_option_help" => {
+            "Load or create the named workspace from %APPDATA%\\Panopticon\\workspaces\\<name>.toml"
+        }
         "cli.help_option_help" => "Show this help text",
         "cli.help_option_version" => "Show the current Panopticon version",
         "cli.missing_profile_value" => "Missing value for --profile",
+        "cli.missing_workspace_value" => "Missing value for --workspace",
         "cli.unknown_argument" => "Unknown argument: {}",
 
         // ── Fallback ──
@@ -696,8 +781,10 @@ fn es(key: &str) -> Option<&'static str> {
         "tray.refresh" => "Refrescar ventanas",
         "tray.open_settings" => "Abrir configuración",
         "tray.open_about" => "Acerca de Panopticon",
-        "tray.profiles" => "Perfiles",
+        "tray.profiles" => "Workspaces",
         "tray.profile_default" => "default",
+        "tray.workspaces" => "Workspaces",
+        "tray.workspace_default" => "default",
         "tray.layout" => "Layout",
         "tray.next_layout" => "Siguiente layout",
         "tray.lock_layout" => "Bloquear cambio de layout",
@@ -770,9 +857,9 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.default_profile" => "default",
         "settings.saved_profiles" => "Workspaces guardados: default",
         "settings.saved_profiles_fmt" => "Workspaces guardados: default, {}",
-        "settings.current_profile" => "Perfil actual: ",
-        "settings.profile_label" => "Perfil:",
-        "settings.save_profile" => "Guardar perfil",
+        "settings.current_profile" => "Workspace actual: ",
+        "settings.profile_label" => "Workspace:",
+        "settings.save_profile" => "Guardar workspace",
         "settings.open_instance" => "Abrir otra instancia",
         "settings.no_hidden_hint" => "No hay apps ocultas para restaurar ahora mismo.",
         "settings.no_hidden" => "No hay apps ocultas",
@@ -899,6 +986,68 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.section.hidden_apps.helper" => {
             "Recuperá apps ocultas una a una o de forma masiva desde el estado persistido."
         }
+        "settings.section.app_rules.title" => "Gestor de reglas por app",
+        "settings.section.app_rules.helper" => {
+            "Edita reglas por app para visibilidad, aspecto, ocultar al seleccionar, modo de refresco, tags y color."
+        }
+        "settings.option.app_rules.app.title" => "Aplicación",
+        "settings.option.app_rules.app.description" => {
+            "Incluye apps en ejecución y apps con reglas guardadas."
+        }
+        "settings.option.app_rules.search.placeholder" => "Buscar por app, id o tags...",
+        "settings.app_rules.filter.all" => "Todas las apps",
+        "settings.app_rules.filter.running" => "Apps en ejecución",
+        "settings.app_rules.filter.saved" => "Sólo reglas guardadas",
+        "settings.app_rules.filter.hidden" => "Apps ocultas",
+        "settings.app_rules.filter.tagged" => "Apps etiquetadas",
+        "settings.app_rules.filter.refresh" => "Refresco personalizado",
+        "settings.app_rules.filter.pinned" => "Apps fijadas",
+        "settings.app_rules.active.title" => "Regla activa",
+        "settings.app_rules.active.badge" => "REGLA APP",
+        "settings.app_rules.hidden.title" => "Ocultar app en dashboard",
+        "settings.app_rules.hidden.description" => {
+            "Si está activo, la app no aparece en la grilla principal."
+        }
+        "settings.app_rules.preserve_aspect.title" => "Preservar aspect ratio",
+        "settings.app_rules.preserve_aspect.description" => {
+            "Override por app del ajuste global de aspecto."
+        }
+        "settings.app_rules.hide_on_select.title" => "Ocultar Panopticon al seleccionar",
+        "settings.app_rules.hide_on_select.description" => {
+            "Override por app del comportamiento hide-on-select."
+        }
+        "settings.app_rules.refresh_mode.title" => "Modo de refresh del thumbnail",
+        "settings.app_rules.refresh_mode.description" => "Realtime, Frozen o Interval.",
+        "settings.app_rules.refresh_mode.realtime" => "Realtime",
+        "settings.app_rules.refresh_mode.frozen" => "Frozen",
+        "settings.app_rules.refresh_mode.interval" => "Interval",
+        "settings.app_rules.interval.title" => "Intervalo (ms)",
+        "settings.app_rules.interval.description" => {
+            "Se aplica cuando el modo es Interval."
+        }
+        "settings.app_rules.tags.title" => "Tags (CSV)",
+        "settings.app_rules.tags.description" => "Ejemplo: work, browser, stream",
+        "settings.app_rules.tags.placeholder" => "work, browser",
+        "settings.app_rules.tags.helper" => "Añade tags una por una y elimínalas con un click.",
+        "settings.app_rules.tags.add" => "Añadir tag",
+        "settings.app_rules.tags.remove_hint" => "Haz click en un chip para quitarlo.",
+        "settings.app_rules.tags.suggestions_title" => "Sugerencias rápidas",
+        "settings.app_rules.tags.suggestion.work" => "work",
+        "settings.app_rules.tags.suggestion.browser" => "browser",
+        "settings.app_rules.tags.suggestion.dev" => "dev",
+        "settings.app_rules.tags.suggestion.stream" => "stream",
+        "settings.app_rules.color.title" => "Color hex (opcional)",
+        "settings.app_rules.color.description" => {
+            "Formato RRGGBB o vacío para limpiar override."
+        }
+        "settings.app_rules.color.placeholder" => "5CA9FF",
+        "settings.app_rules.apply" => "Aplicar regla",
+        "settings.app_rules.reset" => "Resetear regla",
+        "settings.app_rules.clear_unused" => "Limpiar reglas inactivas",
+        "settings.app_rules.no_selection" => "Selecciona una aplicación para editar su regla.",
+        "settings.app_rules.select_option" => "Seleccionar regla de aplicación…",
+        "settings.app_rules.cleanup.none" => "No hay reglas inactivas para limpiar.",
+        "settings.app_rules.cleanup.count" => "{} reglas inactivas se pueden limpiar.",
         "settings.page.theme_background.title" => "Tema y fondo",
         "settings.page.theme_background.subtitle" => {
             "Elegí un preset de tema, ajustá sus colores principales y combínalo con un color propio de canvas y una imagen de fondo."
@@ -950,34 +1099,34 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.fit.contain" => "Contener",
         "settings.fit.fill" => "Rellenar",
         "settings.fit.preserve" => "Preservar",
-        "settings.page.profiles.title" => "Perfiles (Workspaces)",
+        "settings.page.profiles.title" => "Workspaces",
         "settings.page.profiles.subtitle" => {
-            "Guardá combinaciones completas de ajustes y abrí nuevas instancias ya apuntando al perfil que quieras."
+            "Guardá combinaciones completas de ajustes y abrí nuevas instancias ya apuntando al workspace que quieras."
         }
-        "settings.section.edit_profile.title" => "Editar perfil",
+        "settings.section.edit_profile.title" => "Editar workspace",
         "settings.section.edit_profile.helper" => {
             "Usá un nombre corto y descriptivo para guardar o abrir el snapshot actual en otra instancia."
         }
-        "settings.current_profile_card.title" => "Perfil actual",
-        "settings.option.profile_name.title" => "Nombre del perfil",
+        "settings.current_profile_card.title" => "Workspace actual",
+        "settings.option.profile_name.title" => "Nombre del workspace",
         "settings.option.profile_name.description" => {
             "Nombre usado para guardar esta configuración o lanzar otra instancia con ella."
         }
         "settings.section.saved_profiles.title" => "Workspaces guardados",
         "settings.section.saved_profiles.helper" => {
-            "Resumen de perfiles detectados y recordatorio del flujo recomendado para trabajar con varias instancias."
+            "Resumen de workspaces detectados y recordatorio del flujo recomendado para trabajar con varias instancias."
         }
         "settings.section.load_profile.title" => "Cambiar esta instancia",
         "settings.section.load_profile.helper" => {
-            "Carga otro perfil guardado dentro de esta ventana de Panopticon ya abierta."
+            "Carga otro workspace guardado dentro de esta ventana de Panopticon ya abierta."
         }
-        "settings.option.available_profile.title" => "Perfiles disponibles",
+        "settings.option.available_profile.title" => "Workspaces disponibles",
         "settings.option.available_profile.description" => {
-            "Elegí qué perfil guardado debe cargar esta instancia ahora mismo."
+            "Elegí qué workspace guardado debe cargar esta instancia ahora mismo."
         }
         "settings.tips.title" => "Consejos",
         "settings.tips.body" => {
-            "- Guarda primero el perfil actual si vas a abrir otra instancia.\n- Usa nombres simples como work, stream o review.\n- Los ajustes de tema, fondo y shortcuts viajan con el perfil."
+            "- Guarda primero el workspace actual si vas a abrir otra instancia.\n- Usa nombres simples como work, stream o review.\n- Los ajustes de tema, fondo y shortcuts viajan con el workspace."
         }
         "settings.page.shortcuts.title" => "Atajos de teclado",
         "settings.page.shortcuts.subtitle" => {
@@ -1078,6 +1227,19 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.refresh_mode.balanced" => "Balanceado",
         "settings.refresh_mode.battery_saver" => "Ahorro de batería",
         "settings.refresh_mode.manual" => "Manual",
+        "settings.section.refresh_performance.title" => "Modo de rendimiento de refresco",
+        "settings.section.refresh_performance.helper" => {
+            "Realtime/Balanceado/Ahorro de batería fijan la cadencia automáticamente. Manual usa el intervalo explícito de abajo."
+        }
+        "settings.option.refresh_performance_mode.title" => "Modo de rendimiento de refresco",
+        "settings.option.refresh_performance_mode.description" => {
+            "Perfil global de cadencia para descubrimiento y refresco de ventanas."
+        }
+        "settings.refresh_mode.active.title" => "Modo activo",
+        "settings.refresh_mode.active.realtime" => "Tiempo real (1s)",
+        "settings.refresh_mode.active.balanced" => "Balanceado (2s)",
+        "settings.refresh_mode.active.battery" => "Ahorro de batería (5s)",
+        "settings.refresh_mode.active.manual" => "Manual (usa intervalo explícito)",
         "settings.section.manual_refresh.title" => "Refresco manual",
         "settings.section.manual_refresh.helper" => {
             "Usa esta sección para forzar un refresco de ventanas o comprobar actualizaciones al instante."
@@ -1154,15 +1316,23 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.profile_invalid_chars" => {
             "El nombre del perfil contiene caracteres inválidos para archivos de Windows: {}"
         }
+        "settings.workspace_invalid_chars" => {
+            "El nombre del workspace contiene caracteres inválidos para archivos de Windows: {}"
+        }
         "settings.profile_empty_name" => "El nombre del perfil no puede estar vacío",
+        "settings.workspace_empty_name" => "El nombre del workspace no puede estar vacío",
         "cli.usage_heading" => "Uso:",
         "cli.options_heading" => "Opciones:",
         "cli.profile_option_help" => {
             "Carga o crea el perfil indicado desde %APPDATA%\\Panopticon\\profiles\\<nombre>.toml"
         }
+        "cli.workspace_option_help" => {
+            "Carga o crea el workspace indicado desde %APPDATA%\\Panopticon\\workspaces\\<nombre>.toml"
+        }
         "cli.help_option_help" => "Muestra este texto de ayuda",
         "cli.help_option_version" => "Muestra la versión actual de Panopticon",
         "cli.missing_profile_value" => "Falta el valor para --profile",
+        "cli.missing_workspace_value" => "Falta el valor para --workspace",
         "cli.unknown_argument" => "Argumento desconocido: {}",
 
         _ => return None,

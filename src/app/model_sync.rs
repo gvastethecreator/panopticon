@@ -423,7 +423,7 @@ fn sync_background_image(state: &mut AppState, win: &MainWindow) {
                 state.settings.background_image_path = None;
                 state.loaded_background_path = None;
 
-                if let Err(save_error) = state.settings.save(state.profile_name.as_deref()) {
+                if let Err(save_error) = state.settings.save(state.workspace_name.as_deref()) {
                     tracing::warn!(
                         %save_error,
                         path,

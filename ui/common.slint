@@ -116,7 +116,7 @@ export global Tr {
     in property <string> action-check-updates: "Check updates";
     in property <string> action-auto-apply: "Changes apply automatically.";
     in property <string> action-about: "About";
-    in property <string> action-load-profile: "Load profile";
+    in property <string> action-load-profile: "Load workspace";
 
     // About window
     in property <string> about-title: "About Panopticon";
@@ -131,16 +131,16 @@ export global Tr {
     // Settings hints already used from Rust
     in property <string> dock-mode-hint: "In dock mode this option is automatically disabled.";
     in property <string> filters-hint: "Filters and grouping are also reflected in the status bar and reorder visible cells.";
-    in property <string> current-profile-prefix: "Current profile: ";
-    in property <string> profile-input-label: "Profile:";
-    in property <string> save-profile-btn: "Save profile";
+    in property <string> current-profile-prefix: "Current workspace: ";
+    in property <string> profile-input-label: "Workspace:";
+    in property <string> save-profile-btn: "Save workspace";
     in property <string> open-instance-btn: "Open another instance";
     in property <string> no-hidden-hint: "No hidden apps to restore right now.";
 
     // Settings window chrome
     in property <string> settings-title: "Settings";
     in property <string> settings-subtitle: "Customize the dashboard, backgrounds, shortcuts, and overall behavior.";
-    in property <string> settings-profile-badge: "Profile";
+    in property <string> settings-profile-badge: "Workspace";
 
     // Sidebar navigation
     in property <string> settings-nav-behaviour-display-title: "Behaviour & Display";
@@ -149,7 +149,7 @@ export global Tr {
     in property <string> settings-nav-filters-subtitle: "Monitor, tag, app and hidden-state tools";
     in property <string> settings-nav-theme-background-title: "Theme & Background";
     in property <string> settings-nav-theme-background-subtitle: "Theme presets, solid canvas colour and image";
-    in property <string> settings-nav-profiles-title: "Profiles (Workspaces)";
+    in property <string> settings-nav-profiles-title: "Workspaces";
     in property <string> settings-nav-profiles-subtitle: "Save and launch named setups";
     in property <string> settings-nav-shortcuts-title: "Keyboard Shortcuts";
     in property <string> settings-nav-shortcuts-subtitle: "Customize the dashboard key map";
@@ -210,6 +210,74 @@ export global Tr {
     in property <string> settings-option-group-windows-description: "Visually reorder the list without filtering content, which is ideal for spotting patterns.";
     in property <string> settings-section-hidden-apps-title: "Hidden applications";
     in property <string> settings-section-hidden-apps-helper: "Restore hidden apps one by one or all at once from persisted state.";
+    in property <string> settings-section-app-rules-title: "App Rules Manager";
+    in property <string> settings-section-app-rules-helper: "Edit per-app rules for visibility, aspect ratio, hide-on-select, refresh mode, tags, and color.";
+    in property <string> settings-option-app-rules-app-title: "Application";
+    in property <string> settings-option-app-rules-app-description: "Includes running apps and apps with saved rules.";
+    in property <string> settings-option-app-rules-search-placeholder: "Search by app, id, or tags...";
+    in property <string> settings-app-rules-filter-all-label: "All apps";
+    in property <string> settings-app-rules-filter-running-label: "Running apps";
+    in property <string> settings-app-rules-filter-saved-label: "Saved rules only";
+    in property <string> settings-app-rules-filter-hidden-label: "Hidden apps";
+    in property <string> settings-app-rules-filter-tagged-label: "Tagged apps";
+    in property <string> settings-app-rules-filter-refresh-label: "Custom refresh";
+    in property <string> settings-app-rules-filter-pinned-label: "Pinned apps";
+    in property <[string]> settings-app-rules-filter-options: [
+        settings-app-rules-filter-all-label,
+        settings-app-rules-filter-running-label,
+        settings-app-rules-filter-saved-label,
+        settings-app-rules-filter-hidden-label,
+        settings-app-rules-filter-tagged-label,
+        settings-app-rules-filter-refresh-label,
+        settings-app-rules-filter-pinned-label,
+    ];
+    in property <string> settings-app-rules-active-title: "Active rule";
+    in property <string> settings-app-rules-active-badge: "APP RULE";
+    in property <string> settings-app-rules-hidden-title: "Hide app in dashboard";
+    in property <string> settings-app-rules-hidden-description: "When enabled, this app does not appear in the main grid.";
+    in property <string> settings-app-rules-preserve-aspect-title: "Preserve aspect ratio";
+    in property <string> settings-app-rules-preserve-aspect-description: "Per-app override for the global aspect setting.";
+    in property <string> settings-app-rules-hide-on-select-title: "Hide Panopticon on select";
+    in property <string> settings-app-rules-hide-on-select-description: "Per-app override for hide-on-select behavior.";
+    in property <string> settings-app-rules-refresh-mode-title: "Thumbnail refresh mode";
+    in property <string> settings-app-rules-refresh-mode-description: "Realtime, Frozen, or Interval.";
+    in property <string> settings-app-rules-refresh-realtime-label: "Realtime";
+    in property <string> settings-app-rules-refresh-frozen-label: "Frozen";
+    in property <string> settings-app-rules-refresh-interval-label: "Interval";
+    in property <[string]> settings-app-rules-refresh-options: [
+        settings-app-rules-refresh-realtime-label,
+        settings-app-rules-refresh-frozen-label,
+        settings-app-rules-refresh-interval-label,
+    ];
+    in property <string> settings-app-rules-interval-title: "Interval (ms)";
+    in property <string> settings-app-rules-interval-description: "Applied only when mode is Interval.";
+    in property <string> settings-app-rules-tags-title: "Tags (CSV)";
+    in property <string> settings-app-rules-tags-description: "Example: work, browser, stream";
+    in property <string> settings-app-rules-tags-placeholder: "work, browser";
+    in property <string> settings-app-rules-tags-helper: "Add tags one by one and remove them with a click.";
+    in property <string> settings-app-rules-tag-add-button: "Add tag";
+    in property <string> settings-app-rules-tag-remove-hint: "Click a chip to remove it.";
+    in property <string> settings-app-rules-tag-suggestions-title: "Quick suggestions";
+    in property <string> settings-app-rules-tag-suggestion-work: "work";
+    in property <string> settings-app-rules-tag-suggestion-browser: "browser";
+    in property <string> settings-app-rules-tag-suggestion-dev: "dev";
+    in property <string> settings-app-rules-tag-suggestion-stream: "stream";
+    in property <[string]> settings-app-rules-tag-suggestion-options: [
+        settings-app-rules-tag-suggestion-work,
+        settings-app-rules-tag-suggestion-browser,
+        settings-app-rules-tag-suggestion-dev,
+        settings-app-rules-tag-suggestion-stream,
+    ];
+    in property <string> settings-app-rules-color-title: "Hex color (optional)";
+    in property <string> settings-app-rules-color-description: "Use RRGGBB format, or empty to clear override.";
+    in property <string> settings-app-rules-color-placeholder: "5CA9FF";
+    in property <string> settings-app-rules-apply-button: "Apply rule";
+    in property <string> settings-app-rules-reset-button: "Reset rule";
+    in property <string> settings-app-rules-clear-unused-button: "Clear inactive rules";
+    in property <string> settings-app-rules-no-selection: "Select an application to edit its rule.";
+    in property <string> settings-app-rules-select-option: "Select application rule…";
+    in property <string> settings-app-rules-cleanup-none: "No inactive rules to clean.";
+    in property <string> settings-app-rules-cleanup-count: "{} inactive rules can be cleaned.";
 
     // Theme page
     in property <string> settings-page-theme-background-title: "Theme & Background";
@@ -244,22 +312,22 @@ export global Tr {
     in property <string> settings-option-image-opacity-title: "Image opacity";
     in property <string> settings-option-image-opacity-description: "Control how strong the background image should appear over the canvas colour.";
 
-    // Profiles page
-    in property <string> settings-page-profiles-title: "Profiles (Workspaces)";
-    in property <string> settings-page-profiles-subtitle: "Save complete combinations of settings and open new instances already pointed at the profile you want.";
-    in property <string> settings-section-edit-profile-title: "Edit profile";
+    // Workspaces page
+    in property <string> settings-page-profiles-title: "Workspaces";
+    in property <string> settings-page-profiles-subtitle: "Save complete combinations of settings and open new instances already pointed at the workspace you want.";
+    in property <string> settings-section-edit-profile-title: "Edit workspace";
     in property <string> settings-section-edit-profile-helper: "Use a short, descriptive name to save or open the current snapshot in another instance.";
-    in property <string> settings-current-profile-card-title: "Current profile";
-    in property <string> settings-option-profile-name-title: "Profile name";
+    in property <string> settings-current-profile-card-title: "Current workspace";
+    in property <string> settings-option-profile-name-title: "Workspace name";
     in property <string> settings-option-profile-name-description: "Name used to save this setup or launch another instance with it.";
     in property <string> settings-section-saved-profiles-title: "Saved workspaces";
-    in property <string> settings-section-saved-profiles-helper: "Summary of detected profiles plus a reminder of the recommended multi-instance workflow.";
+    in property <string> settings-section-saved-profiles-helper: "Summary of detected workspaces plus a reminder of the recommended multi-instance workflow.";
     in property <string> settings-section-load-profile-title: "Switch current instance";
-    in property <string> settings-section-load-profile-helper: "Load another saved profile into this running Panopticon window.";
-    in property <string> settings-option-available-profile-title: "Available profiles";
-    in property <string> settings-option-available-profile-description: "Choose which saved profile this instance should load right now.";
+    in property <string> settings-section-load-profile-helper: "Load another saved workspace into this running Panopticon window.";
+    in property <string> settings-option-available-profile-title: "Available workspaces";
+    in property <string> settings-option-available-profile-description: "Choose which saved workspace this instance should load right now.";
     in property <string> settings-tips-title: "Tips";
-    in property <string> settings-tips-body: "- Save the current profile first if you are about to open another instance.\n- Use simple names like work, stream, or review.\n- Theme, background, and shortcut settings travel with the profile.";
+    in property <string> settings-tips-body: "- Save the current workspace first if you are about to open another instance.\n- Use simple names like work, stream, or review.\n- Theme, background, and shortcut settings travel with the workspace.";
 
     // Shortcuts page
     in property <string> settings-page-shortcuts-title: "Keyboard Shortcuts";
@@ -315,10 +383,30 @@ export global Tr {
     in property <string> settings-page-advanced-title: "Advanced Options";
     in property <string> settings-page-advanced-subtitle: "Manual refresh/update controls and the base cadence used for background window discovery.";
     in property <string> settings-option-default-layout-title: "Default layout";
-    in property <string> settings-option-default-layout-description: "Choose which layout Panopticon should use each time this profile starts.";
+    in property <string> settings-option-default-layout-description: "Choose which layout Panopticon should use each time this workspace starts.";
     in property <string> settings-option-default-layout-docked-description: "Dock mode automatically uses Column on the sides and Row on the top or bottom, so this selector only applies while floating.";
     in property <string> settings-option-refresh-interval-title: "Refresh interval";
     in property <string> settings-option-refresh-interval-description: "Base cadence for enumerating windows and refreshing the dashboard when you do not force a manual refresh.";
+    in property <string> settings-refresh-mode-realtime-label: "Realtime";
+    in property <string> settings-refresh-mode-balanced-label: "Balanced";
+    in property <string> settings-refresh-mode-battery-saver-label: "Battery Saver";
+    in property <string> settings-refresh-mode-manual-label: "Manual";
+    in property <string> settings-section-refresh-performance-title: "Refresh performance mode";
+    in property <string> settings-section-refresh-performance-helper: "Realtime/Balanced/Battery Saver set cadence automatically. Manual uses the explicit interval below.";
+    in property <string> settings-option-refresh-performance-mode-title: "Refresh performance mode";
+    in property <string> settings-option-refresh-performance-mode-description: "Global cadence workspace for window discovery and refresh.";
+    in property <string> settings-refresh-active-mode-title: "Active mode";
+    in property <string> settings-refresh-active-mode-realtime: "Realtime (1s)";
+    in property <string> settings-refresh-active-mode-balanced: "Balanced (2s)";
+    in property <string> settings-refresh-active-mode-battery: "Battery Saver (5s)";
+    in property <string> settings-refresh-active-mode-manual: "Manual (uses explicit interval)";
+    in property <[string]> settings-refresh-mode-options: [
+        settings-refresh-mode-realtime-label,
+        settings-refresh-mode-balanced-label,
+        settings-refresh-mode-battery-saver-label,
+        settings-refresh-mode-manual-label,
+    ];
+    in property <[string]> settings-refresh-interval-options: ["1s", "2s", "5s", "10s"];
     in property <string> settings-section-manual-refresh-title: "Manual refresh";
     in property <string> settings-section-manual-refresh-helper: "Use this section to force a window refresh or to check for updates immediately.";
     in property <string> settings-section-dock-thickness-title: "Dock thickness";

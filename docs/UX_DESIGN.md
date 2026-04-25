@@ -69,7 +69,7 @@ This is the declarative configuration panel. It is organised by blocks:
 - dock;
 - filters;
 - background;
-- profiles;
+- workspaces;
 - hidden apps;
 - shortcuts.
 
@@ -187,7 +187,7 @@ Almost all frequent actions are a single gesture or keypress away:
 
 ### 3. Context persistence
 
-Panopticon remembers filters, grouping, colours, tags, layouts, and profiles. The UX does not treat each start as a new session without memory.
+Panopticon remembers filters, grouping, colours, tags, layouts, and workspaces. The UX does not treat each start as a new session without memory.
 
 ### 4. Desktop utility, not a document
 
@@ -201,7 +201,7 @@ The presence of tray, dock/appbar, topmost, and start-in-tray clearly shows that
 
 ## UX evolution opportunities
 
-1. make the profile concept and its startup impact more visible;
+1. make the workspace concept and its startup impact more visible;
 2. expose more batch/global editing for advanced options that already exist in runtime, such as per-thumbnail refresh mode, instead of concentrating them in the per-window context menu;
 3. decide whether declarative menu overlays should be activated or removed;
 4. improve visual communication of dock mode and complex active filters.

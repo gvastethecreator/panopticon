@@ -56,7 +56,7 @@ Panopticon can optionally register itself in the current user's startup sequence
 
 | Path | Value | Usage |
 | --- | --- | --- |
-| `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | `Panopticon` | launches the current executable, optionally with `--profile <name>` for non-default profiles |
+| `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | `Panopticon` | launches the current executable, optionally with `--workspace <name>` for non-default workspaces |
 
 **Operational note:** this is per-user only. The app does not install a service, scheduled task, or machine-wide autorun entry.
 
@@ -113,12 +113,12 @@ Panopticon stores settings in:
 
 ```text
 %APPDATA%\Panopticon\settings.toml
-%APPDATA%\Panopticon\profiles\<profile>.toml
+%APPDATA%\Panopticon\workspaces\<workspace>.toml
 ```
 
 Startup enablement is stored twice by design:
 
-- the boolean preference lives in the profile TOML (`run_at_startup = true/false`);
+- the boolean preference lives in the workspace TOML (`run_at_startup = true/false`);
 - when enabled, the runtime also mirrors that intent into the per-user Windows `Run` registry key so the app can actually launch at sign-in.
 
 ### Logs

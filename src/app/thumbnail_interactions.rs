@@ -170,7 +170,7 @@ pub(crate) fn handle_thumbnail_drag_ended(
                     rule.pinned_position = Some(index);
                 }
 
-                let profile = state.profile_name.clone();
+                let profile = state.workspace_name.clone();
                 let _ = state.settings.save(profile.as_deref());
 
                 true

@@ -44,7 +44,7 @@ sequenceDiagram
     User->>Main: Run panopticon.exe
     Main->>Main: init logging
     Main->>Win32: SetProcessDpiAwarenessContext
-    Main->>Settings: load_or_default(profile)
+    Main->>Settings: load_or_default(workspace)
     Main->>Slint: MainWindow::new()
     Main->>Slint: show()
     Main->>Main: deferred initialisation timer
@@ -169,7 +169,7 @@ The main Slint window is subclassed to intercept Win32 messages that the declara
 
 This enables tray, dock/appbar, close-to-tray, manual scroll, and specific hotkeys like `Alt`.
 
-## Persistence and profiles
+## Persistence and workspaces
 
 `settings.rs` is the project's persistence layer. It maintains:
 
@@ -182,7 +182,7 @@ This enables tray, dock/appbar, close-to-tray, manual scroll, and specific hotke
 - theme name;
 - tray, dock, background, and icon options.
 
-It also supports separate per-file profiles and normalises invalid inputs before they reach the runtime.
+It also supports separate per-file workspaces and normalises invalid inputs before they reach the runtime.
 
 ## Unsafe and security boundaries
 

@@ -465,6 +465,246 @@ where
     );
     set_tr!(
         tr,
+        set_settings_section_app_rules_title,
+        "settings.section.app_rules.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_app_rules_helper,
+        "settings.section.app_rules.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_app_rules_app_title,
+        "settings.option.app_rules.app.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_app_rules_app_description,
+        "settings.option.app_rules.app.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_app_rules_search_placeholder,
+        "settings.option.app_rules.search.placeholder"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_filter_all_label,
+        "settings.app_rules.filter.all"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_filter_running_label,
+        "settings.app_rules.filter.running"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_filter_saved_label,
+        "settings.app_rules.filter.saved"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_filter_hidden_label,
+        "settings.app_rules.filter.hidden"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_filter_tagged_label,
+        "settings.app_rules.filter.tagged"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_filter_refresh_label,
+        "settings.app_rules.filter.refresh"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_filter_pinned_label,
+        "settings.app_rules.filter.pinned"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_active_title,
+        "settings.app_rules.active.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_active_badge,
+        "settings.app_rules.active.badge"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_hidden_title,
+        "settings.app_rules.hidden.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_hidden_description,
+        "settings.app_rules.hidden.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_preserve_aspect_title,
+        "settings.app_rules.preserve_aspect.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_preserve_aspect_description,
+        "settings.app_rules.preserve_aspect.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_hide_on_select_title,
+        "settings.app_rules.hide_on_select.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_hide_on_select_description,
+        "settings.app_rules.hide_on_select.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_refresh_mode_title,
+        "settings.app_rules.refresh_mode.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_refresh_mode_description,
+        "settings.app_rules.refresh_mode.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_refresh_realtime_label,
+        "settings.app_rules.refresh_mode.realtime"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_refresh_frozen_label,
+        "settings.app_rules.refresh_mode.frozen"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_refresh_interval_label,
+        "settings.app_rules.refresh_mode.interval"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_interval_title,
+        "settings.app_rules.interval.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_interval_description,
+        "settings.app_rules.interval.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tags_title,
+        "settings.app_rules.tags.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tags_description,
+        "settings.app_rules.tags.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tags_placeholder,
+        "settings.app_rules.tags.placeholder"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tags_helper,
+        "settings.app_rules.tags.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tag_add_button,
+        "settings.app_rules.tags.add"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tag_remove_hint,
+        "settings.app_rules.tags.remove_hint"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tag_suggestions_title,
+        "settings.app_rules.tags.suggestions_title"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tag_suggestion_work,
+        "settings.app_rules.tags.suggestion.work"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tag_suggestion_browser,
+        "settings.app_rules.tags.suggestion.browser"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tag_suggestion_dev,
+        "settings.app_rules.tags.suggestion.dev"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_tag_suggestion_stream,
+        "settings.app_rules.tags.suggestion.stream"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_color_title,
+        "settings.app_rules.color.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_color_description,
+        "settings.app_rules.color.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_color_placeholder,
+        "settings.app_rules.color.placeholder"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_apply_button,
+        "settings.app_rules.apply"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_reset_button,
+        "settings.app_rules.reset"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_clear_unused_button,
+        "settings.app_rules.clear_unused"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_no_selection,
+        "settings.app_rules.no_selection"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_select_option,
+        "settings.app_rules.select_option"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_cleanup_none,
+        "settings.app_rules.cleanup.none"
+    );
+    set_tr!(
+        tr,
+        set_settings_app_rules_cleanup_count,
+        "settings.app_rules.cleanup.count"
+    );
+    set_tr!(
+        tr,
         set_settings_page_theme_background_title,
         "settings.page.theme_background.title"
     );
@@ -942,6 +1182,71 @@ where
     );
     set_tr!(
         tr,
+        set_settings_refresh_mode_realtime_label,
+        "settings.refresh_mode.realtime"
+    );
+    set_tr!(
+        tr,
+        set_settings_refresh_mode_balanced_label,
+        "settings.refresh_mode.balanced"
+    );
+    set_tr!(
+        tr,
+        set_settings_refresh_mode_battery_saver_label,
+        "settings.refresh_mode.battery_saver"
+    );
+    set_tr!(
+        tr,
+        set_settings_refresh_mode_manual_label,
+        "settings.refresh_mode.manual"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_refresh_performance_title,
+        "settings.section.refresh_performance.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_section_refresh_performance_helper,
+        "settings.section.refresh_performance.helper"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_refresh_performance_mode_title,
+        "settings.option.refresh_performance_mode.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_option_refresh_performance_mode_description,
+        "settings.option.refresh_performance_mode.description"
+    );
+    set_tr!(
+        tr,
+        set_settings_refresh_active_mode_title,
+        "settings.refresh_mode.active.title"
+    );
+    set_tr!(
+        tr,
+        set_settings_refresh_active_mode_realtime,
+        "settings.refresh_mode.active.realtime"
+    );
+    set_tr!(
+        tr,
+        set_settings_refresh_active_mode_balanced,
+        "settings.refresh_mode.active.balanced"
+    );
+    set_tr!(
+        tr,
+        set_settings_refresh_active_mode_battery,
+        "settings.refresh_mode.active.battery"
+    );
+    set_tr!(
+        tr,
+        set_settings_refresh_active_mode_manual,
+        "settings.refresh_mode.active.manual"
+    );
+    set_tr!(
+        tr,
         set_settings_section_manual_refresh_title,
         "settings.section.manual_refresh.title"
     );
@@ -1045,7 +1350,7 @@ fn main() {
     };
 
     match startup_args {
-        StartupArgs::Run { profile } => run_app(profile),
+        StartupArgs::Run { workspace } => run_app(workspace),
         StartupArgs::PrintAndExit { message, stderr } => {
             if stderr {
                 eprintln!("{message}");
@@ -1057,11 +1362,11 @@ fn main() {
 }
 
 #[allow(clippy::too_many_lines)]
-fn run_app(profile: Option<String>) {
+fn run_app(workspace: Option<String>) {
     let _log_guard = panopticon::logging::init().ok();
     select_text_friendly_renderer();
 
-    tracing::info!(profile = ?profile, "Panopticon starting (Slint UI)");
+    tracing::info!(workspace = ?workspace, "Panopticon starting (Slint UI)");
 
     // SAFETY: FFI call with no preconditions; failure is non-fatal.
     unsafe {
@@ -1070,7 +1375,7 @@ fn run_app(profile: Option<String>) {
         TASKBAR_CREATED_MSG.store(taskbar_msg, Ordering::Relaxed);
     }
 
-    let icons = match profile.as_deref() {
+    let icons = match workspace.as_deref() {
         Some(name) => {
             let idx = name.bytes().fold(0u32, |a, b| a.wrapping_add(u32::from(b))) as usize
                 % INSTANCE_ACCENT_PALETTE.len();
@@ -1087,13 +1392,13 @@ fn run_app(profile: Option<String>) {
             AppIcons::fallback_system()
         }),
     };
-    let settings = AppSettings::load_or_default(profile.as_deref()).unwrap_or_else(|error| {
+    let settings = AppSettings::load_or_default(workspace.as_deref()).unwrap_or_else(|error| {
         tracing::error!(%error, "settings load failed; using defaults");
         AppSettings::default()
     });
-    app::startup::sync_run_at_startup(settings.run_at_startup, profile.as_deref());
+    app::startup::sync_run_at_startup(settings.run_at_startup, workspace.as_deref());
     panopticon::i18n::init(settings.language);
-    app::secondary_windows::ensure_default_profiles_exist(&settings);
+    app::secondary_windows::ensure_default_workspaces_exist(&settings);
 
     let initial_theme = theme_catalog::resolve_ui_theme(
         settings.theme_id.as_deref(),
@@ -1125,7 +1430,7 @@ fn run_app(profile: Option<String>) {
         animation_started_at: None,
         content_extent: 0,
         is_appbar: false,
-        profile_name: profile,
+        workspace_name: workspace,
         last_size: (0, 0),
         separators: Vec::new(),
         drag_separator: None,
@@ -1556,7 +1861,7 @@ fn sync_floating_window_size_with_resize(
                 return;
             }
             guard.settings = guard.settings.normalized();
-            if let Err(error) = guard.settings.save(guard.profile_name.as_deref()) {
+            if let Err(error) = guard.settings.save(guard.workspace_name.as_deref()) {
                 tracing::warn!(%error, "failed to persist floating window size after resize");
             }
             drop(guard);
@@ -1569,14 +1874,14 @@ pub(crate) fn update_settings(
     state: &Rc<RefCell<AppState>>,
     mutate: impl FnOnce(&mut AppSettings),
 ) {
-    let (hwnd, settings_snapshot, profile_name) = {
+    let (hwnd, settings_snapshot, workspace_name) = {
         let mut s = state.borrow_mut();
         mutate(&mut s.settings);
         s.settings = s.settings.normalized();
-        let _ = s.settings.save(s.profile_name.as_deref());
-        (s.hwnd, s.settings.clone(), s.profile_name.clone())
+        let _ = s.settings.save(s.workspace_name.as_deref());
+        (s.hwnd, s.settings.clone(), s.workspace_name.clone())
     };
-    app::startup::sync_run_at_startup(settings_snapshot.run_at_startup, profile_name.as_deref());
+    app::startup::sync_run_at_startup(settings_snapshot.run_at_startup, workspace_name.as_deref());
     app::global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
 }
 
@@ -1627,7 +1932,7 @@ fn parse_startup_args() -> Result<StartupArgs, String> {
 fn parse_startup_args_from(
     args: impl IntoIterator<Item = impl Into<String>>,
 ) -> Result<StartupArgs, String> {
-    let mut profile = None;
+    let mut workspace = None;
     let mut args = args.into_iter().map(Into::into);
     let _ = args.next();
 
@@ -1645,15 +1950,15 @@ fn parse_startup_args_from(
                     stderr: false,
                 });
             }
-            "--profile" => {
-                let Some(raw_profile) = args.next() else {
-                    return Err(panopticon::i18n::t("cli.missing_profile_value").to_owned());
+            "--workspace" => {
+                let Some(raw_workspace) = args.next() else {
+                    return Err(panopticon::i18n::t("cli.missing_workspace_value").to_owned());
                 };
-                profile = Some(parse_profile_name(&raw_profile)?);
+                workspace = Some(parse_workspace_name(&raw_workspace)?);
             }
             _ => {
-                if let Some(raw_profile) = arg.strip_prefix("--profile=") {
-                    profile = Some(parse_profile_name(raw_profile)?);
+                if let Some(raw_workspace) = arg.strip_prefix("--workspace=") {
+                    workspace = Some(parse_workspace_name(raw_workspace)?);
                 } else {
                     return Err(panopticon::i18n::t_fmt("cli.unknown_argument", &arg));
                 }
@@ -1661,27 +1966,27 @@ fn parse_startup_args_from(
         }
     }
 
-    Ok(StartupArgs::Run { profile })
+    Ok(StartupArgs::Run { workspace })
 }
 
-fn parse_profile_name(raw_profile: &str) -> Result<String, String> {
-    match panopticon::settings::validate_profile_name_input(raw_profile) {
-        panopticon::settings::ProfileNameValidation::Valid(profile_name) => Ok(profile_name),
-        panopticon::settings::ProfileNameValidation::Empty => {
-            Err(panopticon::i18n::t("settings.profile_empty_name").to_owned())
+fn parse_workspace_name(raw_workspace: &str) -> Result<String, String> {
+    match panopticon::settings::validate_workspace_name_input(raw_workspace) {
+        panopticon::settings::WorkspaceNameValidation::Valid(workspace_name) => Ok(workspace_name),
+        panopticon::settings::WorkspaceNameValidation::Empty => {
+            Err(panopticon::i18n::t("settings.workspace_empty_name").to_owned())
         }
-        panopticon::settings::ProfileNameValidation::Invalid(reason) => Err(reason),
+        panopticon::settings::WorkspaceNameValidation::Invalid(reason) => Err(reason),
     }
 }
 
 fn cli_usage() -> String {
     format!(
-        "{} {}\n\n{}\n  panopticon [--profile <name>]\n  panopticon [--profile=<name>]\n  panopticon --help\n  panopticon --version\n\n{}\n  --profile <name>   {}\n  --help, -h, /?     {}\n  --version, -V      {}",
+        "{} {}\n\n{}\n  panopticon [--workspace <name>]\n  panopticon [--workspace=<name>]\n  panopticon --help\n  panopticon --version\n\n{}\n  --workspace <name>   {}\n  --help, -h, /?     {}\n  --version, -V      {}",
         panopticon::i18n::t("app.name"),
         env!("CARGO_PKG_VERSION"),
         panopticon::i18n::t("cli.usage_heading"),
         panopticon::i18n::t("cli.options_heading"),
-        panopticon::i18n::t("cli.profile_option_help"),
+        panopticon::i18n::t("cli.workspace_option_help"),
         panopticon::i18n::t("cli.help_option_help"),
         panopticon::i18n::t("cli.help_option_version"),
     )
@@ -1812,18 +2117,18 @@ mod tests {
     }
 
     #[test]
-    fn parse_startup_args_supports_profile_value_forms() {
+    fn parse_startup_args_supports_workspace_value_forms() {
         assert_eq!(
-            parse_startup_args_from(["panopticon", "--profile", "work"]),
+            parse_startup_args_from(["panopticon", "--workspace", "work"]),
             Ok(StartupArgs::Run {
-                profile: Some("work".to_owned()),
+                workspace: Some("work".to_owned()),
             })
         );
 
         assert_eq!(
-            parse_startup_args_from(["panopticon", "--profile=focus"]),
+            parse_startup_args_from(["panopticon", "--workspace=focus"]),
             Ok(StartupArgs::Run {
-                profile: Some("focus".to_owned()),
+                workspace: Some("focus".to_owned()),
             })
         );
     }
@@ -1853,10 +2158,10 @@ mod tests {
 
     #[test]
     fn parse_startup_args_rejects_unknown_or_invalid_arguments() {
-        let missing_value = parse_startup_args_from(["panopticon", "--profile"]);
+        let missing_value = parse_startup_args_from(["panopticon", "--workspace"]);
         assert!(matches!(missing_value, Err(ref error) if error.contains("Missing value")));
 
-        let invalid_profile = parse_startup_args_from(["panopticon", "--profile", "???"]);
+        let invalid_profile = parse_startup_args_from(["panopticon", "--workspace", "???"]);
         assert!(matches!(
             invalid_profile,
             Err(ref error) if error.contains("invalid")

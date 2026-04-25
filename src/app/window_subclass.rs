@@ -386,7 +386,7 @@ fn toggle_toolbar_from_alt_hotkey() {
                     return;
                 }
                 guard.settings.show_toolbar = !guard.settings.show_toolbar;
-                let _ = guard.settings.save(guard.profile_name.as_deref());
+                let _ = guard.settings.save(guard.workspace_name.as_deref());
             }
             recompute_and_update_ui(&state, &window);
         });

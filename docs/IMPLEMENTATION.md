@@ -10,7 +10,7 @@ The main binary is concentrated in `src/main.rs`, which orchestrates:
 - periodic timers;
 - synchronisation between state, Slint UI, and DWM thumbnails;
 - integration with tray, dock/appbar, native menus, and secondary dialogs;
-- settings and profile persistence.
+- settings and workspace persistence.
 
 The implementation relies on several specialised modules to keep all the logic from being tied directly to Win32.
 
@@ -19,7 +19,7 @@ The implementation relies on several specialised modules to keep all the logic f
 The `main()` startup follows this conceptual order:
 
 1. initialise logging;
-2. read `--profile` if present;
+2. read `--workspace` if present;
 3. activate DPI awareness and register `TaskbarCreated`;
 4. create application icons;
 5. load settings from TOML;
@@ -199,7 +199,7 @@ The key map is no longer hard-coded only in the handler itself: it is driven by 
 
 Additionally, the Win32 subclass intercepts the wheel and middle button to enable pan/scroll in layouts with overflow.
 
-## Settings, profiles, and dialogs
+## Settings, workspaces, and dialogs
 
 ### `settings.rs`
 
@@ -216,8 +216,8 @@ This module defines:
 
 It also handles:
 
-- default and per-profile paths;
-- profile listing;
+- default and per-workspace paths;
+- workspace listing;
 - TOML save/load;
 - data normalisation;
 - business helpers (`toggle_hidden`, `toggle_app_tag`, `set_tag_filter`, etc.).
@@ -245,13 +245,13 @@ The settings window allows editing:
 
 `secondary_windows.rs` also wires a native `rfd::FileDialog` picker for browsing and clearing the dashboard background image.
 
-### Multiple profiles
+### Multiple workspaces
 
 The app can:
 
-- save the current state to a profile;
-- launch another instance with `--profile`;
-- display a label for the current profile.
+- save the current state to a workspace;
+- launch another instance with `--workspace`;
+- display a label for the current workspace.
 
 ## Tray and native menus
 

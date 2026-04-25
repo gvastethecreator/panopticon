@@ -55,10 +55,10 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
         locked_layout: state.settings.locked_layout,
         lock_cell_resize: state.settings.lock_cell_resize,
         group_windows_by: state.settings.group_windows_by,
-        current_profile: state.profile_name.clone(),
-        available_profiles: panopticon::settings::AppSettings::list_profiles_with_default()
+        current_workspace: state.workspace_name.clone(),
+        available_workspaces: panopticon::settings::AppSettings::list_workspaces_with_default()
             .unwrap_or_else(|error| {
-                tracing::warn!(%error, "failed to enumerate profiles for tray menu");
+                tracing::warn!(%error, "failed to enumerate workspaces for tray menu");
                 vec!["default".to_owned()]
             }),
     }
@@ -175,7 +175,7 @@ pub(crate) fn handle_tray_action(
                 state.settings.dock_edge = edge;
                 state.settings = state.settings.normalized();
                 state.current_layout = state.settings.effective_layout();
-                let _ = state.settings.save(state.profile_name.as_deref());
+                let _ = state.settings.save(state.workspace_name.as_deref());
                 if edge.is_some() {
                     apply_dock_mode(&mut state);
                 } else {
@@ -241,9 +241,12 @@ pub(crate) fn handle_tray_action(
         TrayAction::OpenAboutWindow => {
             secondary_windows::open_about_window(state);
         }
-        TrayAction::LoadProfile(profile_name) => {
-            let _ =
-                secondary_windows::load_profile_into_current_instance(state, weak, profile_name);
+        TrayAction::LoadWorkspace(workspace_name) => {
+            let _ = secondary_windows::load_workspace_into_current_instance(
+                state,
+                weak,
+                workspace_name,
+            );
         }
         TrayAction::Exit => {
             queue_exit_request();
