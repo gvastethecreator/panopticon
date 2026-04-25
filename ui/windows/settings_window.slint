@@ -735,7 +735,11 @@ component KeyFieldSettingCard inherits Rectangle {
     in-out property <int> app-rules-refresh-mode-index: 0;
     in-out property <int> app-rules-refresh-interval-ms: 5000;
     in-out property <string> app-rules-tags: "";
+    in property <[string]> app-rules-tag-chips: [];
+    in-out property <string> app-rules-tag-input: "";
     in-out property <string> app-rules-color-hex: "";
+    in property <bool> app-rules-can-clear-unused: false;
+    in property <string> app-rules-unused-summary: "";
     in property <[string]> hidden-app-options: [Tr.no-hidden-label];
     in-out property <int> hidden-app-index: 0;
     in property <bool> can-restore-hidden: false;
@@ -828,6 +832,10 @@ component KeyFieldSettingCard inherits Rectangle {
     callback app-rules-apply-selected();
     callback app-rules-reset-selected();
     callback app-rules-refresh-list();
+    callback app-rules-clear-unused();
+    callback app-rules-add-tag();
+    callback app-rules-remove-tag(string);
+    callback app-rules-apply-tag-suggestion(string);
     callback browse-background-image();
     callback clear-background-image();
     callback apply-bg-color-hex(string);
@@ -1597,14 +1605,14 @@ component KeyFieldSettingCard inherits Rectangle {
                         SectionCard {
                             SectionHeader {
                                 icon: @image-url("../../assets/ui-icons/option-settings.svg");
-                                title: "App Rules Manager (MVP)";
-                                helper: "Edita reglas por aplicación: visibilidad, aspecto, ocultar al seleccionar, refresh, tags y color.";
+                                title: Tr.settings-section-app-rules-title;
+                                helper: Tr.settings-section-app-rules-helper;
                             }
 
                             SelectSettingCard {
                                 icon: @image-url("../../assets/ui-icons/option-app-icon.svg");
-                                title: "Aplicación";
-                                description: "Incluye apps en ejecución y apps con reglas guardadas.";
+                                title: Tr.settings-option-app-rules-app-title;
+                                description: Tr.settings-option-app-rules-app-description;
                                 options: root.app-rules-options;
                                 selected-index <=> root.app-rules-index;
                             }
@@ -1616,23 +1624,22 @@ component KeyFieldSettingCard inherits Rectangle {
                                     horizontal-stretch: 1;
                                     height: 34px;
                                     text <=> root.app-rules-search;
-                                    placeholder: "Buscar por app, id o tags...";
+                                    placeholder: Tr.settings-option-app-rules-search-placeholder;
                                 }
 
                                 CustomComboBox {
                                     width: 200px;
                                     height: 34px;
-                                    options: [
-                                        "All apps",
-                                        "Running apps",
-                                        "Saved rules only",
-                                        "Hidden apps",
-                                        "Tagged apps",
-                                        "Custom refresh",
-                                        "Pinned apps",
-                                    ];
+                                    options: Tr.settings-app-rules-filter-options;
                                     selected-index <=> root.app-rules-filter-index;
                                 }
+                            }
+
+                            InlineWarning {
+                                subtle: true;
+                                icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                                title: Tr.settings-app-rules-clear-unused-button;
+                                text: root.app-rules-unused-summary;
                             }
 
                             if root.app-rules-has-selection: VerticalLayout {
@@ -1640,53 +1647,53 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                 SettingRow {
                                     icon: @image-url("../../assets/ui-icons/option-app-icon.svg");
-                                    title: "Regla activa";
+                                    title: Tr.settings-app-rules-active-title;
                                     description: root.app-rules-selected-app-label;
 
                                     StatusPill {
-                                        text: "APP RULE";
+                                        text: Tr.settings-app-rules-active-badge;
                                         subtle: true;
                                     }
                                 }
 
                                 ToggleSettingCard {
                                     icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
-                                    title: "Ocultar app en dashboard";
-                                    description: "Si está activo, la app no aparece en la grilla principal.";
+                                    title: Tr.settings-app-rules-hidden-title;
+                                    description: Tr.settings-app-rules-hidden-description;
                                     checked <=> root.app-rules-hidden;
                                 }
 
                                 ToggleSettingCard {
                                     icon: @image-url("../../assets/ui-icons/option-aspect-ratio.svg");
-                                    title: "Preservar aspect ratio";
-                                    description: "Override por app del ajuste global de aspecto.";
+                                    title: Tr.settings-app-rules-preserve-aspect-title;
+                                    description: Tr.settings-app-rules-preserve-aspect-description;
                                     checked <=> root.app-rules-preserve-aspect;
                                 }
 
                                 ToggleSettingCard {
                                     icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
-                                    title: "Ocultar Panopticon al seleccionar";
-                                    description: "Override por app del comportamiento hide-on-select.";
+                                    title: Tr.settings-app-rules-hide-on-select-title;
+                                    description: Tr.settings-app-rules-hide-on-select-description;
                                     checked <=> root.app-rules-hide-on-select;
                                 }
 
                                 SettingRow {
                                     icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                                    title: "Modo de refresh del thumbnail";
-                                    description: "Realtime, Frozen o Interval.";
+                                    title: Tr.settings-app-rules-refresh-mode-title;
+                                    description: Tr.settings-app-rules-refresh-mode-description;
 
                                     CustomComboBox {
                                         width: 150px;
                                         height: 34px;
-                                        options: ["Realtime", "Frozen", "Interval"];
+                                        options: Tr.settings-app-rules-refresh-options;
                                         selected-index <=> root.app-rules-refresh-mode-index;
                                     }
                                 }
 
                                 if root.app-rules-refresh-mode-index == 2: SettingRow {
                                     icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                                    title: "Intervalo (ms)";
-                                    description: "Se aplica cuando el modo es Interval.";
+                                    title: Tr.settings-app-rules-interval-title;
+                                    description: Tr.settings-app-rules-interval-description;
 
                                     CustomSpinBox {
                                         width: 130px;
@@ -1697,20 +1704,128 @@ component KeyFieldSettingCard inherits Rectangle {
                                     }
                                 }
 
-                                TextFieldSettingCard {
-                                    icon: @image-url("../../assets/ui-icons/option-tag.svg");
-                                    title: "Tags (CSV)";
-                                    description: "Ejemplo: work, browser, stream";
-                                    value <=> root.app-rules-tags;
-                                    placeholder: "work, browser";
+                                Rectangle {
+                                    border-radius: 8px;
+                                    border-width: 1px;
+                                    border-color: Theme.border.with-alpha(48%);
+                                    background: Theme.surface.with-alpha(32%);
+
+                                    VerticalLayout {
+                                        padding: 10px;
+                                        spacing: 8px;
+
+                                        SettingRow {
+                                            icon: @image-url("../../assets/ui-icons/option-tag.svg");
+                                            title: Tr.settings-app-rules-tags-title;
+                                            description: Tr.settings-app-rules-tags-description;
+
+                                            StatusPill {
+                                                text: root.app-rules-tag-chips.length + " tags";
+                                                subtle: true;
+                                            }
+                                        }
+
+                                        InlineWarning {
+                                            subtle: true;
+                                            icon: @image-url("../../assets/ui-icons/option-tag.svg");
+                                            title: Tr.settings-app-rules-tag-suggestions-title;
+                                            text: Tr.settings-app-rules-tag-remove-hint;
+                                        }
+
+                                        ScrollView {
+                                            width: 100%;
+                                            height: 44px;
+                                            horizontal-scrollbar-policy: ScrollBarPolicy.as-needed;
+                                            viewport-width: self.width;
+
+                                            HorizontalLayout {
+                                                width: max(parent.width, root.app-rules-tag-chips.length * 110px);
+                                                spacing: 8px;
+                                                padding-top: 6px;
+                                                padding-bottom: 6px;
+
+                                                for tag in root.app-rules-tag-chips: Rectangle {
+                                                    min-width: 82px;
+                                                    height: 30px;
+                                                    border-radius: 15px;
+                                                    border-width: 1px;
+                                                    border-color: Theme.accent.with-alpha(60%);
+                                                    background: Theme.accent-soft.with-alpha(44%);
+
+                                                    HorizontalLayout {
+                                                        padding-left: 10px;
+                                                        padding-right: 10px;
+                                                        spacing: 6px;
+
+                                                        Text {
+                                                            text: tag;
+                                                            color: Theme.text;
+                                                            font-size: 11px;
+                                                            font-weight: 600;
+                                                            vertical-alignment: center;
+                                                        }
+
+                                                        Text {
+                                                            text: "×";
+                                                            color: Theme.muted;
+                                                            font-size: 11px;
+                                                            font-weight: 700;
+                                                            vertical-alignment: center;
+                                                        }
+                                                    }
+
+                                                    TouchArea {
+                                                        mouse-cursor: pointer;
+                                                        clicked => {
+                                                            root.app-rules-remove-tag(tag);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        HorizontalLayout {
+                                            spacing: 8px;
+
+                                            CustomLineEdit {
+                                                horizontal-stretch: 1;
+                                                height: 32px;
+                                                text <=> root.app-rules-tag-input;
+                                                placeholder: Tr.settings-app-rules-tags-placeholder;
+                                                accepted(_) => {
+                                                    root.app-rules-add-tag();
+                                                }
+                                            }
+
+                                            CustomButton {
+                                                height: 32px;
+                                                text: Tr.settings-app-rules-tag-add-button;
+                                                clicked => {
+                                                    root.app-rules-add-tag();
+                                                }
+                                            }
+                                        }
+
+                                        HorizontalLayout {
+                                            spacing: 8px;
+
+                                            for suggestion in Tr.settings-app-rules-tag-suggestion-options: CustomButton {
+                                                height: 28px;
+                                                text: suggestion;
+                                                clicked => {
+                                                    root.app-rules-apply-tag-suggestion(suggestion);
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
                                 TextFieldSettingCard {
                                     icon: @image-url("../../assets/ui-icons/option-palette.svg");
-                                    title: "Color hex (opcional)";
-                                    description: "Formato RRGGBB o vacío para limpiar override.";
+                                    title: Tr.settings-app-rules-color-title;
+                                    description: Tr.settings-app-rules-color-description;
                                     value <=> root.app-rules-color-hex;
-                                    placeholder: "5CA9FF";
+                                    placeholder: Tr.settings-app-rules-color-placeholder;
                                 }
 
                                 HorizontalLayout {
@@ -1718,7 +1833,7 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                     CustomButton {
                                         height: 34px;
-                                        text: "Apply rule";
+                                        text: Tr.settings-app-rules-apply-button;
                                         clicked => {
                                             root.app-rules-apply-selected();
                                         }
@@ -1726,16 +1841,25 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                     CustomButton {
                                         height: 34px;
-                                        text: "Reset rule";
+                                        text: Tr.settings-app-rules-reset-button;
                                         clicked => {
                                             root.app-rules-reset-selected();
+                                        }
+                                    }
+
+                                    CustomButton {
+                                        height: 34px;
+                                        text: Tr.settings-app-rules-clear-unused-button;
+                                        enabled: root.app-rules-can-clear-unused;
+                                        clicked => {
+                                            root.app-rules-clear-unused();
                                         }
                                     }
                                 }
                             }
 
                             if !root.app-rules-has-selection: Text {
-                                text: "Selecciona una aplicación para editar su regla.";
+                                text: Tr.settings-app-rules-no-selection;
                                 color: Theme.muted;
                                 font-size: 12px;
                                 wrap: word-wrap;
@@ -2922,23 +3046,23 @@ component KeyFieldSettingCard inherits Rectangle {
                     SectionCard {
                         SectionHeader {
                             icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                            title: "Refresh performance mode";
-                            helper: "Realtime/Balanced/Battery Saver fijan la cadencia automáticamente. Manual usa el intervalo explícito.";
+                            title: Tr.settings-section-refresh-performance-title;
+                            helper: Tr.settings-section-refresh-performance-helper;
                         }
 
                         SelectSettingCard {
                             icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                            title: "Refresh performance mode";
-                            description: "Perfil global de cadencia para descubrimiento de ventanas.";
-                            options: ["Realtime", "Balanced", "Battery Saver", "Manual"];
+                            title: Tr.settings-option-refresh-performance-mode-title;
+                            description: Tr.settings-option-refresh-performance-mode-description;
+                            options: Tr.settings-refresh-mode-options;
                             selected-index <=> root.refresh-performance-mode-index;
                         }
 
                         InlineWarning {
                             subtle: true;
                             icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                            title: "Modo activo";
-                            text: root.refresh-performance-mode-index == 0 ? "Realtime (1s)" : root.refresh-performance-mode-index == 1 ? "Balanced (2s)" : root.refresh-performance-mode-index == 2 ? "Battery Saver (5s)" : "Manual (usa intervalo explícito)";
+                            title: Tr.settings-refresh-active-mode-title;
+                            text: root.refresh-performance-mode-index == 0 ? Tr.settings-refresh-active-mode-realtime : root.refresh-performance-mode-index == 1 ? Tr.settings-refresh-active-mode-balanced : root.refresh-performance-mode-index == 2 ? Tr.settings-refresh-active-mode-battery : Tr.settings-refresh-active-mode-manual;
                         }
                     }
 
@@ -2953,7 +3077,7 @@ component KeyFieldSettingCard inherits Rectangle {
                             icon: @image-url("../../assets/ui-icons/option-refresh.svg");
                             title: Tr.settings-option-refresh-interval-title;
                             description: Tr.settings-option-refresh-interval-description;
-                            options: ["1s", "2s", "5s", "10s"];
+                            options: Tr.settings-refresh-interval-options;
                             selected-index <=> root.refresh-index;
                             enabled: root.refresh-performance-mode-index == 3;
                         }

@@ -16,7 +16,7 @@ At a glance, Panopticon provides:
 - multiple mathematical layouts for arranging windows;
 - per-application rules for visibility, color, tags, and refresh strategy;
 - tray-first behaviour and optional appbar/dock mode;
-- persistent settings and named profiles;
+- persistent settings and named workspaces;
 - a Slint UI with English and Spanish support.
 
 ## Choose your path
@@ -49,7 +49,7 @@ Read [`PRD.md`](PRD.md).
 When Panopticon starts, it typically:
 
 1. initialises logging;
-2. loads the active configuration/profile;
+2. loads the active configuration/workspace;
 3. creates the main Slint window;
 4. acquires the native `HWND` and applies window appearance;
 5. registers the tray icon;
@@ -86,13 +86,13 @@ cd panopticon
 cargo run --release
 ```
 
-To run a named profile:
+To run a named workspace:
 
 ```bash
-cargo run --release -- --profile work
+cargo run --release -- --workspace work
 ```
 
-The profile file is read from `%APPDATA%\Panopticon\profiles\work.toml`.
+The workspace file is read from `%APPDATA%\Panopticon\workspaces\work.toml`.
 
 ## First-run checklist
 
@@ -102,7 +102,7 @@ If you are opening the app for the first time, this is the fastest useful walkth
 2. cycle layouts with `Tab` or jump directly with `1` to `7`;
 3. right-click a thumbnail to inspect app/window actions;
 4. hide an app and restore it from the tray;
-5. open settings with `O` to review filters, theme, and profile options, then click the sidebar mascot to open About/update details;
+5. open settings with `O` to review filters, theme, and workspace options, then click the sidebar mascot to open About/update details;
 6. try `Row` or `Column` and use the wheel or middle-button drag to navigate overflow.
 
 ## Important paths
@@ -111,7 +111,7 @@ If you are opening the app for the first time, this is the fastest useful walkth
 
 ```text
 %APPDATA%\Panopticon\settings.toml
-%APPDATA%\Panopticon\profiles\<profile>.toml
+%APPDATA%\Panopticon\workspaces\<workspace>.toml
 ```
 
 If `%APPDATA%` is unavailable, Panopticon falls back to `%TEMP%\Panopticon\...`.
@@ -151,7 +151,7 @@ Use this table when you know the question you want answered.
 | Document | Read it when you need... |
 | --- | --- |
 | [`GETTING_STARTED.md`](GETTING_STARTED.md) | installation steps, first-run behaviour, shortcuts, and common issues |
-| [`CONFIGURATION.md`](CONFIGURATION.md) | all config keys, profile behaviour, tags, and layout persistence |
+| [`CONFIGURATION.md`](CONFIGURATION.md) | all config keys, workspace behaviour, tags, and layout persistence |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | a system view of runtime layers, startup flow, and key design decisions |
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | code-level behaviour of modules, state, timers, DWM syncing, tray, and dock |
 | [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | where files live, what each folder owns, and which paths are editable |

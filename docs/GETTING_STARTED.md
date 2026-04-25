@@ -25,17 +25,17 @@ cargo run
 cargo run --release
 ```
 
-### Running with a specific profile
+### Running with a specific workspace
 
 ```bash
-cargo run --release -- --profile work
+cargo run --release -- --workspace work
 ```
 
-This loads the configuration from `%APPDATA%\Panopticon\profiles\work.toml`.
+This loads the configuration from `%APPDATA%\Panopticon\workspaces\work.toml`.
 
-Profile names become Windows filenames, so keep them free of reserved characters such as `<>:"/\\|?*` and control characters.
+Workspace names become Windows filenames, so keep them free of reserved characters such as `<>:"/\\|?*` and control characters.
 
-You can also use `--profile=work`, inspect the CLI with `--help`, or print the current app version with `--version`.
+You can also use `--workspace=work`, inspect the CLI with `--help`, or print the current app version with `--version`.
 
 ## What happens at startup
 
@@ -43,7 +43,7 @@ In a normal session, Panopticon does the following:
 
 1. initialises logging in `%TEMP%\panopticon\logs\`;
 2. activates per-monitor DPI awareness;
-3. loads settings and the active profile from TOML;
+3. loads settings and the active workspace from TOML;
 4. creates the main Slint window;
 5. acquires the native `HWND` and applies DWM appearance;
 6. registers the tray icon;
@@ -72,7 +72,7 @@ If there are no candidate windows, the UI shows an empty state.
 3. Right-click a thumbnail to open the per-window menu.
 4. Hide an application from the layout, then restore it from the tray.
 5. Create a tag from an application.
-6. Open `Settings` with `O` and review language, filters, theme, background options, shortcuts, and profiles; click the sidebar mascot to open About and check update status.
+6. Open `Settings` with `O` and review language, filters, theme, background options, shortcuts, and workspaces; click the sidebar mascot to open About and check update status.
 7. Try `T` to toggle between themes.
 8. Press `F1` while the dashboard is focused to open the About window.
 9. If using `Row` or `Column`, scroll with the wheel or middle-button drag.
@@ -119,7 +119,7 @@ These are the default bindings shipped by Panopticon today. The dashboard/global
 
 ```text
 %APPDATA%\Panopticon\settings.toml
-%APPDATA%\Panopticon\profiles\<profile>.toml
+%APPDATA%\Panopticon\workspaces\<workspace>.toml
 ```
 
 ### Logs
@@ -163,9 +163,9 @@ Check:
 
 The runtime attempts to re-register it automatically when it receives `TaskbarCreated`.
 
-### A profile does not seem to load
+### A workspace does not seem to load
 
-Launch the app with `--profile <name>` (or `--profile=<name>`) and verify that `%APPDATA%\Panopticon\profiles\<name>.toml` exists.
+Launch the app with `--workspace <name>` (or `--workspace=<name>`) and verify that `%APPDATA%\Panopticon\workspaces\<name>.toml` exists.
 
 ### In dock mode some actions behave differently
 

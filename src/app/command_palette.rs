@@ -3,6 +3,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use panopticon::layout::LayoutType;
+use panopticon::settings::AppSettings;
 use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, VecModel};
 
 use super::dock::apply_topmost_mode;
@@ -13,67 +15,136 @@ use crate::{
     refresh_ui, refresh_windows, update_settings, AppState, CommandPaletteWindow, MainWindow,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum CommandId {
     CycleLayout,
+    SetLayout(LayoutType),
     CycleTheme,
     RefreshNow,
     OpenSettings,
+    OpenAbout,
     OpenMenu,
+    LoadWorkspace(Option<String>),
     ToggleToolbar,
     ToggleAlwaysOnTop,
     Exit,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct CommandEntry {
     id: CommandId,
-    title: &'static str,
-    keywords: &'static str,
+    title: String,
+    keywords: String,
 }
 
-const COMMANDS: &[CommandEntry] = &[
-    CommandEntry {
-        id: CommandId::CycleLayout,
-        title: "Layout: Cycle",
-        keywords: "layout cycle next",
-    },
-    CommandEntry {
-        id: CommandId::CycleTheme,
-        title: "Theme: Cycle",
-        keywords: "theme cycle next",
-    },
-    CommandEntry {
-        id: CommandId::RefreshNow,
-        title: "Refresh: Run now",
-        keywords: "refresh update windows now",
-    },
-    CommandEntry {
-        id: CommandId::OpenSettings,
-        title: "Open Settings",
-        keywords: "settings preferences config",
-    },
-    CommandEntry {
-        id: CommandId::OpenMenu,
-        title: "Open App Menu",
-        keywords: "menu context tray",
-    },
-    CommandEntry {
-        id: CommandId::ToggleToolbar,
-        title: "Toggle Status Bar",
-        keywords: "toolbar status bar toggle",
-    },
-    CommandEntry {
-        id: CommandId::ToggleAlwaysOnTop,
-        title: "Toggle Always On Top",
-        keywords: "topmost always on top pin",
-    },
-    CommandEntry {
+fn command_entries() -> Vec<CommandEntry> {
+    let mut entries = vec![
+        CommandEntry {
+            id: CommandId::CycleLayout,
+            title: "Layout: Cycle".to_owned(),
+            keywords: "layout cycle next".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::SetLayout(LayoutType::Grid),
+            title: "Layout: Grid".to_owned(),
+            keywords: "layout grid".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::SetLayout(LayoutType::Mosaic),
+            title: "Layout: Mosaic".to_owned(),
+            keywords: "layout mosaic".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::SetLayout(LayoutType::Bento),
+            title: "Layout: Bento".to_owned(),
+            keywords: "layout bento".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::SetLayout(LayoutType::Fibonacci),
+            title: "Layout: Fibonacci".to_owned(),
+            keywords: "layout fibonacci".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::SetLayout(LayoutType::Columns),
+            title: "Layout: Columns".to_owned(),
+            keywords: "layout columns".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::SetLayout(LayoutType::Row),
+            title: "Layout: Row".to_owned(),
+            keywords: "layout row".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::SetLayout(LayoutType::Column),
+            title: "Layout: Column".to_owned(),
+            keywords: "layout column".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::CycleTheme,
+            title: "Theme: Cycle".to_owned(),
+            keywords: "theme cycle next".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::RefreshNow,
+            title: "Refresh: Run now".to_owned(),
+            keywords: "refresh update windows now".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::OpenSettings,
+            title: "Open Settings".to_owned(),
+            keywords: "settings preferences config".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::OpenAbout,
+            title: "Open About".to_owned(),
+            keywords: "about version update".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::OpenMenu,
+            title: "Open App Menu".to_owned(),
+            keywords: "menu context tray".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::ToggleToolbar,
+            title: "Toggle Status Bar".to_owned(),
+            keywords: "toolbar status bar toggle".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::ToggleAlwaysOnTop,
+            title: "Toggle Always On Top".to_owned(),
+            keywords: "topmost always on top pin".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::LoadWorkspace(None),
+            title: "Workspace: Load default".to_owned(),
+            keywords: "workspace load default".to_owned(),
+        },
+    ];
+
+    let workspaces = AppSettings::list_workspaces_with_default().unwrap_or_else(|error| {
+        tracing::warn!(%error, "failed to enumerate workspaces for command palette");
+        vec!["default".to_owned()]
+    });
+
+    for workspace in workspaces {
+        if workspace.eq_ignore_ascii_case("default") {
+            continue;
+        }
+        entries.push(CommandEntry {
+            id: CommandId::LoadWorkspace(Some(workspace.clone())),
+            title: format!("Workspace: Load {workspace}"),
+            keywords: format!("workspace load switch {workspace}"),
+        });
+    }
+
+    entries.push(CommandEntry {
         id: CommandId::Exit,
-        title: "Exit Panopticon",
-        keywords: "quit exit close app",
-    },
-];
+        title: "Exit Panopticon".to_owned(),
+        keywords: "quit exit close app".to_owned(),
+    });
+
+    entries
+}
 
 pub(crate) fn open_command_palette_window(
     state: &Rc<RefCell<AppState>>,
@@ -131,7 +202,7 @@ pub(crate) fn open_command_palette_window(
                 };
 
                 let index = usize::try_from(window.get_command_index()).ok();
-                let command_id = index.and_then(|index| filtered.borrow().get(index).copied());
+                let command_id = index.and_then(|index| filtered.borrow().get(index).cloned());
                 let Some(command_id) = command_id else {
                     return;
                 };
@@ -160,7 +231,7 @@ pub(crate) fn open_command_palette_window(
                     };
 
                     let index = usize::try_from(window.get_command_index()).ok();
-                    let command_id = index.and_then(|index| filtered.borrow().get(index).copied());
+                    let command_id = index.and_then(|index| filtered.borrow().get(index).cloned());
                     if let Some(command_id) = command_id {
                         execute_command(command_id, &state, &main_weak);
                         close_command_palette_window();
@@ -193,13 +264,13 @@ fn rebuild_filtered_commands(
     filtered: &RefCell<Vec<CommandId>>,
 ) {
     let normalized_query = query.trim().to_ascii_lowercase();
+    let entries = command_entries();
 
     let matches: Vec<CommandEntry> = if normalized_query.is_empty() {
-        COMMANDS.to_vec()
+        entries
     } else {
-        COMMANDS
-            .iter()
-            .copied()
+        entries
+            .into_iter()
             .filter(|entry| {
                 entry.title.to_ascii_lowercase().contains(&normalized_query)
                     || entry
@@ -210,14 +281,14 @@ fn rebuild_filtered_commands(
             .collect()
     };
 
-    *filtered.borrow_mut() = matches.iter().map(|entry| entry.id).collect();
+    *filtered.borrow_mut() = matches.iter().map(|entry| entry.id.clone()).collect();
 
     let labels = if matches.is_empty() {
         vec![SharedString::from("No commands found")]
     } else {
         matches
             .iter()
-            .map(|entry| SharedString::from(entry.title))
+            .map(|entry| SharedString::from(entry.title.clone()))
             .collect()
     };
 
@@ -234,6 +305,9 @@ fn execute_command(
         CommandId::CycleLayout => {
             layout_actions::cycle_layout(state);
             refresh_ui(state, main_weak);
+        }
+        CommandId::SetLayout(layout) => {
+            layout_actions::set_layout(state, main_weak, layout);
         }
         CommandId::CycleTheme => {
             let current_idx = {
@@ -269,8 +343,18 @@ fn execute_command(
         CommandId::OpenSettings => {
             secondary_windows::open_settings_window(state, main_weak);
         }
+        CommandId::OpenAbout => {
+            secondary_windows::open_about_window(state);
+        }
         CommandId::OpenMenu => {
             tray_actions::open_application_context_menu(state, main_weak, None);
+        }
+        CommandId::LoadWorkspace(workspace_name) => {
+            let _ = secondary_windows::load_workspace_into_current_instance(
+                state,
+                main_weak,
+                workspace_name,
+            );
         }
         CommandId::ToggleToolbar => {
             update_settings(state, |settings| {

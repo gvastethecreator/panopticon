@@ -47,7 +47,7 @@ pub(crate) struct AppState {
     pub(crate) animation_started_at: Option<Instant>,
     pub(crate) content_extent: i32,
     pub(crate) is_appbar: bool,
-    pub(crate) profile_name: Option<String>,
+    pub(crate) workspace_name: Option<String>,
     pub(crate) last_size: (i32, i32),
     /// Cached separators from the last layout computation.
     pub(crate) separators: Vec<Separator>,
@@ -138,7 +138,7 @@ pub(crate) enum UpdateStatus {
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum StartupArgs {
-    Run { profile: Option<String> },
+    Run { workspace: Option<String> },
     PrintAndExit { message: String, stderr: bool },
 }
 

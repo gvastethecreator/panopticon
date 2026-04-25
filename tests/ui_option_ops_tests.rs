@@ -2,14 +2,14 @@
 
 use panopticon::settings::{AppSelectionEntry, HiddenAppEntry};
 use panopticon::ui_option_ops::{
-    app_option_label, current_profile_label, hidden_app_option_label, parse_option_value,
+    app_option_label, current_workspace_label, hidden_app_option_label, parse_option_value,
     suggested_tag_name, tag_color_hex, tag_color_index, OPTION_SEPARATOR,
 };
 
 #[test]
-fn current_profile_label_falls_back_to_default() {
-    assert_eq!(current_profile_label(None), "default");
-    assert_eq!(current_profile_label(Some("workbench")), "workbench");
+fn current_workspace_label_falls_back_to_default() {
+    assert_eq!(current_workspace_label(None), "default");
+    assert_eq!(current_workspace_label(Some("workbench")), "workbench");
 }
 
 #[test]

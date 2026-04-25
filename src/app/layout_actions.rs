@@ -19,7 +19,7 @@ pub(crate) fn cycle_layout(state: &Rc<RefCell<AppState>>) {
     state.current_layout = state.current_layout.next();
     state.settings.initial_layout = state.current_layout;
     state.drag_separator = None;
-    let _ = state.settings.save(state.profile_name.as_deref());
+    let _ = state.settings.save(state.workspace_name.as_deref());
 }
 
 pub(crate) fn set_layout(
@@ -38,7 +38,7 @@ pub(crate) fn set_layout(
         state_ref.current_layout = layout;
         state_ref.settings.initial_layout = layout;
         state_ref.drag_separator = None;
-        let _ = state_ref.settings.save(state_ref.profile_name.as_deref());
+        let _ = state_ref.settings.save(state_ref.workspace_name.as_deref());
     }
     refresh_ui(state, weak);
 }
@@ -48,7 +48,7 @@ pub(crate) fn reset_layout_custom(state: &Rc<RefCell<AppState>>) {
     let layout = state.current_layout;
     state.settings.clear_layout_custom(layout);
     state.settings = state.settings.normalized();
-    let _ = state.settings.save(state.profile_name.as_deref());
+    let _ = state.settings.save(state.workspace_name.as_deref());
 }
 
 pub(crate) fn handle_resize_drag_start(
@@ -177,7 +177,7 @@ pub(crate) fn handle_resize_drag_end(
 ) {
     let mut state_ref = state.borrow_mut();
     state_ref.drag_separator = None;
-    let _ = state_ref.settings.save(state_ref.profile_name.as_deref());
+    let _ = state_ref.settings.save(state_ref.workspace_name.as_deref());
     drop(state_ref);
 
     if let Some(window) = weak.upgrade() {

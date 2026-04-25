@@ -30,7 +30,7 @@ Panopticon is useful when you want to:
 - **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
 - **Grouping and filters** by app, monitor, title, class, and tag.
 - **Tray utility + appbar/dock mode** for always-available workflows.
-- **Campbell-first themes, core colour overrides, backdrop opacity, background images with fit modes + opacity, animations, customizable shortcuts, profiles, and persistence** through local TOML files.
+- **Campbell-first themes, core colour overrides, backdrop opacity, background images with fit modes + opacity, animations, customizable shortcuts, workspaces, and persistence** through local TOML files.
 - **Bilingual UI** with English and Spanish support.
 
 ## Quick start
@@ -54,17 +54,17 @@ cargo run --release
 
 The executable is generated at `target/release/panopticon.exe`.
 
-To run a named profile:
+To run a named workspace:
 
 ```bash
-cargo run --release -- --profile work
+cargo run --release -- --workspace work
 ```
 
-Profile names are used as TOML filenames on Windows, so avoid reserved characters such as `<>:"/\\|?*` and control characters.
+Workspace names are used as TOML filenames on Windows, so avoid reserved characters such as `<>:"/\\|?*` and control characters.
 
 Panopticon also understands:
 
-- `cargo run --release -- --profile=work`
+- `cargo run --release -- --workspace=work`
 - `cargo run --release -- --help`
 - `cargo run --release -- --version`
 
@@ -74,7 +74,7 @@ Panopticon also understands:
 2. Press `Tab` or `1` to `7` to explore the available layouts.
 3. Left-click a thumbnail to activate that window.
 4. Right-click a thumbnail to open per-window actions.
-5. Press `O` to open settings and review language, theme, filters, profiles, and click the sidebar mascot to open About (with live update status beside the version).
+5. Press `O` to open settings and review language, theme, filters, workspaces, and click the sidebar mascot to open About (with live update status beside the version).
 6. Use the tray icon to hide/show the dashboard without closing it.
 
 ### Handy shortcuts
@@ -106,7 +106,7 @@ Configuration is stored locally in:
 
 ```text
 %APPDATA%\Panopticon\settings.toml
-%APPDATA%\Panopticon\profiles\<profile>.toml
+%APPDATA%\Panopticon\workspaces\<workspace>.toml
 ```
 
 If `%APPDATA%` is unavailable, Panopticon falls back to `%TEMP%\Panopticon\...`.
@@ -125,7 +125,7 @@ Useful entry points:
 
 - [`docs/README.md`](docs/README.md) — complete documentation hub and reading guide.
 - [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — install, launch, first-run flow, common issues.
-- [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — settings, profiles, and TOML schema.
+- [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — settings, workspaces, and TOML schema.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture, runtime layers, and diagrams.
 - [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) — deeper implementation details by module.
 - [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) — repository map and code ownership.

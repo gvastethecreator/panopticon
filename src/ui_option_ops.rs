@@ -1,19 +1,19 @@
-//! Pure helpers for profile labels, option encoding, and tag-dialog defaults.
+//! Pure helpers for workspace labels, option encoding, and tag-dialog defaults.
 
 use crate::settings::{AppSelectionEntry, HiddenAppEntry};
 
 /// Separator used when combining a label with its opaque application identifier.
 pub const OPTION_SEPARATOR: &str = " — ";
 
-/// Return a stable user-facing label for the active profile.
+/// Return a stable user-facing label for the active workspace.
 #[must_use]
-pub fn current_profile_label(profile_name: Option<&str>) -> String {
-    profile_name.unwrap_or("default").to_owned()
+pub fn current_workspace_label(workspace_name: Option<&str>) -> String {
+    workspace_name.unwrap_or("default").to_owned()
 }
 
-/// Convert a combo-box profile label back into an optional profile name.
+/// Convert a combo-box workspace label back into an optional workspace name.
 #[must_use]
-pub fn selected_profile_name(value: &str) -> Option<String> {
+pub fn selected_workspace_name(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("default") {
         None
