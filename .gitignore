@@ -29,6 +29,9 @@ lcov.info
 
 # ── Logs (generated at runtime) ──────────────────────────────
 /logs/
+*.log
+*.tmp
+test_output.txt
 
 # ── Backup files from refactoring ────────────────────────────
 *.bak

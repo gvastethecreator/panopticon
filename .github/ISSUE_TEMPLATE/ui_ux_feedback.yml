@@ -1,0 +1,57 @@
+name: UI/UX feedback
+description: Share feedback about usability, clarity, layout, and interaction design.
+title: "[UI/UX]: "
+labels: [ui, ux]
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What were you trying to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_behavior
+    attributes:
+      label: Current behavior
+      description: What felt confusing, slow, or unclear?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Desired experience
+      description: What would feel better or more intuitive?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Main dashboard
+        - Settings
+        - Command palette
+        - Tray / menu
+        - Workspaces
+        - Filters
+        - Layout interactions
+        - Shortcuts
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / recordings
+      description: If possible, attach visuals that show the UX issue.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional notes
+      description: Any extra details that can help prioritize or design a fix.
