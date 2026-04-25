@@ -34,6 +34,40 @@ export component CustomCheckBox inherits Rectangle {
     }
 }
 
+/// Custom RadioButton using Theme colors - circular selector for mutually exclusive options
+export component CustomRadioButton inherits Rectangle {
+    in-out property <bool> checked: false;
+    in property <bool> enabled: true;
+    callback toggled();
+
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    border-width: 2px;
+    border-color: root.enabled ? (root.checked ? Theme.accent : Theme.border.with-alpha(76%)) : Theme.border.with-alpha(40%);
+    background: root.enabled ? (root.checked ? Theme.accent-soft.with-alpha(48%) : Theme.surface.with-alpha(64%)) : Theme.surface.with-alpha(36%);
+
+    Rectangle {
+        x: 6px;
+        y: 6px;
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        visible: root.checked;
+        background: root.enabled ? Theme.accent : Theme.muted;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            if !root.checked {
+                root.checked = true;
+                root.toggled();
+            }
+        }
+    }
+}
+
 /// Custom ComboBox using Theme colors - not a wrapper, fully custom
 export component CustomComboBox inherits Rectangle {
     in property <[string]> options: [];
@@ -262,61 +296,77 @@ export component CustomSlider inherits Rectangle {
     in property <int> maximum: 100;
     in property <bool> enabled: true;
 
-    height: 20px;
+    min-width: 120px;
+    height: 24px;
     background: transparent;
 
-    border-radius: 10px;
+    property <bool> has-range: root.maximum > root.minimum;
+    property <int> safe-range: root.has-range ? root.maximum - root.minimum : 1;
+    property <length> handle-size: 16px;
+    property <length> track-height: 4px;
+    property <float> normalized-value: root.has-range ? (1.0 * (root.value - root.minimum) / root.safe-range) : 0.0;
+    property <length> track-width: max(root.width - root.handle-size, 1px);
+    property <length> handle-left: root.track-width * root.normalized-value;
+    property <length> fill-width: max(root.handle-left, 2px);
 
-    property <int> safe-range: max(root.maximum - root.minimum, 1);
-    property <length> thumb-travel: max(root.width - 22px, 0px);
-    property <length> thumb-x: 4px + ((root.thumb-travel * (root.value - root.minimum)) / root.safe-range);
+    pure function value-from-mouse(position: length) -> int {
+        return root.minimum + round((max(0px, min(root.track-width, position - root.handle-size / 2)) / root.track-width) * root.safe-range);
+    }
 
     Rectangle {
-        x: 4px;
-        y: 9px;
-        width: max(parent.width - 8px, 1px);
-        height: 2px;
-        border-radius: 2px;
-        background: Theme.border.with-alpha(56%);
+        x: root.handle-size / 2;
+        y: (root.height - root.track-height) / 2;
+        width: root.track-width;
+        height: root.track-height;
+        border-radius: root.track-height / 2;
+        background: root.enabled ? Theme.border.with-alpha(48%) : Theme.border.with-alpha(26%);
 
         Rectangle {
-            width: min(max(7px + ((root.thumb-travel * (root.value - root.minimum)) / root.safe-range), 0px), parent.width);
+            width: root.fill-width;
             height: parent.height;
-            border-radius: 2px;
-            background: root.enabled ? Theme.accent : Theme.muted;
+            border-radius: parent.border-radius;
+            background: root.enabled ? Theme.accent : Theme.muted.with-alpha(72%);
         }
     }
 
     Rectangle {
-        y: 3px;
-        width: 14px;
-        height: 14px;
-        x: root.thumb-x;
-        border-radius: 7px;
+        x: root.handle-left;
+        y: (root.height - root.handle-size) / 2;
+        width: root.handle-size;
+        height: root.handle-size;
+        border-radius: root.handle-size / 2;
         border-width: 2px;
-        border-color: root.enabled ? Theme.accent : Theme.muted;
-        background: root.enabled ? Theme.card-bg : Theme.surface;
+        border-color: root.enabled ? Theme.accent : Theme.border.with-alpha(50%);
+        background: root.enabled ? (touch.pressed ? Theme.accent-soft.with-alpha(82%) : touch.has-hover ? Theme.surface : Theme.card-bg) : Theme.surface.with-alpha(58%);
+
+        Rectangle {
+            x: 4px;
+            y: 4px;
+            width: parent.width - 8px;
+            height: parent.height - 8px;
+            border-radius: self.width / 2;
+            background: root.enabled ? Theme.accent : Theme.muted;
+            opacity: touch.pressed ? 1 : 0.86;
+        }
     }
 
     touch := TouchArea {
         enabled: root.enabled;
         mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
 
-        clicked => {
-            if touch.mouse-x > (4px + ((max(root.width - 8px, 1px) * (root.value - root.minimum)) / root.safe-range)) {
-                root.value = min(root.maximum, root.value + 1);
-            } else {
-                root.value = max(root.minimum, root.value - 1);
+        pointer-event(event) => {
+            if self.enabled && event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                root.value = root.value-from-mouse(self.mouse-x);
             }
         }
 
+        clicked => {
+            root.value = root.value-from-mouse(self.mouse-x);
+        }
+
         moved => {
-            if self.pressed {
-                if touch.mouse-x > (4px + ((max(root.width - 8px, 1px) * (root.value - root.minimum)) / root.safe-range)) {
-                    root.value = min(root.maximum, root.value + 1);
-                } else {
-                    root.value = max(root.minimum, root.value - 1);
-                }
+            if self.enabled && self.pressed {
+                root.value = root.value-from-mouse(self.mouse-x);
             }
         }
     }
