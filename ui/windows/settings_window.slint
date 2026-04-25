@@ -80,8 +80,8 @@ import {
     border-color: transparent;
 
     HorizontalLayout {
-        padding-left: 8px;
-        padding-right: 8px;
+        padding-left: 0px;
+        padding-right: 0px;
         padding-top: 5px;
         padding-bottom: 4px;
         spacing: 10px;
@@ -167,8 +167,8 @@ import {
     background: transparent;
 
     HorizontalLayout {
-        padding-left: 8px;
-        padding-right: 8px;
+        padding-left: 0px;
+        padding-right: 0px;
         padding-top: 0px;
         padding-bottom: 10px;
         spacing: 15px;
@@ -224,8 +224,8 @@ import {
     background: transparent;
 
     VerticalLayout {
-        padding-left: 8px;
-        padding-right: 8px;
+        padding-left: 0px;
+        padding-right: 0px;
         padding-top: 2px;
         padding-bottom: 4px;
         spacing: 8px;
@@ -249,48 +249,43 @@ import {
     in property <bool> enabled: true;
     in property <length> combo-width: 220px;
 
-    min-height: 86px;
-    border-radius: 4px;
-    border-width: 2px;
-    border-color: Theme.border.with-alpha(52%);
-    background: Theme.card-bg.with-alpha(92%);
+    min-height: 70px;
 
-    VerticalLayout {
-        padding: 14px;
-        spacing: 10px;
+    HorizontalLayout {
+        padding-left: 0px;
+        padding-right: 0px;
+        padding-top: 0px;
+        padding-bottom: 10px;
+        spacing: 15px;
+        alignment: start;
 
-        HorizontalLayout {
-            spacing: 10px;
-            alignment: start;
-
-            Image {
-                width: 20px;
-                height: 20px;
-                source: root.icon;
-                image-fit: contain;
-                colorize: root.enabled ? Theme.accent : Theme.muted;
-            }
-
-            VerticalLayout {
-                spacing: 4px;
-                vertical-stretch: 1;
-
-                Text {
-                    text: root.title;
-                    color: root.enabled ? Theme.text : Theme.muted;
-                    font-size: 14px;
-                    font-weight: 700;
-                    wrap: word-wrap;
-                }
-            }
+        Image {
+            width: 22px;
+            height: 22px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: root.enabled ? Theme.label : Theme.muted;
         }
 
-        CustomComboBox {
-            width: root.combo-width;
-            height: 34px;
-            options: root.options;
-            selected-index <=> root.selected-index;
-            enabled: root.enabled;
+        VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Text {
+                text: root.title;
+                color: root.enabled ? Theme.text : Theme.muted;
+                font-size: 14px;
+                font-weight: 400;
+                wrap: word-wrap;
+            }
+
+            CustomComboBox {
+                width: root.combo-width;
+                height: 34px;
+                options: root.options;
+                selected-index <=> root.selected-index;
+                enabled: root.enabled;
+            }
         }
     }
 }
@@ -311,8 +306,8 @@ import {
     background: transparent;
 
     VerticalLayout {
-        padding-left: 8px;
-        padding-right: 8px;
+        padding-left: 0px;
+        padding-right: 0px;
         padding-top: 10px;
         padding-bottom: 10px;
         spacing: 8px;
@@ -366,8 +361,8 @@ import {
 
     height: 42px;
     border-radius: 4px;
-    border-width: 1px;
-    border-color: Theme.border.with-alpha(56%);
+    border-width: 2px;
+    border-color: Theme.border.with-alpha(10%);
     background: Theme.surface.with-alpha(48%);
 
     HorizontalLayout {
@@ -394,10 +389,19 @@ import {
             font-weight: 600;
             vertical-alignment: center;
             horizontal-stretch: 1;
+            width: 85px;
+        }
+
+        Text {
+            text: "#";
+            color: Theme.text.with-alpha(72%);
+            font-size: 12.5px;
+            font-weight: 700;
+            vertical-alignment: center;
         }
 
         edit := CustomLineEdit {
-            width: 118px;
+            width: 106px;
             height: 28px;
             text <=> root.value;
             placeholder: root.placeholder;
@@ -416,41 +420,41 @@ import {
     in property <bool> selected: false;
     callback picked(/* index */ int);
 
-    border-radius: 4px;
+    border-radius: 6px;
     border-width: selected ? 2px : 1px;
     border-color: selected ? Theme.accent : Theme.border.with-alpha(62%);
     background: selected ? Theme.accent-soft.with-alpha(18%) : Theme.card_bg.with-alpha(92%);
 
     HorizontalLayout {
-        padding-left: 10px;
-        padding-right: 10px;
-        padding-top: 9px;
-        padding-bottom: 9px;
-        spacing: 12px;
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+        spacing: 8px;
         alignment: start;
 
         VerticalLayout {
-            width: 28px;
-            spacing: 4px;
+            width: 22px;
+            spacing: 3px;
             alignment: center;
 
             Rectangle {
                 width: 100%;
-                height: 8px;
+                height: 6px;
                 border-radius: 4px;
                 background: root.theme.bg;
             }
 
             Rectangle {
                 width: 100%;
-                height: 8px;
+                height: 6px;
                 border-radius: 4px;
                 background: root.theme.surface;
             }
 
             Rectangle {
                 width: 100%;
-                height: 8px;
+                height: 6px;
                 border-radius: 4px;
                 background: root.theme.accent;
             }
@@ -462,8 +466,8 @@ import {
 
             Text {
                 text: root.theme.label;
-                color: root.theme.text;
-                font-size: 13px;
+                color: Theme.text;
+                font-size: 12px;
                 font-weight: 700;
                 vertical-alignment: center;
                 overflow: elide;
@@ -471,17 +475,17 @@ import {
 
             Text {
                 text: root.theme.subtitle;
-                color: root.theme.text.with-alpha(68%);
-                font-size: 10.5px;
+                color: Theme.muted;
+                font-size: 9.5px;
                 vertical-alignment: center;
                 overflow: elide;
             }
         }
 
         Rectangle {
-            width: 18px;
-            height: 18px;
-            border-radius: 9px;
+            width: 14px;
+            height: 14px;
+            border-radius: 7px;
             border-width: 2px;
             border-color: root.selected ? root.theme.accent : Theme.border.with-alpha(80%);
             background: root.selected ? Theme.accent-soft.with-alpha(34%) : transparent;
@@ -490,11 +494,11 @@ import {
             // the `for` loop which can push Slint's layout recursion depth over
             // the Windows default 1 MB stack limit.
             Rectangle {
-                x: 4px;
-                y: 4px;
-                width: 8px;
-                height: 8px;
-                border-radius: 4px;
+                x: 3px;
+                y: 3px;
+                width: 6px;
+                height: 6px;
+                border-radius: 3px;
                 background: root.selected ? root.theme.accent : transparent;
             }
         }
@@ -503,9 +507,6 @@ import {
     touch := TouchArea {
         clicked => {
             root.picked(root.theme.index);
-        }
-        scroll-event(_) => {
-            reject;
         }
     }
 }
@@ -665,6 +666,7 @@ import {
     callback clear-background-image();
     callback apply-bg-color-hex(string);
     callback apply-bg-color-rgb(int, int, int);
+    callback key-pressed(/* key */ string, /* shift_pressed */ bool) -> bool;
     callback closed();
 
     request-live-apply => {
@@ -777,13 +779,14 @@ import {
             HorizontalLayout {
                 padding-left: 24px;
                 padding-right: 24px;
-                padding-top: 12px;
+                padding-top: 0px;
                 padding-bottom: 12px;
                 alignment: space-between;
 
                 VerticalLayout {
                     spacing: 3px;
                     alignment: center;
+                    padding-top: 7px;
 
                     Text {
                         text: Tr.settings-title;
@@ -808,7 +811,7 @@ import {
 
                         Rectangle {
                             width: 3px;
-                            height: 32px;
+                            height: 28px;
                             border-radius: 2px;
                             background: Theme.accent.with-alpha(50%);
                         }
@@ -816,6 +819,7 @@ import {
                         VerticalLayout {
                             spacing: 0px;
                             alignment: start;
+                            padding-top: 0px;
 
                             Text {
                                 text: Tr.settings-profile-badge;
@@ -915,8 +919,10 @@ import {
                         }
                     }
 
-                    Rectangle {
+                    VerticalLayout {
+                        alignment: LayoutAlignment.end;
                         vertical-stretch: 0;
+                        spacing: 10px;
 
                         Image {
                             source: @image-url("../../assets/mascot.svg");
@@ -924,22 +930,44 @@ import {
                             vertical-tiling: ImageTiling.none;
                             width: 190px;
                             height: 270px;
-                            y: 180px;
                             horizontal-alignment: ImageHorizontalAlignment.center;
                             horizontal-tiling: ImageTiling.none;
                             image-fit: ImageFit.contain;
-                            image-rendering: ImageRendering.smooth;
+                        }
+
+                        Text {
+                            text: Tr.settings-version-label + " " + root.app-version-text;
+                            color: Theme.muted;
+                            font-italic: true;
+                            font-size: 12px;
+                            height: 33px;
+                            horizontal-alignment: TextHorizontalAlignment.center;
+                            opacity: 0.4;
+                            vertical-alignment: TextVerticalAlignment.center;
+                            wrap: word-wrap;
                         }
                     }
                 }
             }
 
             Rectangle {
-                width: 2px;
+                width: 1px;
+                background: Theme.border.with-alpha(60%);
+            }
+
+            Rectangle {
+                width: 1px;
                 background: Theme.border.with-alpha(30%);
             }
 
+            Rectangle {
+                width: 1px;
+                background: Theme.border.with-alpha(10%);
+            }
+
             ScrollView {
+                has-focus: true;
+                horizontal-scrollbar-policy: ScrollBarPolicy.as-needed;
                 horizontal-stretch: 1;
                 vertical-stretch: 1;
                 // Lock the scrollable viewport to the visible width so that
@@ -948,8 +976,11 @@ import {
                 viewport-width: self.width;
 
                 VerticalLayout {
-                    padding: 10px;
-                    spacing: 14px;
+                    width: parent.width;
+                    padding-left: 25px;
+                    padding-right: 25px;
+                    padding-top: 0px;
+                    spacing: 10px;
 
                     if root.current-page == 0: VerticalLayout {
 
@@ -1046,11 +1077,11 @@ import {
                         }
 
                         HorizontalLayout {
-                            spacing: 16px;
+                            spacing: 0px;
 
                             SelectSettingPanel {
                                 horizontal-stretch: 1;
-                                combo-width: 220px;
+                                combo-width: 150px;
                                 icon: @image-url("../../assets/ui-icons/option-layout.svg");
                                 title: Tr.settings-option-default-layout-title;
                                 options: Tr.layout-options;
@@ -1060,7 +1091,6 @@ import {
 
                             SelectSettingPanel {
                                 horizontal-stretch: 1;
-                                combo-width: 220px;
                                 icon: @image-url("../../assets/ui-icons/option-dock.svg");
                                 title: Tr.settings-option-dock-position-title;
                                 options: Tr.dock-options;
@@ -1207,7 +1237,8 @@ import {
                         if !root.dock-mode-active: Rectangle {
 
                             VerticalLayout {
-                                padding: 14px;
+                                padding: 0px;
+                                padding-bottom: 10px;
                                 spacing: 12px;
 
                                 HorizontalLayout {
@@ -1274,7 +1305,7 @@ import {
                                         horizontal-stretch: 1;
                                         border-radius: 4px;
                                         border-width: 2px;
-                                        border-color: Theme.border.with-alpha(64%);
+                                        border-color: Theme.border.with-alpha(10%);
                                         background: Theme.surface.with-alpha(48%);
 
                                         VerticalLayout {
@@ -1303,7 +1334,8 @@ import {
                         Rectangle {
 
                             VerticalLayout {
-                                padding: 14px;
+                                padding: 0px;
+                                padding-bottom: 15px;
                                 spacing: 12px;
 
                                 HorizontalLayout {
@@ -1390,7 +1422,6 @@ import {
                     }
 
                     if root.current-page == 1: VerticalLayout {
-                        spacing: 10px;
 
                         PageHeader {
                             icon: @image-url("../../assets/ui-icons/section-filter.svg");
@@ -1433,7 +1464,7 @@ import {
                         }
 
                         VerticalLayout {
-                            padding: 14px;
+                            padding: 10px;
                             spacing: 10px;
 
                             SectionTitle {
@@ -1489,171 +1520,46 @@ import {
                         }
 
                         HorizontalLayout {
-                            spacing: 16px;
+                            width: 100%;
+                            spacing: 10px;
                             alignment: start;
 
-                            themes-card-rect := Rectangle {
-                                width: 360px;
-                                height: 760px;
+                            Rectangle {
+                                horizontal-stretch: 5;
+                                min-width: 300px;
+                                height: 400px;
                                 border-radius: 4px;
                                 border-width: 2px;
-                                border-color: Theme.border.with-alpha(50%);
+                                border-color: Theme.border.with-alpha(10%);
                                 background: Theme.card_bg.with-alpha(92%);
                                 clip: true;
 
-                                VerticalLayout {
+                                ScrollView {
                                     width: parent.width;
                                     height: parent.height;
-                                    padding: 14px;
-                                    spacing: 10px;
-
-                                    SectionTitle {
-                                        icon: @image-url("../../assets/ui-icons/section-theme.svg");
-                                        text: Tr.settings-section-theme-grid-title;
-                                        helper: Tr.settings-section-theme-grid-helper;
-                                    }
-
-                                    theme-list-scroll := ScrollView {
-                                        width: parent.width;
-                                        // Keep this explicit to avoid ScrollView taking content
-                                        // height and swallowing internal scrolling.
-                                        height: max(themes-card-rect.height - 28px - 42px - 10px, 120px);
-
-                                        theme-list-content := Rectangle {
-                                            x: 12px;
-                                            y: 12px;
-                                            width: max(themes-card-rect.width - 28px - 24px, 280px);
-                                            height: (root.theme-preview-model.length * 68px) + 24px;
-
-                                            for theme[index] in root.theme-preview-model: ThemePreviewCard {
-                                                width: theme-list-content.width;
-                                                height: 56px;
-                                                x: 0px;
-                                                y: index * 68px;
-                                                theme: theme;
-                                                selected: root.theme-index == theme.index;
-                                                picked(idx) => {
-                                                    root.theme-index = idx;
-                                                    root.theme-preview-color = theme.accent;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            VerticalLayout {
-                                horizontal-stretch: 1;
-                                spacing: 16px;
-
-                                Rectangle {
-                                    height: 296px;
-                                    border-radius: 4px;
-                                    border-width: 2px;
-                                    border-color: Theme.border.with-alpha(50%);
-                                    background: Theme.card_bg.with-alpha(92%);
+                                    viewport-width: self.width;
 
                                     VerticalLayout {
-                                        padding: 14px;
-                                        spacing: 10px;
+                                        width: parent.width;
+                                        padding: 10px;
+                                        spacing: 6px;
 
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-paint.svg");
-                                            title: Tr.settings-option-custom-canvas-colour-title;
+                                        SectionTitle {
+                                            icon: @image-url("../../assets/ui-icons/option-palette.svg");
+                                            text: Tr.settings-section-theme-colours-title;
+                                            helper: Tr.settings-theme-override-hint;
+                                        }
+
+                                        ThemeColorSettingRow {
+                                            label: Tr.settings-option-custom-canvas-colour-title;
                                             value <=> root.bg-color-hex;
                                             placeholder: "181513";
+                                            preview-color: root.bg-preview-color;
                                             committed => {
                                                 if !root.suspend-live-apply {
                                                     root.apply-bg-color-hex(root.bg-color-hex);
                                                 }
                                             }
-                                        }
-
-                                        VerticalLayout {
-                                            spacing: 6px;
-
-                                            Text {
-                                                text: Tr.settings-option-rgb-picker-title;
-                                                color: Theme.label;
-                                                font-size: 12px;
-                                            }
-
-                                            HorizontalLayout {
-                                                spacing: 8px;
-
-                                                Text {
-                                                    text: Tr.settings-channel-red-label;
-                                                    color: Theme.muted;
-                                                    vertical-alignment: center;
-                                                }
-
-                                                CustomSpinBox {
-                                                    width: 72px;
-                                                    minimum: 0;
-                                                    maximum: 255;
-                                                    value <=> root.bg-red-value;
-                                                    changed value => {
-                                                        if !root.suspend-live-apply {
-                                                            root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
-                                                        }
-                                                    }
-                                                }
-
-                                                Text {
-                                                    text: Tr.settings-channel-green-label;
-                                                    color: Theme.muted;
-                                                    vertical-alignment: center;
-                                                }
-
-                                                CustomSpinBox {
-                                                    width: 72px;
-                                                    minimum: 0;
-                                                    maximum: 255;
-                                                    value <=> root.bg-green-value;
-                                                    changed value => {
-                                                        if !root.suspend-live-apply {
-                                                            root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
-                                                        }
-                                                    }
-                                                }
-
-                                                Text {
-                                                    text: Tr.settings-channel-blue-label;
-                                                    color: Theme.muted;
-                                                    vertical-alignment: center;
-                                                }
-
-                                                CustomSpinBox {
-                                                    width: 72px;
-                                                    minimum: 0;
-                                                    maximum: 255;
-                                                    value <=> root.bg-blue-value;
-                                                    changed value => {
-                                                        if !root.suspend-live-apply {
-                                                            root.apply-bg-color-rgb(root.bg-red-value, root.bg-green-value, root.bg-blue-value);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    height: 342px;
-                                    border-radius: 4px;
-                                    border-width: 2px;
-                                    border-color: Theme.border.with-alpha(50%);
-                                    background: Theme.card_bg.with-alpha(92%);
-
-                                    VerticalLayout {
-                                        padding: 14px;
-                                        spacing: 10px;
-
-                                        SectionTitle {
-                                            icon: @image-url("../../assets/ui-icons/option-palette.svg");
-                                            text: Tr.settings-section-theme-colours-title;
-                                            helper: Tr.settings-section-theme-colours-helper;
                                         }
 
                                         ThemeColorSettingRow {
@@ -1727,24 +1633,27 @@ import {
                                                 }
                                             }
                                         }
-
-                                        Text {
-                                            text: Tr.settings-theme-override-hint;
-                                            color: Theme.muted;
-                                            font-size: 10.5px;
-                                            wrap: word-wrap;
-                                        }
                                     }
                                 }
+                            }
 
-                                Rectangle {
-                                    height: 290px;
-                                    border-radius: 4px;
-                                    border-width: 2px;
-                                    border-color: Theme.border.with-alpha(50%);
-                                    background: Theme.card_bg.with-alpha(92%);
+                            Rectangle {
+                                horizontal-stretch: 5;
+                                min-width: 300px;
+                                height: 400px;
+                                border-radius: 4px;
+                                border-width: 2px;
+                                border-color: Theme.border.with-alpha(10%);
+                                background: Theme.card_bg.with-alpha(92%);
+                                clip: true;
+
+                                ScrollView {
+                                    width: parent.width;
+                                    height: parent.height;
+                                    viewport-width: self.width;
 
                                     VerticalLayout {
+                                        width: parent.width;
                                         padding: 14px;
                                         spacing: 10px;
 
@@ -1848,572 +1757,639 @@ import {
                                         }
                                     }
                                 }
-
-                                Rectangle {
-                                    height: 220px;
-                                    border-radius: 4px;
-                                    border-width: 2px;
-                                    border-color: Theme.border.with-alpha(50%);
-                                    background: Theme.card_bg.with-alpha(92%);
-
-                                    VerticalLayout {
-                                        padding-top: 8px;
-                                        padding-left: 14px;
-                                        padding-right: 14px;
-                                        spacing: 8px;
-
-                                        SectionTitle {
-                                            icon: @image-url("../../assets/ui-icons/section-theme.svg");
-                                            text: Tr.settings-section-preview-title;
-                                            helper: Tr.settings-section-preview-helper;
-                                        }
-
-                                        Rectangle {
-                                            height: 148px;
-                                            border-radius: 12px;
-                                            background: root.bg-preview-color;
-                                            clip: true;
-
-                                            if root.bg-image-preview.width > 0: Image {
-                                                width: 100%;
-                                                height: 100%;
-                                                source: root.bg-image-preview;
-                                                image-fit: root.bg-image-fit-index == 1 ? contain : root.bg-image-fit-index == 2 ? fill : root.bg-image-fit-index == 3 ? preserve : cover;
-                                                opacity: root.bg-image-opacity-value / 100;
-                                            }
-
-                                            Rectangle {
-                                                x: 12px;
-                                                y: 12px;
-                                                width: 68px;
-                                                height: 22px;
-                                                border-radius: 11px;
-                                                background: Theme.panel_bg.with-alpha(84%);
-
-                                                Text {
-                                                    width: 100%;
-                                                    height: 100%;
-                                                    text: root.bg-color-hex;
-                                                    color: Theme.text;
-                                                    font-size: 10px;
-                                                    horizontal-alignment: center;
-                                                    vertical-alignment: center;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
-                        }
-                    }
-
-                    if root.current-page == 3: VerticalLayout {
-                        spacing: 16px;
-
-                        PageHeader {
-                            icon: @image-url("../../assets/ui-icons/section-profile.svg");
-                            title: Tr.settings-page-profiles-title;
-                            subtitle: Tr.settings-page-profiles-subtitle;
-                        }
-
-                        HorizontalLayout {
-                            spacing: 16px;
 
                             Rectangle {
-                                width: 430px;
+                                horizontal-stretch: 3;
+                                min-width: 240px;
+                                height: 400px;
                                 border-radius: 4px;
                                 border-width: 2px;
-                                border-color: Theme.border.with-alpha(50%);
+                                border-color: Theme.border.with-alpha(10%);
                                 background: Theme.card_bg.with-alpha(92%);
 
                                 VerticalLayout {
-                                    padding: 14px;
-                                    spacing: 10px;
+                                    padding-top: 8px;
+                                    padding-left: 14px;
+                                    padding-right: 14px;
+                                    spacing: 8px;
 
                                     SectionTitle {
-                                        icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
-                                        text: Tr.settings-section-load-profile-title;
-                                        helper: Tr.settings-section-load-profile-helper;
-                                    }
-
-                                    SelectSettingCard {
-                                        icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
-                                        title: Tr.settings-option-available-profile-title;
-                                        description: Tr.settings-option-available-profile-description;
-                                        options: root.available-profile-options;
-                                        selected-index <=> root.available-profile-index;
-                                    }
-
-                                    HorizontalLayout {
-                                        spacing: 10px;
-
-                                        CustomButton {
-                                            height: 40px;
-                                            text: Tr.action-load-profile;
-                                            clicked => {
-                                                root.load-selected-profile();
-                                            }
-                                        }
-
-                                        CustomButton {
-                                            text: Tr.open-instance-btn;
-                                            clicked => {
-                                                root.open-profile-instance();
-                                            }
-                                        }
-                                    }
-
-                                    SectionTitle {
-                                        icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                        text: Tr.settings-section-edit-profile-title;
-                                        helper: Tr.settings-section-edit-profile-helper;
+                                        icon: @image-url("../../assets/ui-icons/section-theme.svg");
+                                        text: Tr.settings-section-preview-title;
+                                        helper: Tr.settings-section-preview-helper;
                                     }
 
                                     Rectangle {
+                                        height: 148px;
                                         border-radius: 12px;
-                                        border-width: 1px;
-                                        border-color: Theme.border.with-alpha(68%);
-                                        background: Theme.surface.with-alpha(56%);
-                                        height: 60px;
+                                        background: root.bg-preview-color;
+                                        clip: true;
 
-                                        VerticalLayout {
-                                            padding: 12px;
-                                            spacing: 6px;
+                                        if root.bg-image-preview.width > 0: Image {
+                                            width: 100%;
+                                            height: 100%;
+                                            source: root.bg-image-preview;
+                                            image-fit: root.bg-image-fit-index == 1 ? contain : root.bg-image-fit-index == 2 ? fill : root.bg-image-fit-index == 3 ? preserve : cover;
+                                            opacity: root.bg-image-opacity-value / 100;
+                                        }
+
+                                        Rectangle {
+                                            x: 12px;
+                                            y: 12px;
+                                            width: 68px;
+                                            height: 22px;
+                                            border-radius: 11px;
+                                            background: Theme.panel_bg.with-alpha(84%);
 
                                             Text {
-                                                text: Tr.settings-current-profile-card-title;
-                                                color: Theme.muted;
-                                                font-size: 11px;
-                                            }
-
-                                            Text {
-                                                text: root.current-profile-label;
+                                                width: 100%;
+                                                height: 100%;
+                                                text: root.bg-color-hex;
                                                 color: Theme.text;
-                                                font-size: 15px;
-                                                font-weight: 700;
-                                                overflow: elide;
+                                                font-size: 10px;
+                                                horizontal-alignment: center;
+                                                vertical-alignment: center;
                                             }
                                         }
-                                    }
-
-                                    TextFieldSettingCard {
-                                        icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                        title: Tr.settings-option-profile-name-title;
-                                        description: Tr.settings-option-profile-name-description;
-                                        value <=> root.profile-name;
-                                        placeholder: "workspace-a";
-                                    }
-
-                                    HorizontalLayout {
-                                        spacing: 10px;
-                                        CustomButton {
-                                            height: 40px;
-                                            text: Tr.save-profile-btn;
-                                            clicked => {
-                                                root.save-profile();
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                horizontal-stretch: 1;
-                                border-radius: 4px;
-                                border-width: 2px;
-                                border-color: Theme.border.with-alpha(50%);
-                                background: Theme.card_bg.with-alpha(92%);
-
-                                VerticalLayout {
-                                    padding: 14px;
-                                    spacing: 10px;
-
-                                    SectionTitle {
-                                        icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
-                                        text: Tr.settings-section-saved-profiles-title;
-                                        helper: Tr.settings-section-saved-profiles-helper;
-                                    }
-
-                                    Text {
-                                        text: root.known-profiles-label;
-                                        color: Theme.label;
-                                        font-size: 12px;
-                                        wrap: word-wrap;
                                     }
                                 }
                             }
                         }
 
-                        Rectangle {
+                        themes-card-rect := Rectangle {
+                            width: 100%;
+                            height: 300px;
                             border-radius: 4px;
-                            border-color: Theme.border.with-alpha(20%);
-                            background: Theme.surface.with-alpha(20%);
-                            height: 90px;
-                            width: 440px;
+                            border-width: 2px;
+                            border-color: Theme.border.with-alpha(10%);
+                            background: Theme.card_bg.with-alpha(92%);
+                            clip: true;
 
                             VerticalLayout {
-                                padding: 12px;
-                                spacing: 6px;
+                                width: parent.width;
+                                height: parent.height;
+                                padding: 14px;
+                                spacing: 10px;
 
-                                Text {
-                                    text: Tr.settings-tips-title;
-                                    color: Theme.accent;
-                                    font-size: 11px;
-                                    font-weight: 700;
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/section-theme.svg");
+                                    text: Tr.settings-section-theme-grid-title;
+                                    helper: Tr.settings-section-theme-grid-helper;
                                 }
 
-                                Text {
-                                    text: Tr.settings-tips-body;
-                                    color: Theme.muted;
-                                    font-size: 11.5px;
-                                    wrap: word-wrap;
+                                theme-list-scroll := ScrollView {
+                                    width: parent.width;
+                                    // Keep this explicit to avoid ScrollView taking content
+                                    // height and swallowing internal scrolling.
+                                    height: max(themes-card-rect.height - 28px - 42px - 10px, 120px);
+
+                                    theme-grid-content := Rectangle {
+                                        x: 12px;
+                                        y: 12px;
+                                        width: max(theme-list-scroll.width - 24px, 200px);
+                                        height: max((((root.theme-preview-model.length + 1) / 2) * 92px) + 12px, 92px);
+                                        property <length> grid-left-padding: max((self.width - 536px) / 2, 0px);
+
+                                        for theme[index] in root.theme-preview-model: ThemePreviewCard {
+                                            property <int> grid-col: Math.mod(index, 2);
+                                            property <int> grid-row: index / 2;
+                                            x: theme-grid-content.grid-left-padding + grid-col * 272px;
+                                            y: grid-row * 92px;
+                                            width: 264px;
+                                            height: 80px;
+                                            theme: theme;
+                                            selected: root.theme-index == theme.index;
+                                            picked(idx) => {
+                                                root.theme-index = idx;
+                                                root.theme-preview-color = theme.accent;
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+                }
 
-                    if root.current-page == 4: VerticalLayout {
+                if root.current-page == 3: VerticalLayout {
+
+                    padding-left: 20px;
+                    padding-right: 20px;
+                    padding-top: 0px;
+                    spacing: 10px;
+
+                    PageHeader {
+                        icon: @image-url("../../assets/ui-icons/section-profile.svg");
+                        title: Tr.settings-page-profiles-title;
+                        subtitle: Tr.settings-page-profiles-subtitle;
+                    }
+
+                    HorizontalLayout {
                         spacing: 16px;
 
-                        PageHeader {
-                            icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
-                            title: Tr.settings-page-shortcuts-title;
-                            subtitle: Tr.settings-page-shortcuts-subtitle;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
-                            title: Tr.settings-shortcut-alt-toolbar-title;
-                            description: Tr.settings-shortcut-alt-toolbar-description;
-                            checked <=> root.alt-toolbar-shortcut-enabled;
-                        }
-
                         Rectangle {
-                            height: 540px;
+                            width: 430px;
                             border-radius: 4px;
                             border-width: 2px;
                             border-color: Theme.border.with-alpha(50%);
                             background: Theme.card_bg.with-alpha(92%);
-                            clip: true;
 
-                            ScrollView {
-                                VerticalLayout {
-                                    padding: 14px;
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
+
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                    text: Tr.settings-section-load-profile-title;
+                                    helper: Tr.settings-section-load-profile-helper;
+                                }
+
+                                SelectSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                    title: Tr.settings-option-available-profile-title;
+                                    description: Tr.settings-option-available-profile-description;
+                                    options: root.available-profile-options;
+                                    selected-index <=> root.available-profile-index;
+                                }
+
+                                HorizontalLayout {
                                     spacing: 10px;
 
-                                    SectionTitle {
+                                    CustomButton {
+                                        height: 40px;
+                                        text: Tr.action-load-profile;
+                                        clicked => {
+                                            root.load-selected-profile();
+                                        }
+                                    }
+
+                                    CustomButton {
+                                        text: Tr.open-instance-btn;
+                                        clicked => {
+                                            root.open-profile-instance();
+                                        }
+                                    }
+                                }
+
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
+                                    text: Tr.settings-section-edit-profile-title;
+                                    helper: Tr.settings-section-edit-profile-helper;
+                                }
+
+                                Rectangle {
+                                    border-radius: 12px;
+                                    border-width: 1px;
+                                    border-color: Theme.border.with-alpha(68%);
+                                    background: Theme.surface.with-alpha(56%);
+                                    height: 60px;
+
+                                    VerticalLayout {
+                                        padding: 12px;
+                                        spacing: 6px;
+
+                                        Text {
+                                            text: Tr.settings-current-profile-card-title;
+                                            color: Theme.muted;
+                                            font-size: 11px;
+                                        }
+
+                                        Text {
+                                            text: root.current-profile-label;
+                                            color: Theme.text;
+                                            font-size: 15px;
+                                            font-weight: 700;
+                                            overflow: elide;
+                                        }
+                                    }
+                                }
+
+                                TextFieldSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
+                                    title: Tr.settings-option-profile-name-title;
+                                    description: Tr.settings-option-profile-name-description;
+                                    value <=> root.profile-name;
+                                    placeholder: "workspace-a";
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    CustomButton {
+                                        height: 40px;
+                                        text: Tr.save-profile-btn;
+                                        clicked => {
+                                            root.save-profile();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            border-radius: 4px;
+                            border-width: 2px;
+                            border-color: Theme.border.with-alpha(50%);
+                            background: Theme.card_bg.with-alpha(92%);
+
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
+
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                    text: Tr.settings-section-saved-profiles-title;
+                                    helper: Tr.settings-section-saved-profiles-helper;
+                                }
+
+                                Text {
+                                    text: root.known-profiles-label;
+                                    color: Theme.label;
+                                    font-size: 12px;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        border-radius: 4px;
+                        border-color: Theme.border.with-alpha(20%);
+                        background: Theme.surface.with-alpha(20%);
+                        height: 90px;
+                        width: 440px;
+
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+
+                            Text {
+                                text: Tr.settings-tips-title;
+                                color: Theme.accent;
+                                font-size: 11px;
+                                font-weight: 700;
+                            }
+
+                            Text {
+                                text: Tr.settings-tips-body;
+                                color: Theme.muted;
+                                font-size: 11.5px;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+                }
+
+                if root.current-page == 4: VerticalLayout {
+
+                    padding-left: 20px;
+                    padding-right: 20px;
+                    padding-top: 0px;
+                    spacing: 10px;
+
+                    PageHeader {
+                        icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
+                        title: Tr.settings-page-shortcuts-title;
+                        subtitle: Tr.settings-page-shortcuts-subtitle;
+                    }
+
+                    ToggleSettingCard {
+                        icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
+                        title: Tr.settings-shortcut-alt-toolbar-title;
+                        description: Tr.settings-shortcut-alt-toolbar-description;
+                        checked <=> root.alt-toolbar-shortcut-enabled;
+                    }
+
+                    Rectangle {
+                        height: 540px;
+                        border-radius: 4px;
+                        border-width: 2px;
+                        border-color: Theme.border.with-alpha(50%);
+                        background: Theme.card_bg.with-alpha(92%);
+                        clip: true;
+
+                        ScrollView {
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
+
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                    text: Tr.settings-section-layout-bindings-title;
+                                    helper: Tr.settings-section-layout-bindings-helper;
+                                }
+
+                                HorizontalLayout {
+                                    TextFieldSettingCard {
                                         icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                        text: Tr.settings-section-layout-bindings-title;
-                                        helper: Tr.settings-section-layout-bindings-helper;
-                                    }
-
-                                    HorizontalLayout {
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                            title: Tr.settings-shortcut-layout-grid-title;
-                                            description: Tr.settings-shortcut-layout-grid-description;
-                                            value <=> root.shortcut-layout-grid;
-                                            placeholder: "1";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                            title: Tr.settings-shortcut-layout-mosaic-title;
-                                            description: Tr.settings-shortcut-layout-mosaic-description;
-                                            value <=> root.shortcut-layout-mosaic;
-                                            placeholder: "2";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                            title: Tr.settings-shortcut-layout-bento-title;
-                                            description: Tr.settings-shortcut-layout-bento-description;
-                                            value <=> root.shortcut-layout-bento;
-                                            placeholder: "3";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                            title: Tr.settings-shortcut-layout-fibonacci-title;
-                                            description: Tr.settings-shortcut-layout-fibonacci-description;
-                                            value <=> root.shortcut-layout-fibonacci;
-                                            placeholder: "4";
-                                            committed => {
-                                                root.apply();
-                                            }
+                                        title: Tr.settings-shortcut-layout-grid-title;
+                                        description: Tr.settings-shortcut-layout-grid-description;
+                                        value <=> root.shortcut-layout-grid;
+                                        placeholder: "1";
+                                        committed => {
+                                            root.apply();
                                         }
                                     }
 
-                                    HorizontalLayout {
-                                        padding-top: 10px;
-                                        padding-bottom: 10px;
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                            title: Tr.settings-shortcut-layout-columns-title;
-                                            description: Tr.settings-shortcut-layout-columns-description;
-                                            value <=> root.shortcut-layout-columns;
-                                            placeholder: "5";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                            title: Tr.settings-shortcut-layout-row-title;
-                                            description: Tr.settings-shortcut-layout-row-description;
-                                            value <=> root.shortcut-layout-row;
-                                            placeholder: "6";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                            title: Tr.settings-shortcut-layout-column-title;
-                                            description: Tr.settings-shortcut-layout-column-description;
-                                            value <=> root.shortcut-layout-column;
-                                            placeholder: "7";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                            title: Tr.settings-shortcut-reset-layout-title;
-                                            description: Tr.settings-shortcut-reset-layout-description;
-                                            value <=> root.shortcut-reset-layout;
-                                            placeholder: "0";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-cycle.svg");
-                                            title: Tr.settings-shortcut-cycle-layout-title;
-                                            description: Tr.settings-shortcut-cycle-layout-description;
-                                            value <=> root.shortcut-cycle-layout;
-                                            placeholder: "Tab";
-                                            committed => {
-                                                root.apply();
-                                            }
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                        title: Tr.settings-shortcut-layout-mosaic-title;
+                                        description: Tr.settings-shortcut-layout-mosaic-description;
+                                        value <=> root.shortcut-layout-mosaic;
+                                        placeholder: "2";
+                                        committed => {
+                                            root.apply();
                                         }
                                     }
 
-                                    Divider {
-                                        height: 2px;
-                                        background: Theme.border.with-alpha(72%);
-                                    }
-
-                                    SectionTitle {
-                                        icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
-                                        text: Tr.settings-section-dashboard-actions-title;
-                                        helper: Tr.settings-section-dashboard-actions-helper;
-                                    }
-
-                                    HorizontalLayout {
-                                        padding-top: 10px;
-                                        padding-bottom: 10px;
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-palette.svg");
-                                            title: Tr.settings-shortcut-cycle-theme-title;
-                                            description: Tr.settings-shortcut-cycle-theme-description;
-                                            value <=> root.shortcut-cycle-theme;
-                                            placeholder: "T";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-animate.svg");
-                                            title: Tr.settings-shortcut-toggle-animations-title;
-                                            description: Tr.settings-shortcut-toggle-animations-description;
-                                            value <=> root.shortcut-toggle-animations;
-                                            placeholder: "A";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
-                                            title: Tr.settings-shortcut-toggle-toolbar-title;
-                                            description: Tr.settings-shortcut-toggle-toolbar-description;
-                                            value <=> root.shortcut-toggle-toolbar;
-                                            placeholder: "H";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-window-info.svg");
-                                            title: Tr.settings-shortcut-toggle-window-info-title;
-                                            description: Tr.settings-shortcut-toggle-window-info-description;
-                                            value <=> root.shortcut-toggle-window-info;
-                                            placeholder: "I";
-                                            committed => {
-                                                root.apply();
-                                            }
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                        title: Tr.settings-shortcut-layout-bento-title;
+                                        description: Tr.settings-shortcut-layout-bento-description;
+                                        value <=> root.shortcut-layout-bento;
+                                        placeholder: "3";
+                                        committed => {
+                                            root.apply();
                                         }
                                     }
 
-                                    HorizontalLayout {
-                                        padding-top: 10px;
-                                        padding-bottom: 10px;
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-always-on-top.svg");
-                                            title: Tr.settings-shortcut-toggle-always-on-top-title;
-                                            description: Tr.settings-shortcut-toggle-always-on-top-description;
-                                            value <=> root.shortcut-toggle-always-on-top;
-                                            placeholder: "P";
-                                            committed => {
-                                                root.apply();
-                                            }
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                        title: Tr.settings-shortcut-layout-fibonacci-title;
+                                        description: Tr.settings-shortcut-layout-fibonacci-description;
+                                        value <=> root.shortcut-layout-fibonacci;
+                                        placeholder: "4";
+                                        committed => {
+                                            root.apply();
                                         }
+                                    }
+                                }
 
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-settings.svg");
-                                            title: Tr.settings-shortcut-open-settings-title;
-                                            description: Tr.settings-shortcut-open-settings-description;
-                                            value <=> root.shortcut-open-settings;
-                                            placeholder: "O";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
+                                HorizontalLayout {
+                                    padding-top: 10px;
+                                    padding-bottom: 10px;
 
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-menu.svg");
-                                            title: Tr.settings-shortcut-open-menu-title;
-                                            description: Tr.settings-shortcut-open-menu-description;
-                                            value <=> root.shortcut-open-menu;
-                                            placeholder: "M";
-                                            committed => {
-                                                root.apply();
-                                            }
-                                        }
-
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-settings.svg");
-                                            title: Tr.settings-shortcut-global-activate-title;
-                                            description: Tr.settings-shortcut-global-activate-description;
-                                            value <=> root.shortcut-global-activate;
-                                            placeholder: "Ctrl+Alt+P";
-                                            committed => {
-                                                root.apply();
-                                            }
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                        title: Tr.settings-shortcut-layout-columns-title;
+                                        description: Tr.settings-shortcut-layout-columns-description;
+                                        value <=> root.shortcut-layout-columns;
+                                        placeholder: "5";
+                                        committed => {
+                                            root.apply();
                                         }
                                     }
 
-                                    HorizontalLayout {
-                                        padding-top: 10px;
-                                        padding-bottom: 10px;
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                                            title: Tr.settings-shortcut-refresh-now-title;
-                                            description: Tr.settings-shortcut-refresh-now-description;
-                                            value <=> root.shortcut-refresh-now;
-                                            placeholder: "R";
-                                            committed => {
-                                                root.apply();
-                                            }
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                        title: Tr.settings-shortcut-layout-row-title;
+                                        description: Tr.settings-shortcut-layout-row-description;
+                                        value <=> root.shortcut-layout-row;
+                                        placeholder: "6";
+                                        committed => {
+                                            root.apply();
                                         }
+                                    }
 
-                                        TextFieldSettingCard {
-                                            icon: @image-url("../../assets/ui-icons/option-exit.svg");
-                                            title: Tr.settings-shortcut-exit-app-title;
-                                            description: Tr.settings-shortcut-exit-app-description;
-                                            value <=> root.shortcut-exit-app;
-                                            placeholder: "Esc";
-                                            committed => {
-                                                root.apply();
-                                            }
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                        title: Tr.settings-shortcut-layout-column-title;
+                                        description: Tr.settings-shortcut-layout-column-description;
+                                        value <=> root.shortcut-layout-column;
+                                        placeholder: "7";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                        title: Tr.settings-shortcut-reset-layout-title;
+                                        description: Tr.settings-shortcut-reset-layout-description;
+                                        value <=> root.shortcut-reset-layout;
+                                        placeholder: "0";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-cycle.svg");
+                                        title: Tr.settings-shortcut-cycle-layout-title;
+                                        description: Tr.settings-shortcut-cycle-layout-description;
+                                        value <=> root.shortcut-cycle-layout;
+                                        placeholder: "Tab";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+                                }
+
+                                Divider {
+                                    height: 2px;
+                                    background: Theme.border.with-alpha(72%);
+                                }
+
+                                SectionTitle {
+                                    icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
+                                    text: Tr.settings-section-dashboard-actions-title;
+                                    helper: Tr.settings-section-dashboard-actions-helper;
+                                }
+
+                                HorizontalLayout {
+                                    padding-top: 10px;
+                                    padding-bottom: 10px;
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-palette.svg");
+                                        title: Tr.settings-shortcut-cycle-theme-title;
+                                        description: Tr.settings-shortcut-cycle-theme-description;
+                                        value <=> root.shortcut-cycle-theme;
+                                        placeholder: "T";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-animate.svg");
+                                        title: Tr.settings-shortcut-toggle-animations-title;
+                                        description: Tr.settings-shortcut-toggle-animations-description;
+                                        value <=> root.shortcut-toggle-animations;
+                                        placeholder: "A";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
+                                        title: Tr.settings-shortcut-toggle-toolbar-title;
+                                        description: Tr.settings-shortcut-toggle-toolbar-description;
+                                        value <=> root.shortcut-toggle-toolbar;
+                                        placeholder: "H";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-window-info.svg");
+                                        title: Tr.settings-shortcut-toggle-window-info-title;
+                                        description: Tr.settings-shortcut-toggle-window-info-description;
+                                        value <=> root.shortcut-toggle-window-info;
+                                        placeholder: "I";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    padding-top: 10px;
+                                    padding-bottom: 10px;
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-always-on-top.svg");
+                                        title: Tr.settings-shortcut-toggle-always-on-top-title;
+                                        description: Tr.settings-shortcut-toggle-always-on-top-description;
+                                        value <=> root.shortcut-toggle-always-on-top;
+                                        placeholder: "P";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                                        title: Tr.settings-shortcut-open-settings-title;
+                                        description: Tr.settings-shortcut-open-settings-description;
+                                        value <=> root.shortcut-open-settings;
+                                        placeholder: "O";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-menu.svg");
+                                        title: Tr.settings-shortcut-open-menu-title;
+                                        description: Tr.settings-shortcut-open-menu-description;
+                                        value <=> root.shortcut-open-menu;
+                                        placeholder: "M";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                                        title: Tr.settings-shortcut-global-activate-title;
+                                        description: Tr.settings-shortcut-global-activate-description;
+                                        value <=> root.shortcut-global-activate;
+                                        placeholder: "Ctrl+Alt+P";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    padding-top: 10px;
+                                    padding-bottom: 10px;
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                                        title: Tr.settings-shortcut-refresh-now-title;
+                                        description: Tr.settings-shortcut-refresh-now-description;
+                                        value <=> root.shortcut-refresh-now;
+                                        placeholder: "R";
+                                        committed => {
+                                            root.apply();
+                                        }
+                                    }
+
+                                    TextFieldSettingCard {
+                                        icon: @image-url("../../assets/ui-icons/option-exit.svg");
+                                        title: Tr.settings-shortcut-exit-app-title;
+                                        description: Tr.settings-shortcut-exit-app-description;
+                                        value <=> root.shortcut-exit-app;
+                                        placeholder: "Esc";
+                                        committed => {
+                                            root.apply();
                                         }
                                     }
                                 }
                             }
                         }
                     }
+                }
 
-                    if root.current-page == 5: VerticalLayout {
-                        spacing: 16px;
+                if root.current-page == 5: VerticalLayout {
 
-                        PageHeader {
-                            icon: @image-url("../../assets/ui-icons/section-advanced.svg");
-                            title: Tr.settings-page-advanced-title;
-                            subtitle: Tr.settings-page-advanced-subtitle;
-                        }
+                    padding-left: 20px;
+                    padding-right: 20px;
+                    padding-top: 0px;
+                    spacing: 10px;
 
-                        SelectSettingCard {
+                    PageHeader {
+                        icon: @image-url("../../assets/ui-icons/section-advanced.svg");
+                        title: Tr.settings-page-advanced-title;
+                        subtitle: Tr.settings-page-advanced-subtitle;
+                    }
+
+                    SelectSettingCard {
+                        icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                        title: Tr.settings-option-refresh-interval-title;
+                        description: Tr.settings-option-refresh-interval-description;
+                        options: ["1s", "2s", "5s", "10s"];
+                        selected-index <=> root.refresh-index;
+                    }
+
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+
+                        SectionTitle {
                             icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                            title: Tr.settings-option-refresh-interval-title;
-                            description: Tr.settings-option-refresh-interval-description;
-                            options: ["1s", "2s", "5s", "10s"];
-                            selected-index <=> root.refresh-index;
+                            text: Tr.settings-section-manual-refresh-title;
+                            helper: Tr.settings-section-manual-refresh-helper;
                         }
 
-                        VerticalLayout {
-                            padding: 14px;
-                            spacing: 10px;
-
-                            SectionTitle {
-                                icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                                text: Tr.settings-section-manual-refresh-title;
-                                helper: Tr.settings-section-manual-refresh-helper;
+                        CustomButton {
+                            height: 40px;
+                            width: 120px;
+                            text: Tr.action-refresh-now;
+                            clicked => {
+                                root.refresh-now();
                             }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 10px;
 
                             CustomButton {
                                 height: 40px;
-                                width: 120px;
-                                text: Tr.action-refresh-now;
+                                text: Tr.action-check-updates;
+                                enabled: !root.update-check-running;
                                 clicked => {
-                                    root.refresh-now();
-                                }
-                            }
-
-                            HorizontalLayout {
-                                spacing: 10px;
-
-                                CustomButton {
-                                    height: 40px;
-                                    text: Tr.action-check-updates;
-                                    enabled: !root.update-check-running;
-                                    clicked => {
-                                        root.check-updates-now();
-                                    }
-                                }
-
-                                Text {
-                                    text: root.update-status-text;
-                                    color: Theme.label;
-                                    vertical-alignment: center;
-                                    wrap: word-wrap;
+                                    root.check-updates-now();
                                 }
                             }
 
                             Text {
-                                text: Tr.settings-version-label + " " + root.app-version-text;
-                                color: Theme.muted;
-                                font-size: 12px;
+                                text: root.update-status-text;
+                                color: Theme.label;
+                                vertical-alignment: center;
                                 wrap: word-wrap;
                             }
+                        }
+
+                        Text {
+                            text: Tr.settings-version-label + " " + root.app-version-text;
+                            color: Theme.muted;
+                            font-size: 12px;
+                            wrap: word-wrap;
                         }
                     }
                 }
@@ -2472,6 +2448,16 @@ import {
                     }
                 }
             }
+        }
+    }
+
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if root.key-pressed(event.text, event.modifiers.shift) {
+                return accept;
+            }
+            reject
         }
     }
 }

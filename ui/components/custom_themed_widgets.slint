@@ -268,17 +268,19 @@ export component CustomSlider inherits Rectangle {
     border-radius: 10px;
 
     property <int> safe-range: max(root.maximum - root.minimum, 1);
+    property <length> thumb-travel: max(root.width - 22px, 0px);
+    property <length> thumb-x: 4px + ((root.thumb-travel * (root.value - root.minimum)) / root.safe-range);
 
     Rectangle {
         x: 4px;
-        y: 8px;
+        y: 9px;
         width: max(parent.width - 8px, 1px);
-        height: 4px;
+        height: 2px;
         border-radius: 2px;
         background: Theme.border.with-alpha(56%);
 
         Rectangle {
-            width: max((parent.width * (root.value - root.minimum)) / root.safe-range, 0px);
+            width: min(max(7px + ((root.thumb-travel * (root.value - root.minimum)) / root.safe-range), 0px), parent.width);
             height: parent.height;
             border-radius: 2px;
             background: root.enabled ? Theme.accent : Theme.muted;
@@ -289,7 +291,7 @@ export component CustomSlider inherits Rectangle {
         y: 3px;
         width: 14px;
         height: 14px;
-        x: 4px + ((max(root.width - 8px - self.width, 0px) * (root.value - root.minimum)) / root.safe-range);
+        x: root.thumb-x;
         border-radius: 7px;
         border-width: 2px;
         border-color: root.enabled ? Theme.accent : Theme.muted;
@@ -335,9 +337,9 @@ export component CustomLineEdit inherits Rectangle {
 
     edit := TextInput {
         x: 8px;
-        y: 2px;
+        y: (parent.height - self.height) / 2;
         width: parent.width - 16px;
-        height: parent.height - 4px;
+        height: 18px;
         text <=> root.text;
         color: root.enabled ? Theme.text : Theme.muted;
         enabled: root.enabled;
@@ -359,7 +361,7 @@ export component CustomLineEdit inherits Rectangle {
         width: parent.width - 20px;
         height: parent.height;
         text: root.placeholder;
-        color: Theme.placeholder;
+        color: root.enabled ? Theme.text.with-alpha(56%) : Theme.muted.with-alpha(56%);
         vertical-alignment: center;
         overflow: elide;
         font-size: 12.5px;
