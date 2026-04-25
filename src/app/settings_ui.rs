@@ -5,9 +5,9 @@ use std::path::Path;
 use panopticon::i18n;
 use panopticon::layout::LayoutType;
 use panopticon::settings::{
-    AppSettings, BackgroundImageFit, DockEdge, ThemeColorOverrides, ToolbarPosition,
-    WindowGrouping, MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT,
-    MIN_FIXED_WINDOW_WIDTH,
+    AppSettings, BackgroundImageFit, DockEdge, RefreshPerformanceMode, ThemeColorOverrides,
+    ToolbarPosition, WindowGrouping, MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS,
+    MIN_FIXED_WINDOW_HEIGHT, MIN_FIXED_WINDOW_WIDTH,
 };
 use panopticon::theme;
 use slint::SharedString;
@@ -58,6 +58,9 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
             .unwrap_or(MIN_DOCK_ROW_THICKNESS) as i32,
     );
     window.set_refresh_index(refresh_to_index(settings.refresh_interval_ms));
+    window.set_refresh_performance_mode_index(refresh_mode_to_index(
+        settings.refresh_performance_mode,
+    ));
     window.set_layout_index(layout_to_index(settings.initial_layout));
     window.set_dock_edge_index(dock_edge_to_index(settings.dock_edge));
     window.set_group_windows_index(grouping_to_index(settings.group_windows_by));
@@ -82,12 +85,24 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     ));
     window.set_shortcut_open_settings(SharedString::from(&settings.shortcuts.open_settings));
     window.set_shortcut_open_menu(SharedString::from(&settings.shortcuts.open_menu));
+    window.set_shortcut_open_command_palette(SharedString::from(
+        &settings.shortcuts.open_command_palette,
+    ));
     window.set_shortcut_global_activate(SharedString::from(
         settings.shortcuts.global_activate.as_deref().unwrap_or(""),
     ));
     window.set_shortcut_refresh_now(SharedString::from(&settings.shortcuts.refresh_now));
     window.set_shortcut_exit_app(SharedString::from(&settings.shortcuts.exit_app));
     window.set_alt_toolbar_shortcut_enabled(settings.shortcuts.alt_toggles_toolbar);
+    if let Some((summary, detail)) = settings.shortcuts.conflict_banner() {
+        window.set_has_shortcut_conflicts(true);
+        window.set_shortcut_conflict_summary(SharedString::from(summary));
+        window.set_shortcut_conflict_detail(SharedString::from(detail));
+    } else {
+        window.set_has_shortcut_conflicts(false);
+        window.set_shortcut_conflict_summary(SharedString::from(""));
+        window.set_shortcut_conflict_detail(SharedString::from(""));
+    }
 
     let resolved_theme = theme::resolve_ui_theme(
         settings.theme_id.as_deref(),
@@ -164,7 +179,12 @@ pub fn apply_settings_window_changes(window: &SettingsWindow, settings: &mut App
 
     settings.dock_edge = index_to_dock_edge(window.get_dock_edge_index());
     settings.group_windows_by = index_to_grouping(window.get_group_windows_index());
-    settings.refresh_interval_ms = index_to_refresh(window.get_refresh_index());
+    settings.refresh_performance_mode =
+        index_to_refresh_mode(window.get_refresh_performance_mode_index());
+    settings.refresh_interval_ms = settings
+        .refresh_performance_mode
+        .fixed_interval_ms()
+        .unwrap_or_else(|| index_to_refresh(window.get_refresh_index()));
     settings.shortcuts.layout_grid = window.get_shortcut_layout_grid().to_string();
     settings.shortcuts.layout_mosaic = window.get_shortcut_layout_mosaic().to_string();
     settings.shortcuts.layout_bento = window.get_shortcut_layout_bento().to_string();
@@ -182,6 +202,8 @@ pub fn apply_settings_window_changes(window: &SettingsWindow, settings: &mut App
         window.get_shortcut_toggle_always_on_top().to_string();
     settings.shortcuts.open_settings = window.get_shortcut_open_settings().to_string();
     settings.shortcuts.open_menu = window.get_shortcut_open_menu().to_string();
+    settings.shortcuts.open_command_palette =
+        window.get_shortcut_open_command_palette().to_string();
     settings.shortcuts.global_activate = Some(window.get_shortcut_global_activate().to_string());
     settings.shortcuts.refresh_now = window.get_shortcut_refresh_now().to_string();
     settings.shortcuts.exit_app = window.get_shortcut_exit_app().to_string();
@@ -274,6 +296,24 @@ fn index_to_refresh(index: i32) -> u32 {
         2 => 5_000,
         3 => 10_000,
         _ => 2_000,
+    }
+}
+
+const fn refresh_mode_to_index(mode: RefreshPerformanceMode) -> i32 {
+    match mode {
+        RefreshPerformanceMode::Realtime => 0,
+        RefreshPerformanceMode::Balanced => 1,
+        RefreshPerformanceMode::BatterySaver => 2,
+        RefreshPerformanceMode::Manual => 3,
+    }
+}
+
+const fn index_to_refresh_mode(index: i32) -> RefreshPerformanceMode {
+    match index {
+        0 => RefreshPerformanceMode::Realtime,
+        2 => RefreshPerformanceMode::BatterySaver,
+        3 => RefreshPerformanceMode::Manual,
+        _ => RefreshPerformanceMode::Balanced,
     }
 }
 

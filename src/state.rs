@@ -19,7 +19,7 @@ use windows::Win32::Foundation::{HWND, RECT, SIZE};
 use windows::Win32::UI::WindowsAndMessaging::WNDPROC;
 
 use crate::app::tray::{AppIcons, TrayAction, TrayIcon};
-use crate::{AboutWindow, MainWindow, SettingsWindow, TagDialogWindow};
+use crate::{AboutWindow, CommandPaletteWindow, MainWindow, SettingsWindow, TagDialogWindow};
 
 // ───────────────────────── Constants ─────────────────────────
 
@@ -218,6 +218,10 @@ thread_local! {
 
     /// About window instance (if open).
     pub(crate) static ABOUT_WIN: RefCell<Option<AboutWindow>> =
+        const { RefCell::new(None) };
+
+    /// Command palette window instance (if open).
+    pub(crate) static COMMAND_PALETTE_WIN: RefCell<Option<CommandPaletteWindow>> =
         const { RefCell::new(None) };
 
     /// Middle-button pan state.

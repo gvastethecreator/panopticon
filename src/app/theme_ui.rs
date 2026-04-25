@@ -4,15 +4,15 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
 
-use slint::{ComponentHandle, Model};
 use slint::language::ColorScheme;
+use slint::{ComponentHandle, Model};
 
 use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 
 use crate::{
-    AboutWindow, AppState, MainWindow, Palette, SettingsWindow, TagDialogWindow, Theme,
-    ABOUT_WIN, SETTINGS_WIN, TAG_DIALOG_WIN, THEME_TRANSITION_DURATION_MS,
+    AboutWindow, AppState, MainWindow, Palette, SettingsWindow, TagDialogWindow, Theme, ABOUT_WIN,
+    SETTINGS_WIN, TAG_DIALOG_WIN, THEME_TRANSITION_DURATION_MS,
 };
 
 fn palette_color_scheme_for_theme(resolved: &theme_catalog::UiTheme) -> ColorScheme {

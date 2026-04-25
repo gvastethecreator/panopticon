@@ -1,0 +1,127 @@
+import { Tr, Theme } from "../common.slint";
+import {
+    CustomLineEdit,
+    CustomButton,
+    SectionCard,
+    SectionHeader,
+} from "../components/custom_themed_widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export component CommandPaletteWindow inherits Window {
+    title: "Panopticon — Command Palette";
+    icon: @image-url("../../assets/icon.svg");
+    background: Theme.bg;
+    preferred-width: 620px;
+    preferred-height: 520px;
+    default-font-family: "Miranda Sans";
+    default-font-size: 14px;
+
+    in-out property <string> command-search: "";
+    in property <[string]> command-options: ["No commands available"];
+    in-out property <int> command-index: 0;
+
+    callback apply-filter();
+    callback run-selected();
+    callback close-requested();
+    callback key-pressed(/* key */ string, /* shift_pressed */ bool) -> bool;
+
+    changed command-search => {
+        root.apply-filter();
+    }
+
+    VerticalLayout {
+        spacing: 10px;
+        padding: 14px;
+
+        SectionCard {
+            SectionHeader {
+                icon: @image-url("../../assets/ui-icons/option-menu.svg");
+                title: "Command Palette";
+                helper: "Busca y ejecuta comandos de layout, configuración y sistema.";
+            }
+
+            CustomLineEdit {
+                height: 36px;
+                text <=> root.command-search;
+                placeholder: "Type a command...";
+            }
+        }
+
+        SectionCard {
+            SectionHeader {
+                icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                title: "Commands";
+                helper: "Enter ejecuta el comando seleccionado. Esc cierra la paleta.";
+            }
+
+            ScrollView {
+                height: 320px;
+                viewport-width: self.width;
+
+                VerticalLayout {
+                    width: parent.width;
+                    spacing: 6px;
+
+                    for command[index] in root.command-options: Rectangle {
+                        height: 38px;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: root.command-index == index ? Theme.accent.with-alpha(60%) : Theme.border.with-alpha(42%);
+                        background: root.command-index == index ? Theme.accent-soft.with-alpha(28%) : row-touch.has-hover ? Theme.surface.with-alpha(52%) : Theme.surface.with-alpha(28%);
+
+                        Text {
+                            x: 10px;
+                            y: 9px;
+                            width: parent.width - 20px;
+                            text: command;
+                            color: Theme.text;
+                            font-size: 12.5px;
+                            overflow: elide;
+                        }
+
+                        row-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.command-index = index;
+                            }
+                            double-clicked => {
+                                root.command-index = index;
+                                root.run-selected();
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+
+                CustomButton {
+                    height: 34px;
+                    text: "Run";
+                    clicked => {
+                        root.run-selected();
+                    }
+                }
+
+                CustomButton {
+                    height: 34px;
+                    text: Tr.action-close;
+                    clicked => {
+                        root.close-requested();
+                    }
+                }
+            }
+        }
+    }
+
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            if root.key-pressed(event.text, event.modifiers.shift) {
+                return accept;
+            }
+            reject
+        }
+    }
+}

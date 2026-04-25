@@ -9,6 +9,11 @@ import {
     CustomButton,
     CustomSpinBox,
     CustomSlider,
+    SectionCard,
+    SectionHeader,
+    StatusPill,
+    InlineWarning,
+    SettingRow,
 } from "../components/custom_themed_widgets.slint";
 
     component Divider inherits Rectangle {
@@ -706,6 +711,7 @@ component KeyFieldSettingCard inherits Rectangle {
     in property <bool> default-layout-enabled: true;
     in-out property <int> language-index: 0;
     in-out property <int> refresh-index: 1;
+    in-out property <int> refresh-performance-mode-index: 1;
     in-out property <int> layout-index: 0;
     in-out property <int> toolbar-position-index: 1;
     in property <[string]> theme-options: ["Classic Panopticon"];
@@ -717,6 +723,19 @@ component KeyFieldSettingCard inherits Rectangle {
     in-out property <int> tag-filter-index: 0;
     in property <[string]> app-filter-options: [Tr.all-apps-label];
     in-out property <int> app-filter-index: 0;
+    in property <[string]> app-rules-options: ["Select application rule…"];
+    in-out property <int> app-rules-index: 0;
+    in-out property <string> app-rules-search: "";
+    in-out property <int> app-rules-filter-index: 0;
+    in property <bool> app-rules-has-selection: false;
+    in property <string> app-rules-selected-app-label: "";
+    in-out property <bool> app-rules-hidden: false;
+    in-out property <bool> app-rules-preserve-aspect: false;
+    in-out property <bool> app-rules-hide-on-select: false;
+    in-out property <int> app-rules-refresh-mode-index: 0;
+    in-out property <int> app-rules-refresh-interval-ms: 5000;
+    in-out property <string> app-rules-tags: "";
+    in-out property <string> app-rules-color-hex: "";
     in property <[string]> hidden-app-options: [Tr.no-hidden-label];
     in-out property <int> hidden-app-index: 0;
     in property <bool> can-restore-hidden: false;
@@ -780,10 +799,14 @@ component KeyFieldSettingCard inherits Rectangle {
     in-out property <string> shortcut-toggle-always-on-top: "P";
     in-out property <string> shortcut-open-settings: "O";
     in-out property <string> shortcut-open-menu: "M";
+    in-out property <string> shortcut-open-command-palette: "K";
     in-out property <string> shortcut-global-activate: "Ctrl+Alt+P";
     in-out property <string> shortcut-refresh-now: "R";
     in-out property <string> shortcut-exit-app: "Esc";
     in-out property <bool> alt-toolbar-shortcut-enabled: true;
+    in property <bool> has-shortcut-conflicts: false;
+    in property <string> shortcut-conflict-summary: "";
+    in property <string> shortcut-conflict-detail: "";
     in-out property <bool> suspend-live-apply: false;
 
     in-out property <int> current-page: 0;
@@ -801,6 +824,10 @@ component KeyFieldSettingCard inherits Rectangle {
     callback check-updates-now();
     callback restore-hidden-selected();
     callback restore-hidden-all();
+    callback app-rules-select-app();
+    callback app-rules-apply-selected();
+    callback app-rules-reset-selected();
+    callback app-rules-refresh-list();
     callback browse-background-image();
     callback clear-background-image();
     callback apply-bg-color-hex(string);
@@ -859,6 +886,9 @@ component KeyFieldSettingCard inherits Rectangle {
     changed refresh-index => {
         root.request-live-apply();
     }
+    changed refresh-performance-mode-index => {
+        root.request-live-apply();
+    }
     changed layout-index => {
         root.request-live-apply();
     }
@@ -876,6 +906,21 @@ component KeyFieldSettingCard inherits Rectangle {
     }
     changed app-filter-index => {
         root.request-live-apply();
+    }
+    changed app-rules-index => {
+        if (!root.suspend-live-apply) {
+            root.app-rules-select-app();
+        }
+    }
+    changed app-rules-search => {
+        if (!root.suspend-live-apply) {
+            root.app-rules-refresh-list();
+        }
+    }
+    changed app-rules-filter-index => {
+        if (!root.suspend-live-apply) {
+            root.app-rules-refresh-list();
+        }
     }
     changed bg-image-fit-index => {
         root.request-live-apply();
@@ -1123,440 +1168,344 @@ component KeyFieldSettingCard inherits Rectangle {
 
                     if root.current-page == 0: VerticalLayout {
 
+                        spacing: 12px;
+
                         PageHeader {
                             icon: @image-url("../../assets/ui-icons/section-display.svg");
                             title: Tr.settings-page-behaviour-display-title;
                             subtitle: Tr.settings-page-behaviour-display-subtitle;
                         }
 
-                        spacing: 6px;
-
-                        ToggleSettingCard {
-                            enabled: true;
-                            icon: @image-url("../../assets/ui-icons/option-always-on-top.svg");
-                            title: Tr.settings-option-always-on-top-title;
-                            description: Tr.settings-option-always-on-top-description;
-                            checked <=> root.always-on-top-setting;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-animate.svg");
-                            title: Tr.settings-option-animate-transitions-title;
-                            description: Tr.settings-option-animate-transitions-description;
-                            checked <=> root.animate-transitions-setting;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-minimize-tray.svg");
-                            title: Tr.settings-option-minimize-to-tray-title;
-                            description: Tr.settings-option-minimize-to-tray-description;
-                            checked <=> root.minimize-to-tray-setting;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-close-tray.svg");
-                            title: Tr.settings-option-close-to-tray-title;
-                            description: Tr.settings-option-close-to-tray-description;
-                            checked <=> root.close-to-tray-setting;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-aspect-ratio.svg");
-                            title: Tr.settings-option-preserve-aspect-ratio-title;
-                            description: Tr.settings-option-preserve-aspect-ratio-description;
-                            checked <=> root.preserve-aspect-ratio-setting;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
-                            title: Tr.settings-option-hide-on-select-title;
-                            description: root.hide-on-select-enabled ? Tr.settings-option-hide-on-select-description : Tr.dock-mode-hint;
-                            checked <=> root.hide-on-select-setting;
-                            enabled: root.hide-on-select-enabled;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-start-hidden.svg");
-                            title: Tr.settings-option-start-in-tray-title;
-                            description: Tr.settings-option-start-in-tray-description;
-                            checked <=> root.start-in-tray-setting;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-settings.svg");
-                            title: Tr.settings-option-run-at-startup-title;
-                            description: Tr.settings-option-run-at-startup-description;
-                            checked <=> root.run-at-startup-setting;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-lock-layout.svg");
-                            title: Tr.settings-option-lock-layout-title;
-                            description: Tr.settings-option-lock-layout-description;
-                            checked <=> root.locked-layout-setting;
-                        }
-
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-lock-resize.svg");
-                            title: Tr.settings-option-lock-cell-resize-title;
-                            description: Tr.settings-option-lock-cell-resize-description;
-                            checked <=> root.lock-cell-resize-setting;
-                        }
-
-                        Divider {
-                            height: 2px;
-                            background: Theme.border.with-alpha(72%);
-                        }
-
-                        PageHeader {
-                            height: 58px;
-                            icon: @image-url("../../assets/ui-icons/option-visibility.svg");
-                            title: Tr.settings-section-display-title;
-                            subtitle: Tr.settings-section-display-helper;
-                        }
-
-                        HorizontalLayout {
-                            spacing: 0px;
-
-                            SelectSettingPanel {
-                                horizontal-stretch: 1;
-                                combo-width: 150px;
-                                icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                title: Tr.settings-option-default-layout-title;
-                                options: Tr.layout-options;
-                                selected-index <=> root.layout-index;
-                                enabled: root.default-layout-enabled;
+                        SectionCard {
+                            SectionHeader {
+                                icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                                title: Tr.settings-section-behaviour-title;
+                                helper: Tr.settings-section-behaviour-helper;
                             }
 
-                            SelectSettingPanel {
-                                horizontal-stretch: 1;
+                            ToggleSettingCard {
+                                enabled: true;
+                                icon: @image-url("../../assets/ui-icons/option-always-on-top.svg");
+                                title: Tr.settings-option-always-on-top-title;
+                                description: Tr.settings-option-always-on-top-description;
+                                checked <=> root.always-on-top-setting;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-animate.svg");
+                                title: Tr.settings-option-animate-transitions-title;
+                                description: Tr.settings-option-animate-transitions-description;
+                                checked <=> root.animate-transitions-setting;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-minimize-tray.svg");
+                                title: Tr.settings-option-minimize-to-tray-title;
+                                description: Tr.settings-option-minimize-to-tray-description;
+                                checked <=> root.minimize-to-tray-setting;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-close-tray.svg");
+                                title: Tr.settings-option-close-to-tray-title;
+                                description: Tr.settings-option-close-to-tray-description;
+                                checked <=> root.close-to-tray-setting;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-aspect-ratio.svg");
+                                title: Tr.settings-option-preserve-aspect-ratio-title;
+                                description: Tr.settings-option-preserve-aspect-ratio-description;
+                                checked <=> root.preserve-aspect-ratio-setting;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
+                                title: Tr.settings-option-hide-on-select-title;
+                                description: root.hide-on-select-enabled ? Tr.settings-option-hide-on-select-description : Tr.dock-mode-hint;
+                                checked <=> root.hide-on-select-setting;
+                                enabled: root.hide-on-select-enabled;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-start-hidden.svg");
+                                title: Tr.settings-option-start-in-tray-title;
+                                description: Tr.settings-option-start-in-tray-description;
+                                checked <=> root.start-in-tray-setting;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                                title: Tr.settings-option-run-at-startup-title;
+                                description: Tr.settings-option-run-at-startup-description;
+                                checked <=> root.run-at-startup-setting;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-lock-layout.svg");
+                                title: Tr.settings-option-lock-layout-title;
+                                description: Tr.settings-option-lock-layout-description;
+                                checked <=> root.locked-layout-setting;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-lock-resize.svg");
+                                title: Tr.settings-option-lock-cell-resize-title;
+                                description: Tr.settings-option-lock-cell-resize-description;
+                                checked <=> root.lock-cell-resize-setting;
+                            }
+                        }
+
+                        SectionCard {
+                            SectionHeader {
+                                icon: @image-url("../../assets/ui-icons/option-visibility.svg");
+                                title: Tr.settings-section-display-title;
+                                helper: Tr.settings-section-display-helper;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 0px;
+
+                                SelectSettingPanel {
+                                    horizontal-stretch: 1;
+                                    combo-width: 150px;
+                                    icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                    title: Tr.settings-option-default-layout-title;
+                                    options: Tr.layout-options;
+                                    selected-index <=> root.layout-index;
+                                    enabled: root.default-layout-enabled;
+                                }
+
+                                SelectSettingPanel {
+                                    horizontal-stretch: 1;
+                                    icon: @image-url("../../assets/ui-icons/option-dock.svg");
+                                    title: Tr.settings-option-dock-position-title;
+                                    options: Tr.dock-options;
+                                    selected-index <=> root.dock-edge-index;
+                                }
+                            }
+
+                            if root.dock-mode-active: InlineWarning {
                                 icon: @image-url("../../assets/ui-icons/option-dock.svg");
                                 title: Tr.settings-option-dock-position-title;
-                                options: Tr.dock-options;
-                                selected-index <=> root.dock-edge-index;
+                                text: Tr.settings-option-default-layout-docked-description;
                             }
-                        }
 
-                        if root.dock-mode-active: Rectangle {
-                            border-radius: 4px;
-                            border-width: 2px;
-                            border-color: Theme.border.with-alpha(50%);
-                            background: Theme.card-bg.with-alpha(92%);
+                            if root.dock-mode-active: Rectangle {
+                                background: transparent;
 
-                            VerticalLayout {
-                                padding: 14px;
-                                spacing: 12px;
-
-                                HorizontalLayout {
-                                    spacing: 10px;
-                                    alignment: space-between;
+                                VerticalLayout {
+                                    spacing: 12px;
 
                                     HorizontalLayout {
                                         spacing: 10px;
+                                        alignment: space-between;
 
-                                        Image {
-                                            width: 20px;
-                                            height: 20px;
-                                            source: @image-url("../../assets/ui-icons/option-dock.svg");
-                                            image-fit: contain;
-                                            colorize: Theme.accent;
+                                        SectionHeader {
+                                            icon: @image-url("../../assets/ui-icons/option-dock.svg");
+                                            title: Tr.settings-section-dock-thickness-title;
+                                            helper: Tr.settings-section-dock-thickness-helper;
                                         }
 
-                                        VerticalLayout {
-                                            spacing: 4px;
-
-                                            Text {
-                                                text: Tr.settings-section-dock-thickness-title;
-                                                color: Theme.text;
-                                                font-size: 14px;
-                                                font-weight: 700;
-                                            }
-
-                                            Text {
-                                                text: Tr.settings-section-dock-thickness-helper;
-                                                color: Theme.muted;
-                                                font-size: 11px;
-                                                wrap: word-wrap;
-                                            }
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        height: 30px;
-                                        border-radius: 15px;
-                                        border-width: 1px;
-                                        border-color: Theme.accent.with-alpha(60%);
-                                        background: Theme.accent-soft.with-alpha(48%);
-
-                                        Text {
-                                            width: 100%;
-                                            height: 100%;
+                                        StatusPill {
                                             text: root.dock-column-mode ? Tr.layout-column-label : Tr.layout-row-label;
-                                            color: Theme.text;
-                                            font-size: 12px;
-                                            font-weight: 700;
-                                            horizontal-alignment: center;
-                                            vertical-alignment: center;
-                                        }
-                                    }
-                                }
-
-                                HorizontalLayout {
-                                    spacing: 16px;
-
-                                    Rectangle {
-                                        horizontal-stretch: 1;
-                                        border-radius: 12px;
-                                        border-width: 1px;
-                                        border-color: Theme.border.with-alpha(64%);
-                                        background: root.dock-column-mode ? Theme.accent-soft.with-alpha(32%) : Theme.surface.with-alpha(48%);
-
-                                        VerticalLayout {
-                                            padding: 12px;
-                                            spacing: 8px;
-
-                                            Text {
-                                                text: Tr.layout-column-label;
-                                                color: Theme.text;
-                                                font-size: 13px;
-                                                font-weight: 700;
-                                            }
-
-                                            Text {
-                                                text: Tr.settings-width-label;
-                                                color: Theme.muted;
-                                                font-size: 11px;
-                                            }
-
-                                            CustomSpinBox {
-                                                height: 34px;
-                                                value <=> root.dock-column-thickness-value;
-                                                minimum: 0;
-                                                maximum: 3840;
-                                            }
                                         }
                                     }
 
-                                    Rectangle {
-                                        horizontal-stretch: 1;
-                                        border-radius: 12px;
-                                        border-width: 1px;
-                                        border-color: Theme.border.with-alpha(64%);
-                                        background: !root.dock-column-mode ? Theme.accent-soft.with-alpha(32%) : Theme.surface.with-alpha(48%);
+                                    HorizontalLayout {
+                                        spacing: 16px;
 
-                                        VerticalLayout {
-                                            padding: 12px;
-                                            spacing: 8px;
+                                        Rectangle {
+                                            horizontal-stretch: 1;
+                                            border-radius: 12px;
+                                            border-width: 1px;
+                                            border-color: Theme.border.with-alpha(64%);
+                                            background: root.dock-column-mode ? Theme.accent-soft.with-alpha(32%) : Theme.surface.with-alpha(48%);
 
-                                            Text {
-                                                text: Tr.layout-row-label;
-                                                color: Theme.text;
-                                                font-size: 13px;
-                                                font-weight: 700;
+                                            VerticalLayout {
+                                                padding: 12px;
+                                                spacing: 8px;
+
+                                                Text {
+                                                    text: Tr.layout-column-label;
+                                                    color: Theme.text;
+                                                    font-size: 13px;
+                                                    font-weight: 700;
+                                                }
+
+                                                Text {
+                                                    text: Tr.settings-width-label;
+                                                    color: Theme.muted;
+                                                    font-size: 11px;
+                                                }
+
+                                                CustomSpinBox {
+                                                    height: 34px;
+                                                    value <=> root.dock-column-thickness-value;
+                                                    minimum: 0;
+                                                    maximum: 3840;
+                                                }
                                             }
+                                        }
 
-                                            Text {
-                                                text: Tr.settings-height-label;
-                                                color: Theme.muted;
-                                                font-size: 11px;
-                                            }
+                                        Rectangle {
+                                            horizontal-stretch: 1;
+                                            border-radius: 12px;
+                                            border-width: 1px;
+                                            border-color: Theme.border.with-alpha(64%);
+                                            background: !root.dock-column-mode ? Theme.accent-soft.with-alpha(32%) : Theme.surface.with-alpha(48%);
 
-                                            CustomSpinBox {
-                                                height: 34px;
-                                                value <=> root.dock-row-thickness-value;
-                                                minimum: 0;
-                                                maximum: 2160;
+                                            VerticalLayout {
+                                                padding: 12px;
+                                                spacing: 8px;
+
+                                                Text {
+                                                    text: Tr.layout-row-label;
+                                                    color: Theme.text;
+                                                    font-size: 13px;
+                                                    font-weight: 700;
+                                                }
+
+                                                Text {
+                                                    text: Tr.settings-height-label;
+                                                    color: Theme.muted;
+                                                    font-size: 11px;
+                                                }
+
+                                                CustomSpinBox {
+                                                    height: 34px;
+                                                    value <=> root.dock-row-thickness-value;
+                                                    minimum: 0;
+                                                    maximum: 2160;
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        if !root.dock-mode-active: Rectangle {
+                            if !root.dock-mode-active: Rectangle {
+                                background: transparent;
 
-                            VerticalLayout {
-                                padding: 0px;
-                                padding-bottom: 10px;
-                                spacing: 12px;
+                                VerticalLayout {
+                                    spacing: 12px;
 
-                                HorizontalLayout {
-                                    spacing: 10px;
-
-                                    Image {
-                                        width: 20px;
-                                        height: 20px;
-                                        source: @image-url("../../assets/ui-icons/option-layout.svg");
-                                        image-fit: contain;
-                                        colorize: Theme.accent;
+                                    SectionHeader {
+                                        icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                        title: Tr.settings-section-floating-window-size-title;
+                                        helper: Tr.settings-section-floating-window-size-helper;
                                     }
 
-                                    VerticalLayout {
-                                        spacing: 4px;
+                                    HorizontalLayout {
+                                        spacing: 16px;
 
-                                        Text {
-                                            text: Tr.settings-section-floating-window-size-title;
-                                            color: Theme.text;
-                                            font-size: 14px;
-                                            font-weight: 700;
-                                        }
+                                        Rectangle {
+                                            horizontal-stretch: 1;
+                                            border-radius: 12px;
+                                            border-width: 1px;
+                                            border-color: Theme.border.with-alpha(64%);
+                                            background: Theme.surface.with-alpha(48%);
 
-                                        Text {
-                                            text: Tr.settings-section-floating-window-size-helper;
-                                            color: Theme.muted;
-                                            font-size: 11px;
-                                            wrap: word-wrap;
-                                        }
-                                    }
-                                }
+                                            VerticalLayout {
+                                                padding: 12px;
+                                                spacing: 8px;
 
-                                HorizontalLayout {
-                                    spacing: 16px;
+                                                Text {
+                                                    text: Tr.settings-width-label;
+                                                    color: Theme.text;
+                                                    font-size: 13px;
+                                                    font-weight: 700;
+                                                }
 
-                                    Rectangle {
-                                        horizontal-stretch: 1;
-                                        border-radius: 4px;
-                                        border-width: 2px;
-                                        border-color: Theme.border.with-alpha(64%);
-                                        background: Theme.surface.with-alpha(48%);
-
-                                        VerticalLayout {
-                                            padding: 12px;
-                                            spacing: 8px;
-
-                                            Text {
-                                                text: Tr.settings-width-label;
-                                                color: Theme.text;
-                                                font-size: 13px;
-                                                font-weight: 700;
-                                            }
-
-                                            CustomSpinBox {
-                                                height: 34px;
-                                                value <=> root.fixed-width-value;
-                                                minimum: 0;
-                                                maximum: 3840;
+                                                CustomSpinBox {
+                                                    height: 34px;
+                                                    value <=> root.fixed-width-value;
+                                                    minimum: 0;
+                                                    maximum: 3840;
+                                                }
                                             }
                                         }
-                                    }
 
-                                    Rectangle {
-                                        horizontal-stretch: 1;
-                                        border-radius: 4px;
-                                        border-width: 2px;
-                                        border-color: Theme.border.with-alpha(10%);
-                                        background: Theme.surface.with-alpha(48%);
+                                        Rectangle {
+                                            horizontal-stretch: 1;
+                                            border-radius: 12px;
+                                            border-width: 1px;
+                                            border-color: Theme.border.with-alpha(64%);
+                                            background: Theme.surface.with-alpha(48%);
 
-                                        VerticalLayout {
-                                            padding: 12px;
-                                            spacing: 8px;
+                                            VerticalLayout {
+                                                padding: 12px;
+                                                spacing: 8px;
 
-                                            Text {
-                                                text: Tr.settings-height-label;
-                                                color: Theme.text;
-                                                font-size: 13px;
-                                                font-weight: 700;
-                                            }
+                                                Text {
+                                                    text: Tr.settings-height-label;
+                                                    color: Theme.text;
+                                                    font-size: 13px;
+                                                    font-weight: 700;
+                                                }
 
-                                            CustomSpinBox {
-                                                height: 34px;
-                                                value <=> root.fixed-height-value;
-                                                minimum: 0;
-                                                maximum: 2160;
+                                                CustomSpinBox {
+                                                    height: 34px;
+                                                    value <=> root.fixed-height-value;
+                                                    minimum: 0;
+                                                    maximum: 2160;
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        Rectangle {
+                            SettingRow {
+                                icon: @image-url("../../assets/ui-icons/option-image-fit.svg");
+                                title: Tr.settings-option-thumbnail-render-scale-title;
+                                description: Tr.settings-option-thumbnail-render-scale-description;
 
-                            VerticalLayout {
-                                padding: 0px;
-                                padding-bottom: 15px;
-                                spacing: 12px;
-
-                                HorizontalLayout {
-                                    spacing: 10px;
-
-                                    Image {
-                                        width: 20px;
-                                        height: 20px;
-                                        source: @image-url("../../assets/ui-icons/option-image-fit.svg");
-                                        image-fit: contain;
-                                        colorize: Theme.accent;
-                                    }
-
-                                    VerticalLayout {
-                                        spacing: 4px;
-
-                                        Text {
-                                            text: Tr.settings-option-thumbnail-render-scale-title;
-                                            color: Theme.text;
-                                            font-size: 14px;
-                                            font-weight: 700;
-                                        }
-
-                                        Text {
-                                            text: Tr.settings-option-thumbnail-render-scale-description;
-                                            color: Theme.muted;
-                                            font-size: 11px;
-                                            wrap: word-wrap;
-                                        }
+                                CustomComboBox {
+                                    width: 140px;
+                                    height: 34px;
+                                    options: ["25%", "50%", "75%", "100%"];
+                                    selected-index: root.thumbnail-render-scale-value == 25 ? 0 : root.thumbnail-render-scale-value == 50 ? 1 : root.thumbnail-render-scale-value == 75 ? 2 : 3;
+                                    selected(index, _) => {
+                                        root.thumbnail-render-scale-value = index == 0 ? 25 : index == 1 ? 50 : index == 2 ? 75 : 100;
                                     }
                                 }
 
-                                HorizontalLayout {
-                                    spacing: 10px;
-
-                                    CustomComboBox {
-                                        width: 140px;
-                                        height: 34px;
-                                        options: ["25%", "50%", "75%", "100%"];
-                                        selected-index: root.thumbnail-render-scale-value == 25 ? 0 : root.thumbnail-render-scale-value == 50 ? 1 : root.thumbnail-render-scale-value == 75 ? 2 : 3;
-                                        selected(index, _) => {
-                                            root.thumbnail-render-scale-value = index == 0 ? 25 : index == 1 ? 50 : index == 2 ? 75 : 100;
-                                        }
-                                    }
-
-                                    Text {
-                                        text: root.thumbnail-render-scale-value + "%";
-                                        color: Theme.label;
-                                        vertical-alignment: center;
-                                    }
+                                StatusPill {
+                                    text: root.thumbnail-render-scale-value + "%";
+                                    subtle: true;
                                 }
                             }
-                        }
 
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
-                            title: Tr.settings-option-show-toolbar-title;
-                            description: Tr.settings-option-show-toolbar-description;
-                            checked <=> root.show-toolbar-setting;
-                        }
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
+                                title: Tr.settings-option-show-toolbar-title;
+                                description: Tr.settings-option-show-toolbar-description;
+                                checked <=> root.show-toolbar-setting;
+                            }
 
-                        SelectSettingPanel {
-                            icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
-                            title: Tr.settings-option-toolbar-position-title;
-                            description: Tr.settings-option-toolbar-position-description;
-                            options: Tr.toolbar-position-options;
-                            selected-index <=> root.toolbar-position-index;
-                            enabled: root.show-toolbar-setting;
-                        }
+                            SelectSettingPanel {
+                                icon: @image-url("../../assets/ui-icons/option-show-toolbar.svg");
+                                title: Tr.settings-option-toolbar-position-title;
+                                description: Tr.settings-option-toolbar-position-description;
+                                options: Tr.toolbar-position-options;
+                                selected-index <=> root.toolbar-position-index;
+                                enabled: root.show-toolbar-setting;
+                            }
 
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-window-info.svg");
-                            title: Tr.settings-option-show-info-title;
-                            description: Tr.settings-option-show-info-description;
-                            checked <=> root.show-info-setting;
-                        }
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-window-info.svg");
+                                title: Tr.settings-option-show-info-title;
+                                description: Tr.settings-option-show-info-description;
+                                checked <=> root.show-info-setting;
+                            }
 
-                        ToggleSettingCard {
-                            icon: @image-url("../../assets/ui-icons/option-app-icon.svg");
-                            title: Tr.settings-option-show-app-icons-title;
-                            description: Tr.settings-option-show-app-icons-description;
-                            checked <=> root.show-app-icons-setting;
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-app-icon.svg");
+                                title: Tr.settings-option-show-app-icons-title;
+                                description: Tr.settings-option-show-app-icons-description;
+                                checked <=> root.show-app-icons-setting;
+                            }
                         }
                     }
 
@@ -1602,13 +1551,10 @@ component KeyFieldSettingCard inherits Rectangle {
                             }
                         }
 
-                        VerticalLayout {
-                            padding: 10px;
-                            spacing: 10px;
-
-                            SectionTitle {
+                        SectionCard {
+                            SectionHeader {
                                 icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
-                                text: Tr.settings-section-hidden-apps-title;
+                                title: Tr.settings-section-hidden-apps-title;
                                 helper: Tr.settings-section-hidden-apps-helper;
                             }
 
@@ -1645,6 +1591,154 @@ component KeyFieldSettingCard inherits Rectangle {
                                         root.restore-hidden-all();
                                     }
                                 }
+                            }
+                        }
+
+                        SectionCard {
+                            SectionHeader {
+                                icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                                title: "App Rules Manager (MVP)";
+                                helper: "Edita reglas por aplicación: visibilidad, aspecto, ocultar al seleccionar, refresh, tags y color.";
+                            }
+
+                            SelectSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-app-icon.svg");
+                                title: "Aplicación";
+                                description: "Incluye apps en ejecución y apps con reglas guardadas.";
+                                options: root.app-rules-options;
+                                selected-index <=> root.app-rules-index;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+
+                                CustomLineEdit {
+                                    horizontal-stretch: 1;
+                                    height: 34px;
+                                    text <=> root.app-rules-search;
+                                    placeholder: "Buscar por app, id o tags...";
+                                }
+
+                                CustomComboBox {
+                                    width: 200px;
+                                    height: 34px;
+                                    options: [
+                                        "All apps",
+                                        "Running apps",
+                                        "Saved rules only",
+                                        "Hidden apps",
+                                        "Tagged apps",
+                                        "Custom refresh",
+                                        "Pinned apps",
+                                    ];
+                                    selected-index <=> root.app-rules-filter-index;
+                                }
+                            }
+
+                            if root.app-rules-has-selection: VerticalLayout {
+                                spacing: 10px;
+
+                                SettingRow {
+                                    icon: @image-url("../../assets/ui-icons/option-app-icon.svg");
+                                    title: "Regla activa";
+                                    description: root.app-rules-selected-app-label;
+
+                                    StatusPill {
+                                        text: "APP RULE";
+                                        subtle: true;
+                                    }
+                                }
+
+                                ToggleSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
+                                    title: "Ocultar app en dashboard";
+                                    description: "Si está activo, la app no aparece en la grilla principal.";
+                                    checked <=> root.app-rules-hidden;
+                                }
+
+                                ToggleSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/option-aspect-ratio.svg");
+                                    title: "Preservar aspect ratio";
+                                    description: "Override por app del ajuste global de aspecto.";
+                                    checked <=> root.app-rules-preserve-aspect;
+                                }
+
+                                ToggleSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
+                                    title: "Ocultar Panopticon al seleccionar";
+                                    description: "Override por app del comportamiento hide-on-select.";
+                                    checked <=> root.app-rules-hide-on-select;
+                                }
+
+                                SettingRow {
+                                    icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                                    title: "Modo de refresh del thumbnail";
+                                    description: "Realtime, Frozen o Interval.";
+
+                                    CustomComboBox {
+                                        width: 150px;
+                                        height: 34px;
+                                        options: ["Realtime", "Frozen", "Interval"];
+                                        selected-index <=> root.app-rules-refresh-mode-index;
+                                    }
+                                }
+
+                                if root.app-rules-refresh-mode-index == 2: SettingRow {
+                                    icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                                    title: "Intervalo (ms)";
+                                    description: "Se aplica cuando el modo es Interval.";
+
+                                    CustomSpinBox {
+                                        width: 130px;
+                                        height: 34px;
+                                        value <=> root.app-rules-refresh-interval-ms;
+                                        minimum: 500;
+                                        maximum: 60000;
+                                    }
+                                }
+
+                                TextFieldSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/option-tag.svg");
+                                    title: "Tags (CSV)";
+                                    description: "Ejemplo: work, browser, stream";
+                                    value <=> root.app-rules-tags;
+                                    placeholder: "work, browser";
+                                }
+
+                                TextFieldSettingCard {
+                                    icon: @image-url("../../assets/ui-icons/option-palette.svg");
+                                    title: "Color hex (opcional)";
+                                    description: "Formato RRGGBB o vacío para limpiar override.";
+                                    value <=> root.app-rules-color-hex;
+                                    placeholder: "5CA9FF";
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 10px;
+
+                                    CustomButton {
+                                        height: 34px;
+                                        text: "Apply rule";
+                                        clicked => {
+                                            root.app-rules-apply-selected();
+                                        }
+                                    }
+
+                                    CustomButton {
+                                        height: 34px;
+                                        text: "Reset rule";
+                                        clicked => {
+                                            root.app-rules-reset-selected();
+                                        }
+                                    }
+                                }
+                            }
+
+                            if !root.app-rules-has-selection: Text {
+                                text: "Selecciona una aplicación para editar su regla.";
+                                color: Theme.muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
                             }
                         }
                     }
@@ -2031,156 +2125,159 @@ component KeyFieldSettingCard inherits Rectangle {
                     HorizontalLayout {
                         spacing: 16px;
 
-                        Rectangle {
+                        SectionCard {
                             width: 430px;
-                            border-radius: 4px;
-                            border-width: 2px;
-                            border-color: Theme.border.with-alpha(50%);
-                            background: Theme.card_bg.with-alpha(92%);
+                            SectionHeader {
+                                icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                title: Tr.settings-section-load-profile-title;
+                                helper: Tr.settings-section-load-profile-helper;
+                            }
 
-                            VerticalLayout {
-                                padding: 14px;
+                            SelectSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                title: Tr.settings-option-available-profile-title;
+                                description: Tr.settings-option-available-profile-description;
+                                options: root.available-profile-options;
+                                selected-index <=> root.available-profile-index;
+                            }
+
+                            HorizontalLayout {
                                 spacing: 10px;
 
-                                SectionTitle {
-                                    icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
-                                    text: Tr.settings-section-load-profile-title;
-                                    helper: Tr.settings-section-load-profile-helper;
-                                }
-
-                                SelectSettingCard {
-                                    icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
-                                    title: Tr.settings-option-available-profile-title;
-                                    description: Tr.settings-option-available-profile-description;
-                                    options: root.available-profile-options;
-                                    selected-index <=> root.available-profile-index;
-                                }
-
-                                HorizontalLayout {
-                                    spacing: 10px;
-
-                                    CustomButton {
-                                        height: 40px;
-                                        text: Tr.action-load-profile;
-                                        clicked => {
-                                            root.load-selected-profile();
-                                        }
-                                    }
-
-                                    CustomButton {
-                                        text: Tr.open-instance-btn;
-                                        clicked => {
-                                            root.open-profile-instance();
-                                        }
+                                CustomButton {
+                                    height: 40px;
+                                    text: Tr.action-load-profile;
+                                    clicked => {
+                                        root.load-selected-profile();
                                     }
                                 }
 
-                                SectionTitle {
-                                    icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                    text: Tr.settings-section-edit-profile-title;
-                                    helper: Tr.settings-section-edit-profile-helper;
-                                }
-
-                                Rectangle {
-                                    border-radius: 12px;
-                                    border-width: 1px;
-                                    border-color: Theme.border.with-alpha(68%);
-                                    background: Theme.surface.with-alpha(56%);
-                                    height: 60px;
-
-                                    VerticalLayout {
-                                        padding: 12px;
-                                        spacing: 6px;
-
-                                        Text {
-                                            text: Tr.settings-current-profile-card-title;
-                                            color: Theme.muted;
-                                            font-size: 11px;
-                                        }
-
-                                        Text {
-                                            text: root.current-profile-label;
-                                            color: Theme.text;
-                                            font-size: 15px;
-                                            font-weight: 700;
-                                            overflow: elide;
-                                        }
+                                CustomButton {
+                                    text: Tr.open-instance-btn;
+                                    clicked => {
+                                        root.open-profile-instance();
                                     }
                                 }
+                            }
 
-                                TextFieldSettingCard {
-                                    icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                    title: Tr.settings-option-profile-name-title;
-                                    description: Tr.settings-option-profile-name-description;
-                                    value <=> root.profile-name;
-                                    placeholder: "workspace-a";
+                            SectionHeader {
+                                icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
+                                title: Tr.settings-section-edit-profile-title;
+                                helper: Tr.settings-section-edit-profile-helper;
+                            }
+
+                            SettingRow {
+                                icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                title: Tr.settings-current-profile-card-title;
+                                description: root.current-profile-label;
+
+                                StatusPill {
+                                    text: root.current-profile-label;
                                 }
+                            }
 
-                                HorizontalLayout {
-                                    spacing: 10px;
-                                    CustomButton {
-                                        height: 40px;
-                                        text: Tr.save-profile-btn;
-                                        clicked => {
-                                            root.save-profile();
-                                        }
+                            TextFieldSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
+                                title: Tr.settings-option-profile-name-title;
+                                description: Tr.settings-option-profile-name-description;
+                                value <=> root.profile-name;
+                                placeholder: "workspace-a";
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                CustomButton {
+                                    height: 40px;
+                                    text: Tr.save-profile-btn;
+                                    clicked => {
+                                        root.save-profile();
                                     }
                                 }
                             }
                         }
 
-                        Rectangle {
+                        SectionCard {
                             horizontal-stretch: 1;
-                            border-radius: 4px;
-                            border-width: 2px;
-                            border-color: Theme.border.with-alpha(50%);
-                            background: Theme.card_bg.with-alpha(92%);
+                            SectionHeader {
+                                icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                title: Tr.settings-section-saved-profiles-title;
+                                helper: Tr.settings-section-saved-profiles-helper;
+                            }
 
-                            VerticalLayout {
-                                padding: 14px;
-                                spacing: 10px;
+                            Rectangle {
+                                border-radius: 10px;
+                                border-width: 1px;
+                                border-color: Theme.border.with-alpha(48%);
+                                background: Theme.surface.with-alpha(34%);
+                                height: 220px;
+                                clip: true;
 
-                                SectionTitle {
-                                    icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
-                                    text: Tr.settings-section-saved-profiles-title;
-                                    helper: Tr.settings-section-saved-profiles-helper;
+                                ScrollView {
+                                    width: parent.width;
+                                    height: parent.height;
+                                    viewport-width: self.width;
+
+                                    VerticalLayout {
+                                        width: parent.width;
+                                        padding: 8px;
+                                        spacing: 6px;
+
+                                        for profile[index] in root.available-profile-options: Rectangle {
+                                            border-radius: 8px;
+                                            border-width: 1px;
+                                            border-color: root.available-profile-index == index ? Theme.accent.with-alpha(56%) : Theme.border.with-alpha(44%);
+                                            background: root.available-profile-index == index ? Theme.accent-soft.with-alpha(24%) : profile-row-touch.has-hover ? Theme.surface.with-alpha(52%) : transparent;
+                                            min-height: 42px;
+
+                                            HorizontalLayout {
+                                                padding-left: 10px;
+                                                padding-right: 10px;
+                                                padding-top: 8px;
+                                                padding-bottom: 8px;
+                                                spacing: 10px;
+                                                alignment: space-between;
+
+                                                Text {
+                                                    text: profile;
+                                                    color: Theme.text;
+                                                    font-size: 12.5px;
+                                                    font-weight: root.available-profile-index == index ? 700 : 500;
+                                                    overflow: elide;
+                                                    horizontal-stretch: 1;
+                                                }
+
+                                                if profile == root.current-profile-label: StatusPill {
+                                                    text: "ACTIVE";
+                                                }
+                                            }
+
+                                            profile-row-touch := TouchArea {
+                                                mouse-cursor: pointer;
+                                                clicked => {
+                                                    root.available-profile-index = index;
+                                                    root.profile-name = profile;
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
+                            }
 
-                                Text {
-                                    text: root.known-profiles-label;
-                                    color: Theme.label;
-                                    font-size: 12px;
-                                    wrap: word-wrap;
-                                }
+                            InlineWarning {
+                                subtle: true;
+                                icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                title: Tr.settings-section-saved-profiles-title;
+                                text: root.known-profiles-label;
                             }
                         }
                     }
 
-                    Rectangle {
-                        border-radius: 4px;
-                        border-color: Theme.border.with-alpha(20%);
-                        background: Theme.surface.with-alpha(20%);
-                        height: 90px;
+                    InlineWarning {
                         width: 440px;
-
-                        VerticalLayout {
-                            padding: 12px;
-                            spacing: 6px;
-
-                            Text {
-                                text: Tr.settings-tips-title;
-                                color: Theme.accent;
-                                font-size: 11px;
-                                font-weight: 700;
-                            }
-
-                            Text {
-                                text: Tr.settings-tips-body;
-                                color: Theme.muted;
-                                font-size: 11.5px;
-                                wrap: word-wrap;
-                            }
-                        }
+                        subtle: true;
+                        icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
+                        title: Tr.settings-tips-title;
+                        text: Tr.settings-tips-body;
                     }
                 }
 
@@ -2234,6 +2331,12 @@ component KeyFieldSettingCard inherits Rectangle {
                                 }
                             }
                         }
+                    }
+
+                    if root.has-shortcut-conflicts: InlineWarning {
+                        icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
+                        title: root.shortcut-conflict-summary;
+                        text: root.shortcut-conflict-detail;
                     }
 
                     ScrollView {
@@ -2728,6 +2831,19 @@ component KeyFieldSettingCard inherits Rectangle {
                                                 root.apply();
                                             }
                                         }
+
+                                        KeyFieldSettingCard {
+                                            col: 2;
+                                            row: 0;
+                                            icon: @image-url("../../assets/ui-icons/option-menu.svg");
+                                            title: Tr.settings-shortcut-open-command-palette-title;
+                                            description: "";
+                                            value <=> root.shortcut-open-command-palette;
+                                            placeholder: "K";
+                                            committed => {
+                                                root.apply();
+                                            }
+                                        }
                                     }
 
                                     Rectangle {
@@ -2803,35 +2919,64 @@ component KeyFieldSettingCard inherits Rectangle {
                         subtitle: Tr.settings-page-advanced-subtitle;
                     }
 
-                    SelectSettingCard {
-                        icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                        title: Tr.settings-option-refresh-interval-title;
-                        description: Tr.settings-option-refresh-interval-description;
-                        options: ["1s", "2s", "5s", "10s"];
-                        selected-index <=> root.refresh-index;
-                    }
-
-                    VerticalLayout {
-                        padding: 14px;
-                        spacing: 10px;
-
-                        SectionTitle {
+                    SectionCard {
+                        SectionHeader {
                             icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                            text: Tr.settings-section-manual-refresh-title;
-                            helper: Tr.settings-section-manual-refresh-helper;
+                            title: "Refresh performance mode";
+                            helper: "Realtime/Balanced/Battery Saver fijan la cadencia automáticamente. Manual usa el intervalo explícito.";
                         }
 
-                        CustomButton {
-                            height: 40px;
-                            width: 120px;
-                            text: Tr.action-refresh-now;
-                            clicked => {
-                                root.refresh-now();
-                            }
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                            title: "Refresh performance mode";
+                            description: "Perfil global de cadencia para descubrimiento de ventanas.";
+                            options: ["Realtime", "Balanced", "Battery Saver", "Manual"];
+                            selected-index <=> root.refresh-performance-mode-index;
+                        }
+
+                        InlineWarning {
+                            subtle: true;
+                            icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                            title: "Modo activo";
+                            text: root.refresh-performance-mode-index == 0 ? "Realtime (1s)" : root.refresh-performance-mode-index == 1 ? "Balanced (2s)" : root.refresh-performance-mode-index == 2 ? "Battery Saver (5s)" : "Manual (usa intervalo explícito)";
+                        }
+                    }
+
+                    SectionCard {
+                        SectionHeader {
+                            icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                            title: Tr.settings-option-refresh-interval-title;
+                            helper: Tr.settings-option-refresh-interval-description;
+                        }
+
+                        SelectSettingCard {
+                            icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                            title: Tr.settings-option-refresh-interval-title;
+                            description: Tr.settings-option-refresh-interval-description;
+                            options: ["1s", "2s", "5s", "10s"];
+                            selected-index <=> root.refresh-index;
+                            enabled: root.refresh-performance-mode-index == 3;
+                        }
+                    }
+
+                    SectionCard {
+                        SectionHeader {
+                            icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                            title: Tr.settings-section-manual-refresh-title;
+                            helper: Tr.settings-section-manual-refresh-helper;
                         }
 
                         HorizontalLayout {
                             spacing: 10px;
+
+                            CustomButton {
+                                height: 40px;
+                                width: 120px;
+                                text: Tr.action-refresh-now;
+                                clicked => {
+                                    root.refresh-now();
+                                }
+                            }
 
                             CustomButton {
                                 height: 40px;
@@ -2842,19 +2987,17 @@ component KeyFieldSettingCard inherits Rectangle {
                                 }
                             }
 
-                            Text {
+                            StatusPill {
                                 text: root.update-status-text;
-                                color: Theme.label;
-                                vertical-alignment: center;
-                                wrap: word-wrap;
+                                subtle: true;
                             }
                         }
 
-                        Text {
+                        InlineWarning {
+                            subtle: true;
+                            icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                            title: root.update-status-text;
                             text: Tr.settings-version-label + " " + root.app-version-text;
-                            color: Theme.muted;
-                            font-size: 12px;
-                            wrap: word-wrap;
                         }
                     }
                 }

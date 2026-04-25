@@ -6,6 +6,7 @@ use std::rc::Rc;
 use panopticon::layout::LayoutType;
 use panopticon::settings::AppSettings;
 
+use super::command_palette;
 use super::dock::apply_topmost_mode;
 use super::layout_actions;
 use super::secondary_windows;
@@ -21,6 +22,7 @@ enum ShortcutAction {
     ToggleWindowInfo,
     OpenMenu,
     OpenSettings,
+    OpenCommandPalette,
     ToggleAlwaysOnTop,
     RefreshNow,
     CycleTheme,
@@ -68,6 +70,9 @@ pub(crate) fn handle_key(
         }
         ShortcutAction::OpenMenu => tray_actions::open_application_context_menu(state, weak, None),
         ShortcutAction::OpenSettings => secondary_windows::open_settings_window(state, weak),
+        ShortcutAction::OpenCommandPalette => {
+            command_palette::open_command_palette_window(state, weak)
+        }
         ShortcutAction::ToggleAlwaysOnTop => {
             update_settings(state, |settings| {
                 settings.always_on_top = !settings.always_on_top;
@@ -127,6 +132,8 @@ fn matched_shortcut_action(
         Some(ShortcutAction::OpenMenu)
     } else if shortcut_matches(&shortcuts.open_settings, key) {
         Some(ShortcutAction::OpenSettings)
+    } else if shortcut_matches(&shortcuts.open_command_palette, key) {
+        Some(ShortcutAction::OpenCommandPalette)
     } else if shortcut_matches(&shortcuts.toggle_always_on_top, key) {
         Some(ShortcutAction::ToggleAlwaysOnTop)
     } else if shortcut_matches(&shortcuts.refresh_now, key) {

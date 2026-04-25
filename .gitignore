@@ -11,6 +11,7 @@
 
 # ── Local AI agent skills (not for public repo) ──────────────
 .agents/
+docs/
 
 # ── OS files ─────────────────────────────────────────────────
 Thumbs.db

@@ -7,14 +7,14 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use panopticon::settings::{
-    AppSelectionEntry, AppSettings, HiddenAppEntry, ProfileNameValidation,
+    AppSelectionEntry, AppSettings, HiddenAppEntry, ProfileNameValidation, ThumbnailRefreshMode,
     MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT,
     MIN_FIXED_WINDOW_WIDTH,
 };
 use panopticon::theme as theme_catalog;
 use panopticon::ui_option_ops::{
     app_option_label, current_profile_label, hidden_app_option_label, parse_option_value,
-    suggested_tag_name, tag_color_hex, tag_color_index,
+    suggested_tag_name, tag_color_hex, tag_color_index, OPTION_SEPARATOR,
 };
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 use panopticon::window_ops::{collect_available_apps, collect_available_monitors};
@@ -90,6 +90,17 @@ struct RuntimeUiOptions {
     tags: Vec<String>,
     apps: Vec<AppSelectionEntry>,
     hidden_apps: Vec<HiddenAppEntry>,
+}
+
+struct AppRuleListEntry {
+    option: AppSelectionEntry,
+    is_running: bool,
+    has_saved_rule: bool,
+    is_hidden: bool,
+    has_tags: bool,
+    has_custom_refresh: bool,
+    is_pinned: bool,
+    searchable_blob: String,
 }
 
 pub(crate) fn ensure_default_profiles_exist(settings: &AppSettings) {
@@ -325,6 +336,147 @@ pub(crate) fn open_settings_window(
             });
             let _ = crate::refresh_windows(&state);
             crate::refresh_ui(&state, &main_weak);
+        }
+    });
+
+    settings_window.on_app_rules_select_app({
+        let state = state.clone();
+        move || {
+            crate::SETTINGS_WIN.with(|handle| {
+                let guard = handle.borrow();
+                let Some(settings_window) = guard.as_ref() else {
+                    return;
+                };
+                let state_guard = state.borrow();
+                sync_selected_app_rule_editor(settings_window, &state_guard.settings);
+            });
+        }
+    });
+
+    settings_window.on_app_rules_refresh_list({
+        let state = state.clone();
+        move || {
+            crate::SETTINGS_WIN.with(|handle| {
+                let guard = handle.borrow();
+                let Some(settings_window) = guard.as_ref() else {
+                    return;
+                };
+
+                let state_guard = state.borrow();
+                settings_window.set_suspend_live_apply(true);
+                populate_settings_window_runtime_fields(settings_window, &state_guard);
+                settings_window.set_suspend_live_apply(false);
+            });
+        }
+    });
+
+    settings_window.on_app_rules_apply_selected({
+        let state = state.clone();
+        let main_weak = main_weak.clone();
+        move || {
+            crate::SETTINGS_WIN.with(|handle| {
+                let guard = handle.borrow();
+                let Some(settings_window) = guard.as_ref() else {
+                    return;
+                };
+
+                let selected = selected_model_value(
+                    &settings_window.get_app_rules_options(),
+                    settings_window.get_app_rules_index(),
+                );
+                let Some(selected_option) = selected else {
+                    return;
+                };
+                let Some(app_id) = parse_option_value(&selected_option) else {
+                    return;
+                };
+
+                let display_name = settings_window
+                    .get_app_rules_selected_app_label()
+                    .to_string();
+                let hidden = settings_window.get_app_rules_hidden();
+                let preserve_aspect = settings_window.get_app_rules_preserve_aspect();
+                let hide_on_select = settings_window.get_app_rules_hide_on_select();
+                let refresh_mode =
+                    refresh_mode_from_index(settings_window.get_app_rules_refresh_mode_index());
+                let refresh_interval_ms = settings_window
+                    .get_app_rules_refresh_interval_ms()
+                    .clamp(500, 60_000) as u32;
+                let tags_csv = settings_window.get_app_rules_tags().to_string();
+                let color_hex = settings_window.get_app_rules_color_hex().to_string();
+
+                crate::update_settings(&state, |settings| {
+                    let default_preserve = settings.preserve_aspect_ratio;
+                    let default_hide = settings.hide_on_select;
+                    let rule = settings.app_rules.entry(app_id.clone()).or_default();
+
+                    if !display_name.trim().is_empty() {
+                        rule.display_name = display_name.trim().to_owned();
+                    }
+
+                    rule.hidden = hidden;
+                    rule.preserve_aspect_ratio = preserve_aspect;
+                    rule.preserve_aspect_ratio_override =
+                        (preserve_aspect != default_preserve).then_some(preserve_aspect);
+
+                    let effective_hide = if settings.dock_edge.is_some() {
+                        false
+                    } else {
+                        hide_on_select
+                    };
+                    rule.hide_on_select = effective_hide;
+                    rule.hide_on_select_override =
+                        (effective_hide != default_hide).then_some(effective_hide);
+
+                    rule.thumbnail_refresh_mode = refresh_mode;
+                    rule.thumbnail_refresh_interval_ms = (refresh_mode
+                        == ThumbnailRefreshMode::Interval)
+                        .then_some(refresh_interval_ms.max(500));
+
+                    rule.tags = parse_tags_csv(&tags_csv);
+
+                    let color = color_hex.trim().trim_start_matches('#');
+                    rule.color_hex = if color.is_empty() {
+                        None
+                    } else {
+                        Some(color.to_owned())
+                    };
+                });
+
+                let _ = crate::refresh_windows(&state);
+                crate::refresh_ui(&state, &main_weak);
+            });
+        }
+    });
+
+    settings_window.on_app_rules_reset_selected({
+        let state = state.clone();
+        let main_weak = main_weak.clone();
+        move || {
+            crate::SETTINGS_WIN.with(|handle| {
+                let guard = handle.borrow();
+                let Some(settings_window) = guard.as_ref() else {
+                    return;
+                };
+
+                let selected = selected_model_value(
+                    &settings_window.get_app_rules_options(),
+                    settings_window.get_app_rules_index(),
+                );
+                let Some(selected_option) = selected else {
+                    return;
+                };
+                let Some(app_id) = parse_option_value(&selected_option) else {
+                    return;
+                };
+
+                crate::update_settings(&state, |settings| {
+                    settings.app_rules.remove(&app_id);
+                });
+
+                let _ = crate::refresh_windows(&state);
+                crate::refresh_ui(&state, &main_weak);
+            });
         }
     });
 
@@ -783,6 +935,7 @@ fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut
 )]
 fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
     let runtime = collect_runtime_ui_options(state);
+    let app_rule_entries = collect_app_rule_entries(state, &runtime);
     let profiles = available_profile_options();
     let fallback_fixed_width = u32::try_from(state.last_size.0)
         .ok()
@@ -884,6 +1037,35 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
     window.set_app_filter_options(build_string_model(app_options));
     window.set_app_filter_index(app_index);
 
+    let previous_app_rule_selection = selected_model_value(
+        &window.get_app_rules_options(),
+        window.get_app_rules_index(),
+    )
+    .and_then(|value| parse_option_value(&value));
+
+    let app_rule_search = window.get_app_rules_search().trim().to_ascii_lowercase();
+    let app_rule_filter = window.get_app_rules_filter_index();
+    let filtered_app_rule_entries =
+        filter_app_rule_entries(app_rule_entries, app_rule_filter, app_rule_search.as_str());
+
+    let mut app_rule_options = vec!["Select application rule…".to_owned()];
+    app_rule_options.extend(
+        filtered_app_rule_entries
+            .iter()
+            .map(|entry| app_option_label(&entry.option)),
+    );
+    let app_rule_index = previous_app_rule_selection
+        .as_deref()
+        .and_then(|selected| {
+            filtered_app_rule_entries
+                .iter()
+                .position(|entry| entry.option.app_id == selected)
+        })
+        .map_or(0, |index| index as i32 + 1);
+    window.set_app_rules_options(build_string_model(app_rule_options));
+    window.set_app_rules_index(app_rule_index);
+    sync_selected_app_rule_editor(window, &state.settings);
+
     if runtime.hidden_apps.is_empty() {
         window.set_hidden_app_options(build_string_model(vec![panopticon::i18n::t(
             "settings.no_hidden",
@@ -913,6 +1095,175 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
         window.set_can_restore_hidden(true);
         window.set_hidden_apps_summary(SharedString::from(summary));
     }
+}
+
+fn collect_app_rule_entries(state: &AppState, runtime: &RuntimeUiOptions) -> Vec<AppRuleListEntry> {
+    let mut by_id: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+
+    for app in &runtime.apps {
+        by_id.insert(app.app_id.clone(), app.label.clone());
+    }
+
+    for (app_id, rule) in &state.settings.app_rules {
+        if app_id.trim().is_empty() {
+            continue;
+        }
+        by_id.entry(app_id.clone()).or_insert_with(|| {
+            if rule.display_name.trim().is_empty() {
+                app_id.clone()
+            } else {
+                rule.display_name.clone()
+            }
+        });
+    }
+
+    let mut entries: Vec<AppRuleListEntry> = by_id
+        .into_iter()
+        .map(|(app_id, label)| {
+            let rule = state.settings.app_rules.get(&app_id);
+            let tags = state.settings.tags_for(&app_id);
+            let searchable_blob = format!(
+                "{} {} {}",
+                label.to_ascii_lowercase(),
+                app_id.to_ascii_lowercase(),
+                tags.join(" ").to_ascii_lowercase()
+            );
+
+            AppRuleListEntry {
+                option: AppSelectionEntry {
+                    app_id: app_id.clone(),
+                    label,
+                },
+                is_running: runtime.apps.iter().any(|app| app.app_id == app_id),
+                has_saved_rule: rule.is_some(),
+                is_hidden: rule.is_some_and(|saved| saved.hidden),
+                has_tags: !tags.is_empty(),
+                has_custom_refresh: rule.is_some_and(|saved| {
+                    matches!(
+                        saved.thumbnail_refresh_mode,
+                        ThumbnailRefreshMode::Frozen | ThumbnailRefreshMode::Interval
+                    )
+                }),
+                is_pinned: rule.is_some_and(|saved| saved.pinned_position.is_some()),
+                searchable_blob,
+            }
+        })
+        .collect();
+
+    entries.sort_by(|left, right| {
+        left.option
+            .label
+            .to_ascii_lowercase()
+            .cmp(&right.option.label.to_ascii_lowercase())
+            .then_with(|| left.option.app_id.cmp(&right.option.app_id))
+    });
+    entries
+}
+
+fn filter_app_rule_entries(
+    entries: Vec<AppRuleListEntry>,
+    filter_index: i32,
+    search_query: &str,
+) -> Vec<AppRuleListEntry> {
+    entries
+        .into_iter()
+        .filter(|entry| {
+            let matches_filter = match filter_index {
+                1 => entry.is_running,
+                2 => entry.has_saved_rule,
+                3 => entry.is_hidden,
+                4 => entry.has_tags,
+                5 => entry.has_custom_refresh,
+                6 => entry.is_pinned,
+                _ => true,
+            };
+
+            if !matches_filter {
+                return false;
+            }
+
+            if search_query.is_empty() {
+                return true;
+            }
+
+            entry.searchable_blob.contains(search_query)
+        })
+        .collect()
+}
+
+fn sync_selected_app_rule_editor(window: &SettingsWindow, settings: &AppSettings) {
+    let selected = selected_model_value(
+        &window.get_app_rules_options(),
+        window.get_app_rules_index(),
+    );
+    let Some(selected_option) = selected else {
+        clear_app_rule_editor(window);
+        return;
+    };
+    let Some(app_id) = parse_option_value(&selected_option) else {
+        clear_app_rule_editor(window);
+        return;
+    };
+
+    let label = selected_option
+        .split_once(OPTION_SEPARATOR)
+        .map_or_else(|| app_id.clone(), |(display, _)| display.trim().to_owned());
+    let tags = settings.tags_for(&app_id).join(", ");
+    let color_hex = settings.app_color_hex(&app_id).unwrap_or_default();
+
+    window.set_app_rules_has_selection(true);
+    window.set_app_rules_selected_app_label(SharedString::from(label));
+    window.set_app_rules_hidden(settings.is_hidden(&app_id));
+    window.set_app_rules_preserve_aspect(settings.preserve_aspect_ratio_for(&app_id));
+    window.set_app_rules_hide_on_select(settings.hide_on_select_for(&app_id));
+    window.set_app_rules_refresh_mode_index(refresh_mode_to_index(
+        settings.thumbnail_refresh_mode_for(&app_id),
+    ));
+    window.set_app_rules_refresh_interval_ms(
+        settings.thumbnail_refresh_interval_ms_for(&app_id) as i32
+    );
+    window.set_app_rules_tags(SharedString::from(tags));
+    window.set_app_rules_color_hex(SharedString::from(color_hex));
+}
+
+fn clear_app_rule_editor(window: &SettingsWindow) {
+    window.set_app_rules_has_selection(false);
+    window.set_app_rules_selected_app_label(SharedString::from(""));
+    window.set_app_rules_hidden(false);
+    window.set_app_rules_preserve_aspect(false);
+    window.set_app_rules_hide_on_select(false);
+    window.set_app_rules_refresh_mode_index(0);
+    window.set_app_rules_refresh_interval_ms(5_000);
+    window.set_app_rules_tags(SharedString::from(""));
+    window.set_app_rules_color_hex(SharedString::from(""));
+}
+
+fn refresh_mode_to_index(mode: ThumbnailRefreshMode) -> i32 {
+    match mode {
+        ThumbnailRefreshMode::Realtime => 0,
+        ThumbnailRefreshMode::Frozen => 1,
+        ThumbnailRefreshMode::Interval => 2,
+    }
+}
+
+fn refresh_mode_from_index(index: i32) -> ThumbnailRefreshMode {
+    match index {
+        1 => ThumbnailRefreshMode::Frozen,
+        2 => ThumbnailRefreshMode::Interval,
+        _ => ThumbnailRefreshMode::Realtime,
+    }
+}
+
+fn parse_tags_csv(raw: &str) -> Vec<String> {
+    let mut tags: Vec<String> = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|tag| !tag.is_empty())
+        .map(|tag| tag.to_ascii_lowercase())
+        .collect();
+    tags.sort();
+    tags.dedup();
+    tags
 }
 
 fn sync_settings_window_from_state(window: &SettingsWindow, state: &AppState) {

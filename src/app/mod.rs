@@ -1,5 +1,6 @@
 //! Binary-only application helpers.
 
+pub mod command_palette;
 pub mod dock;
 pub mod dwm;
 pub mod global_hotkey;

@@ -223,10 +223,10 @@ fn en(key: &str) -> &'static str {
         "settings.filters_hint" => {
             "Filters and grouping are also reflected in the status bar and reorder visible cells."
         }
-        "settings.no_saved_profiles" => "No saved profiles",
+        "settings.no_saved_profiles" => "No saved workspaces",
         "settings.default_profile" => "default",
-        "settings.saved_profiles" => "Saved profiles: default",
-        "settings.saved_profiles_fmt" => "Saved profiles: default, {}",
+        "settings.saved_profiles" => "Saved workspaces: default",
+        "settings.saved_profiles_fmt" => "Saved workspaces: default, {}",
         "settings.current_profile" => "Current profile: ",
         "settings.profile_label" => "Profile:",
         "settings.save_profile" => "Save profile",
@@ -250,7 +250,7 @@ fn en(key: &str) -> &'static str {
         "settings.nav.theme_background.subtitle" => {
             "Theme presets, solid canvas colour and image"
         }
-        "settings.nav.profiles.title" => "Profiles",
+        "settings.nav.profiles.title" => "Profiles (Workspaces)",
         "settings.nav.profiles.subtitle" => "Save and launch named setups",
         "settings.nav.shortcuts.title" => "Keyboard Shortcuts",
         "settings.nav.shortcuts.subtitle" => "Customize the dashboard key map",
@@ -405,7 +405,7 @@ fn en(key: &str) -> &'static str {
         "settings.fit.contain" => "Contain",
         "settings.fit.fill" => "Fill",
         "settings.fit.preserve" => "Preserve",
-        "settings.page.profiles.title" => "Profiles",
+        "settings.page.profiles.title" => "Profiles (Workspaces)",
         "settings.page.profiles.subtitle" => {
             "Save complete combinations of settings and open new instances already pointed at the profile you want."
         }
@@ -418,7 +418,7 @@ fn en(key: &str) -> &'static str {
         "settings.option.profile_name.description" => {
             "Name used to save this setup or launch another instance with it."
         }
-        "settings.section.saved_profiles.title" => "Saved profiles",
+        "settings.section.saved_profiles.title" => "Saved workspaces",
         "settings.section.saved_profiles.helper" => {
             "Summary of detected profiles plus a reminder of the recommended multi-instance workflow."
         }
@@ -496,6 +496,10 @@ fn en(key: &str) -> &'static str {
         "settings.shortcut.open_menu.description" => {
             "Open the main native menu with quick actions."
         }
+        "settings.shortcut.open_command_palette.title" => "Open command palette",
+        "settings.shortcut.open_command_palette.description" => {
+            "Open the quick command search panel."
+        }
         "settings.shortcut.global_activate.title" => "Activate Panopticon globally",
         "settings.shortcut.global_activate.description" => {
             "Bring Panopticon to the foreground from anywhere. Leave empty to disable it."
@@ -525,6 +529,10 @@ fn en(key: &str) -> &'static str {
         "settings.option.refresh_interval.description" => {
             "Base cadence for enumerating windows and refreshing the dashboard when you do not force a manual refresh."
         }
+        "settings.refresh_mode.realtime" => "Realtime",
+        "settings.refresh_mode.balanced" => "Balanced",
+        "settings.refresh_mode.battery_saver" => "Battery Saver",
+        "settings.refresh_mode.manual" => "Manual",
         "settings.section.manual_refresh.title" => "Manual refresh",
         "settings.section.manual_refresh.helper" => {
             "Use this section to force a window refresh or to check for updates immediately."
@@ -758,10 +766,10 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.filters_hint" => {
             "Los filtros y el agrupado también se reflejan en la barra de estado y reordenan las celdas visibles."
         }
-        "settings.no_saved_profiles" => "Sin perfiles guardados",
+        "settings.no_saved_profiles" => "Sin workspaces guardados",
         "settings.default_profile" => "default",
-        "settings.saved_profiles" => "Perfiles guardados: default",
-        "settings.saved_profiles_fmt" => "Perfiles guardados: default, {}",
+        "settings.saved_profiles" => "Workspaces guardados: default",
+        "settings.saved_profiles_fmt" => "Workspaces guardados: default, {}",
         "settings.current_profile" => "Perfil actual: ",
         "settings.profile_label" => "Perfil:",
         "settings.save_profile" => "Guardar perfil",
@@ -785,7 +793,7 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.nav.theme_background.subtitle" => {
             "Presets de tema, color sólido de canvas e imagen"
         }
-        "settings.nav.profiles.title" => "Perfiles",
+        "settings.nav.profiles.title" => "Perfiles (Workspaces)",
         "settings.nav.profiles.subtitle" => "Guardá y abrí configuraciones con nombre",
         "settings.nav.shortcuts.title" => "Atajos de teclado",
         "settings.nav.shortcuts.subtitle" => "Personalizá el mapa de teclas del dashboard",
@@ -942,7 +950,7 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.fit.contain" => "Contener",
         "settings.fit.fill" => "Rellenar",
         "settings.fit.preserve" => "Preservar",
-        "settings.page.profiles.title" => "Perfiles",
+        "settings.page.profiles.title" => "Perfiles (Workspaces)",
         "settings.page.profiles.subtitle" => {
             "Guardá combinaciones completas de ajustes y abrí nuevas instancias ya apuntando al perfil que quieras."
         }
@@ -955,7 +963,7 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.option.profile_name.description" => {
             "Nombre usado para guardar esta configuración o lanzar otra instancia con ella."
         }
-        "settings.section.saved_profiles.title" => "Perfiles guardados",
+        "settings.section.saved_profiles.title" => "Workspaces guardados",
         "settings.section.saved_profiles.helper" => {
             "Resumen de perfiles detectados y recordatorio del flujo recomendado para trabajar con varias instancias."
         }
@@ -1033,6 +1041,10 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.shortcut.open_menu.description" => {
             "Abre el menú nativo principal con acciones rápidas."
         }
+        "settings.shortcut.open_command_palette.title" => "Abrir paleta de comandos",
+        "settings.shortcut.open_command_palette.description" => {
+            "Abre el panel de búsqueda rápida de comandos."
+        }
         "settings.shortcut.global_activate.title" => "Activar Panopticon globalmente",
         "settings.shortcut.global_activate.description" => {
             "Trae Panopticon al frente desde cualquier lugar. Déjalo vacío para desactivarlo."
@@ -1062,6 +1074,10 @@ fn es(key: &str) -> Option<&'static str> {
         "settings.option.refresh_interval.description" => {
             "Cadencia base para enumerar ventanas y actualizar el dashboard cuando no fuerzas un refresh manual."
         }
+        "settings.refresh_mode.realtime" => "Tiempo real",
+        "settings.refresh_mode.balanced" => "Balanceado",
+        "settings.refresh_mode.battery_saver" => "Ahorro de batería",
+        "settings.refresh_mode.manual" => "Manual",
         "settings.section.manual_refresh.title" => "Refresco manual",
         "settings.section.manual_refresh.helper" => {
             "Usa esta sección para forzar un refresco de ventanas o comprobar actualizaciones al instante."
