@@ -1,0 +1,85 @@
+name: Performance issue
+description: Report performance problems in Panopticon (slow refresh, stutter, high CPU/GPU usage).
+title: "[Performance]: "
+labels: [performance]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What performance issue are you seeing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Provide clear steps to reproduce the slowdown/stutter.
+      placeholder: |
+        1. Launch Panopticon
+        2. Open X windows
+        3. Switch to layout Y
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: input
+    id: windows_version
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+
+  - type: input
+    id: visible_windows
+    attributes:
+      label: Number of visible windows
+      placeholder: "12"
+    validations:
+      required: true
+
+  - type: input
+    id: monitor_count
+    attributes:
+      label: Number of monitors
+      placeholder: "2"
+    validations:
+      required: true
+
+  - type: input
+    id: refresh_interval
+    attributes:
+      label: Refresh interval / mode
+      placeholder: "500ms, Balanced"
+
+  - type: dropdown
+    id: dock_mode
+    attributes:
+      label: Dock mode active?
+      options:
+        - "Yes"
+        - "No"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: gpu_cpu
+    attributes:
+      label: GPU/CPU symptoms
+      description: Include approximate CPU/GPU usage and any spikes you can observe.
+      placeholder: "CPU rises to 35% when cycling layouts..."
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / traces
+      description: Paste excerpts from `%TEMP%/panopticon/logs/` if available.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Screenshots, videos, hardware details, etc.

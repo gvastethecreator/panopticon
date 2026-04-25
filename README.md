@@ -9,9 +9,18 @@
 [![Rust](https://img.shields.io/badge/Rust-2021-%23CE422B?logo=rust)](https://www.rust-lang.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4?logo=windows)](https://learn.microsoft.com/windows/)
 
+![Panopticon dashboard screenshot](docs/assets/app-showcase.png)
+
 Panopticon is a local desktop utility built in Rust for Windows 10/11. It discovers real top-level windows, renders their live previews via **Desktop Window Manager (DWM)**, and lets you manage them in a single Slint-based control room.
 
 If you want the full guide instead of the quick landing page, jump to **[`docs/README.md`](docs/README.md)**.
+
+## Download
+
+- **Latest release (portable ZIP):** [github.com/gvastethecreator/panopticon/releases/latest](https://github.com/gvastethecreator/panopticon/releases/latest)
+- **Build from source:** see [Quick start](#quick-start)
+
+If you are trying Panopticon for the first time, the release ZIP is the fastest path.
 
 ## Why use it?
 
@@ -44,7 +53,7 @@ Panopticon is useful when you want to:
 | DWM | Enabled |
 | Platform support | Windows only |
 
-### Run it
+### Option A — Run from source (developers)
 
 ```bash
 git clone https://github.com/gvastethecreator/panopticon.git
@@ -68,13 +77,20 @@ Panopticon also understands:
 - `cargo run --release -- --help`
 - `cargo run --release -- --version`
 
+### Option B — Run from release ZIP (quickest for users)
+
+1. Download the latest release from [Releases](https://github.com/gvastethecreator/panopticon/releases/latest).
+2. Extract the ZIP to any folder.
+3. Run `Panopticon.exe`.
+4. (Optional) Create a desktop shortcut or add it to startup.
+
 ## First minute with Panopticon
 
 1. Launch the app with a few normal desktop windows already open.
 2. Press `Tab` or `1` to `7` to explore the available layouts.
 3. Left-click a thumbnail to activate that window.
 4. Right-click a thumbnail to open per-window actions.
-5. Press `O` to open settings and review language, theme, filters, workspaces, and click the sidebar mascot to open About (with live update status beside the version).
+5. Press `O` to open settings and review language, theme, filters, and workspaces.
 6. Use the tray icon to hide/show the dashboard without closing it.
 
 ### Handy shortcuts
