@@ -19,13 +19,27 @@ use crate::{
 enum CommandId {
     CycleLayout,
     SetLayout(LayoutType),
+    ResetLayoutRatios,
     CycleTheme,
     RefreshNow,
+    RestoreAllHiddenApps,
     OpenSettings,
+    OpenSettingsBehaviorPage,
+    OpenSettingsFiltersPage,
+    OpenSettingsWorkspacesPage,
+    OpenSettingsShortcutsPage,
+    OpenSettingsAdvancedPage,
     OpenAbout,
     OpenMenu,
+    ClearAllFilters,
+    ClearMonitorFilter,
+    ClearTagFilter,
+    ClearAppFilter,
     LoadWorkspace(Option<String>),
+    OpenWorkspaceInNewInstance(Option<String>),
+    ToggleAnimations,
     ToggleToolbar,
+    ToggleWindowInfo,
     ToggleAlwaysOnTop,
     Exit,
 }
@@ -80,6 +94,11 @@ fn command_entries() -> Vec<CommandEntry> {
             keywords: "layout column".to_owned(),
         },
         CommandEntry {
+            id: CommandId::ResetLayoutRatios,
+            title: "Layout: Reset ratios".to_owned(),
+            keywords: "layout reset ratios separators".to_owned(),
+        },
+        CommandEntry {
             id: CommandId::CycleTheme,
             title: "Theme: Cycle".to_owned(),
             keywords: "theme cycle next".to_owned(),
@@ -90,9 +109,39 @@ fn command_entries() -> Vec<CommandEntry> {
             keywords: "refresh update windows now".to_owned(),
         },
         CommandEntry {
+            id: CommandId::RestoreAllHiddenApps,
+            title: "Windows: Restore all hidden apps".to_owned(),
+            keywords: "windows hidden apps restore all".to_owned(),
+        },
+        CommandEntry {
             id: CommandId::OpenSettings,
             title: "Open Settings".to_owned(),
             keywords: "settings preferences config".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::OpenSettingsBehaviorPage,
+            title: "Settings: Behavior & Display".to_owned(),
+            keywords: "settings behavior display".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::OpenSettingsFiltersPage,
+            title: "Settings: Filters".to_owned(),
+            keywords: "settings filters monitor tag app".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::OpenSettingsWorkspacesPage,
+            title: "Settings: Workspaces".to_owned(),
+            keywords: "settings workspaces profiles".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::OpenSettingsShortcutsPage,
+            title: "Settings: Shortcuts".to_owned(),
+            keywords: "settings keyboard shortcuts".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::OpenSettingsAdvancedPage,
+            title: "Settings: Advanced".to_owned(),
+            keywords: "settings advanced refresh dock".to_owned(),
         },
         CommandEntry {
             id: CommandId::OpenAbout,
@@ -105,9 +154,39 @@ fn command_entries() -> Vec<CommandEntry> {
             keywords: "menu context tray".to_owned(),
         },
         CommandEntry {
+            id: CommandId::ClearAllFilters,
+            title: "Filters: Clear all".to_owned(),
+            keywords: "filters clear all monitor tag app".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::ClearMonitorFilter,
+            title: "Filters: Clear monitor".to_owned(),
+            keywords: "filters monitor clear".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::ClearTagFilter,
+            title: "Filters: Clear tag".to_owned(),
+            keywords: "filters tag clear".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::ClearAppFilter,
+            title: "Filters: Clear app".to_owned(),
+            keywords: "filters app clear".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::ToggleAnimations,
+            title: "Toggle Animations".to_owned(),
+            keywords: "animations toggle transitions".to_owned(),
+        },
+        CommandEntry {
             id: CommandId::ToggleToolbar,
             title: "Toggle Status Bar".to_owned(),
             keywords: "toolbar status bar toggle".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::ToggleWindowInfo,
+            title: "Toggle Window Info".to_owned(),
+            keywords: "window info labels overlay toggle".to_owned(),
         },
         CommandEntry {
             id: CommandId::ToggleAlwaysOnTop,
@@ -118,6 +197,11 @@ fn command_entries() -> Vec<CommandEntry> {
             id: CommandId::LoadWorkspace(None),
             title: "Workspace: Load default".to_owned(),
             keywords: "workspace load default".to_owned(),
+        },
+        CommandEntry {
+            id: CommandId::OpenWorkspaceInNewInstance(None),
+            title: "Workspace: Open default in new instance".to_owned(),
+            keywords: "workspace open default new instance".to_owned(),
         },
     ];
 
@@ -134,6 +218,11 @@ fn command_entries() -> Vec<CommandEntry> {
             id: CommandId::LoadWorkspace(Some(workspace.clone())),
             title: format!("Workspace: Load {workspace}"),
             keywords: format!("workspace load switch {workspace}"),
+        });
+        entries.push(CommandEntry {
+            id: CommandId::OpenWorkspaceInNewInstance(Some(workspace.clone())),
+            title: format!("Workspace: Open {workspace} in new instance"),
+            keywords: format!("workspace open launch new instance {workspace}"),
         });
     }
 
@@ -309,6 +398,10 @@ fn execute_command(
         CommandId::SetLayout(layout) => {
             layout_actions::set_layout(state, main_weak, layout);
         }
+        CommandId::ResetLayoutRatios => {
+            layout_actions::reset_layout_custom(state);
+            refresh_ui(state, main_weak);
+        }
         CommandId::CycleTheme => {
             let current_idx = {
                 let state = state.borrow();
@@ -340,14 +433,71 @@ fn execute_command(
                 refresh_ui(state, main_weak);
             }
         }
+        CommandId::RestoreAllHiddenApps => {
+            update_settings(state, |settings| {
+                let _ = settings.restore_all_hidden_apps();
+            });
+            if refresh_windows(state) {
+                refresh_ui(state, main_weak);
+            }
+        }
         CommandId::OpenSettings => {
             secondary_windows::open_settings_window(state, main_weak);
+        }
+        CommandId::OpenSettingsBehaviorPage => {
+            secondary_windows::open_settings_window_page(state, main_weak, 0);
+        }
+        CommandId::OpenSettingsFiltersPage => {
+            secondary_windows::open_settings_window_page(state, main_weak, 1);
+        }
+        CommandId::OpenSettingsWorkspacesPage => {
+            secondary_windows::open_settings_window_page(state, main_weak, 3);
+        }
+        CommandId::OpenSettingsShortcutsPage => {
+            secondary_windows::open_settings_window_page(state, main_weak, 4);
+        }
+        CommandId::OpenSettingsAdvancedPage => {
+            secondary_windows::open_settings_window_page(state, main_weak, 5);
         }
         CommandId::OpenAbout => {
             secondary_windows::open_about_window(state);
         }
         CommandId::OpenMenu => {
             tray_actions::open_application_context_menu(state, main_weak, None);
+        }
+        CommandId::ClearAllFilters => {
+            update_settings(state, |settings| {
+                settings.set_monitor_filter(None);
+                settings.set_tag_filter(None);
+                settings.set_app_filter(None);
+            });
+            if refresh_windows(state) {
+                refresh_ui(state, main_weak);
+            }
+        }
+        CommandId::ClearMonitorFilter => {
+            update_settings(state, |settings| {
+                settings.set_monitor_filter(None);
+            });
+            if refresh_windows(state) {
+                refresh_ui(state, main_weak);
+            }
+        }
+        CommandId::ClearTagFilter => {
+            update_settings(state, |settings| {
+                settings.set_tag_filter(None);
+            });
+            if refresh_windows(state) {
+                refresh_ui(state, main_weak);
+            }
+        }
+        CommandId::ClearAppFilter => {
+            update_settings(state, |settings| {
+                settings.set_app_filter(None);
+            });
+            if refresh_windows(state) {
+                refresh_ui(state, main_weak);
+            }
         }
         CommandId::LoadWorkspace(workspace_name) => {
             let _ = secondary_windows::load_workspace_into_current_instance(
@@ -356,9 +506,24 @@ fn execute_command(
                 workspace_name,
             );
         }
+        CommandId::OpenWorkspaceInNewInstance(workspace_name) => {
+            let _ = secondary_windows::open_workspace_in_new_instance(state, workspace_name);
+        }
+        CommandId::ToggleAnimations => {
+            update_settings(state, |settings| {
+                settings.animate_transitions = !settings.animate_transitions;
+            });
+            refresh_ui(state, main_weak);
+        }
         CommandId::ToggleToolbar => {
             update_settings(state, |settings| {
                 settings.show_toolbar = !settings.show_toolbar;
+            });
+            refresh_ui(state, main_weak);
+        }
+        CommandId::ToggleWindowInfo => {
+            update_settings(state, |settings| {
+                settings.show_window_info = !settings.show_window_info;
             });
             refresh_ui(state, main_weak);
         }

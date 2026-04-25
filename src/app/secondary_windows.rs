@@ -808,6 +808,20 @@ pub(crate) fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
     });
 }
 
+pub(crate) fn open_settings_window_page(
+    state: &Rc<RefCell<AppState>>,
+    main_weak: &slint::Weak<MainWindow>,
+    page_index: i32,
+) {
+    open_settings_window(state, main_weak);
+
+    crate::SETTINGS_WIN.with(|handle| {
+        if let Some(window) = handle.borrow().as_ref() {
+            window.set_current_page(page_index.clamp(0, 5));
+        }
+    });
+}
+
 pub(crate) fn open_about_window(state: &Rc<RefCell<AppState>>) {
     let already_open = crate::ABOUT_WIN.with(|handle| {
         let guard = handle.borrow();
@@ -1535,6 +1549,22 @@ pub(crate) fn load_workspace_into_current_instance(
 
     refresh_open_settings_window(state);
     true
+}
+
+pub(crate) fn open_workspace_in_new_instance(
+    state: &Rc<RefCell<AppState>>,
+    requested_workspace: Option<String>,
+) -> bool {
+    let settings_snapshot = state.borrow().settings.normalized();
+
+    if let Some(workspace_name) = requested_workspace.as_deref() {
+        let _ = save_settings_as_workspace(&settings_snapshot, workspace_name);
+    } else if let Err(error) = settings_snapshot.save(None) {
+        tracing::error!(%error, "failed to save default workspace before launching instance");
+        return false;
+    }
+
+    launch_additional_instance(requested_workspace.as_deref())
 }
 
 fn refresh_open_tag_dialog_window(state: &Rc<RefCell<AppState>>) {
