@@ -432,6 +432,14 @@ pub(crate) fn open_settings_window(
         }
     });
 
+    settings_window.on_key_pressed({
+        let state = state.clone();
+        let main_weak = main_weak.clone();
+        move |key_text, shift_pressed| {
+            super::keyboard_actions::handle_key(&state, &main_weak, &key_text, shift_pressed)
+        }
+    });
+
     settings_window.on_closed(|| {
         let taken = crate::SETTINGS_WIN.with(|handle| handle.borrow_mut().take());
         if let Some(window) = taken {
