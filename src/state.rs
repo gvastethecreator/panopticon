@@ -15,7 +15,7 @@ use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::WindowInfo;
 
-use windows::Win32::Foundation::{HWND, RECT, SIZE};
+use windows::Win32::Foundation::{HWND, POINT, RECT, SIZE};
 use windows::Win32::UI::WindowsAndMessaging::WNDPROC;
 
 use crate::app::tray::{AppIcons, TrayAction, TrayIcon};
@@ -114,7 +114,7 @@ pub(crate) struct MiddlePanState {
 }
 
 pub(crate) enum PendingAction {
-    Tray(TrayAction),
+    Tray(TrayAction, Option<POINT>),
     ActivateMainWindow,
     Reposition,
     HideToTray,

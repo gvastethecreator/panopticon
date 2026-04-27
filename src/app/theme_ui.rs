@@ -11,8 +11,9 @@ use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 
 use crate::{
-    AboutWindow, AppState, MainWindow, Palette, SettingsWindow, TagDialogWindow, Theme, ABOUT_WIN,
-    SETTINGS_WIN, TAG_DIALOG_WIN, THEME_TRANSITION_DURATION_MS,
+    AboutWindow, AppState, CommandPaletteWindow, MainWindow, Palette, SettingsWindow,
+    TagDialogWindow, Theme, ABOUT_WIN, COMMAND_PALETTE_WIN, SETTINGS_WIN, TAG_DIALOG_WIN,
+    THEME_TRANSITION_DURATION_MS,
 };
 
 fn palette_color_scheme_for_theme(resolved: &theme_catalog::UiTheme) -> ColorScheme {
@@ -90,6 +91,14 @@ pub(crate) fn apply_about_window_theme_snapshot(
     apply_runtime_theme!(window, resolved);
 }
 
+pub(crate) fn apply_command_palette_window_theme_snapshot(
+    window: &CommandPaletteWindow,
+    resolved: &theme_catalog::UiTheme,
+) {
+    apply_palette_color_scheme(window, resolved);
+    apply_runtime_theme!(window, resolved);
+}
+
 pub(crate) fn apply_theme_snapshot_everywhere(win: &MainWindow, resolved: &theme_catalog::UiTheme) {
     apply_main_window_theme_snapshot(win, resolved);
     SETTINGS_WIN.with(|handle| {
@@ -105,6 +114,35 @@ pub(crate) fn apply_theme_snapshot_everywhere(win: &MainWindow, resolved: &theme
     ABOUT_WIN.with(|handle| {
         if let Some(window) = handle.borrow().as_ref() {
             apply_about_window_theme_snapshot(window, resolved);
+        }
+    });
+    COMMAND_PALETTE_WIN.with(|handle| {
+        if let Some(window) = handle.borrow().as_ref() {
+            apply_command_palette_window_theme_snapshot(window, resolved);
+        }
+    });
+}
+
+fn apply_palette_color_scheme_everywhere(win: &MainWindow, resolved: &theme_catalog::UiTheme) {
+    apply_palette_color_scheme(win, resolved);
+    SETTINGS_WIN.with(|handle| {
+        if let Some(window) = handle.borrow().as_ref() {
+            apply_palette_color_scheme(window, resolved);
+        }
+    });
+    TAG_DIALOG_WIN.with(|handle| {
+        if let Some(window) = handle.borrow().as_ref() {
+            apply_palette_color_scheme(window, resolved);
+        }
+    });
+    ABOUT_WIN.with(|handle| {
+        if let Some(window) = handle.borrow().as_ref() {
+            apply_palette_color_scheme(window, resolved);
+        }
+    });
+    COMMAND_PALETTE_WIN.with(|handle| {
+        if let Some(window) = handle.borrow().as_ref() {
+            apply_palette_color_scheme(window, resolved);
         }
     });
 }
@@ -136,25 +174,32 @@ pub(crate) fn sync_theme_target(state: &mut AppState) {
 
 pub(crate) fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let mut s = state.borrow_mut();
-    let Some(ref animation) = s.theme_animation else {
+    let Some(animation) = s.theme_animation.as_ref() else {
         return;
     };
 
-    let elapsed_ms = animation.started_at.elapsed().as_millis() as u32;
+    let from_rgb = animation.from_rgb;
+    let to_rgb = animation.to_rgb;
+    let target_theme = animation.to.clone();
+    let started_at = animation.started_at;
+
+    let elapsed_ms = started_at.elapsed().as_millis() as u32;
     let progress = (elapsed_ms as f32 / THEME_TRANSITION_DURATION_MS as f32).clamp(0.0, 1.0);
     let eased = 1.0 - (1.0 - progress).powi(3);
-    let completed_theme = animation.to.clone();
-    let resolved = animation
-        .from_rgb
-        .interpolate(&animation.to_rgb, eased, &animation.to);
+    let resolved = from_rgb.interpolate(&to_rgb, eased, &target_theme);
     s.current_theme = resolved;
+    let palette_theme = target_theme.clone();
     if progress >= 1.0 {
-        s.current_theme = completed_theme;
+        s.current_theme = target_theme;
         s.theme_animation = None;
     }
     let current = s.current_theme.clone();
     drop(s);
     apply_theme_snapshot_everywhere(win, &current);
+    // Keep palette dark/light mode pinned to the target theme while animating.
+    // This avoids rapid scheme flips near luminance thresholds that can cause
+    // occasional blank/flicker artifacts during theme transitions.
+    apply_palette_color_scheme_everywhere(win, &palette_theme);
     refresh_thumbnail_accent_rows(state, win);
 }
 

@@ -36,6 +36,7 @@ preserve_aspect_ratio = false
 hide_on_select = true
 animate_transitions = true
 always_on_top = false
+center_secondary_windows = true
 active_monitor_filter = "DISPLAY1"
 active_tag_filter = "work"
 active_app_filter = "exe:c:\\program files\\arc\\arc.exe"
@@ -109,6 +110,7 @@ preserve_aspect_ratio = true
 preserve_aspect_ratio_override = true
 hide_on_select = false
 hide_on_select_override = false
+pinned_position = 2
 tags = ["work", "browser"]
 color_hex = "5CA9FF"
 thumbnail_refresh_mode = "realtime"
@@ -117,6 +119,13 @@ thumbnail_refresh_interval_ms = 5000
 [layout_customizations.Grid]
 col_ratios = [0.7, 0.3]
 row_ratios = [0.4, 0.6]
+
+[layout_presets."Focus Grid"]
+layout = "grid"
+
+[layout_presets."Focus Grid".customization]
+col_ratios = [0.7, 0.3]
+row_ratios = [0.6, 0.4]
 ```
 
 ## Global keys
@@ -133,6 +142,7 @@ row_ratios = [0.4, 0.6]
 | `hide_on_select` | `bool` | `true` | hides Panopticon when activating an app | effectively disabled in dock mode |
 | `animate_transitions` | `bool` | `true` | animates layout changes | current duration: `180 ms` |
 | `always_on_top` | `bool` | `false` | uses `SetWindowPos(HWND_TOPMOST)` | also affects secondary dialogs |
+| `center_secondary_windows` | `bool` | `true` | centers secondary windows on open | affects Settings/About/Command Palette/tag dialogs when opened |
 | `active_monitor_filter` | `Option<String>` | `None` | filters windows by monitor | persistent across sessions |
 | `active_tag_filter` | `Option<String>` | `None` | filters windows by tag | mutually exclusive with `active_app_filter` |
 | `active_app_filter` | `Option<String>` | `None` | filters windows by app | mutually exclusive with `active_tag_filter` |
@@ -161,6 +171,7 @@ row_ratios = [0.4, 0.6]
 | `shortcuts` | `ShortcutBindings` | built-in defaults | defines the dashboard key map | dashboard bindings stay single-key; `global_activate` accepts `Ctrl` / `Alt` / `Shift` chords and empty disables it |
 | `workspace` | `WorkspaceMetadata` | empty | stores friendly metadata for workspace management UI | keys: `display_name`, `description`, `created_unix_ms`, `updated_unix_ms`, `schema_version` |
 | `layout_customizations` | `Map<String, LayoutCustomization>` | empty | custom ratios per layout | generated when dragging separators |
+| `layout_presets` | `Map<String, LayoutPreset>` | empty | named snapshots of layout mode + custom ratios | saved/applied/deleted from Settings > Advanced |
 | `app_rules` | `Map<String, AppRule>` | empty | persistent per-app rules | key = `app_id` |
 | `tag_styles` | `Map<String, TagStyle>` | empty | manual tag colours | normalised against actually existing tags |
 
@@ -240,6 +251,7 @@ preserve_aspect_ratio = true
 preserve_aspect_ratio_override = true
 hide_on_select = false
 hide_on_select_override = false
+pinned_position = 2
 tags = ["work", "browser"]
 color_hex = "5CA9FF"
 thumbnail_refresh_mode = "interval"
@@ -256,6 +268,7 @@ thumbnail_refresh_interval_ms = 5000
 | `preserve_aspect_ratio_override` | `Option<bool>` | explicit modern override |
 | `hide_on_select` | `bool` | inherited/legacy value |
 | `hide_on_select_override` | `Option<bool>` | explicit modern override |
+| `pinned_position` | `Option<usize>` | preferred slot index (0-based) used by runtime pin ordering |
 | `tags` | `Vec<String>` | manual tags for grouping/filtering |
 | `color_hex` | `Option<String>` | fixed card colour |
 | `thumbnail_refresh_mode` | `ThumbnailRefreshMode` | `realtime`, `frozen`, `interval` |
@@ -290,6 +303,17 @@ col_ratios = [0.2, 0.5, 0.3]
 
 [layout_customizations.Row]
 col_ratios = [0.15, 0.35, 0.2, 0.3]
+```
+
+Named snapshots can also be persisted under `layout_presets`:
+
+```toml
+[layout_presets."Focus Grid"]
+layout = "grid"
+
+[layout_presets."Focus Grid".customization]
+col_ratios = [0.7, 0.3]
+row_ratios = [0.6, 0.4]
 ```
 
 Notes:
@@ -349,6 +373,8 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 - unsupported shortcut bindings (including multi-key expressions);
 - workspace names not valid for Windows;
 - rules with an empty `app_id`;
+- hidden app rules automatically drop `pinned_position`;
+- `layout_presets` entries with empty names or empty ratio snapshots are discarded;
 - orphaned tag styles;
 - legacy inherited per-app copies of `preserve_aspect_ratio` and `hide_on_select`, so old global defaults do not stay pinned unless an explicit `*_override` exists.
 

@@ -88,6 +88,7 @@ export component CustomComboBox inherits Rectangle {
     border-color: root.enabled ? Theme.border.with-alpha(72%) : Theme.border.with-alpha(40%);
     background: root.enabled ? Theme.surface.with-alpha(84%) : Theme.surface.with-alpha(46%);
     clip: false;
+    z: root.open ? 2000 : 0;
     height: root.open ? root.field-height + root.popup-height + 4px : root.field-height;
 
     Rectangle {
@@ -134,6 +135,7 @@ export component CustomComboBox inherits Rectangle {
         y: root.field-height + 4px;
         width: parent.width;
         height: root.popup-height;
+        z: 1;
         border-radius: 4px;
         border-width: 2px;
         border-color: Theme.border.with-alpha(78%);
@@ -460,7 +462,7 @@ export component SectionCard inherits Rectangle {
     border-width: 1px;
     border-color: root.highlighted ? Theme.accent.with-alpha(44%) : Theme.border.with-alpha(48%);
     background: root.highlighted ? Theme.accent-soft.with-alpha(12%) : root.subtle ? Theme.surface.with-alpha(38%) : Theme.card-bg.with-alpha(92%);
-    clip: true;
+    clip: false;
 
     VerticalLayout {
         width: parent.width;

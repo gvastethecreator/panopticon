@@ -3,11 +3,16 @@ import { Tr, Theme } from "../common.slint";
 export component EmptyState inherits Rectangle {
     in property <string> message: Tr.empty-message;
     in property <string> helper: Tr.empty-helper;
+    in property <string> status-summary: "";
     in property <bool> welcome-dismissed: false;
+    in property <bool> can-clear-filters: false;
+    in property <bool> can-show-hidden: false;
 
     callback open-settings();
     callback refresh-now();
     callback open-menu();
+    callback clear-filters();
+    callback show-hidden-apps();
     callback dismiss-welcome();
 
     width: 100%;
@@ -16,7 +21,7 @@ export component EmptyState inherits Rectangle {
 
     Rectangle {
         width: min(parent.width - 40px, 380px);
-        height: 250px;
+        height: 310px;
         x: max((parent.width - self.width) / 2, 0px);
         y: max((parent.height - self.height) / 2, 0px);
         background: Theme.panel-bg;
@@ -58,6 +63,29 @@ export component EmptyState inherits Rectangle {
                 font-size: 13px;
                 horizontal-alignment: center;
                 wrap: word-wrap;
+            }
+
+            if root.status-summary != "": Rectangle {
+                width: 100%;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: Theme.border.with-alpha(55%);
+                background: Theme.surface.with-alpha(42%);
+
+                VerticalLayout {
+                    padding: 8px;
+
+                    Text {
+                        width: parent.width;
+                        height: 100%;
+                        text: root.status-summary;
+                        color: Theme.label;
+                        font-size: 11px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
             }
 
             if !root.welcome-dismissed: Rectangle {
@@ -112,6 +140,58 @@ export component EmptyState inherits Rectangle {
 
             HorizontalLayout {
                 spacing: 8px;
+
+                if root.can-clear-filters: Rectangle {
+                    min-width: 108px;
+                    height: 30px;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: Theme.border.with-alpha(60%);
+                    background: clear-filters-touch.has-hover ? Theme.surface.with-alpha(80%) : Theme.surface.with-alpha(52%);
+
+                    Text {
+                        width: 100%;
+                        height: 100%;
+                        text: "Clear filters";
+                        color: Theme.text;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    clear-filters-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.clear-filters();
+                        }
+                    }
+                }
+
+                if root.can-show-hidden: Rectangle {
+                    min-width: 116px;
+                    height: 30px;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: Theme.border.with-alpha(60%);
+                    background: show-hidden-touch.has-hover ? Theme.surface.with-alpha(80%) : Theme.surface.with-alpha(52%);
+
+                    Text {
+                        width: 100%;
+                        height: 100%;
+                        text: "Show hidden";
+                        color: Theme.text;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    show-hidden-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.show-hidden-apps();
+                        }
+                    }
+                }
 
                 Rectangle {
                     min-width: 90px;

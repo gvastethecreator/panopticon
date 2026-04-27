@@ -370,6 +370,25 @@ pub struct ShortcutBindings {
     pub alt_toggles_toolbar: bool,
 }
 
+/// Named snapshot of layout ratios for a specific layout mode.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct LayoutPreset {
+    /// Layout this preset applies to.
+    pub layout: LayoutType,
+    /// Stored ratio customization for the layout.
+    pub customization: LayoutCustomization,
+}
+
+impl Default for LayoutPreset {
+    fn default() -> Self {
+        Self {
+            layout: LayoutType::Grid,
+            customization: LayoutCustomization::default(),
+        }
+    }
+}
+
 impl Default for ShortcutBindings {
     fn default() -> Self {
         Self {
@@ -579,23 +598,74 @@ impl ShortcutBindings {
     #[must_use]
     pub fn conflict_banner(&self) -> Option<(String, String)> {
         let conflicts = self.dashboard_conflicts();
-        if conflicts.is_empty() {
+        let reserved_global = self.reserved_global_hotkey_warnings();
+
+        if conflicts.is_empty() && reserved_global.is_empty() {
             return None;
         }
 
-        let summary = if conflicts.len() == 1 {
+        let issue_count = conflicts.len() + reserved_global.len();
+
+        let summary = if issue_count == 1 {
             "1 shortcut conflict needs attention.".to_owned()
         } else {
-            format!("{} shortcut conflicts need attention.", conflicts.len())
+            format!("{issue_count} shortcut issues need attention.")
         };
 
-        let detail = conflicts
+        let mut detail_lines = conflicts
             .iter()
             .map(|(key, labels)| format!("{}: {}", key, labels.join(", ")))
-            .collect::<Vec<_>>()
-            .join("\n");
+            .collect::<Vec<_>>();
+
+        detail_lines.extend(
+            reserved_global
+                .into_iter()
+                .map(|line| format!("global: {line}")),
+        );
+
+        let detail = detail_lines.join("\n");
 
         Some((summary, detail))
+    }
+
+    fn reserved_global_hotkey_warnings(&self) -> Vec<String> {
+        let Some(binding) = self
+            .global_activate
+            .as_deref()
+            .and_then(parse_global_hotkey_binding)
+        else {
+            return Vec::new();
+        };
+
+        let canonical = binding.canonical_string();
+        let mut warnings = Vec::new();
+
+        if binding.alt && !binding.ctrl && !binding.shift && binding.key == GlobalHotkeyKey::Tab {
+            warnings.push(format!(
+                "{canonical} is reserved by Windows task switching (Alt+Tab)"
+            ));
+        }
+        if binding.alt
+            && !binding.ctrl
+            && !binding.shift
+            && binding.key == GlobalHotkeyKey::Function(4)
+        {
+            warnings.push(format!(
+                "{canonical} is reserved by Windows window close (Alt+F4)"
+            ));
+        }
+        if binding.ctrl && !binding.alt && !binding.shift && binding.key == GlobalHotkeyKey::Esc {
+            warnings.push(format!(
+                "{canonical} is reserved by the Windows Start menu (Ctrl+Esc)"
+            ));
+        }
+        if binding.ctrl && !binding.alt && binding.shift && binding.key == GlobalHotkeyKey::Esc {
+            warnings.push(format!(
+                "{canonical} is reserved by Windows Task Manager (Ctrl+Shift+Esc)"
+            ));
+        }
+
+        warnings
     }
 }
 
@@ -734,6 +804,10 @@ pub struct AppSettings {
     pub animate_transitions: bool,
     /// Whether the Panopticon window should stay topmost.
     pub always_on_top: bool,
+    /// Whether secondary windows (Settings/About/Palette/Dialogs) should be
+    /// centered on the owner monitor when opened.
+    #[serde(default = "default_true")]
+    pub center_secondary_windows: bool,
     /// Optional global filter limiting windows to a specific monitor.
     pub active_monitor_filter: Option<String>,
     /// Optional global filter limiting windows to a specific manual tag.
@@ -792,6 +866,9 @@ pub struct AppSettings {
     /// Per-layout custom resize ratios (column/row proportions).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub layout_customizations: BTreeMap<String, LayoutCustomization>,
+    /// Named layout presets that snapshot ratio customizations.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub layout_presets: BTreeMap<String, LayoutPreset>,
     /// Prevent layout changes via keyboard shortcuts or toolbar clicks.
     #[serde(default)]
     pub locked_layout: bool,
@@ -828,6 +905,7 @@ impl Default for AppSettings {
             hide_on_select: true,
             animate_transitions: true,
             always_on_top: false,
+            center_secondary_windows: true,
             active_monitor_filter: None,
             active_tag_filter: None,
             active_app_filter: None,
@@ -851,6 +929,7 @@ impl Default for AppSettings {
             background_image_fit: BackgroundImageFit::default(),
             background_image_opacity_pct: default_background_image_opacity_pct(),
             layout_customizations: BTreeMap::new(),
+            layout_presets: BTreeMap::new(),
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
@@ -911,6 +990,94 @@ impl AppSettings {
     /// Clear all custom layout ratios for the given layout type.
     pub fn clear_layout_custom(&mut self, layout: LayoutType) {
         self.layout_customizations.remove(layout.storage_key());
+    }
+
+    /// Save the current ratio customization for `layout` as a named preset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the preset name is empty/invalid or when there is
+    /// no custom ratio snapshot to persist for the requested layout.
+    pub fn save_layout_preset(
+        &mut self,
+        name: &str,
+        layout: LayoutType,
+    ) -> std::result::Result<(), String> {
+        let Some(name) = normalize_layout_preset_name(name) else {
+            return Err("Layout preset name cannot be empty".to_owned());
+        };
+        let Some(customization) = self.layout_custom(layout).cloned() else {
+            return Err("No custom layout ratios available to save yet".to_owned());
+        };
+
+        self.layout_presets.insert(
+            name,
+            LayoutPreset {
+                layout,
+                customization,
+            },
+        );
+        Ok(())
+    }
+
+    /// Apply a named layout preset, restoring both layout mode and ratios.
+    #[must_use]
+    pub fn apply_layout_preset(&mut self, name: &str) -> bool {
+        let Some(name) = normalize_layout_preset_name(name) else {
+            return false;
+        };
+        let Some(preset) = self.layout_presets.get(&name).cloned() else {
+            return false;
+        };
+
+        self.initial_layout = preset.layout;
+        self.set_layout_custom(preset.layout, preset.customization);
+        true
+    }
+
+    /// Delete a named layout preset.
+    #[must_use]
+    pub fn delete_layout_preset(&mut self, name: &str) -> bool {
+        let Some(name) = normalize_layout_preset_name(name) else {
+            return false;
+        };
+        self.layout_presets.remove(&name).is_some()
+    }
+
+    /// Return layout preset names in sorted order.
+    #[must_use]
+    pub fn layout_preset_names(&self) -> Vec<String> {
+        self.layout_presets.keys().cloned().collect()
+    }
+
+    /// Return pin-slot collisions grouped by slot index.
+    ///
+    /// Each entry contains `(slot_index, display_labels)` where
+    /// `display_labels.len() > 1`.
+    #[must_use]
+    pub fn pinned_slot_conflicts(&self) -> Vec<(usize, Vec<String>)> {
+        let mut by_slot: BTreeMap<usize, Vec<String>> = BTreeMap::new();
+
+        for (app_id, rule) in &self.app_rules {
+            let Some(slot) = rule.pinned_position else {
+                continue;
+            };
+            let label = if rule.display_name.trim().is_empty() {
+                app_id.clone()
+            } else {
+                rule.display_name.clone()
+            };
+            by_slot.entry(slot).or_default().push(label);
+        }
+
+        by_slot
+            .into_iter()
+            .filter_map(|(slot, mut labels)| {
+                labels.sort();
+                labels.dedup();
+                (labels.len() > 1).then_some((slot, labels))
+            })
+            .collect()
     }
 
     /// Resolve the on-disk settings path for a given instance workspace.
@@ -1653,6 +1820,17 @@ impl AppSettings {
             tag_styles.entry(tag.clone()).or_default();
         }
 
+        let mut layout_presets: BTreeMap<String, LayoutPreset> = BTreeMap::new();
+        for (name, preset) in &self.layout_presets {
+            let Some(name) = normalize_layout_preset_name(name) else {
+                continue;
+            };
+            if preset.customization.is_empty() {
+                continue;
+            }
+            layout_presets.insert(name, preset.clone());
+        }
+
         let active_monitor_filter = self
             .active_monitor_filter
             .as_deref()
@@ -1677,6 +1855,7 @@ impl AppSettings {
             hide_on_select: self.hide_on_select,
             animate_transitions: self.animate_transitions,
             always_on_top: self.always_on_top,
+            center_secondary_windows: self.center_secondary_windows,
             active_monitor_filter,
             active_tag_filter,
             active_app_filter,
@@ -1713,6 +1892,7 @@ impl AppSettings {
             background_image_fit: self.background_image_fit,
             background_image_opacity_pct: self.background_image_opacity_pct.min(100),
             layout_customizations: self.layout_customizations.clone(),
+            layout_presets,
             locked_layout: self.locked_layout,
             lock_cell_resize: self.lock_cell_resize,
             show_app_icons: self.show_app_icons,
@@ -1793,6 +1973,12 @@ const fn normalize_positive_dimension_with_min(value: Option<u32>, minimum: u32)
 
 fn normalize_filter_value(value: &str) -> Option<String> {
     let trimmed = value.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_owned())
+}
+
+fn normalize_layout_preset_name(value: &str) -> Option<String> {
+    let collapsed = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    let trimmed = collapsed.trim();
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
 }
 
@@ -2033,7 +2219,7 @@ mod tests {
     use super::{
         normalize_global_hotkey_binding, normalize_shortcut_binding, parse_global_hotkey_binding,
         validate_workspace_name_input, AppRule, AppSettings, BackgroundImageFit,
-        GlobalHotkeyBinding, GlobalHotkeyKey, HiddenAppEntry, RefreshPerformanceMode,
+        GlobalHotkeyBinding, GlobalHotkeyKey, HiddenAppEntry, LayoutPreset, RefreshPerformanceMode,
         ShortcutBindings, TagStyle, ThemeColorOverrides, ThumbnailRefreshMode, ToolbarPosition,
         WorkspaceMetadata, WorkspaceNameValidation,
     };
@@ -2052,6 +2238,7 @@ mod tests {
             hide_on_select: false,
             animate_transitions: false,
             always_on_top: true,
+            center_secondary_windows: true,
             active_monitor_filter: Some("DISPLAY1".to_owned()),
             active_tag_filter: Some("work".to_owned()),
             active_app_filter: None,
@@ -2083,6 +2270,7 @@ mod tests {
             background_image_fit: BackgroundImageFit::Contain,
             background_image_opacity_pct: 42,
             layout_customizations: std::collections::BTreeMap::default(),
+            layout_presets: std::collections::BTreeMap::default(),
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
@@ -2111,6 +2299,7 @@ mod tests {
             hide_on_select: true,
             animate_transitions: true,
             always_on_top: false,
+            center_secondary_windows: true,
             active_monitor_filter: Some("DISPLAY2".to_owned()),
             active_tag_filter: None,
             active_app_filter: Some("exe:demo".to_owned()),
@@ -2137,6 +2326,7 @@ mod tests {
             background_image_fit: BackgroundImageFit::default(),
             background_image_opacity_pct: 255,
             layout_customizations: std::collections::BTreeMap::default(),
+            layout_presets: std::collections::BTreeMap::default(),
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
@@ -2658,6 +2848,105 @@ mod tests {
             normalize_global_hotkey_binding(Some("P"), Some("Ctrl+Alt+P")),
             Some("Ctrl+Alt+P".to_owned())
         );
+    }
+
+    #[test]
+    fn conflict_banner_includes_reserved_global_hotkey_warnings() {
+        let mut shortcuts = ShortcutBindings::default();
+        shortcuts.global_activate = Some("Alt+Tab".to_owned());
+
+        let banner = shortcuts.conflict_banner().expect("banner should exist");
+        assert!(banner.0.contains("shortcut"));
+        assert!(banner.1.contains("Alt+Tab"));
+        assert!(banner.1.contains("reserved"));
+    }
+
+    #[test]
+    fn layout_presets_can_be_saved_applied_and_deleted() {
+        let mut settings = AppSettings::default();
+        settings.set_layout_custom(
+            LayoutType::Grid,
+            crate::layout::LayoutCustomization {
+                col_ratios: vec![0.7, 0.3],
+                row_ratios: vec![0.6, 0.4],
+            },
+        );
+
+        assert!(settings
+            .save_layout_preset(" Focus Grid ", LayoutType::Grid)
+            .is_ok());
+        assert_eq!(
+            settings.layout_preset_names(),
+            vec!["Focus Grid".to_owned()]
+        );
+
+        settings.clear_layout_custom(LayoutType::Grid);
+        assert!(settings.layout_custom(LayoutType::Grid).is_none());
+        assert!(settings.apply_layout_preset("Focus Grid"));
+        assert_eq!(settings.initial_layout, LayoutType::Grid);
+        assert!(settings.layout_custom(LayoutType::Grid).is_some());
+
+        assert!(settings.delete_layout_preset("Focus Grid"));
+        assert!(settings.layout_preset_names().is_empty());
+    }
+
+    #[test]
+    fn pinned_slot_conflicts_group_apps_by_slot() {
+        let mut settings = AppSettings::default();
+        settings.app_rules.insert(
+            "app:a".to_owned(),
+            AppRule {
+                display_name: "Alpha".to_owned(),
+                pinned_position: Some(1),
+                ..AppRule::default()
+            },
+        );
+        settings.app_rules.insert(
+            "app:b".to_owned(),
+            AppRule {
+                display_name: "Bravo".to_owned(),
+                pinned_position: Some(1),
+                ..AppRule::default()
+            },
+        );
+        settings.app_rules.insert(
+            "app:c".to_owned(),
+            AppRule {
+                display_name: "Charlie".to_owned(),
+                pinned_position: Some(3),
+                ..AppRule::default()
+            },
+        );
+
+        let conflicts = settings.pinned_slot_conflicts();
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].0, 1);
+        assert_eq!(conflicts[0].1, vec!["Alpha".to_owned(), "Bravo".to_owned()]);
+    }
+
+    #[test]
+    fn normalized_layout_presets_drop_empty_entries() {
+        let mut settings = AppSettings::default();
+        settings.layout_presets.insert(
+            "   ".to_owned(),
+            LayoutPreset {
+                layout: LayoutType::Grid,
+                customization: crate::layout::LayoutCustomization {
+                    col_ratios: vec![0.5, 0.5],
+                    row_ratios: vec![1.0],
+                },
+            },
+        );
+        settings.layout_presets.insert(
+            "Valid".to_owned(),
+            LayoutPreset {
+                layout: LayoutType::Mosaic,
+                customization: crate::layout::LayoutCustomization::default(),
+            },
+        );
+
+        let normalized = settings.normalized();
+        assert!(normalized.layout_presets.is_empty());
     }
 
     #[test]

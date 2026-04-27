@@ -11,7 +11,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::VK_F1;
 use windows::Win32::UI::Shell::ABN_POSCHANGED;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-use super::dock::{docked_mode_active, is_blocked_dock_syscommand};
+use super::dock::{current_cursor_screen_point, docked_mode_active, is_blocked_dock_syscommand};
 use super::dwm::release_thumbnail;
 use super::global_hotkey;
 use super::tray::{handle_tray_message, TrayAction, WM_TRAYICON};
@@ -129,7 +129,7 @@ unsafe extern "system" fn subclass_proc(
         }
         WM_KEYDOWN => {
             if wparam.0 as u32 == u32::from(VK_F1.0) && (lparam.0 & 0x4000_0000) == 0 {
-                queue_action(PendingAction::Tray(TrayAction::OpenAboutWindow));
+                queue_action(PendingAction::Tray(TrayAction::OpenAboutWindow, None));
                 LRESULT(0)
             } else {
                 forward_to_original(hwnd, msg, wparam, lparam)
@@ -260,8 +260,10 @@ fn handle_show_window(wparam: WPARAM) {
 
 fn handle_tray_subclass(hwnd: HWND, lparam: LPARAM) {
     let mouse_msg = lparam.0 as u32;
+    let activation_point = current_cursor_screen_point();
+
     if mouse_msg == WM_LBUTTONUP {
-        queue_action(PendingAction::Tray(TrayAction::Toggle));
+        queue_action(PendingAction::Tray(TrayAction::Toggle, activation_point));
     } else if mouse_msg == WM_RBUTTONUP {
         let menu_state = crate::UI_STATE.with(|slot| {
             slot.borrow().as_ref().and_then(|state| {
@@ -273,7 +275,7 @@ fn handle_tray_subclass(hwnd: HWND, lparam: LPARAM) {
         });
         if let Some(menu_state) = menu_state {
             if let Some(action) = handle_tray_message(hwnd, lparam, &menu_state) {
-                queue_action(PendingAction::Tray(action));
+                queue_action(PendingAction::Tray(action, activation_point));
             }
         }
     }

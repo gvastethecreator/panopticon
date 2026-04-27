@@ -1,5 +1,9 @@
-import { Button, ComboBox, LineEdit } from "std-widgets.slint";
 import { Tr, Theme } from "../common.slint";
+import {
+    CustomButton,
+    CustomComboBox,
+    CustomLineEdit,
+} from "../components/custom_themed_widgets.slint";
 
 export component TagDialogWindow inherits Window {
     title: Tr.tag-window-title;
@@ -47,10 +51,10 @@ export component TagDialogWindow inherits Window {
             font-weight: 600;
         }
 
-        LineEdit {
+        CustomLineEdit {
+            height: 34px;
             text <=> root.tag-name;
-            horizontal-alignment: left;
-            font-size: 13px;
+            placeholder: "work";
         }
 
         Text {
@@ -70,10 +74,11 @@ export component TagDialogWindow inherits Window {
                 y: 0px;
             }
 
-            ComboBox {
-                model: Tr.tag-colour-options;
-                current-index <=> root.color-index;
+            CustomComboBox {
+                options: Tr.tag-colour-options;
+                selected-index <=> root.color-index;
                 horizontal-stretch: 1;
+                height: 32px;
             }
         }
 
@@ -85,14 +90,17 @@ export component TagDialogWindow inherits Window {
             spacing: 12px;
             alignment: end;
 
-            Button {
+            CustomButton {
+                height: 34px;
+                accent: true;
                 text: Tr.tag-create-assign;
                 clicked => {
                     root.create();
                 }
             }
 
-            Button {
+            CustomButton {
+                height: 34px;
                 text: Tr.action-close;
                 clicked => {
                     root.closed();

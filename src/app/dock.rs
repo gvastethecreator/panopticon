@@ -4,9 +4,10 @@ use std::mem;
 
 use panopticon::settings::DockEdge;
 use panopticon::theme as theme_catalog;
-use windows::Win32::Foundation::{HWND, RECT};
+use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::Graphics::Gdi::{
-    GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
+    GetMonitorInfoW, MonitorFromPoint, MonitorFromWindow, HMONITOR, MONITORINFO,
+    MONITOR_DEFAULTTOPRIMARY,
 };
 use windows::Win32::UI::Shell::{
     SHAppBarMessage, ABE_BOTTOM, ABE_LEFT, ABE_RIGHT, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE,
@@ -279,30 +280,54 @@ pub(crate) fn keep_dialog_above_owner(
     }
 }
 
-/// Centers the given window on the same monitor as its visible owner when
-/// available, or on the current/primary monitor otherwise.
-pub(crate) fn center_window_on_owner_monitor(dialog_hwnd: HWND, owner_hwnd: HWND) {
-    let anchor_hwnd = if !owner_hwnd.0.is_null()
-        && unsafe {
-            // SAFETY: owner_hwnd belongs to our process when present; querying
-            // visibility is a read-only Win32 call.
-            IsWindowVisible(owner_hwnd).as_bool()
-        } {
-        owner_hwnd
-    } else {
-        dialog_hwnd
-    };
+pub(crate) fn current_cursor_screen_point() -> Option<POINT> {
+    let mut point = POINT::default();
 
-    center_window_on_anchor_monitor(dialog_hwnd, anchor_hwnd);
+    // SAFETY: `GetCursorPos` fills the stack-allocated POINT with the current
+    // cursor location; it does not retain the pointer after returning.
+    unsafe { GetCursorPos(&raw mut point).ok().map(|()| point) }
 }
 
-fn center_window_on_anchor_monitor(hwnd: HWND, anchor_hwnd: HWND) {
+/// Centers the given window on the same monitor as its owner when available,
+/// or on the current cursor monitor otherwise.
+pub(crate) fn center_window_on_owner_monitor(dialog_hwnd: HWND, owner_hwnd: HWND) {
+    if owner_hwnd.0.is_null() {
+        if let Some(cursor) = current_cursor_screen_point() {
+            center_window_on_point_monitor(dialog_hwnd, cursor);
+        } else {
+            center_window_on_window_monitor(dialog_hwnd, dialog_hwnd);
+        }
+        return;
+    }
+
+    center_window_on_window_monitor(dialog_hwnd, owner_hwnd);
+}
+
+pub(crate) fn center_window_on_window_monitor(hwnd: HWND, anchor_hwnd: HWND) {
+    if anchor_hwnd.0.is_null() {
+        return;
+    }
+
+    // SAFETY: `anchor_hwnd` is a valid window handle when present; the call is
+    // a read-only monitor lookup.
+    let monitor = unsafe { MonitorFromWindow(anchor_hwnd, MONITOR_DEFAULTTOPRIMARY) };
+    center_window_on_monitor(hwnd, monitor);
+}
+
+pub(crate) fn center_window_on_point_monitor(hwnd: HWND, anchor_point: POINT) {
+    // SAFETY: `MonitorFromPoint` is a read-only monitor lookup for a screen
+    // coordinate already provided by the OS or our UI layer.
+    let monitor = unsafe { MonitorFromPoint(anchor_point, MONITOR_DEFAULTTOPRIMARY) };
+    center_window_on_monitor(hwnd, monitor);
+}
+
+fn center_window_on_monitor(hwnd: HWND, monitor: HMONITOR) {
     if hwnd.0.is_null() {
         return;
     }
+
     // SAFETY: hwnd is a live window created by this process.
     unsafe {
-        let monitor = MonitorFromWindow(anchor_hwnd, MONITOR_DEFAULTTOPRIMARY);
         let mut mi = MONITORINFO {
             cbSize: std::mem::size_of::<MONITORINFO>() as u32,
             ..Default::default()

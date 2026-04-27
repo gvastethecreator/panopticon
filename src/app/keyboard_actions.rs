@@ -6,12 +6,10 @@ use std::rc::Rc;
 use panopticon::layout::LayoutType;
 use panopticon::settings::AppSettings;
 
+use super::actions::{dispatch_action, AppAction};
 use super::command_palette;
-use super::dock::apply_topmost_mode;
 use super::layout_actions;
-use super::secondary_windows;
-use super::tray_actions;
-use crate::{refresh_ui, refresh_windows, update_settings, AppState, MainWindow};
+use crate::{refresh_ui, update_settings, AppState, MainWindow};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ShortcutAction {
@@ -51,49 +49,35 @@ pub(crate) fn handle_key(
             refresh_ui(state, weak);
         }
         ShortcutAction::ToggleAnimations => {
-            update_settings(state, |settings| {
-                settings.animate_transitions = !settings.animate_transitions;
-            });
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::ToggleAnimations);
         }
         ShortcutAction::ToggleToolbar => {
-            update_settings(state, |settings| {
-                settings.show_toolbar = !settings.show_toolbar;
-            });
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::ToggleToolbar);
         }
         ShortcutAction::ToggleWindowInfo => {
-            update_settings(state, |settings| {
-                settings.show_window_info = !settings.show_window_info;
-            });
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::ToggleWindowInfo);
         }
-        ShortcutAction::OpenMenu => tray_actions::open_application_context_menu(state, weak, None),
-        ShortcutAction::OpenSettings => secondary_windows::open_settings_window(state, weak),
+        ShortcutAction::OpenMenu => {
+            dispatch_action(state, weak, AppAction::OpenContextMenu);
+        }
+        ShortcutAction::OpenSettings => {
+            dispatch_action(state, weak, AppAction::OpenSettingsWindow);
+        }
         ShortcutAction::OpenCommandPalette => {
             command_palette::open_command_palette_window(state, weak);
         }
         ShortcutAction::ToggleAlwaysOnTop => {
-            update_settings(state, |settings| {
-                settings.always_on_top = !settings.always_on_top;
-            });
-            let state_ref = state.borrow();
-            apply_topmost_mode(state_ref.hwnd, state_ref.settings.always_on_top);
-            drop(state_ref);
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::ToggleAlwaysOnTop);
         }
         ShortcutAction::RefreshNow => {
-            if refresh_windows(state) {
-                refresh_ui(state, weak);
-            }
+            dispatch_action(state, weak, AppAction::RefreshNow);
         }
         ShortcutAction::CycleTheme => cycle_theme(state, weak, 1),
         ShortcutAction::CycleThemePrevious => cycle_theme(state, weak, -1),
         ShortcutAction::CycleLayout => {
-            layout_actions::cycle_layout(state);
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::CycleLayout);
         }
-        ShortcutAction::Exit => crate::queue_exit_request(),
+        ShortcutAction::Exit => dispatch_action(state, weak, AppAction::Exit),
     }
 
     true
@@ -130,12 +114,12 @@ fn matched_shortcut_action(
         Some(ShortcutAction::ToggleWindowInfo)
     } else if shortcut_matches(&shortcuts.open_menu, key) {
         Some(ShortcutAction::OpenMenu)
+    } else if shortcut_matches(&shortcuts.toggle_always_on_top, key) {
+        Some(ShortcutAction::ToggleAlwaysOnTop)
     } else if shortcut_matches(&shortcuts.open_settings, key) {
         Some(ShortcutAction::OpenSettings)
     } else if shortcut_matches(&shortcuts.open_command_palette, key) {
         Some(ShortcutAction::OpenCommandPalette)
-    } else if shortcut_matches(&shortcuts.toggle_always_on_top, key) {
-        Some(ShortcutAction::ToggleAlwaysOnTop)
     } else if shortcut_matches(&shortcuts.refresh_now, key) {
         Some(ShortcutAction::RefreshNow)
     } else if shortcut_matches(&shortcuts.cycle_theme, key) {

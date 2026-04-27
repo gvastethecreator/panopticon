@@ -364,7 +364,10 @@ component KeyFieldSettingCard inherits Rectangle {
     in-out property <string> value: "";
     in property <string> placeholder: "";
     in property <bool> enabled: true;
+    in property <bool> recording-enabled: false;
+    in property <bool> recording-active: false;
     callback committed();
+    callback record-requested();
 
     min-height: 30px;
     border-radius: 0px;
@@ -409,12 +412,52 @@ component KeyFieldSettingCard inherits Rectangle {
                 height: 28px;
                 min-width: 30px;
                 placeholder: root.placeholder;
-                enabled: root.enabled;
+                enabled: root.enabled && !root.recording-active;
                 accepted(_) => {
                     root.committed();
                 }
                 focus-lost => {
                     root.committed();
+                }
+            }
+
+            if root.recording-enabled: Rectangle {
+                width: 60px;
+                height: 28px;
+                border-radius: 6px;
+                border-width: 1px;
+                border-color: root.recording-active ? Theme.accent.with-alpha(86%) : Theme.border.with-alpha(60%);
+                background: key-record-touch.has-hover ? Theme.surface.with-alpha(80%) : Theme.surface.with-alpha(56%);
+
+                HorizontalLayout {
+                    padding-left: 7px;
+                    padding-right: 7px;
+                    spacing: 4px;
+
+                    Image {
+                        width: 11px;
+                        height: 11px;
+                        source: @image-url("../../assets/ui-icons/lucide-record.svg");
+                        image-fit: contain;
+                        colorize: root.recording-active ? Theme.accent : Theme.muted;
+                    }
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.recording-active ? "REC" : "Rec";
+                        color: root.recording-active ? Theme.accent : Theme.text;
+                        font-size: 10px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                key-record-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.record-requested();
+                    }
                 }
             }
         }
@@ -695,6 +738,7 @@ component KeyFieldSettingCard inherits Rectangle {
     default-font-size: 14px;
 
     in-out property <bool> always-on-top-setting: false;
+    in-out property <bool> center-secondary-windows-setting: true;
     in-out property <bool> animate-transitions-setting: true;
     in-out property <bool> minimize-to-tray-setting: true;
     in-out property <bool> close-to-tray-setting: true;
@@ -738,6 +782,8 @@ component KeyFieldSettingCard inherits Rectangle {
     in property <[string]> app-rules-tag-chips: [];
     in-out property <string> app-rules-tag-input: "";
     in-out property <string> app-rules-color-hex: "";
+    in-out property <int> app-rules-pin-slot: 0;
+    in property <string> app-rules-pin-conflict-summary: "";
     in property <bool> app-rules-can-clear-unused: false;
     in property <string> app-rules-unused-summary: "";
     in property <[string]> hidden-app-options: [Tr.no-hidden-label];
@@ -758,6 +804,12 @@ component KeyFieldSettingCard inherits Rectangle {
     in property <bool> selected-profile-is-default: true;
     in property <string> selected-profile-updated-at: "";
     in property <string> selected-profile-created-at: "";
+    in property <bool> selected-profile-running: false;
+    in property <bool> selected-profile-modified: false;
+    in property <int> selected-profile-missing-apps: 0;
+    in property <string> selected-profile-status-summary: "";
+    in property <string> workspace-feedback-message: "";
+    in property <bool> workspace-feedback-error: false;
     in-out property <color> bg-preview-color: Theme.accent;
     in-out property <color> theme-preview-color: Theme.accent;
     in-out property <string> bg-color-hex: "181513";
@@ -817,6 +869,13 @@ component KeyFieldSettingCard inherits Rectangle {
     in property <bool> has-shortcut-conflicts: false;
     in property <string> shortcut-conflict-summary: "";
     in property <string> shortcut-conflict-detail: "";
+    in-out property <bool> shortcut-recording-mode: false;
+    in property <string> shortcut-recording-target: "";
+    in property <string> shortcut-recording-hint: "";
+    in-out property <string> layout-preset-name: "";
+    in property <[string]> layout-preset-options: [];
+    in-out property <int> layout-preset-index: 0;
+    in property <string> layout-preset-summary: "";
     in-out property <bool> suspend-live-apply: false;
 
     in-out property <int> current-page: 0;
@@ -834,6 +893,8 @@ component KeyFieldSettingCard inherits Rectangle {
     callback delete-selected-profile();
     callback open-about();
     callback reset-to-defaults();
+    callback shortcut-start-recording(string);
+    callback shortcut-stop-recording();
     callback refresh-now();
     callback check-updates-now();
     callback restore-hidden-selected();
@@ -846,6 +907,9 @@ component KeyFieldSettingCard inherits Rectangle {
     callback app-rules-add-tag();
     callback app-rules-remove-tag(string);
     callback app-rules-apply-tag-suggestion(string);
+    callback save-layout-preset();
+    callback apply-layout-preset();
+    callback delete-layout-preset();
     callback browse-background-image();
     callback clear-background-image();
     callback apply-bg-color-hex(string);
@@ -860,6 +924,9 @@ component KeyFieldSettingCard inherits Rectangle {
     }
 
     changed always-on-top-setting => {
+        root.request-live-apply();
+    }
+    changed center-secondary-windows-setting => {
         root.request-live-apply();
     }
     changed animate-transitions-setting => {
@@ -1212,6 +1279,13 @@ component KeyFieldSettingCard inherits Rectangle {
                                 title: Tr.settings-option-always-on-top-title;
                                 description: Tr.settings-option-always-on-top-description;
                                 checked <=> root.always-on-top-setting;
+                            }
+
+                            ToggleSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                title: "Center secondary windows";
+                                description: "Open Settings, About, Command Palette and tag dialogs centered on the monitor.";
+                                checked <=> root.center-secondary-windows-setting;
                             }
 
                             ToggleSettingCard {
@@ -1719,6 +1793,31 @@ component KeyFieldSettingCard inherits Rectangle {
                                     }
                                 }
 
+                                SettingRow {
+                                    icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                    title: "Pinned slot";
+                                    description: "0 = unpinned. Positive values reserve a preferred slot.";
+
+                                    CustomSpinBox {
+                                        width: 130px;
+                                        height: 34px;
+                                        value <=> root.app-rules-pin-slot;
+                                        minimum: 0;
+                                        maximum: 256;
+                                    }
+
+                                    if root.app-rules-pin-slot > 0: StatusPill {
+                                        text: "#" + root.app-rules-pin-slot;
+                                        subtle: true;
+                                    }
+                                }
+
+                                if root.app-rules-pin-conflict-summary != "": InlineWarning {
+                                    icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                                    title: "Pinned slot conflict";
+                                    text: root.app-rules-pin-conflict-summary;
+                                }
+
                                 Rectangle {
                                     border-radius: 8px;
                                     border-width: 1px;
@@ -2212,26 +2311,28 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                 theme-list-scroll := ScrollView {
                                     width: parent.width;
-                                    // Keep this explicit to avoid ScrollView taking content
-                                    // height and swallowing internal scrolling.
-                                    height: max(themes-card-rect.height - 28px - 42px - 10px, 120px);
+                                    vertical-stretch: 1;
+                                    horizontal-stretch: 1;
+                                    vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
+                                    horizontal-scrollbar-policy: ScrollBarPolicy.as-needed;
+                                    viewport-width: self.width;
 
                                     theme-grid-content := Rectangle {
-                                        x: 12px;
-                                        y: 12px;
-                                        width: max(theme-list-scroll.width - 24px, 220px);
+                                        width: max(theme-list-scroll.width, 240px);
+                                        property <length> content-padding: 12px;
                                         property <length> grid-gap: 16px;
                                         property <length> card-height: 92px;
                                         property <int> column-count: self.width >= 840px ? 3 : self.width >= 560px ? 2 : 1;
-                                        property <length> card-width: self.column-count == 1 ? self.width : self.column-count == 2 ? max((self.width - self.grid-gap) / 2, 220px) : max((self.width - (self.grid-gap * 2)) / 3, 220px);
+                                        property <length> available-width: max(self.width - (self.content-padding * 2), 220px);
+                                        property <length> card-width: self.column-count == 1 ? self.available-width : self.column-count == 2 ? max((self.available-width - self.grid-gap) / 2, 220px) : max((self.available-width - (self.grid-gap * 2)) / 3, 220px);
                                         property <int> row-count: max((root.theme-preview-model.length + self.column-count - 1) / self.column-count, 1);
-                                        height: max((self.row-count * self.card-height) + ((self.row-count - 1) * self.grid-gap), self.card-height);
+                                        height: max((self.row-count * self.card-height) + ((self.row-count - 1) * self.grid-gap) + (self.content-padding * 2), theme-list-scroll.height);
 
                                         for theme[index] in root.theme-preview-model: ThemePreviewCard {
                                             property <int> grid-col: Math.mod(index, theme-grid-content.column-count);
                                             property <int> grid-row: index / theme-grid-content.column-count;
-                                            x: grid-col * (theme-grid-content.card-width + theme-grid-content.grid-gap);
-                                            y: grid-row * (theme-grid-content.card-height + theme-grid-content.grid-gap);
+                                            x: theme-grid-content.content-padding + grid-col * (theme-grid-content.card-width + theme-grid-content.grid-gap);
+                                            y: theme-grid-content.content-padding + grid-row * (theme-grid-content.card-height + theme-grid-content.grid-gap);
                                             width: theme-grid-content.card-width;
                                             height: theme-grid-content.card-height;
                                             theme: theme;
@@ -2375,6 +2476,13 @@ component KeyFieldSettingCard inherits Rectangle {
                                     }
                                 }
                             }
+
+                            if root.workspace-feedback-message != "": InlineWarning {
+                                subtle: !root.workspace-feedback-error;
+                                icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                title: root.workspace-feedback-error ? "Workspace action failed" : "Workspace action completed";
+                                text: root.workspace-feedback-message;
+                            }
                         }
 
                         SectionCard {
@@ -2507,6 +2615,25 @@ component KeyFieldSettingCard inherits Rectangle {
                                         title: "Created";
                                         description: root.selected-profile-created-at == "" ? "Unknown" : root.selected-profile-created-at;
                                     }
+
+                                    SettingRow {
+                                        icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                                        title: "Runtime status";
+                                        description: root.selected-profile-status-summary == "" ? "No runtime diagnostics yet" : root.selected-profile-status-summary;
+
+                                        if root.selected-profile-running: StatusPill {
+                                            text: "RUNNING";
+                                        }
+
+                                        if root.selected-profile-modified: StatusPill {
+                                            text: "MODIFIED";
+                                        }
+
+                                        if root.selected-profile-missing-apps > 0: StatusPill {
+                                            text: root.selected-profile-missing-apps + " MISSING";
+                                            subtle: true;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2571,6 +2698,26 @@ component KeyFieldSettingCard inherits Rectangle {
                                 }
                             }
                         }
+
+                        CustomButton {
+                            width: 138px;
+                            height: 34px;
+                            text: root.shortcut-recording-mode ? "Stop recording" : "Record shortcut";
+                            clicked => {
+                                if root.shortcut-recording-mode {
+                                    root.shortcut-stop-recording();
+                                } else {
+                                    root.shortcut-start-recording("");
+                                }
+                            }
+                        }
+                    }
+
+                    if root.shortcut-recording-hint != "": InlineWarning {
+                        subtle: !root.shortcut-recording-mode;
+                        icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
+                        title: root.shortcut-recording-mode ? "Recording shortcut" : "Shortcut recording";
+                        text: root.shortcut-recording-hint;
                     }
 
                     if root.has-shortcut-conflicts: InlineWarning {
@@ -2618,6 +2765,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-global-activate;
                                             placeholder: "Ctrl+Alt+P";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "global_activate";
+                                            record-requested => {
+                                                root.shortcut-start-recording("global_activate");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -2631,6 +2783,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-cycle-layout;
                                             placeholder: "Tab";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "cycle_layout";
+                                            record-requested => {
+                                                root.shortcut-start-recording("cycle_layout");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -2644,6 +2801,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-toggle-window-info;
                                             placeholder: "I";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "toggle_window_info";
+                                            record-requested => {
+                                                root.shortcut-start-recording("toggle_window_info");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -2919,6 +3081,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-layout-column;
                                             placeholder: "7";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "layout_column";
+                                            record-requested => {
+                                                root.shortcut-start-recording("layout_column");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -2932,6 +3099,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-reset-layout;
                                             placeholder: "0";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "reset_layout";
+                                            record-requested => {
+                                                root.shortcut-start-recording("reset_layout");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -2945,6 +3117,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-cycle-layout;
                                             placeholder: "Tab";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "cycle_layout";
+                                            record-requested => {
+                                                root.shortcut-start-recording("cycle_layout");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -2999,6 +3176,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-toggle-toolbar;
                                             placeholder: "H";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "toggle_toolbar";
+                                            record-requested => {
+                                                root.shortcut-start-recording("toggle_toolbar");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -3012,6 +3194,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-toggle-animations;
                                             placeholder: "A";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "toggle_animations";
+                                            record-requested => {
+                                                root.shortcut-start-recording("toggle_animations");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -3025,6 +3212,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-toggle-window-info;
                                             placeholder: "I";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "toggle_window_info";
+                                            record-requested => {
+                                                root.shortcut-start-recording("toggle_window_info");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -3054,6 +3246,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-open-settings;
                                             placeholder: "O";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "open_settings";
+                                            record-requested => {
+                                                root.shortcut-start-recording("open_settings");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -3067,6 +3264,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-open-menu;
                                             placeholder: "M";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "open_menu";
+                                            record-requested => {
+                                                root.shortcut-start-recording("open_menu");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -3080,6 +3282,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-open-command-palette;
                                             placeholder: "K";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "open_command_palette";
+                                            record-requested => {
+                                                root.shortcut-start-recording("open_command_palette");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -3109,6 +3316,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-refresh-now;
                                             placeholder: "R";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "refresh_now";
+                                            record-requested => {
+                                                root.shortcut-start-recording("refresh_now");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -3122,6 +3334,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-exit-app;
                                             placeholder: "Esc";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "exit_app";
+                                            record-requested => {
+                                                root.shortcut-start-recording("exit_app");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -3135,6 +3352,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                             description: "";
                                             value <=> root.shortcut-toggle-always-on-top;
                                             placeholder: "P";
+                                            recording-enabled: true;
+                                            recording-active: root.shortcut-recording-mode && root.shortcut-recording-target == "toggle_always_on_top";
+                                            record-requested => {
+                                                root.shortcut-start-recording("toggle_always_on_top");
+                                            }
                                             committed => {
                                                 root.apply();
                                             }
@@ -3196,6 +3418,73 @@ component KeyFieldSettingCard inherits Rectangle {
                             options: Tr.settings-refresh-interval-options;
                             selected-index <=> root.refresh-index;
                             enabled: root.refresh-performance-mode-index == 3;
+                        }
+                    }
+
+                    SectionCard {
+                        SectionHeader {
+                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                            title: "Layout presets";
+                            helper: "Save/apply/delete named ratio snapshots for the current layout.";
+                        }
+
+                        HorizontalLayout {
+                            spacing: 10px;
+
+                            CustomLineEdit {
+                                horizontal-stretch: 1;
+                                height: 34px;
+                                text <=> root.layout-preset-name;
+                                placeholder: "Focus grid";
+                            }
+
+                            CustomButton {
+                                height: 34px;
+                                text: "Save current";
+                                clicked => {
+                                    root.save-layout-preset();
+                                }
+                            }
+                        }
+
+                        SettingRow {
+                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                            title: "Saved presets";
+                            description: "Apply one preset to restore its layout ratios.";
+
+                            CustomComboBox {
+                                width: 240px;
+                                height: 34px;
+                                options: root.layout-preset-options;
+                                selected-index <=> root.layout-preset-index;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 10px;
+
+                            CustomButton {
+                                height: 34px;
+                                text: "Apply preset";
+                                clicked => {
+                                    root.apply-layout-preset();
+                                }
+                            }
+
+                            CustomButton {
+                                height: 34px;
+                                text: "Delete preset";
+                                clicked => {
+                                    root.delete-layout-preset();
+                                }
+                            }
+                        }
+
+                        InlineWarning {
+                            subtle: true;
+                            icon: @image-url("../../assets/ui-icons/option-layout.svg");
+                            title: "Preset status";
+                            text: root.layout-preset-summary;
                         }
                     }
 

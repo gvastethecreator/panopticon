@@ -22,6 +22,7 @@ use crate::{SettingsWindow, ThemePreviewData};
 pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings) {
     window.set_language_index(locale_to_index(settings.language));
     window.set_always_on_top_setting(settings.always_on_top);
+    window.set_center_secondary_windows_setting(settings.center_secondary_windows);
     window.set_animate_transitions_setting(settings.animate_transitions);
     window.set_minimize_to_tray_setting(settings.minimize_to_tray);
     window.set_close_to_tray_setting(settings.close_to_tray);
@@ -127,6 +128,7 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
 pub fn apply_settings_window_changes(window: &SettingsWindow, settings: &mut AppSettings) {
     settings.language = index_to_locale(window.get_language_index());
     settings.always_on_top = window.get_always_on_top_setting();
+    settings.center_secondary_windows = window.get_center_secondary_windows_setting();
     settings.animate_transitions = window.get_animate_transitions_setting();
     settings.minimize_to_tray = window.get_minimize_to_tray_setting();
     settings.close_to_tray = window.get_close_to_tray_setting();
