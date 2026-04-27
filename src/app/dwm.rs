@@ -98,6 +98,10 @@ pub(crate) fn query_source_size(handle: isize) -> SIZE {
 // ───────────────────────── DWM thumbnail sync ─────────────────────────
 
 /// Synchronise all DWM thumbnail positions, visibility, and refresh timing.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the thumbnail sync loop keeps geometry, visibility, and refresh policy together"
+)]
 pub(crate) fn update_dwm_thumbnails(
     state: &std::rc::Rc<std::cell::RefCell<crate::AppState>>,
     win: &crate::MainWindow,

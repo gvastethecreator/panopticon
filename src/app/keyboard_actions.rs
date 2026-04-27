@@ -71,7 +71,7 @@ pub(crate) fn handle_key(
         ShortcutAction::OpenMenu => tray_actions::open_application_context_menu(state, weak, None),
         ShortcutAction::OpenSettings => secondary_windows::open_settings_window(state, weak),
         ShortcutAction::OpenCommandPalette => {
-            command_palette::open_command_palette_window(state, weak)
+            command_palette::open_command_palette_window(state, weak);
         }
         ShortcutAction::ToggleAlwaysOnTop => {
             update_settings(state, |settings| {
