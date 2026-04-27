@@ -88,6 +88,10 @@ struct CommandEntry {
     keywords: String,
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "base and dynamic command catalog are intentionally assembled in one contiguous list"
+)]
 fn command_entries() -> Vec<CommandEntry> {
     let mut entries = vec![
         CommandEntry {
@@ -358,6 +362,10 @@ fn command_entries_for_state(state: &AppState) -> Vec<CommandEntry> {
     entries
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the command palette lifecycle wiring stays centralized for readability"
+)]
 pub(crate) fn open_command_palette_window(
     state: &Rc<RefCell<AppState>>,
     main_weak: &slint::Weak<MainWindow>,
@@ -561,6 +569,10 @@ fn rebuild_filtered_commands(
     window.set_command_index(0);
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "command dispatch keeps all palette actions together for straightforward auditing"
+)]
 fn execute_command(
     command_id: CommandId,
     state: &Rc<RefCell<AppState>>,

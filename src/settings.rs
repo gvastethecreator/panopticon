@@ -49,6 +49,7 @@ const DEFAULT_SHORTCUT_GLOBAL_ACTIVATE: &str = "Ctrl+Alt+P";
 const DEFAULT_SHORTCUT_REFRESH: &str = "R";
 const DEFAULT_SHORTCUT_EXIT: &str = "Esc";
 const INVALID_WORKSPACE_NAME_CHARACTERS: [char; 9] = [':', '"', '<', '>', '|', '?', '*', '/', '\\'];
+const WORKSPACE_METADATA_SCHEMA_VERSION: u32 = 1;
 
 const fn default_true() -> bool {
     true
@@ -123,6 +124,78 @@ pub enum WorkspaceNameValidation {
     Valid(String),
     /// Input contains characters that Windows filenames cannot represent.
     Invalid(String),
+}
+
+/// Optional metadata persisted with each workspace settings file.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(default)]
+pub struct WorkspaceMetadata {
+    /// Friendly workspace label shown in Settings lists.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub display_name: String,
+    /// Optional free-form note describing the workspace intent.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
+    /// Unix timestamp in milliseconds for first creation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_unix_ms: Option<u64>,
+    /// Unix timestamp in milliseconds for last persisted update.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_unix_ms: Option<u64>,
+    /// Metadata schema version for future migrations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_version: Option<u32>,
+}
+
+impl WorkspaceMetadata {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.display_name.is_empty()
+            && self.description.is_empty()
+            && self.created_unix_ms.is_none()
+            && self.updated_unix_ms.is_none()
+            && self.schema_version.is_none()
+    }
+
+    #[must_use]
+    pub fn normalized(&self) -> Self {
+        let display_name = self.display_name.trim().to_owned();
+        let description = self.description.trim().to_owned();
+
+        let created_unix_ms = self.created_unix_ms.filter(|value| *value > 0);
+        let updated_unix_ms = self
+            .updated_unix_ms
+            .filter(|value| *value > 0)
+            .or(created_unix_ms);
+        let has_metadata_payload = !display_name.is_empty()
+            || !description.is_empty()
+            || created_unix_ms.is_some()
+            || updated_unix_ms.is_some()
+            || self.schema_version.is_some();
+        let schema_version = has_metadata_payload.then_some(
+            self.schema_version
+                .unwrap_or(WORKSPACE_METADATA_SCHEMA_VERSION),
+        );
+
+        Self {
+            display_name,
+            description,
+            created_unix_ms,
+            updated_unix_ms,
+            schema_version,
+        }
+    }
+
+    fn touch_for_save(&mut self) {
+        let now = unix_time_millis_now();
+        if self.created_unix_ms.is_none() {
+            self.created_unix_ms = Some(now);
+        }
+        self.updated_unix_ms = Some(now);
+        if self.schema_version.is_none() {
+            self.schema_version = Some(WORKSPACE_METADATA_SCHEMA_VERSION);
+        }
+    }
 }
 
 /// Visual styling persisted for a manual tag/group.
@@ -728,12 +801,18 @@ pub struct AppSettings {
     /// Show the application icon overlay in each thumbnail cell.
     #[serde(default = "default_true")]
     pub show_app_icons: bool,
+    /// Whether the first-run empty-state welcome card was dismissed.
+    #[serde(default)]
+    pub dismissed_empty_state_welcome: bool,
     /// Percentage used to scale the live DWM thumbnail within each card.
     #[serde(default = "default_thumbnail_render_scale_pct")]
     pub thumbnail_render_scale_pct: u8,
     /// User-configurable dashboard keyboard shortcuts.
     #[serde(default)]
     pub shortcuts: ShortcutBindings,
+    /// Optional workspace metadata shown in profile/workspace management UI.
+    #[serde(default, skip_serializing_if = "WorkspaceMetadata::is_empty")]
+    pub workspace: WorkspaceMetadata,
 }
 
 impl Default for AppSettings {
@@ -775,8 +854,10 @@ impl Default for AppSettings {
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
+            dismissed_empty_state_welcome: false,
             thumbnail_render_scale_pct: default_thumbnail_render_scale_pct(),
             shortcuts: ShortcutBindings::default(),
+            workspace: WorkspaceMetadata::default(),
         }
     }
 }
@@ -896,6 +977,168 @@ impl AppSettings {
         Ok(workspaces)
     }
 
+    /// Returns whether the corresponding workspace settings file currently exists.
+    #[must_use]
+    pub fn workspace_exists(workspace: Option<&str>) -> bool {
+        Self::path_for(workspace).exists()
+    }
+
+    /// Update user-facing metadata fields for the current workspace snapshot.
+    pub fn set_workspace_metadata(&mut self, display_name: &str, description: &str) {
+        display_name
+            .trim()
+            .clone_into(&mut self.workspace.display_name);
+        description
+            .trim()
+            .clone_into(&mut self.workspace.description);
+    }
+
+    /// Duplicate an existing workspace snapshot into a new named workspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if source loading fails, the target name is invalid,
+    /// or the target workspace already exists.
+    pub fn duplicate_workspace(source: Option<&str>, target: &str) -> Result<()> {
+        let target = match validate_workspace_name_input(target) {
+            WorkspaceNameValidation::Valid(workspace_name) => workspace_name,
+            WorkspaceNameValidation::Empty => {
+                return Err(PanopticonError::SettingsParse(
+                    i18n::t("settings.workspace_empty_name").to_owned(),
+                ));
+            }
+            WorkspaceNameValidation::Invalid(reason) => {
+                return Err(PanopticonError::SettingsParse(reason));
+            }
+        };
+
+        if target.eq_ignore_ascii_case("default") {
+            return Err(PanopticonError::SettingsParse(
+                "cannot duplicate into reserved workspace name 'default'".to_owned(),
+            ));
+        }
+
+        if Self::workspace_exists(Some(&target)) {
+            return Err(PanopticonError::SettingsParse(format!(
+                "workspace '{target}' already exists"
+            )));
+        }
+
+        let mut settings = Self::load_or_default(source)?;
+        settings.workspace.created_unix_ms = None;
+        settings.workspace.updated_unix_ms = None;
+        settings.workspace.schema_version = Some(WORKSPACE_METADATA_SCHEMA_VERSION);
+        if settings.workspace.display_name.trim().is_empty() {
+            settings.workspace.display_name.clone_from(&target);
+        }
+        settings.save(Some(&target))
+    }
+
+    /// Rename a named workspace file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if source/target names are invalid, if source does not
+    /// exist, or if target already exists.
+    pub fn rename_workspace(source: &str, target: &str) -> Result<()> {
+        let source = match validate_workspace_name_input(source) {
+            WorkspaceNameValidation::Valid(workspace_name) => workspace_name,
+            WorkspaceNameValidation::Empty => {
+                return Err(PanopticonError::SettingsParse(
+                    i18n::t("settings.workspace_empty_name").to_owned(),
+                ));
+            }
+            WorkspaceNameValidation::Invalid(reason) => {
+                return Err(PanopticonError::SettingsParse(reason));
+            }
+        };
+        let target = match validate_workspace_name_input(target) {
+            WorkspaceNameValidation::Valid(workspace_name) => workspace_name,
+            WorkspaceNameValidation::Empty => {
+                return Err(PanopticonError::SettingsParse(
+                    i18n::t("settings.workspace_empty_name").to_owned(),
+                ));
+            }
+            WorkspaceNameValidation::Invalid(reason) => {
+                return Err(PanopticonError::SettingsParse(reason));
+            }
+        };
+
+        if source.eq_ignore_ascii_case("default") {
+            return Err(PanopticonError::SettingsParse(
+                "the default workspace cannot be renamed".to_owned(),
+            ));
+        }
+        if target.eq_ignore_ascii_case("default") {
+            return Err(PanopticonError::SettingsParse(
+                "cannot rename to reserved workspace name 'default'".to_owned(),
+            ));
+        }
+
+        let source_path = Self::path_for(Some(&source));
+        if !source_path.exists() {
+            return Err(PanopticonError::SettingsParse(format!(
+                "workspace '{source}' does not exist"
+            )));
+        }
+
+        let target_path = Self::path_for(Some(&target));
+        if target_path.exists() {
+            return Err(PanopticonError::SettingsParse(format!(
+                "workspace '{target}' already exists"
+            )));
+        }
+
+        std::fs::rename(source_path, &target_path)?;
+
+        let mut updated = Self::load_or_default(Some(&target))?;
+        if updated.workspace.display_name.trim().is_empty()
+            || updated.workspace.display_name.eq_ignore_ascii_case(&source)
+        {
+            updated.workspace.display_name.clone_from(&target);
+        }
+        updated.workspace.schema_version = Some(WORKSPACE_METADATA_SCHEMA_VERSION);
+        updated.save(Some(&target))?;
+
+        Ok(())
+    }
+
+    /// Delete a named workspace file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the workspace name is invalid/reserved or when file
+    /// removal fails.
+    pub fn delete_workspace(workspace: &str) -> Result<()> {
+        let workspace = match validate_workspace_name_input(workspace) {
+            WorkspaceNameValidation::Valid(workspace_name) => workspace_name,
+            WorkspaceNameValidation::Empty => {
+                return Err(PanopticonError::SettingsParse(
+                    i18n::t("settings.workspace_empty_name").to_owned(),
+                ));
+            }
+            WorkspaceNameValidation::Invalid(reason) => {
+                return Err(PanopticonError::SettingsParse(reason));
+            }
+        };
+
+        if workspace.eq_ignore_ascii_case("default") {
+            return Err(PanopticonError::SettingsParse(
+                "the default workspace cannot be deleted".to_owned(),
+            ));
+        }
+
+        let path = Self::path_for(Some(&workspace));
+        if !path.exists() {
+            return Err(PanopticonError::SettingsParse(format!(
+                "workspace '{workspace}' does not exist"
+            )));
+        }
+
+        std::fs::remove_file(path)?;
+        Ok(())
+    }
+
     /// Load settings from disk, returning defaults if the file does not exist.
     ///
     /// # Errors
@@ -925,7 +1168,10 @@ impl AppSettings {
             std::fs::create_dir_all(parent)?;
         }
 
-        let toml = toml::to_string_pretty(&self.normalized())
+        let mut normalized = self.normalized();
+        normalized.workspace.touch_for_save();
+
+        let toml = toml::to_string_pretty(&normalized)
             .map_err(|error| PanopticonError::SettingsParse(error.to_string()))?;
         std::fs::write(path, toml)?;
         Ok(())
@@ -1470,10 +1716,12 @@ impl AppSettings {
             locked_layout: self.locked_layout,
             lock_cell_resize: self.lock_cell_resize,
             show_app_icons: self.show_app_icons,
+            dismissed_empty_state_welcome: self.dismissed_empty_state_welcome,
             thumbnail_render_scale_pct: normalize_thumbnail_render_scale_pct(
                 self.thumbnail_render_scale_pct,
             ),
             shortcuts: self.shortcuts.normalized(),
+            workspace: self.workspace.normalized(),
         }
     }
 
@@ -1624,6 +1872,16 @@ fn normalize_color_hex(color_hex: &str) -> Option<String> {
     }
 
     Some(trimmed.to_ascii_uppercase())
+}
+
+fn unix_time_millis_now() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|duration| u64::try_from(duration.as_millis()).ok())
+        .unwrap_or(0)
 }
 
 #[must_use]
@@ -1777,7 +2035,7 @@ mod tests {
         validate_workspace_name_input, AppRule, AppSettings, BackgroundImageFit,
         GlobalHotkeyBinding, GlobalHotkeyKey, HiddenAppEntry, RefreshPerformanceMode,
         ShortcutBindings, TagStyle, ThemeColorOverrides, ThumbnailRefreshMode, ToolbarPosition,
-        WorkspaceNameValidation,
+        WorkspaceMetadata, WorkspaceNameValidation,
     };
     use crate::layout::LayoutType;
 
@@ -1828,8 +2086,10 @@ mod tests {
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
+            dismissed_empty_state_welcome: false,
             thumbnail_render_scale_pct: 82,
             shortcuts: ShortcutBindings::default(),
+            workspace: WorkspaceMetadata::default(),
         };
 
         let encoded = toml::to_string_pretty(&settings).expect("serialize settings");
@@ -1880,8 +2140,10 @@ mod tests {
             locked_layout: false,
             lock_cell_resize: false,
             show_app_icons: true,
+            dismissed_empty_state_welcome: false,
             thumbnail_render_scale_pct: 10,
             shortcuts: ShortcutBindings::default(),
+            workspace: WorkspaceMetadata::default(),
         };
 
         assert_eq!(settings.normalized().refresh_interval_ms, 2_000);

@@ -45,6 +45,7 @@ export component MainWindow inherits Window {
     in property <color> canvas-background-color: ThemeGlobal.bg;
     in property <int> background-image-fit-index: 0;
     in property <float> background-image-opacity: 0.25;
+    in property <bool> empty-welcome-dismissed: false;
 
     in-out property <float> viewport-x: 0;
     in-out property <float> viewport-y: 0;
@@ -56,6 +57,10 @@ export component MainWindow inherits Window {
     callback thumbnail-drag-ended(/* index */ int, /* drop_x */ float, /* drop_y */ float);
     callback toolbar-clicked();
     callback app-context-menu-requested(/* x */ float, /* y */ float);
+    callback empty-open-settings();
+    callback empty-refresh-now();
+    callback empty-open-menu();
+    callback empty-dismiss-welcome();
     callback key-pressed(/* key */ string, /* shift_pressed */ bool) -> bool;
     callback resize-drag-started(/* index */ int, /* x */ float, /* y */ float);
     callback resize-drag-moved(/* index */ int, /* x */ float, /* y */ float);
@@ -91,7 +96,21 @@ export component MainWindow inherits Window {
                 opacity: root.background-image-opacity;
             }
 
-            if root.thumbnails.length == 0: EmptyState {}
+            if root.thumbnails.length == 0: EmptyState {
+                welcome-dismissed: root.empty-welcome-dismissed;
+                open-settings => {
+                    root.empty-open-settings();
+                }
+                refresh-now => {
+                    root.empty-refresh-now();
+                }
+                open-menu => {
+                    root.empty-open-menu();
+                }
+                dismiss-welcome => {
+                    root.empty-dismiss-welcome();
+                }
+            }
 
             flickable := Flickable {
                 viewport-width: root.scroll-horizontal ? root.content-width * 1px : parent.width;

@@ -746,12 +746,18 @@ component KeyFieldSettingCard inherits Rectangle {
     in property <string> hidden-apps-summary: Tr.no-hidden-label;
     in property <string> current-profile-label: "default";
     in-out property <string> profile-name: "";
+    in-out property <string> profile-display-name: "";
+    in-out property <string> profile-description: "";
     in property <string> known-profiles-label: Tr.no-saved-profiles-label;
     in property <string> app-version-text: "";
     in property <string> update-status-text: "";
     in property <bool> update-check-running: false;
     in property <[string]> available-profile-options: [Tr.default-profile-label];
     in-out property <int> available-profile-index: 0;
+    in property <string> selected-profile-name: "default";
+    in property <bool> selected-profile-is-default: true;
+    in property <string> selected-profile-updated-at: "";
+    in property <string> selected-profile-created-at: "";
     in-out property <color> bg-preview-color: Theme.accent;
     in-out property <color> theme-preview-color: Theme.accent;
     in-out property <string> bg-color-hex: "181513";
@@ -822,6 +828,10 @@ component KeyFieldSettingCard inherits Rectangle {
     callback save-profile();
     callback load-selected-profile();
     callback open-profile-instance();
+    callback profile-selection-changed();
+    callback duplicate-selected-profile();
+    callback rename-selected-profile();
+    callback delete-selected-profile();
     callback open-about();
     callback reset-to-defaults();
     callback refresh-now();
@@ -914,6 +924,11 @@ component KeyFieldSettingCard inherits Rectangle {
     }
     changed app-filter-index => {
         root.request-live-apply();
+    }
+    changed available-profile-index => {
+        if (!root.suspend-live-apply) {
+            root.profile-selection-changed();
+        }
     }
     changed app-rules-index => {
         if (!root.suspend-live-apply) {
@@ -2250,7 +2265,7 @@ component KeyFieldSettingCard inherits Rectangle {
                         spacing: 16px;
 
                         SectionCard {
-                            width: 430px;
+                            width: 460px;
                             SectionHeader {
                                 icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
                                 title: Tr.settings-section-load-profile-title;
@@ -2308,6 +2323,22 @@ component KeyFieldSettingCard inherits Rectangle {
                                 placeholder: "workspace-a";
                             }
 
+                            TextFieldSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
+                                title: "Display name";
+                                description: "Friendly name shown in workspace lists.";
+                                value <=> root.profile-display-name;
+                                placeholder: "Work · Deep focus";
+                            }
+
+                            TextFieldSettingCard {
+                                icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
+                                title: "Description";
+                                description: "Optional note to remember what this workspace is for.";
+                                value <=> root.profile-description;
+                                placeholder: "Pinned apps + filters for design review sessions";
+                            }
+
                             HorizontalLayout {
                                 spacing: 10px;
                                 CustomButton {
@@ -2315,6 +2346,32 @@ component KeyFieldSettingCard inherits Rectangle {
                                     text: Tr.save-profile-btn;
                                     clicked => {
                                         root.save-profile();
+                                    }
+                                }
+
+                                CustomButton {
+                                    height: 40px;
+                                    text: "Duplicate";
+                                    clicked => {
+                                        root.duplicate-selected-profile();
+                                    }
+                                }
+
+                                CustomButton {
+                                    height: 40px;
+                                    text: "Rename";
+                                    enabled: !root.selected-profile-is-default;
+                                    clicked => {
+                                        root.rename-selected-profile();
+                                    }
+                                }
+
+                                CustomButton {
+                                    height: 40px;
+                                    text: "Delete";
+                                    enabled: !root.selected-profile-is-default;
+                                    clicked => {
+                                        root.delete-selected-profile();
                                     }
                                 }
                             }
@@ -2373,13 +2430,18 @@ component KeyFieldSettingCard inherits Rectangle {
                                                 if profile == root.current-profile-label: StatusPill {
                                                     text: "ACTIVE";
                                                 }
+
+                                                if profile == "default": StatusPill {
+                                                    text: "DEFAULT";
+                                                    subtle: true;
+                                                }
                                             }
 
                                             profile-row-touch := TouchArea {
                                                 mouse-cursor: pointer;
                                                 clicked => {
                                                     root.available-profile-index = index;
-                                                    root.profile-name = profile;
+                                                    root.profile-selection-changed();
                                                 }
                                             }
                                         }
@@ -2392,6 +2454,60 @@ component KeyFieldSettingCard inherits Rectangle {
                                 icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
                                 title: Tr.settings-section-saved-profiles-title;
                                 text: root.known-profiles-label;
+                            }
+
+                            Rectangle {
+                                border-radius: 10px;
+                                border-width: 1px;
+                                border-color: Theme.border.with-alpha(48%);
+                                background: Theme.surface.with-alpha(34%);
+
+                                VerticalLayout {
+                                    padding: 10px;
+                                    spacing: 8px;
+
+                                    Text {
+                                        text: "Selected workspace metadata";
+                                        color: Theme.accent;
+                                        font-size: 12px;
+                                        font-weight: 700;
+                                    }
+
+                                    SettingRow {
+                                        icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
+                                        title: "Workspace";
+                                        description: root.selected-profile-name;
+
+                                        if root.selected-profile-is-default: StatusPill {
+                                            text: "DEFAULT";
+                                            subtle: true;
+                                        }
+                                    }
+
+                                    SettingRow {
+                                        icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
+                                        title: "Display name";
+                                        description: root.profile-display-name == "" ? "—" : root.profile-display-name;
+                                    }
+
+                                    SettingRow {
+                                        icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
+                                        title: "Description";
+                                        description: root.profile-description == "" ? "—" : root.profile-description;
+                                    }
+
+                                    SettingRow {
+                                        icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                                        title: "Last updated";
+                                        description: root.selected-profile-updated-at == "" ? "Not saved yet" : root.selected-profile-updated-at;
+                                    }
+
+                                    SettingRow {
+                                        icon: @image-url("../../assets/ui-icons/option-refresh.svg");
+                                        title: "Created";
+                                        description: root.selected-profile-created-at == "" ? "Unknown" : root.selected-profile-created-at;
+                                    }
+                                }
                             }
                         }
                     }

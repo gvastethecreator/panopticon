@@ -1,5 +1,6 @@
 #![windows_subsystem = "windows"]
 #![allow(
+    dead_code,
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss,
@@ -1690,6 +1691,42 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         move |x, y| app::tray_actions::open_application_context_menu(&state, &weak, Some((x, y)))
+    });
+
+    main_window.on_empty_open_settings({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move || {
+            app::secondary_windows::open_settings_window(&state, &weak);
+        }
+    });
+
+    main_window.on_empty_refresh_now({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move || {
+            let _ = refresh_windows(&state);
+            refresh_ui(&state, &weak);
+        }
+    });
+
+    main_window.on_empty_open_menu({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move || {
+            app::tray_actions::open_application_context_menu(&state, &weak, None);
+        }
+    });
+
+    main_window.on_empty_dismiss_welcome({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move || {
+            update_settings(&state, |settings| {
+                settings.dismissed_empty_state_welcome = true;
+            });
+            refresh_ui(&state, &weak);
+        }
     });
 
     main_window.on_resize_drag_started({

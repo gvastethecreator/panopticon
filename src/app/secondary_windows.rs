@@ -71,11 +71,71 @@ impl Drop for SettingsApplyGuard {
     }
 }
 
-fn available_workspace_options() -> Vec<String> {
-    AppSettings::list_workspaces_with_default().unwrap_or_else(|error| {
+#[derive(Debug, Clone)]
+struct WorkspaceUiSummary {
+    workspace_name: Option<String>,
+    option_label: String,
+    display_name: String,
+    description: String,
+    created_at_label: String,
+    updated_at_label: String,
+    is_default: bool,
+}
+
+fn available_workspace_summaries() -> Vec<WorkspaceUiSummary> {
+    let workspaces = AppSettings::list_workspaces_with_default().unwrap_or_else(|error| {
         tracing::warn!(%error, "failed to enumerate available workspaces");
         vec!["default".to_owned()]
-    })
+    });
+
+    workspaces
+        .into_iter()
+        .map(|option_label| {
+            let workspace_name =
+                panopticon::ui_option_ops::selected_workspace_name(&option_label);
+            let settings = AppSettings::load_or_default(workspace_name.as_deref())
+                .unwrap_or_else(|error| {
+                    tracing::warn!(%error, workspace = ?workspace_name, "failed to load workspace metadata summary");
+                    AppSettings::default()
+                });
+            let metadata = settings.workspace;
+
+            let display_name = if metadata.display_name.trim().is_empty() {
+                option_label.clone()
+            } else {
+                metadata.display_name.trim().to_owned()
+            };
+
+            WorkspaceUiSummary {
+                is_default: workspace_name.is_none(),
+                workspace_name,
+                option_label,
+                display_name,
+                description: metadata.description.trim().to_owned(),
+                created_at_label: format_workspace_timestamp(metadata.created_unix_ms),
+                updated_at_label: format_workspace_timestamp(metadata.updated_unix_ms),
+            }
+        })
+        .collect()
+}
+
+fn format_workspace_timestamp(value: Option<u64>) -> String {
+    value
+        .map(|timestamp| format!("unix-ms:{timestamp}"))
+        .unwrap_or_default()
+}
+
+fn parse_workspace_target_input(value: &str) -> Result<Option<String>, String> {
+    match panopticon::settings::validate_workspace_name_input(value) {
+        WorkspaceNameValidation::Valid(workspace_name)
+            if workspace_name.eq_ignore_ascii_case("default") =>
+        {
+            Ok(None)
+        }
+        WorkspaceNameValidation::Valid(workspace_name) => Ok(Some(workspace_name)),
+        WorkspaceNameValidation::Empty => Ok(None),
+        WorkspaceNameValidation::Invalid(reason) => Err(reason),
+    }
 }
 
 fn selected_workspace_from_settings_window(window: &SettingsWindow) -> Option<String> {
@@ -86,6 +146,24 @@ fn selected_workspace_from_settings_window(window: &SettingsWindow) -> Option<St
     .and_then(|value| panopticon::ui_option_ops::selected_workspace_name(&value))
 }
 
+fn select_workspace_in_settings_window(window: &SettingsWindow, workspace: Option<&str>) {
+    let options = window.get_available_profile_options();
+    let mut target_index = 0;
+
+    for index in 0..options.row_count() {
+        let Some(option) = options.row_data(index) else {
+            continue;
+        };
+        let option_workspace = panopticon::ui_option_ops::selected_workspace_name(option.as_str());
+        if option_workspace.as_deref() == workspace {
+            target_index = i32::try_from(index).unwrap_or_default();
+            break;
+        }
+    }
+
+    window.set_available_profile_index(target_index);
+}
+
 struct RuntimeUiOptions {
     monitors: Vec<String>,
     tags: Vec<String>,
@@ -93,6 +171,10 @@ struct RuntimeUiOptions {
     hidden_apps: Vec<HiddenAppEntry>,
 }
 
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "UI filters need explicit boolean flags to drive quick predicates without extra allocations"
+)]
 struct AppRuleListEntry {
     option: AppSelectionEntry,
     is_running: bool,
@@ -167,24 +249,43 @@ pub(crate) fn open_settings_window(
                 let Some(settings_window) = guard.as_ref() else {
                     return;
                 };
-                let workspace_name = match panopticon::settings::validate_workspace_name_input(
-                    &settings_window.get_profile_name(),
-                ) {
-                    WorkspaceNameValidation::Valid(workspace_name) => workspace_name,
-                    WorkspaceNameValidation::Empty => {
-                        tracing::warn!("ignoring empty workspace save request");
-                        return;
-                    }
-                    WorkspaceNameValidation::Invalid(reason) => {
-                        tracing::warn!(%reason, "ignoring invalid workspace save request");
-                        return;
+
+                let requested_workspace = if settings_window.get_profile_name().trim().is_empty() {
+                    state.borrow().workspace_name.clone()
+                } else {
+                    match parse_workspace_target_input(&settings_window.get_profile_name()) {
+                        Ok(workspace_name) => workspace_name,
+                        Err(reason) => {
+                            tracing::warn!(%reason, "ignoring invalid workspace save request");
+                            return;
+                        }
                     }
                 };
 
-                let settings_snapshot = state.borrow().settings.normalized();
-                if save_settings_as_workspace(&settings_snapshot, &workspace_name) {
-                    settings_window
-                        .set_known_profiles_label(SharedString::from(known_workspaces_label()));
+                let display_name = settings_window.get_profile_display_name().to_string();
+                let description = settings_window.get_profile_description().to_string();
+
+                let settings_snapshot = {
+                    let mut state_guard = state.borrow_mut();
+                    state_guard
+                        .settings
+                        .set_workspace_metadata(&display_name, &description);
+                    state_guard.settings = state_guard.settings.normalized();
+                    state_guard.settings.clone()
+                };
+
+                match settings_snapshot.save(requested_workspace.as_deref()) {
+                    Ok(()) => {
+                        settings_window
+                            .set_known_profiles_label(SharedString::from(known_workspaces_label()));
+                        let state_guard = state.borrow();
+                        sync_settings_window_from_state(settings_window, &state_guard);
+                    }
+                    Err(error) => tracing::error!(
+                        %error,
+                        workspace = ?requested_workspace,
+                        "failed to save workspace snapshot"
+                    ),
                 }
             });
         }
@@ -201,18 +302,28 @@ pub(crate) fn open_settings_window(
 
                 let current_workspace = selected_workspace_from_settings_window(settings_window)
                     .or_else(|| state.borrow().workspace_name.clone());
-                let requested = match panopticon::settings::validate_workspace_name_input(
-                    &settings_window.get_profile_name(),
-                ) {
-                    WorkspaceNameValidation::Valid(workspace_name) => Some(workspace_name),
-                    WorkspaceNameValidation::Empty => current_workspace,
-                    WorkspaceNameValidation::Invalid(reason) => {
-                        tracing::warn!(%reason, "ignoring invalid extra-instance workspace request");
-                        return;
+                let requested = if settings_window.get_profile_name().trim().is_empty() {
+                    current_workspace
+                } else {
+                    match parse_workspace_target_input(&settings_window.get_profile_name()) {
+                        Ok(workspace_name) => workspace_name,
+                        Err(reason) => {
+                            tracing::warn!(%reason, "ignoring invalid extra-instance workspace request");
+                            return;
+                        }
                     }
                 };
 
-                let settings_snapshot = state.borrow().settings.normalized();
+                let display_name = settings_window.get_profile_display_name().to_string();
+                let description = settings_window.get_profile_description().to_string();
+                let settings_snapshot = {
+                    let mut state_guard = state.borrow_mut();
+                    state_guard
+                        .settings
+                        .set_workspace_metadata(&display_name, &description);
+                    state_guard.settings = state_guard.settings.normalized();
+                    state_guard.settings.clone()
+                };
                 if let Some(workspace_name) = requested.as_deref() {
                     let _ = save_settings_as_workspace(&settings_snapshot, workspace_name);
                 } else if let Err(error) = settings_snapshot.save(None) {
@@ -221,6 +332,171 @@ pub(crate) fn open_settings_window(
 
                 let _ = launch_additional_instance(requested.as_deref());
                 settings_window.set_known_profiles_label(SharedString::from(known_workspaces_label()));
+            });
+        }
+    });
+
+    settings_window.on_profile_selection_changed({
+        let state = state.clone();
+        move || {
+            crate::SETTINGS_WIN.with(|handle| {
+                let guard = handle.borrow();
+                let Some(settings_window) = guard.as_ref() else {
+                    return;
+                };
+                let fallback_workspace = state.borrow().workspace_name.clone();
+                sync_workspace_editor_from_selection(settings_window, fallback_workspace);
+            });
+        }
+    });
+
+    settings_window.on_duplicate_selected_profile({
+        let state = state.clone();
+        move || {
+            crate::SETTINGS_WIN.with(|handle| {
+                let guard = handle.borrow();
+                let Some(settings_window) = guard.as_ref() else {
+                    return;
+                };
+
+                let source_workspace = selected_workspace_from_settings_window(settings_window)
+                    .or_else(|| state.borrow().workspace_name.clone());
+                let target_workspace = match parse_workspace_target_input(&settings_window.get_profile_name()) {
+                    Ok(Some(workspace_name)) => workspace_name,
+                    Ok(None) => {
+                        tracing::warn!("duplicate requires a non-default target workspace name");
+                        return;
+                    }
+                    Err(reason) => {
+                        tracing::warn!(%reason, "ignoring invalid duplicate workspace request");
+                        return;
+                    }
+                };
+
+                if let Err(error) = AppSettings::duplicate_workspace(source_workspace.as_deref(), &target_workspace) {
+                    tracing::error!(%error, source = ?source_workspace, target = %target_workspace, "failed to duplicate workspace");
+                    return;
+                }
+
+                if let Ok(mut duplicated) = AppSettings::load_or_default(Some(&target_workspace)) {
+                    duplicated.set_workspace_metadata(
+                        &settings_window.get_profile_display_name(),
+                        &settings_window.get_profile_description(),
+                    );
+                    if let Err(error) = duplicated.save(Some(&target_workspace)) {
+                        tracing::warn!(%error, workspace = %target_workspace, "failed to persist duplicated workspace metadata");
+                    }
+                }
+
+                let fallback_workspace = {
+                    let state_guard = state.borrow();
+                    sync_settings_window_from_state(settings_window, &state_guard);
+                    state_guard.workspace_name.clone()
+                };
+                select_workspace_in_settings_window(settings_window, Some(&target_workspace));
+                sync_workspace_editor_from_selection(settings_window, fallback_workspace);
+            });
+        }
+    });
+
+    settings_window.on_rename_selected_profile({
+        let state = state.clone();
+        move || {
+            crate::SETTINGS_WIN.with(|handle| {
+                let guard = handle.borrow();
+                let Some(settings_window) = guard.as_ref() else {
+                    return;
+                };
+
+                let Some(source_workspace) = selected_workspace_from_settings_window(settings_window) else {
+                    tracing::warn!("default workspace cannot be renamed");
+                    return;
+                };
+
+                let target_workspace = match parse_workspace_target_input(&settings_window.get_profile_name()) {
+                    Ok(Some(workspace_name)) => workspace_name,
+                    Ok(None) => {
+                        tracing::warn!("rename requires a non-default target workspace name");
+                        return;
+                    }
+                    Err(reason) => {
+                        tracing::warn!(%reason, "ignoring invalid rename workspace request");
+                        return;
+                    }
+                };
+
+                if let Err(error) = AppSettings::rename_workspace(&source_workspace, &target_workspace) {
+                    tracing::error!(%error, source = %source_workspace, target = %target_workspace, "failed to rename workspace");
+                    return;
+                }
+
+                if let Ok(mut renamed) = AppSettings::load_or_default(Some(&target_workspace)) {
+                    renamed.set_workspace_metadata(
+                        &settings_window.get_profile_display_name(),
+                        &settings_window.get_profile_description(),
+                    );
+                    if let Err(error) = renamed.save(Some(&target_workspace)) {
+                        tracing::warn!(%error, workspace = %target_workspace, "failed to persist renamed workspace metadata");
+                    }
+                }
+
+                let should_switch_current = state
+                    .borrow()
+                    .workspace_name
+                    .as_deref()
+                    .is_some_and(|workspace| workspace == source_workspace.as_str());
+                if should_switch_current {
+                    state.borrow_mut().workspace_name = Some(target_workspace.clone());
+                }
+
+                let fallback_workspace = {
+                    let state_guard = state.borrow();
+                    sync_settings_window_from_state(settings_window, &state_guard);
+                    state_guard.workspace_name.clone()
+                };
+                select_workspace_in_settings_window(settings_window, Some(&target_workspace));
+                sync_workspace_editor_from_selection(settings_window, fallback_workspace);
+            });
+        }
+    });
+
+    settings_window.on_delete_selected_profile({
+        let state = state.clone();
+        let main_weak = main_weak.clone();
+        move || {
+            crate::SETTINGS_WIN.with(|handle| {
+                let guard = handle.borrow();
+                let Some(settings_window) = guard.as_ref() else {
+                    return;
+                };
+
+                let Some(selected_workspace) = selected_workspace_from_settings_window(settings_window) else {
+                    tracing::warn!("default workspace cannot be deleted");
+                    return;
+                };
+
+                if let Err(error) = AppSettings::delete_workspace(&selected_workspace) {
+                    tracing::error!(%error, workspace = %selected_workspace, "failed to delete workspace");
+                    return;
+                }
+
+                let deleted_current = state
+                    .borrow()
+                    .workspace_name
+                    .as_deref()
+                    .is_some_and(|workspace| workspace == selected_workspace);
+
+                if deleted_current {
+                    let _ = load_workspace_into_current_instance(&state, &main_weak, None);
+                }
+
+                let fallback_workspace = {
+                    let state_guard = state.borrow();
+                    sync_settings_window_from_state(settings_window, &state_guard);
+                    state_guard.workspace_name.clone()
+                };
+                select_workspace_in_settings_window(settings_window, fallback_workspace.as_deref());
+                sync_workspace_editor_from_selection(settings_window, fallback_workspace);
             });
         }
     });
@@ -415,7 +691,7 @@ pub(crate) fn open_settings_window(
                     let rule = settings.app_rules.entry(app_id.clone()).or_default();
 
                     if !display_name.trim().is_empty() {
-                        rule.display_name = display_name.trim().to_owned();
+                        display_name.trim().clone_into(&mut rule.display_name);
                     }
 
                     rule.hidden = hidden;
@@ -515,7 +791,7 @@ pub(crate) fn open_settings_window(
                 return;
             };
 
-            let mut tags = parse_tags_csv(&settings_window.get_app_rules_tags().to_string());
+            let mut tags = parse_tags_csv(settings_window.get_app_rules_tags().as_ref());
             let draft = settings_window
                 .get_app_rules_tag_input()
                 .trim()
@@ -538,7 +814,7 @@ pub(crate) fn open_settings_window(
                 return;
             };
 
-            let mut tags = parse_tags_csv(&settings_window.get_app_rules_tags().to_string());
+            let mut tags = parse_tags_csv(settings_window.get_app_rules_tags().as_ref());
             tags.retain(|candidate| candidate != tag.as_str());
             sync_app_rule_tags_editor(settings_window, &tags, false);
         });
@@ -551,7 +827,7 @@ pub(crate) fn open_settings_window(
                 return;
             };
 
-            let mut tags = parse_tags_csv(&settings_window.get_app_rules_tags().to_string());
+            let mut tags = parse_tags_csv(settings_window.get_app_rules_tags().as_ref());
             let normalized = suggestion.trim().to_ascii_lowercase();
             if normalized.is_empty() {
                 return;
@@ -1034,7 +1310,11 @@ fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut
 fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
     let runtime = collect_runtime_ui_options(state);
     let app_rule_entries = collect_app_rule_entries(state, &runtime);
-    let workspaces = available_workspace_options();
+    let workspace_summaries = available_workspace_summaries();
+    let workspace_options: Vec<String> = workspace_summaries
+        .iter()
+        .map(|summary| summary.option_label.clone())
+        .collect();
     let fallback_fixed_width = u32::try_from(state.last_size.0)
         .ok()
         .filter(|value| *value > 0)
@@ -1088,14 +1368,47 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
     window.set_profile_name(SharedString::from(
         state.workspace_name.clone().unwrap_or_default(),
     ));
+    window.set_profile_display_name(SharedString::from(
+        state.settings.workspace.display_name.clone(),
+    ));
+    window.set_profile_description(SharedString::from(
+        state.settings.workspace.description.clone(),
+    ));
     window.set_known_profiles_label(SharedString::from(known_workspaces_label()));
-    let selected_workspace_label = current_workspace_label(state.workspace_name.as_deref());
-    let profile_index = workspaces
+    let requested_workspace =
+        selected_workspace_from_settings_window(window).or_else(|| state.workspace_name.clone());
+    let profile_index = workspace_summaries
         .iter()
-        .position(|workspace| workspace == &selected_workspace_label)
+        .position(|summary| summary.workspace_name == requested_workspace)
+        .or_else(|| {
+            workspace_summaries
+                .iter()
+                .position(|summary| summary.workspace_name.is_none())
+        })
         .map_or(0, |index| index as i32);
-    window.set_available_profile_options(build_string_model(workspaces));
+    window.set_available_profile_options(build_string_model(workspace_options));
     window.set_available_profile_index(profile_index);
+
+    if let Some(selected_summary) = workspace_summaries.get(profile_index as usize) {
+        window.set_profile_name(SharedString::from(
+            selected_summary.workspace_name.clone().unwrap_or_default(),
+        ));
+        window.set_profile_display_name(SharedString::from(selected_summary.display_name.clone()));
+        window.set_profile_description(SharedString::from(selected_summary.description.clone()));
+        window.set_selected_profile_name(SharedString::from(selected_summary.option_label.clone()));
+        window.set_selected_profile_is_default(selected_summary.is_default);
+        window.set_selected_profile_created_at(SharedString::from(
+            selected_summary.created_at_label.clone(),
+        ));
+        window.set_selected_profile_updated_at(SharedString::from(
+            selected_summary.updated_at_label.clone(),
+        ));
+    } else {
+        window.set_selected_profile_name(SharedString::from("default"));
+        window.set_selected_profile_is_default(true);
+        window.set_selected_profile_created_at(SharedString::from(""));
+        window.set_selected_profile_updated_at(SharedString::from(""));
+    }
 
     let mut monitor_options = vec![panopticon::i18n::t("tray.all_monitors").to_owned()];
     monitor_options.extend(runtime.monitors.iter().cloned());
@@ -1396,15 +1709,49 @@ fn parse_tags_csv(raw: &str) -> Vec<String> {
         .split(',')
         .map(str::trim)
         .filter(|tag| !tag.is_empty())
-        .map(|tag| tag.to_ascii_lowercase())
+        .map(str::to_ascii_lowercase)
         .collect();
     tags.sort();
     tags.dedup();
     tags
 }
 
+fn sync_workspace_editor_from_selection(
+    window: &SettingsWindow,
+    fallback_workspace: Option<String>,
+) {
+    let selected_workspace = selected_workspace_from_settings_window(window).or(fallback_workspace);
+    let workspace_settings = AppSettings::load_or_default(selected_workspace.as_deref())
+        .unwrap_or_else(|error| {
+            tracing::warn!(%error, workspace = ?selected_workspace, "failed to load selected workspace metadata");
+            AppSettings::default()
+        });
+
+    window.set_profile_name(SharedString::from(
+        selected_workspace.clone().unwrap_or_default(),
+    ));
+    window.set_profile_display_name(SharedString::from(
+        workspace_settings.workspace.display_name.clone(),
+    ));
+    window.set_profile_description(SharedString::from(
+        workspace_settings.workspace.description.clone(),
+    ));
+    window.set_selected_profile_name(SharedString::from(current_workspace_label(
+        selected_workspace.as_deref(),
+    )));
+    window.set_selected_profile_is_default(selected_workspace.is_none());
+    window.set_selected_profile_created_at(SharedString::from(format_workspace_timestamp(
+        workspace_settings.workspace.created_unix_ms,
+    )));
+    window.set_selected_profile_updated_at(SharedString::from(format_workspace_timestamp(
+        workspace_settings.workspace.updated_unix_ms,
+    )));
+}
+
 fn sync_settings_window_from_state(window: &SettingsWindow, state: &AppState) {
     let draft_profile_name = window.get_profile_name();
+    let draft_profile_display_name = window.get_profile_display_name();
+    let draft_profile_description = window.get_profile_description();
     crate::populate_tr_global(window);
     window.set_suspend_live_apply(true);
     populate_settings_window(window, &state.settings);
@@ -1417,6 +1764,12 @@ fn sync_settings_window_from_state(window: &SettingsWindow, state: &AppState) {
     apply_settings_window_theme_snapshot(window, &resolved_theme);
     if !draft_profile_name.is_empty() {
         window.set_profile_name(draft_profile_name);
+    }
+    if !draft_profile_display_name.is_empty() {
+        window.set_profile_display_name(draft_profile_display_name);
+    }
+    if !draft_profile_description.is_empty() {
+        window.set_profile_description(draft_profile_description);
     }
     window.set_suspend_live_apply(false);
 }
@@ -1551,6 +1904,10 @@ pub(crate) fn load_workspace_into_current_instance(
     true
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "call sites naturally own the optional workspace value and this API keeps that flow ergonomic"
+)]
 pub(crate) fn open_workspace_in_new_instance(
     state: &Rc<RefCell<AppState>>,
     requested_workspace: Option<String>,

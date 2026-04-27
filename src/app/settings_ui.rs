@@ -15,6 +15,10 @@ use slint::{ModelRc, VecModel};
 
 use crate::{SettingsWindow, ThemePreviewData};
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the settings panel snapshot is applied in one pass to keep UI state updates consistent"
+)]
 pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings) {
     window.set_language_index(locale_to_index(settings.language));
     window.set_always_on_top_setting(settings.always_on_top);

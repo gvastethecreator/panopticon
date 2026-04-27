@@ -3,6 +3,12 @@ import { Tr, Theme } from "../common.slint";
 export component EmptyState inherits Rectangle {
     in property <string> message: Tr.empty-message;
     in property <string> helper: Tr.empty-helper;
+    in property <bool> welcome-dismissed: false;
+
+    callback open-settings();
+    callback refresh-now();
+    callback open-menu();
+    callback dismiss-welcome();
 
     width: 100%;
     height: 100%;
@@ -10,7 +16,7 @@ export component EmptyState inherits Rectangle {
 
     Rectangle {
         width: min(parent.width - 40px, 380px);
-        height: 180px;
+        height: 250px;
         x: max((parent.width - self.width) / 2, 0px);
         y: max((parent.height - self.height) / 2, 0px);
         background: Theme.panel-bg;
@@ -52,6 +58,138 @@ export component EmptyState inherits Rectangle {
                 font-size: 13px;
                 horizontal-alignment: center;
                 wrap: word-wrap;
+            }
+
+            if !root.welcome-dismissed: Rectangle {
+                width: 100%;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: Theme.accent.with-alpha(45%);
+                background: Theme.accent-soft.with-alpha(30%);
+
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    padding-top: 8px;
+                    padding-bottom: 8px;
+                    spacing: 8px;
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: "Welcome! Start by opening Settings to configure your first workspace.";
+                        color: Theme.text;
+                        font-size: 11px;
+                        wrap: word-wrap;
+                    }
+
+                    Rectangle {
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        border-width: 1px;
+                        border-color: Theme.border.with-alpha(60%);
+                        background: Theme.surface.with-alpha(70%);
+
+                        Text {
+                            width: 100%;
+                            height: 100%;
+                            text: "×";
+                            color: Theme.text;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.dismiss-welcome();
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                Rectangle {
+                    min-width: 90px;
+                    height: 30px;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: Theme.border.with-alpha(60%);
+                    background: settings-touch.has-hover ? Theme.surface.with-alpha(80%) : Theme.surface.with-alpha(52%);
+
+                    Text {
+                        width: 100%;
+                        height: 100%;
+                        text: "Settings";
+                        color: Theme.text;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    settings-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.open-settings();
+                        }
+                    }
+                }
+
+                Rectangle {
+                    min-width: 110px;
+                    height: 30px;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: Theme.border.with-alpha(60%);
+                    background: refresh-touch.has-hover ? Theme.surface.with-alpha(80%) : Theme.surface.with-alpha(52%);
+
+                    Text {
+                        width: 100%;
+                        height: 100%;
+                        text: Tr.action-refresh-now;
+                        color: Theme.text;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    refresh-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.refresh-now();
+                        }
+                    }
+                }
+
+                Rectangle {
+                    min-width: 90px;
+                    height: 30px;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: Theme.border.with-alpha(60%);
+                    background: menu-touch.has-hover ? Theme.surface.with-alpha(80%) : Theme.surface.with-alpha(52%);
+
+                    Text {
+                        width: 100%;
+                        height: 100%;
+                        text: "Menu";
+                        color: Theme.text;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    menu-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.open-menu();
+                        }
+                    }
+                }
             }
         }
     }

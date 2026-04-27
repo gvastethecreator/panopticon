@@ -59,6 +59,14 @@ thumbnail_render_scale_pct = 100
 locked_layout = false
 lock_cell_resize = false
 show_app_icons = true
+dismissed_empty_state_welcome = false
+
+[workspace]
+display_name = "Design Focus"
+description = "Rules and filters for UX review sessions"
+created_unix_ms = 1714235200123
+updated_unix_ms = 1714239000456
+schema_version = 1
 
 [theme_color_overrides]
 accent_hex = "5CA9FF"
@@ -149,7 +157,9 @@ row_ratios = [0.4, 0.6]
 | `locked_layout` | `bool` | `false` | locks layout changes | disables shortcuts and menu-driven layout changes |
 | `lock_cell_resize` | `bool` | `false` | locks separator dragging | can coexist with `locked_layout` |
 | `show_app_icons` | `bool` | `true` | shows icons on cards | uses cache + GDI rasterisation |
+| `dismissed_empty_state_welcome` | `bool` | `false` | hides the first-run empty-state welcome card once dismissed | persisted immediately when the user closes the welcome hint |
 | `shortcuts` | `ShortcutBindings` | built-in defaults | defines the dashboard key map | dashboard bindings stay single-key; `global_activate` accepts `Ctrl` / `Alt` / `Shift` chords and empty disables it |
+| `workspace` | `WorkspaceMetadata` | empty | stores friendly metadata for workspace management UI | keys: `display_name`, `description`, `created_unix_ms`, `updated_unix_ms`, `schema_version` |
 | `layout_customizations` | `Map<String, LayoutCustomization>` | empty | custom ratios per layout | generated when dragging separators |
 | `app_rules` | `Map<String, AppRule>` | empty | persistent per-app rules | key = `app_id` |
 | `tag_styles` | `Map<String, TagStyle>` | empty | manual tag colours | normalised against actually existing tags |
@@ -302,8 +312,29 @@ Panopticon supports separate per-file workspaces.
 - `--help` prints the available startup flags and `--version` prints the current app version;
 - interactive workspace names must be valid Windows filename stems, so avoid `<>:"/\\|?*` and control characters;
 - the settings window allows saving the current state to another workspace;
+- the settings window supports workspace lifecycle operations (save, duplicate, rename, delete);
+- workspace metadata is persisted in the `[workspace]` table (`display_name`, `description`, timestamps);
 - it also allows opening another instance with a different workspace;
 - if no extra workspaces exist, the runtime seeds `workspace-1` and `workspace-2`.
+
+## Workspace metadata
+
+Every workspace TOML file can include a `[workspace]` section used by the Settings > Profiles page.
+
+```toml
+[workspace]
+display_name = "Design Focus"
+description = "Pinned apps and filters for UI review"
+created_unix_ms = 1714235200123
+updated_unix_ms = 1714239000456
+schema_version = 1
+```
+
+Notes:
+
+- `display_name` and `description` are optional and trimmed during normalization;
+- timestamps are Unix milliseconds (`u64`) updated on save;
+- `schema_version` is reserved for metadata migrations.
 
 ## Automatic normalisation
 
