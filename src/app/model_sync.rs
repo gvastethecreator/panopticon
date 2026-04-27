@@ -227,6 +227,81 @@ pub(crate) fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
     win.set_filters_label(SharedString::from(
         active_filter_summary(settings).unwrap_or_default(),
     ));
+
+    let empty_context = derive_empty_state_context(settings);
+    win.set_empty_message(SharedString::from(empty_context.message));
+    win.set_empty_helper(SharedString::from(empty_context.helper));
+    win.set_empty_status_summary(SharedString::from(empty_context.status_summary));
+    win.set_empty_can_clear_filters(empty_context.can_clear_filters);
+    win.set_empty_can_show_hidden(empty_context.can_show_hidden);
+}
+
+struct EmptyStateContext {
+    message: String,
+    helper: String,
+    status_summary: String,
+    can_clear_filters: bool,
+    can_show_hidden: bool,
+}
+
+fn derive_empty_state_context(settings: &AppSettings) -> EmptyStateContext {
+    let has_filters = settings.active_monitor_filter.is_some()
+        || settings.active_tag_filter.is_some()
+        || settings.active_app_filter.is_some();
+    let hidden_count = settings.hidden_app_entries().len();
+    let can_show_hidden = hidden_count > 0;
+    let filter_summary = active_filter_summary(settings).unwrap_or_default();
+
+    let status_summary = match (has_filters, hidden_count) {
+        (true, 0) if !filter_summary.is_empty() => format!("Active filters: {filter_summary}"),
+        (true, 0) => "Active filters are restricting visible windows.".to_owned(),
+        (false, count) if count > 0 => {
+            if count == 1 {
+                "1 app is currently hidden.".to_owned()
+            } else {
+                format!("{count} apps are currently hidden.")
+            }
+        }
+        (true, count) => {
+            let hidden_label = if count == 1 {
+                "1 hidden app".to_owned()
+            } else {
+                format!("{count} hidden apps")
+            };
+            if filter_summary.is_empty() {
+                format!("Active filters + {hidden_label}")
+            } else {
+                format!("{filter_summary} · {hidden_label}")
+            }
+        }
+        _ => String::new(),
+    };
+
+    if has_filters {
+        EmptyStateContext {
+            message: "No windows match your current filters".to_owned(),
+            helper: "Try clearing filters or refreshing to repopulate visible windows.".to_owned(),
+            status_summary,
+            can_clear_filters: true,
+            can_show_hidden,
+        }
+    } else if can_show_hidden {
+        EmptyStateContext {
+            message: "All tracked windows are hidden".to_owned(),
+            helper: "Restore hidden apps to bring them back into the layout.".to_owned(),
+            status_summary,
+            can_clear_filters: false,
+            can_show_hidden: true,
+        }
+    } else {
+        EmptyStateContext {
+            message: i18n::t("ui.empty_message").to_owned(),
+            helper: i18n::t("ui.empty_helper").to_owned(),
+            status_summary,
+            can_clear_filters: false,
+            can_show_hidden: false,
+        }
+    }
 }
 
 pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
@@ -480,6 +555,11 @@ fn build_thumbnail_data(
         &managed_window.info.app_id,
     );
     let is_minimized = unsafe { IsIconic(managed_window.info.hwnd).as_bool() };
+    let pinned_slot = state
+        .settings
+        .pinned_position_for(&managed_window.info.app_id)
+        .and_then(|slot| i32::try_from(slot).ok())
+        .unwrap_or(-1);
     ThumbnailData {
         x: managed_window.display_rect.left as f32,
         y: managed_window.display_rect.top as f32,
@@ -493,6 +573,7 @@ fn build_thumbnail_data(
         is_minimized,
         icon: managed_window.cached_icon.clone().unwrap_or_default(),
         show_icon: show_icons,
+        pinned_slot,
     }
 }
 

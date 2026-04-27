@@ -4,7 +4,9 @@ use std::mem;
 
 use anyhow::{anyhow, Result};
 use panopticon::i18n;
-use panopticon::settings::{AppSelectionEntry, DockEdge, HiddenAppEntry, WindowGrouping};
+use panopticon::settings::{
+    AppSelectionEntry, DockEdge, HiddenAppEntry, ToolbarPosition, WindowGrouping,
+};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Shell::{
@@ -16,7 +18,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetClassLongPtrW, GetCursorPos, LoadIconW, SendMessageW, SetForegroundWindow, TrackPopupMenu,
     DI_NORMAL, GCLP_HICON, GCLP_HICONSM, HICON, ICON_BIG, ICON_SMALL, ICON_SMALL2, IDI_APPLICATION,
     IMAGE_FLAGS, MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
-    TPM_NONOTIFY, TPM_RETURNCMD, WM_APP, WM_GETICON, WM_LBUTTONUP, WM_RBUTTONUP, WM_SETICON,
+    TPM_NONOTIFY, TPM_RETURNCMD, TPM_TOPALIGN, WM_APP, WM_GETICON, WM_LBUTTONUP, WM_RBUTTONUP,
+    WM_SETICON,
 };
 
 use crate::app::menu_utils::{checked_flag, disabled_flag, encode_wide};
@@ -62,6 +65,8 @@ const CMD_TRAY_TOGGLE_START_IN_TRAY: u16 = 17;
 const CMD_TRAY_TOGGLE_LOCKED_LAYOUT: u16 = 18;
 const CMD_TRAY_TOGGLE_LOCK_CELL_RESIZE: u16 = 19;
 const CMD_TRAY_OPEN_ABOUT: u16 = 20;
+const CMD_TRAY_TOOLBAR_TOP: u16 = 21;
+const CMD_TRAY_TOOLBAR_BOTTOM: u16 = 22;
 const CMD_TRAY_LOAD_DEFAULT_WORKSPACE: u16 = 30;
 const CMD_TRAY_LOAD_WORKSPACE_BASE: u16 = 40;
 
@@ -109,6 +114,8 @@ pub struct TrayMenuState {
     pub show_window_info: bool,
     /// Whether app icons are rendered in thumbnail cells.
     pub show_app_icons: bool,
+    /// Status-bar placement (top or bottom of the window).
+    pub toolbar_position: ToolbarPosition,
     /// Whether Panopticon should start hidden in the tray.
     pub start_in_tray: bool,
     /// Whether layout switching / resizing is locked.
@@ -166,6 +173,8 @@ pub enum TrayAction {
     ToggleWindowInfo,
     /// Toggle app-icon overlays in thumbnail cells.
     ToggleAppIcons,
+    /// Change status-bar placement.
+    SetToolbarPosition(ToolbarPosition),
     /// Toggle start-in-tray behavior.
     ToggleStartInTray,
     /// Toggle locked layout behavior.
@@ -375,7 +384,7 @@ pub fn handle_tray_message(
 
 #[must_use]
 pub fn show_application_context_menu(hwnd: HWND, state: &TrayMenuState) -> Option<TrayAction> {
-    show_application_context_menu_at(hwnd, state, None)
+    show_application_context_menu_at(hwnd, state, None, false)
 }
 
 /// Draw a window icon inside `rect`, centered and scaled.
@@ -465,6 +474,7 @@ pub fn show_application_context_menu_at(
     hwnd: HWND,
     state: &TrayMenuState,
     anchor: Option<POINT>,
+    prefer_below_anchor: bool,
 ) -> Option<TrayAction> {
     // SAFETY: menu is created, populated, and destroyed on the same thread.
     unsafe {
@@ -500,6 +510,9 @@ pub fn show_application_context_menu_at(
         let default_hide_on_select = encode_wide(i18n::t("tray.default_hide"));
         let always_on_top = encode_wide(i18n::t("tray.always_on_top"));
         let show_toolbar = encode_wide(i18n::t("tray.show_toolbar"));
+        let toolbar_position_title = encode_wide(i18n::t("settings.option.toolbar_position.title"));
+        let toolbar_top = encode_wide(i18n::t("settings.toolbar_position.top"));
+        let toolbar_bottom = encode_wide(i18n::t("settings.toolbar_position.bottom"));
         let show_window_info = encode_wide(i18n::t("tray.show_info"));
         let show_app_icons = encode_wide(i18n::t("tray.show_icons"));
         let start_in_tray = encode_wide(i18n::t("tray.start_tray"));
@@ -730,6 +743,29 @@ pub fn show_application_context_menu_at(
             CMD_TRAY_TOGGLE_TOOLBAR as usize,
             PCWSTR(show_toolbar.as_ptr()),
         );
+
+        {
+            let toolbar_menu = CreatePopupMenu().ok()?;
+            let _ = AppendMenuW(
+                toolbar_menu,
+                MF_STRING | checked_flag(state.toolbar_position == ToolbarPosition::Top),
+                CMD_TRAY_TOOLBAR_TOP as usize,
+                PCWSTR(toolbar_top.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                toolbar_menu,
+                MF_STRING | checked_flag(state.toolbar_position == ToolbarPosition::Bottom),
+                CMD_TRAY_TOOLBAR_BOTTOM as usize,
+                PCWSTR(toolbar_bottom.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                menu,
+                MF_POPUP | disabled_flag(!state.show_toolbar),
+                toolbar_menu.0 as usize,
+                PCWSTR(toolbar_position_title.as_ptr()),
+            );
+        }
+
         let _ = AppendMenuW(
             menu,
             MF_STRING | checked_flag(state.show_window_info),
@@ -973,9 +1009,15 @@ pub fn show_application_context_menu_at(
         }
         let _ = SetForegroundWindow(hwnd);
 
+        let vertical_alignment = if anchor.is_some() && prefer_below_anchor {
+            TPM_TOPALIGN
+        } else {
+            TPM_BOTTOMALIGN
+        };
+
         let command = TrackPopupMenu(
             menu,
-            TPM_RETURNCMD | TPM_NONOTIFY | TPM_LEFTALIGN | TPM_BOTTOMALIGN,
+            TPM_RETURNCMD | TPM_NONOTIFY | TPM_LEFTALIGN | vertical_alignment,
             cursor.x,
             cursor.y,
             Some(0),
@@ -1004,6 +1046,10 @@ pub fn show_application_context_menu_at(
             CMD_TRAY_TOGGLE_DEFAULT_HIDE_ON_SELECT => Some(TrayAction::ToggleDefaultHideOnSelect),
             CMD_TRAY_TOGGLE_ALWAYS_ON_TOP => Some(TrayAction::ToggleAlwaysOnTop),
             CMD_TRAY_TOGGLE_TOOLBAR => Some(TrayAction::ToggleToolbar),
+            CMD_TRAY_TOOLBAR_TOP => Some(TrayAction::SetToolbarPosition(ToolbarPosition::Top)),
+            CMD_TRAY_TOOLBAR_BOTTOM => {
+                Some(TrayAction::SetToolbarPosition(ToolbarPosition::Bottom))
+            }
             CMD_TRAY_TOGGLE_WINDOW_INFO => Some(TrayAction::ToggleWindowInfo),
             CMD_TRAY_TOGGLE_APP_ICONS => Some(TrayAction::ToggleAppIcons),
             CMD_TRAY_TOGGLE_START_IN_TRAY => Some(TrayAction::ToggleStartInTray),

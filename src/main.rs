@@ -1690,7 +1690,14 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
     main_window.on_app_context_menu_requested({
         let state = state.clone();
         let weak = main_window.as_weak();
-        move |x, y| app::tray_actions::open_application_context_menu(&state, &weak, Some((x, y)))
+        move |x, y, prefer_below| {
+            app::tray_actions::open_application_context_menu(
+                &state,
+                &weak,
+                Some((x, y)),
+                prefer_below,
+            );
+        }
     });
 
     main_window.on_empty_open_settings({
@@ -1714,7 +1721,33 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
         let state = state.clone();
         let weak = main_window.as_weak();
         move || {
-            app::tray_actions::open_application_context_menu(&state, &weak, None);
+            app::tray_actions::open_application_context_menu(&state, &weak, None, false);
+        }
+    });
+
+    main_window.on_empty_clear_filters({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move || {
+            update_settings(&state, |settings| {
+                settings.set_monitor_filter(None);
+                settings.set_tag_filter(None);
+                settings.set_app_filter(None);
+            });
+            let _ = refresh_windows(&state);
+            refresh_ui(&state, &weak);
+        }
+    });
+
+    main_window.on_empty_show_hidden_apps({
+        let state = state.clone();
+        let weak = main_window.as_weak();
+        move || {
+            update_settings(&state, |settings| {
+                let _ = settings.restore_all_hidden_apps();
+            });
+            let _ = refresh_windows(&state);
+            refresh_ui(&state, &weak);
         }
     });
 
@@ -1779,7 +1812,9 @@ fn setup_callbacks(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) {
 fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action: PendingAction) {
     let weak = win.as_weak();
     match action {
-        PendingAction::Tray(ta) => app::tray_actions::handle_tray_action(state, &weak, ta),
+        PendingAction::Tray(ta, anchor) => {
+            app::tray_actions::handle_tray_action(state, &weak, ta, anchor);
+        }
         PendingAction::ActivateMainWindow => app::tray_actions::activate_main_window(state, &weak),
         PendingAction::Reposition => {
             if let Ok(mut s) = state.try_borrow_mut() {

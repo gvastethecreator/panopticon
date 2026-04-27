@@ -58,7 +58,6 @@ export component Toolbar inherits Rectangle {
     property <string> hidden-summary: root.hidden-count + " " + Tr.hidden-label;
     property <string> status-summary: root.always-on-top ? Tr.always-on-top-label : Tr.normal-window-label;
     animate-transitions: true;
-    property <string> animation-summary: root.animate-transitions ? Tr.anim-on : Tr.anim-off;
     property <string> hint-summary: Tr.toolbar-hint;
 
     height: root.ultra-compact ? 118px : root.compact ? 72px : 34px;
@@ -138,12 +137,6 @@ export component Toolbar inherits Rectangle {
             }
 
             ToolbarChip {
-                icon: @image-url("../../assets/ui-icons/option-animate.svg");
-                label: root.animation-summary;
-                tint: root.animate-transitions ? Theme.accent : Theme.muted;
-            }
-
-            ToolbarChip {
                 icon: @image-url("../../assets/ui-icons/option-menu.svg");
                 label: root.hint-summary;
                 tint: Theme.muted;
@@ -195,12 +188,6 @@ export component Toolbar inherits Rectangle {
                 icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
                 label: root.hidden-summary;
                 tint: Theme.muted;
-            }
-
-            ToolbarChip {
-                icon: @image-url("../../assets/ui-icons/option-animate.svg");
-                label: root.animation-summary;
-                tint: root.animate-transitions ? Theme.accent : Theme.muted;
             }
 
             if root.filters-label != "": ToolbarChip {
@@ -269,13 +256,6 @@ export component Toolbar inherits Rectangle {
                 icon: @image-url("../../assets/ui-icons/option-always-on-top.svg");
                 label: root.status-summary;
                 tint: root.always-on-top ? Theme.accent : Theme.label;
-                stretch: true;
-            }
-
-            ToolbarChip {
-                icon: @image-url("../../assets/ui-icons/option-animate.svg");
-                label: root.animation-summary;
-                tint: root.animate-transitions ? Theme.accent : Theme.muted;
                 stretch: true;
             }
         }

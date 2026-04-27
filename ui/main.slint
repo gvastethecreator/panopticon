@@ -46,6 +46,11 @@ export component MainWindow inherits Window {
     in property <int> background-image-fit-index: 0;
     in property <float> background-image-opacity: 0.25;
     in property <bool> empty-welcome-dismissed: false;
+    in property <string> empty-message: Tr.empty-message;
+    in property <string> empty-helper: Tr.empty-helper;
+    in property <string> empty-status-summary: "";
+    in property <bool> empty-can-clear-filters: false;
+    in property <bool> empty-can-show-hidden: false;
 
     in-out property <float> viewport-x: 0;
     in-out property <float> viewport-y: 0;
@@ -56,10 +61,12 @@ export component MainWindow inherits Window {
     callback thumbnail-right-clicked(/* index */ int, /* x */ float, /* y */ float);
     callback thumbnail-drag-ended(/* index */ int, /* drop_x */ float, /* drop_y */ float);
     callback toolbar-clicked();
-    callback app-context-menu-requested(/* x */ float, /* y */ float);
+    callback app-context-menu-requested(/* x */ float, /* y */ float, /* prefer_below */ bool);
     callback empty-open-settings();
     callback empty-refresh-now();
     callback empty-open-menu();
+    callback empty-clear-filters();
+    callback empty-show-hidden-apps();
     callback empty-dismiss-welcome();
     callback key-pressed(/* key */ string, /* shift_pressed */ bool) -> bool;
     callback resize-drag-started(/* index */ int, /* x */ float, /* y */ float);
@@ -76,7 +83,7 @@ export component MainWindow inherits Window {
             animate-transitions: root.animate-transitions;
             filters-label: root.filters-label;
             clicked => { root.toolbar-clicked(); }
-            context-menu-requested(x, y) => { root.app-context-menu-requested(x, y); }
+            context-menu-requested(x, y) => { root.app-context-menu-requested(x, y, true); }
         }
 
         content-frame := Rectangle {
@@ -97,7 +104,12 @@ export component MainWindow inherits Window {
             }
 
             if root.thumbnails.length == 0: EmptyState {
+                message: root.empty-message;
+                helper: root.empty-helper;
+                status-summary: root.empty-status-summary;
                 welcome-dismissed: root.empty-welcome-dismissed;
+                can-clear-filters: root.empty-can-clear-filters;
+                can-show-hidden: root.empty-can-show-hidden;
                 open-settings => {
                     root.empty-open-settings();
                 }
@@ -106,6 +118,12 @@ export component MainWindow inherits Window {
                 }
                 open-menu => {
                     root.empty-open-menu();
+                }
+                clear-filters => {
+                    root.empty-clear-filters();
+                }
+                show-hidden-apps => {
+                    root.empty-show-hidden-apps();
                 }
                 dismiss-welcome => {
                     root.empty-dismiss-welcome();
@@ -132,6 +150,7 @@ export component MainWindow inherits Window {
                     is-minimized: thumb.is-minimized;
                     icon-image: thumb.icon;
                     show-icon: thumb.show-icon;
+                    pinned-slot: thumb.pinned-slot;
 
                     clicked => { root.thumbnail-clicked(i); }
                     close-requested => { root.thumbnail-close-clicked(i); }
@@ -189,7 +208,13 @@ export component MainWindow inherits Window {
             animate-transitions: root.animate-transitions;
             filters-label: root.filters-label;
             clicked => { root.toolbar-clicked(); }
-            context-menu-requested(x, y) => { root.app-context-menu-requested(x, y); }
+            context-menu-requested(x, y) => {
+                root.app-context-menu-requested(
+                    x,
+                    (root.height / 1px) - (self.height / 1px) + y,
+                    false,
+                );
+            }
         }
     }
 

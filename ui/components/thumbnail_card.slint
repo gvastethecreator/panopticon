@@ -10,6 +10,7 @@ export component ThumbnailCard inherits Rectangle {
     in property <bool> is-minimized: false;
     in property <image> icon-image;
     in property <bool> show-icon: false;
+    in property <int> pinned-slot: -1;
 
     callback clicked();
     callback right-clicked(/* x */ float, /* y */ float);
@@ -41,7 +42,10 @@ export component ThumbnailCard inherits Rectangle {
     property <length> content-padding: 4px;
     property <bool> show-close-button: root.is-hovered && root.width >= 72px && root.height >= 52px;
     property <length> header-left-padding: 8px;
-    property <length> header-right-padding: root.width >= 72px ? 34px : 8px;
+    property <bool> has-pin-badge: root.pinned-slot >= 0;
+    property <length> pin-badge-width: root.has-pin-badge ? 70px : 0px;
+    property <length> pin-badge-gap: root.has-pin-badge ? 8px : 0px;
+    property <length> header-right-padding: root.width >= 72px ? 34px + root.pin-badge-width + root.pin-badge-gap : 8px;
     property <length> icon-slot-width: root.has-icon ? 24px : 0px;
     property <length> minimized-badge-width: root.is-minimized ? 78px : 0px;
     property <length> minimized-badge-gap: root.is-minimized ? 8px : 0px;
@@ -131,6 +135,41 @@ export component ThumbnailCard inherits Rectangle {
                 font-weight: 700;
                 horizontal-alignment: center;
                 vertical-alignment: center;
+            }
+        }
+
+        if root.has-pin-badge: Rectangle {
+            x: parent.width - root.header-right-padding + 4px;
+            y: (parent.height - self.height) / 2;
+            width: 70px;
+            height: 18px;
+            border-radius: 9px;
+            border-width: 1px;
+            border-color: root.accent-color.with-alpha(66%);
+            background: root.accent-color.with-alpha(0.20);
+
+            HorizontalLayout {
+                padding-left: 7px;
+                padding-right: 7px;
+                spacing: 4px;
+
+                Image {
+                    width: 10px;
+                    height: 10px;
+                    source: @image-url("../../assets/ui-icons/lucide-pin.svg");
+                    image-fit: contain;
+                    colorize: Theme.label;
+                }
+
+                Text {
+                    horizontal-stretch: 1;
+                    text: "PIN #" + (root.pinned-slot + 1);
+                    color: Theme.label;
+                    font-size: 9px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
             }
         }
     }

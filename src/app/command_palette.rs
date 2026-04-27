@@ -9,9 +9,10 @@ use panopticon::window_enum::enumerate_windows;
 use panopticon::window_ops::{collect_available_apps, collect_available_monitors};
 use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, VecModel};
 
-use super::dock::apply_topmost_mode;
+use super::dock::{apply_topmost_mode, apply_window_appearance, keep_dialog_above_owner};
 use super::layout_actions;
 use super::secondary_windows;
+use super::tray::apply_window_icons;
 use super::tray_actions;
 use crate::{
     refresh_ui, refresh_windows, update_settings, AppState, CommandPaletteWindow, MainWindow,
@@ -374,6 +375,22 @@ pub(crate) fn open_command_palette_window(
         let guard = handle.borrow();
         if let Some(existing) = guard.as_ref() {
             let _ = existing.show();
+            if let Some(palette_hwnd) = crate::get_hwnd(existing.window()) {
+                let state = state.borrow();
+                let placement =
+                    secondary_windows::default_secondary_window_placement(&state, palette_hwnd);
+                apply_window_icons(palette_hwnd, &state.icons);
+                apply_window_appearance(palette_hwnd, &state.settings);
+                super::theme_ui::apply_command_palette_window_theme_snapshot(
+                    existing,
+                    &state.current_theme,
+                );
+                secondary_windows::apply_secondary_window_placement(
+                    palette_hwnd,
+                    &state.settings,
+                    placement,
+                );
+            }
             true
         } else {
             false
@@ -485,7 +502,37 @@ pub(crate) fn open_command_palette_window(
         return;
     }
 
+    if let Some(palette_hwnd) = crate::get_hwnd(window.window()) {
+        let state = state.borrow();
+        let placement = secondary_windows::default_secondary_window_placement(&state, palette_hwnd);
+        apply_window_icons(palette_hwnd, &state.icons);
+        apply_window_appearance(palette_hwnd, &state.settings);
+        super::theme_ui::apply_command_palette_window_theme_snapshot(&window, &state.current_theme);
+        secondary_windows::apply_secondary_window_placement(
+            palette_hwnd,
+            &state.settings,
+            placement,
+        );
+    }
+
     crate::COMMAND_PALETTE_WIN.with(|handle| *handle.borrow_mut() = Some(window));
+}
+
+pub(crate) fn refresh_open_command_palette_window_stacking(state: &Rc<RefCell<AppState>>) {
+    crate::COMMAND_PALETTE_WIN.with(|handle| {
+        let guard = handle.borrow();
+        let Some(window) = guard.as_ref() else {
+            return;
+        };
+        let Ok(state) = state.try_borrow() else {
+            return;
+        };
+        if let Some(palette_hwnd) = crate::get_hwnd(window.window()) {
+            let owner_hwnd =
+                secondary_windows::resolve_secondary_window_owner(&state, palette_hwnd);
+            keep_dialog_above_owner(palette_hwnd, owner_hwnd, &state.settings);
+        }
+    });
 }
 
 fn rebuild_filtered_commands(
@@ -653,7 +700,7 @@ fn execute_command(
             secondary_windows::open_about_window(state);
         }
         CommandId::OpenMenu => {
-            tray_actions::open_application_context_menu(state, main_weak, None);
+            tray_actions::open_application_context_menu(state, main_weak, None, false);
         }
         CommandId::HideApp(app_id, app_label) => {
             update_settings(state, |settings| {
@@ -764,6 +811,7 @@ fn execute_command(
             let state_ref = state.borrow();
             apply_topmost_mode(state_ref.hwnd, state_ref.settings.always_on_top);
             drop(state_ref);
+            secondary_windows::refresh_secondary_window_stacking(state);
             refresh_ui(state, main_weak);
         }
         CommandId::Exit => crate::queue_exit_request(),
