@@ -8,8 +8,14 @@ use slint::{CloseRequestResponse, ComponentHandle, Timer, TimerMode};
 use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
 
 use crate::{AppState, MainWindow, PendingAction, UpdateStatus, PENDING_ACTIONS};
+use panopticon::settings::RefreshPerformanceMode;
 
+const DEFAULT_REFRESH_TIMER_INTERVAL_MS: u32 = 2_000;
+const MIN_REFRESH_TIMER_INTERVAL_MS: u32 = 50;
 const DWM_IDLE_SYNC_EVERY_TICKS: u8 = 4;
+const DWM_IDLE_SYNC_EVERY_TICKS_REALTIME: u8 = 1;
+const DWM_IDLE_SYNC_EVERY_TICKS_BATTERY_SAVER: u8 = 8;
+const DWM_IDLE_SYNC_EVERY_TICKS_MANUAL_SLOW: u8 = 12;
 const PERF_REPORT_EVERY_TICKS: u16 = 60;
 
 #[derive(Clone)]
@@ -36,7 +42,9 @@ impl UiPerfCounters {
 #[derive(Clone)]
 struct UiTickState {
     native_init_retry_timer: Rc<Timer>,
+    refresh_timer: Rc<Timer>,
     floating_size_sync_timer: Rc<Timer>,
+    last_refresh_interval_ms: Rc<Cell<u32>>,
     refresh_recompute_pending: Rc<Cell<bool>>,
     dwm_idle_ticks: Rc<Cell<u8>>,
     last_viewport: Rc<Cell<Option<(f32, f32)>>>,
@@ -44,10 +52,16 @@ struct UiTickState {
 }
 
 impl UiTickState {
-    fn new(refresh_recompute_pending: &Rc<Cell<bool>>) -> Self {
+    fn new(
+        refresh_timer: &Rc<Timer>,
+        refresh_recompute_pending: &Rc<Cell<bool>>,
+        initial_refresh_interval_ms: u32,
+    ) -> Self {
         Self {
             native_init_retry_timer: Rc::new(Timer::default()),
+            refresh_timer: refresh_timer.clone(),
             floating_size_sync_timer: Rc::new(Timer::default()),
+            last_refresh_interval_ms: Rc::new(Cell::new(initial_refresh_interval_ms)),
             refresh_recompute_pending: refresh_recompute_pending.clone(),
             dwm_idle_ticks: Rc::new(Cell::new(0u8)),
             last_viewport: Rc::new(Cell::new(None::<(f32, f32)>)),
@@ -78,7 +92,7 @@ impl UiTickSignals {
 pub(crate) struct RuntimeLoop {
     _init: Timer,
     _ui: Timer,
-    _refresh: Timer,
+    _refresh: Rc<Timer>,
     _scrollbar: Timer,
 }
 
@@ -102,9 +116,17 @@ pub(crate) fn install_close_behavior(main_window: &MainWindow, state: &Rc<RefCel
 
 pub(crate) fn start(main_window: &MainWindow, state: &Rc<RefCell<AppState>>) -> RuntimeLoop {
     let refresh_recompute_pending = Rc::new(Cell::new(false));
+    let refresh_timer = Rc::new(Timer::default());
+    let initial_refresh_interval_ms =
+        start_refresh_timer(&refresh_timer, state, &refresh_recompute_pending);
     let init_timer = start_initialization_timer(main_window, state);
-    let ui_timer = start_ui_timer(main_window, state, &refresh_recompute_pending);
-    let refresh_timer = start_refresh_timer(state, &refresh_recompute_pending);
+    let ui_timer = start_ui_timer(
+        main_window,
+        state,
+        &refresh_timer,
+        &refresh_recompute_pending,
+        initial_refresh_interval_ms,
+    );
     let scrollbar_timer = start_scrollbar_timer(main_window);
 
     RuntimeLoop {
@@ -133,9 +155,15 @@ fn start_initialization_timer(main_window: &MainWindow, state: &Rc<RefCell<AppSt
 fn start_ui_timer(
     main_window: &MainWindow,
     state: &Rc<RefCell<AppState>>,
+    refresh_timer: &Rc<Timer>,
     refresh_recompute_pending: &Rc<Cell<bool>>,
+    initial_refresh_interval_ms: u32,
 ) -> Timer {
-    let tick_state = UiTickState::new(refresh_recompute_pending);
+    let tick_state = UiTickState::new(
+        refresh_timer,
+        refresh_recompute_pending,
+        initial_refresh_interval_ms,
+    );
 
     let ui_timer = Timer::default();
     ui_timer.start(TimerMode::Repeated, Duration::from_millis(16), {
@@ -163,6 +191,8 @@ fn run_ui_tick(
         return;
     }
 
+    maybe_reconfigure_refresh_timer(state, tick_state);
+
     let should_poll_updates = state
         .try_borrow()
         .is_ok_and(|state_ref| matches!(state_ref.update_status, UpdateStatus::Checking));
@@ -188,6 +218,7 @@ fn run_ui_tick(
     let viewport_changed = update_and_detect_viewport_change(&win, &tick_state.last_viewport);
     let (window_animation_active, theme_animation_active, is_animating_or_dirty) =
         runtime_activity_flags(state);
+    let dwm_idle_sync_every_ticks = current_dwm_idle_sync_every_ticks(state);
 
     let should_sync_dwm = if had_actions
         || recomputed_from_resize
@@ -198,7 +229,7 @@ fn run_ui_tick(
         tick_state.dwm_idle_ticks.set(0);
         true
     } else {
-        schedule_idle_dwm_sync(&tick_state.dwm_idle_ticks)
+        schedule_idle_dwm_sync(&tick_state.dwm_idle_ticks, dwm_idle_sync_every_ticks)
     };
 
     if window_animation_active {
@@ -252,17 +283,31 @@ fn runtime_activity_flags(state: &Rc<RefCell<AppState>>) -> (bool, bool, bool) {
 }
 
 fn start_refresh_timer(
+    refresh_timer: &Rc<Timer>,
     state: &Rc<RefCell<AppState>>,
     refresh_recompute_pending: &Rc<Cell<bool>>,
-) -> Timer {
-    let refresh_timer = Timer::default();
+) -> u32 {
+    let interval_ms = effective_refresh_interval_ms(state);
+    restart_refresh_timer(refresh_timer, state, refresh_recompute_pending, interval_ms);
+    interval_ms
+}
+
+fn restart_refresh_timer(
+    refresh_timer: &Rc<Timer>,
+    state: &Rc<RefCell<AppState>>,
+    refresh_recompute_pending: &Rc<Cell<bool>>,
+    interval_ms: u32,
+) {
     refresh_timer.start(
         TimerMode::Repeated,
-        Duration::from_millis((state.borrow().settings.refresh_interval_ms as u64).max(50)),
+        Duration::from_millis(u64::from(interval_ms.max(MIN_REFRESH_TIMER_INTERVAL_MS))),
         {
             let state = state.clone();
             let refresh_recompute_pending = refresh_recompute_pending.clone();
             move || {
+                if refresh_recompute_pending.get() {
+                    return;
+                }
                 if !host_window_is_visible(&state) {
                     return;
                 }
@@ -272,7 +317,32 @@ fn start_refresh_timer(
             }
         },
     );
-    refresh_timer
+}
+
+fn maybe_reconfigure_refresh_timer(state: &Rc<RefCell<AppState>>, tick_state: &UiTickState) {
+    let next_interval_ms = effective_refresh_interval_ms(state);
+    if next_interval_ms == tick_state.last_refresh_interval_ms.get() {
+        return;
+    }
+
+    tick_state.last_refresh_interval_ms.set(next_interval_ms);
+    restart_refresh_timer(
+        &tick_state.refresh_timer,
+        state,
+        &tick_state.refresh_recompute_pending,
+        next_interval_ms,
+    );
+}
+
+fn effective_refresh_interval_ms(state: &Rc<RefCell<AppState>>) -> u32 {
+    state
+        .try_borrow()
+        .map_or(DEFAULT_REFRESH_TIMER_INTERVAL_MS, |state_ref| {
+            state_ref
+                .settings
+                .refresh_interval_ms
+                .max(MIN_REFRESH_TIMER_INTERVAL_MS)
+        })
 }
 
 fn start_scrollbar_timer(main_window: &MainWindow) -> Timer {
@@ -380,14 +450,42 @@ fn update_and_detect_viewport_change(
     })
 }
 
-fn schedule_idle_dwm_sync(dwm_idle_ticks: &Rc<Cell<u8>>) -> bool {
+fn schedule_idle_dwm_sync(dwm_idle_ticks: &Rc<Cell<u8>>, sync_every_ticks: u8) -> bool {
+    let sync_every_ticks = sync_every_ticks.max(1);
     let next = dwm_idle_ticks.get().saturating_add(1);
-    if next >= DWM_IDLE_SYNC_EVERY_TICKS {
+    if next >= sync_every_ticks {
         dwm_idle_ticks.set(0);
         true
     } else {
         dwm_idle_ticks.set(next);
         false
+    }
+}
+
+fn current_dwm_idle_sync_every_ticks(state: &Rc<RefCell<AppState>>) -> u8 {
+    state
+        .try_borrow()
+        .map_or(DWM_IDLE_SYNC_EVERY_TICKS, |state_ref| {
+            match state_ref.settings.refresh_performance_mode {
+                RefreshPerformanceMode::Realtime => DWM_IDLE_SYNC_EVERY_TICKS_REALTIME,
+                RefreshPerformanceMode::Balanced => DWM_IDLE_SYNC_EVERY_TICKS,
+                RefreshPerformanceMode::BatterySaver => DWM_IDLE_SYNC_EVERY_TICKS_BATTERY_SAVER,
+                RefreshPerformanceMode::Manual => {
+                    manual_dwm_idle_sync_every_ticks(state_ref.settings.refresh_interval_ms)
+                }
+            }
+        })
+}
+
+const fn manual_dwm_idle_sync_every_ticks(refresh_interval_ms: u32) -> u8 {
+    if refresh_interval_ms <= 1_000 {
+        2
+    } else if refresh_interval_ms <= 2_000 {
+        DWM_IDLE_SYNC_EVERY_TICKS
+    } else if refresh_interval_ms <= 5_000 {
+        DWM_IDLE_SYNC_EVERY_TICKS_BATTERY_SAVER
+    } else {
+        DWM_IDLE_SYNC_EVERY_TICKS_MANUAL_SLOW
     }
 }
 
@@ -465,5 +563,31 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
         PendingAction::Exit => {
             crate::app::native_runtime::request_exit(state);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{manual_dwm_idle_sync_every_ticks, schedule_idle_dwm_sync};
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    #[test]
+    fn manual_dwm_idle_cadence_tracks_refresh_interval_buckets() {
+        assert_eq!(manual_dwm_idle_sync_every_ticks(1_000), 2);
+        assert_eq!(manual_dwm_idle_sync_every_ticks(2_000), 4);
+        assert_eq!(manual_dwm_idle_sync_every_ticks(5_000), 8);
+        assert_eq!(manual_dwm_idle_sync_every_ticks(10_000), 12);
+    }
+
+    #[test]
+    fn idle_scheduler_triggers_on_configured_tick_cadence() {
+        let ticks = Rc::new(Cell::new(0u8));
+
+        assert!(!schedule_idle_dwm_sync(&ticks, 4));
+        assert!(!schedule_idle_dwm_sync(&ticks, 4));
+        assert!(!schedule_idle_dwm_sync(&ticks, 4));
+        assert!(schedule_idle_dwm_sync(&ticks, 4));
+        assert_eq!(ticks.get(), 0);
     }
 }
