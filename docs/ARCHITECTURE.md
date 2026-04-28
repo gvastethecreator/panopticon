@@ -16,14 +16,16 @@ The project does not use a backend, network, database, or external services. The
 ```mermaid
 flowchart TD
     U[User] --> UI[Slint UI\nMainWindow / SettingsWindow / TagDialogWindow]
-    UI --> CB[Callbacks and UI model\nmain.rs + app/settings_ui.rs]
+    UI --> CB[Callbacks and UI model\nmain.rs + app/ui_callbacks.rs + app/settings_ui.rs]
     CB --> ST[AppState\nwindows, thumbnails, settings, theme, tray]
     ST --> L[layout.rs\ncompute_layout_custom]
     ST --> E[window_enum.rs\nenumerate_windows]
     ST --> T[thumbnail.rs\nRAII DWM thumbnail]
     ST --> S[settings.rs\nTOML + normalisation]
     ST --> TH[theme.rs\npresets and transition]
-    ST --> TR[app/tray.rs + app/window_menu.rs\nmenus and tray]
+    ST --> ACT[app/actions.rs\nshared runtime dispatch]
+    ST --> SW[app/secondary_windows.rs + app/secondary_windows/*\nsecondary dialogs, placement, workspaces]
+    ST --> TR[app/tray_runtime.rs + app/window_menu.rs\ntray icon, menus, native actions]
     E --> W32[Win32 / User32 / Process APIs]
     T --> DWM[Desktop Window Manager]
     TR --> SH[Shell / AppBar / Menus]
@@ -117,14 +119,18 @@ This cleanly separates pure geometry from Win32/Slint integration.
 
 | Module | Architectural role |
 | --- | --- |
-| `src/main.rs` | main orchestration, timers, AppState, callbacks, tray, dock, menus, settings window |
+| `src/main.rs` | main orchestration, timers, AppState, startup wiring, and refresh loop |
 | `src/layout.rs` | pure, testable geometry engine |
 | `src/window_enum.rs` | Win32 discovery and initial filtering |
 | `src/thumbnail.rs` | RAII wrapper for `HTHUMBNAIL` |
 | `src/settings.rs` | persistence, normalisation, and per-app rules |
 | `src/theme.rs` | theme catalogue, resolution, and interpolation |
 | `src/i18n.rs` | internationalisation (English / Spanish) |
-| `src/app/tray.rs` | icons, tray icon, and application menus |
+| `src/app/actions.rs` | shared runtime dispatcher used by keyboard, tray, and command palette flows |
+| `src/app/ui_callbacks.rs` | `MainWindow` callback registration extracted from `main.rs` |
+| `src/app/ui_translations.rs` | translation/global text population for Slint globals |
+| `src/app/secondary_windows.rs` + `src/app/secondary_windows/*` | settings/about/tag/workspace orchestration, callback wiring, placement, and secondary-window stacking |
+| `src/app/tray_runtime.rs` + `src/app/tray_runtime/*` | tray icon registration, icon resolution, popup menu construction, and tray message translation |
 | `src/app/window_menu.rs` | per-window context menu |
 | `src/app/settings_ui.rs` | binding between persisted settings and the settings window |
 | `ui/main.slint` | visual definition for windows, cards, toolbar, overlays, and dialogs |
@@ -153,6 +159,13 @@ Panopticon uses three main timers:
 | UI timer | ~16 ms | drain pending actions, detect resize, animate layout, animate theme, re-sync thumbnails |
 | Refresh timer | configurable (`1s`, `2s`, `5s`, `10s`) | re-enumerate windows and reconcile state |
 | Scrollbar timer | 200 ms | auto-hide overlay scrollbar after inactivity |
+
+The event loop still lives in `main.rs`, but action routing is now split across dedicated modules:
+
+- `app/actions.rs` centralises stateful runtime mutations and shared commands;
+- `app/ui_callbacks.rs` wires the main Slint view to runtime actions;
+- `app/secondary_windows.rs` and its submodules own secondary-window lifecycle, settings callback wiring, and placement;
+- `app/tray_runtime.rs` fronts tray-specific notify/icon/menu helpers while `app::tray` remains a compatibility alias for callers.
 
 ## Win32 subclassing
 
@@ -221,10 +234,10 @@ Panopticon is designed more as a persistent desktop utility than as a traditiona
 
 ## Current architectural limitations
 
-1. `main.rs` concentrates too many responsibilities.
+1. `main.rs` still concentrates startup, timer coordination, and several Win32 integration seams.
 2. Some declarative pieces in `ui/main.slint` appear broader than the currently active runtime.
 3. The dock/appbar mode is still concentrated in `main.rs`, complicating evolution and testing.
-4. Automated coverage focuses on layout/settings/theme, not on Win32 integration.
+4. Automated coverage is strongest around layout/settings/theme and only lightly covers newer tray/runtime helpers.
 
 ## Recommended reading
 

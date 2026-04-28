@@ -48,7 +48,7 @@ The main source of the crate and binary.
 | Path | Role |
 | --- | --- |
 | `src/lib.rs` | crate library index; re-exports base modules |
-| `src/main.rs` | main binary; event loop, Win32 interop, tray, settings window, dock, and full synchronisation |
+| `src/main.rs` | main binary; startup, event loop, Win32 interop, timer orchestration, and top-level synchronisation |
 | `src/constants.rs` | UI, animation, and truncation constants |
 | `src/error.rs` | typed crate errors |
 | `src/i18n.rs` | internationalisation (English / Spanish) |
@@ -66,8 +66,23 @@ Groups helpers oriented towards the binary UX.
 | Path | Role |
 | --- | --- |
 | `src/app/mod.rs` | binary helper index |
+| `src/app/actions.rs` | shared dispatcher for runtime actions triggered by keyboard, tray, and command palette |
+| `src/app/command_palette.rs` | searchable command launcher wired to shared actions |
+| `src/app/keyboard_actions.rs` | keyboard shortcut resolution routed through the shared dispatcher |
+| `src/app/model_sync.rs` | derives Slint-facing view models and empty-state context |
+| `src/app/secondary_windows.rs` | facade for settings/about/tag/workspace secondary windows |
+| `src/app/secondary_windows/settings_callbacks.rs` | callback wiring for `SettingsWindow`, including workspace/app-rules/shortcut/background actions |
+| `src/app/secondary_windows/placement.rs` | owner resolution, centering, and z-order helpers for secondary windows |
+| `src/app/secondary_windows/dialogs.rs` | About/Tag dialog lifecycle and callbacks |
+| `src/app/secondary_windows/workspace.rs` | workspace CRUD/load/switch/new-instance helpers |
 | `src/app/settings_ui.rs` | bridge between `AppSettings` and `SettingsWindow` |
-| `src/app/tray.rs` | icons, tray icon, native menus, and tray actions |
+| `src/app/tray_runtime.rs` | tray runtime facade re-exported as `app::tray` for callers |
+| `src/app/tray_runtime/icons.rs` | icon loading/generation/resolution for the main window and tray |
+| `src/app/tray_runtime/menu.rs` | native popup-menu construction and `TrayAction` decoding |
+| `src/app/tray_runtime/notify.rs` | `Shell_NotifyIconW` registration/update/remove wrapper |
+| `src/app/tray_actions.rs` | tray action handling routed through shared runtime dispatch |
+| `src/app/ui_callbacks.rs` | extracted `MainWindow` callback wiring |
+| `src/app/ui_translations.rs` | translation/global text population extracted from `main.rs` |
 | `src/app/window_menu.rs` | per-window context menu |
 
 ### `ui/`
@@ -154,11 +169,11 @@ The project can be understood in five groups:
 1. **Technical domain core**  
    `layout.rs`, `settings.rs`, `theme.rs`
 2. **Win32/DWM interop**  
-   `window_enum.rs`, `thumbnail.rs`, large parts of `main.rs`, `tray.rs`, `window_menu.rs`
+   `window_enum.rs`, `thumbnail.rs`, large parts of `main.rs`, `tray_runtime.rs`, `window_menu.rs`
 3. **UI layer**  
    `ui/main.slint`, `settings_ui.rs`
 4. **Runtime orchestration**  
-   `main.rs`
+   `main.rs`, `app/actions.rs`, `app/ui_callbacks.rs`, `app/secondary_windows.rs`
 5. **Quality and support**  
    `tests/`, `docs/`, `logging.rs`, `error.rs`
 
@@ -188,7 +203,7 @@ The project can be understood in five groups:
 | main visual UX | `ui/main.slint` |
 | window enumeration | `src/window_enum.rs` |
 | DWM thumbnails | `src/thumbnail.rs` + `src/main.rs` |
-| tray and quick menus | `src/app/tray.rs` |
+| tray and quick menus | `src/app/tray_runtime.rs` + `src/app/tray_actions.rs` |
 | per-window menu | `src/app/window_menu.rs` |
 | theming | `src/theme.rs` + `assets/themes.json` |
 | internationalisation | `src/i18n.rs` |
@@ -196,7 +211,7 @@ The project can be understood in five groups:
 
 ## Important structural observations
 
-- `main.rs` is the file with the most concentrated responsibility in the project.
+- `main.rs` is still the file with the most concentrated responsibility in the project, although callback wiring and action dispatch have started moving into `src/app/*` helpers.
 - `layout.rs` is the cleanest and most decoupled piece.
 - the declarative UI is centralised in a single Slint file, which simplifies searching but can grow significantly over time.
 - `target/` and `doc/` can be voluminous; they should not be confused with maintainable product code.

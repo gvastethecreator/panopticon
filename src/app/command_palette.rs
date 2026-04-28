@@ -9,14 +9,11 @@ use panopticon::window_enum::enumerate_windows;
 use panopticon::window_ops::{collect_available_apps, collect_available_monitors};
 use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, VecModel};
 
-use super::dock::{apply_topmost_mode, apply_window_appearance, keep_dialog_above_owner};
-use super::layout_actions;
+use super::actions::{dispatch_action, AppAction};
+use super::dock::{apply_window_appearance, keep_dialog_above_owner};
 use super::secondary_windows;
 use super::tray::apply_window_icons;
-use super::tray_actions;
-use crate::{
-    refresh_ui, refresh_windows, update_settings, AppState, CommandPaletteWindow, MainWindow,
-};
+use crate::{AppState, CommandPaletteWindow, MainWindow};
 
 thread_local! {
     static COMMAND_PALETTE_RECENT_KEYS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
@@ -616,10 +613,6 @@ fn rebuild_filtered_commands(
     window.set_command_index(0);
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "command dispatch keeps all palette actions together for straightforward auditing"
-)]
 fn execute_command(
     command_id: CommandId,
     state: &Rc<RefCell<AppState>>,
@@ -627,194 +620,43 @@ fn execute_command(
 ) {
     remember_recent_command(&command_id);
 
+    dispatch_action(state, main_weak, command_to_action(command_id));
+}
+
+fn command_to_action(command_id: CommandId) -> AppAction {
     match command_id {
-        CommandId::CycleLayout => {
-            layout_actions::cycle_layout(state);
-            refresh_ui(state, main_weak);
-        }
-        CommandId::SetLayout(layout) => {
-            layout_actions::set_layout(state, main_weak, layout);
-        }
-        CommandId::ResetLayoutRatios => {
-            layout_actions::reset_layout_custom(state);
-            refresh_ui(state, main_weak);
-        }
-        CommandId::CycleTheme => {
-            let current_idx = {
-                let state = state.borrow();
-                panopticon::theme::theme_index(state.settings.theme_id.as_deref())
-            };
-            let total = panopticon::theme::theme_labels().len() as i32;
-            let next_idx = (current_idx + 1).rem_euclid(total);
-            let new_id = panopticon::theme::theme_id_by_index(next_idx);
-            let next_background_hex =
-                panopticon::theme::theme_base_background_hex(new_id.as_deref(), "181513");
-
-            update_settings(state, |settings| {
-                settings.theme_id = new_id;
-                if settings.theme_id.is_some() {
-                    settings
-                        .background_color_hex
-                        .clone_from(&next_background_hex);
-                }
-            });
-
-            let state_ref = state.borrow();
-            super::dock::apply_window_appearance(state_ref.hwnd, &state_ref.settings);
-            drop(state_ref);
-
-            refresh_ui(state, main_weak);
-        }
-        CommandId::RefreshNow => {
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::RestoreAllHiddenApps => {
-            update_settings(state, |settings| {
-                let _ = settings.restore_all_hidden_apps();
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::OpenSettings => {
-            secondary_windows::open_settings_window(state, main_weak);
-        }
-        CommandId::OpenSettingsBehaviorPage => {
-            secondary_windows::open_settings_window_page(state, main_weak, 0);
-        }
-        CommandId::OpenSettingsFiltersPage => {
-            secondary_windows::open_settings_window_page(state, main_weak, 1);
-        }
-        CommandId::OpenSettingsWorkspacesPage => {
-            secondary_windows::open_settings_window_page(state, main_weak, 3);
-        }
-        CommandId::OpenSettingsShortcutsPage => {
-            secondary_windows::open_settings_window_page(state, main_weak, 4);
-        }
-        CommandId::OpenSettingsAdvancedPage => {
-            secondary_windows::open_settings_window_page(state, main_weak, 5);
-        }
-        CommandId::OpenAbout => {
-            secondary_windows::open_about_window(state);
-        }
-        CommandId::OpenMenu => {
-            tray_actions::open_application_context_menu(state, main_weak, None, false);
-        }
-        CommandId::HideApp(app_id, app_label) => {
-            update_settings(state, |settings| {
-                let _ = settings.toggle_hidden(&app_id, &app_label);
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::ClearAllFilters => {
-            update_settings(state, |settings| {
-                settings.set_monitor_filter(None);
-                settings.set_tag_filter(None);
-                settings.set_app_filter(None);
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::SetMonitorFilter(monitor) => {
-            update_settings(state, |settings| {
-                settings.set_monitor_filter(Some(&monitor));
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::SetTagFilter(tag) => {
-            update_settings(state, |settings| {
-                settings.set_tag_filter(Some(&tag));
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::SetAppFilter(app_id) => {
-            update_settings(state, |settings| {
-                settings.set_app_filter(Some(&app_id));
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::ClearMonitorFilter => {
-            update_settings(state, |settings| {
-                settings.set_monitor_filter(None);
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::ClearTagFilter => {
-            update_settings(state, |settings| {
-                settings.set_tag_filter(None);
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::ClearAppFilter => {
-            update_settings(state, |settings| {
-                settings.set_app_filter(None);
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::RestoreHiddenApp(app_id) => {
-            update_settings(state, |settings| {
-                let _ = settings.restore_hidden_app(&app_id);
-            });
-            if refresh_windows(state) {
-                refresh_ui(state, main_weak);
-            }
-        }
-        CommandId::LoadWorkspace(workspace_name) => {
-            let _ = secondary_windows::load_workspace_into_current_instance(
-                state,
-                main_weak,
-                workspace_name,
-            );
-        }
+        CommandId::CycleLayout => AppAction::CycleLayout,
+        CommandId::SetLayout(layout) => AppAction::SetLayout(layout),
+        CommandId::ResetLayoutRatios => AppAction::ResetLayoutRatios,
+        CommandId::CycleTheme => AppAction::CycleTheme { direction: 1 },
+        CommandId::RefreshNow => AppAction::RefreshNow,
+        CommandId::RestoreAllHiddenApps => AppAction::RestoreAllHidden,
+        CommandId::OpenSettings => AppAction::OpenSettingsWindowAt(None),
+        CommandId::OpenSettingsBehaviorPage => AppAction::OpenSettingsPage(0),
+        CommandId::OpenSettingsFiltersPage => AppAction::OpenSettingsPage(1),
+        CommandId::OpenSettingsWorkspacesPage => AppAction::OpenSettingsPage(3),
+        CommandId::OpenSettingsShortcutsPage => AppAction::OpenSettingsPage(4),
+        CommandId::OpenSettingsAdvancedPage => AppAction::OpenSettingsPage(5),
+        CommandId::OpenAbout => AppAction::OpenAboutWindowAt(None),
+        CommandId::OpenMenu => AppAction::OpenContextMenu,
+        CommandId::HideApp(app_id, app_label) => AppAction::HideApp { app_id, app_label },
+        CommandId::ClearAllFilters => AppAction::ClearAllFilters,
+        CommandId::SetMonitorFilter(monitor) => AppAction::SetMonitorFilter(Some(monitor)),
+        CommandId::SetTagFilter(tag) => AppAction::SetTagFilter(Some(tag)),
+        CommandId::SetAppFilter(app_id) => AppAction::SetAppFilter(Some(app_id)),
+        CommandId::ClearMonitorFilter => AppAction::SetMonitorFilter(None),
+        CommandId::ClearTagFilter => AppAction::SetTagFilter(None),
+        CommandId::ClearAppFilter => AppAction::SetAppFilter(None),
+        CommandId::RestoreHiddenApp(app_id) => AppAction::RestoreHidden(app_id),
+        CommandId::LoadWorkspace(workspace_name) => AppAction::LoadWorkspace(workspace_name),
         CommandId::OpenWorkspaceInNewInstance(workspace_name) => {
-            let _ = secondary_windows::open_workspace_in_new_instance(state, workspace_name);
+            AppAction::OpenWorkspaceInNewInstance(workspace_name)
         }
-        CommandId::ToggleAnimations => {
-            update_settings(state, |settings| {
-                settings.animate_transitions = !settings.animate_transitions;
-            });
-            refresh_ui(state, main_weak);
-        }
-        CommandId::ToggleToolbar => {
-            update_settings(state, |settings| {
-                settings.show_toolbar = !settings.show_toolbar;
-            });
-            refresh_ui(state, main_weak);
-        }
-        CommandId::ToggleWindowInfo => {
-            update_settings(state, |settings| {
-                settings.show_window_info = !settings.show_window_info;
-            });
-            refresh_ui(state, main_weak);
-        }
-        CommandId::ToggleAlwaysOnTop => {
-            update_settings(state, |settings| {
-                settings.always_on_top = !settings.always_on_top;
-            });
-            let state_ref = state.borrow();
-            apply_topmost_mode(state_ref.hwnd, state_ref.settings.always_on_top);
-            drop(state_ref);
-            secondary_windows::refresh_secondary_window_stacking(state);
-            refresh_ui(state, main_weak);
-        }
-        CommandId::Exit => crate::queue_exit_request(),
+        CommandId::ToggleAnimations => AppAction::ToggleAnimations,
+        CommandId::ToggleToolbar => AppAction::ToggleToolbar,
+        CommandId::ToggleWindowInfo => AppAction::ToggleWindowInfo,
+        CommandId::ToggleAlwaysOnTop => AppAction::ToggleAlwaysOnTop,
+        CommandId::Exit => AppAction::Exit,
     }
 }
 

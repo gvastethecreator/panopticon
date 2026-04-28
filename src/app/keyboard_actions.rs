@@ -7,9 +7,7 @@ use panopticon::layout::LayoutType;
 use panopticon::settings::AppSettings;
 
 use super::actions::{dispatch_action, AppAction};
-use super::command_palette;
-use super::layout_actions;
-use crate::{refresh_ui, update_settings, AppState, MainWindow};
+use crate::{AppState, MainWindow};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ShortcutAction {
@@ -43,40 +41,35 @@ pub(crate) fn handle_key(
     };
 
     match action {
-        ShortcutAction::SetLayout(layout) => layout_actions::set_layout(state, weak, layout),
-        ShortcutAction::ResetLayout => {
-            layout_actions::reset_layout_custom(state);
-            refresh_ui(state, weak);
+        ShortcutAction::SetLayout(layout) => {
+            dispatch_action(state, weak, AppAction::SetLayout(layout));
         }
+        ShortcutAction::ResetLayout => dispatch_action(state, weak, AppAction::ResetLayoutRatios),
         ShortcutAction::ToggleAnimations => {
             dispatch_action(state, weak, AppAction::ToggleAnimations);
         }
-        ShortcutAction::ToggleToolbar => {
-            dispatch_action(state, weak, AppAction::ToggleToolbar);
-        }
+        ShortcutAction::ToggleToolbar => dispatch_action(state, weak, AppAction::ToggleToolbar),
         ShortcutAction::ToggleWindowInfo => {
             dispatch_action(state, weak, AppAction::ToggleWindowInfo);
         }
-        ShortcutAction::OpenMenu => {
-            dispatch_action(state, weak, AppAction::OpenContextMenu);
-        }
+        ShortcutAction::OpenMenu => dispatch_action(state, weak, AppAction::OpenContextMenu),
         ShortcutAction::OpenSettings => {
-            dispatch_action(state, weak, AppAction::OpenSettingsWindow);
+            dispatch_action(state, weak, AppAction::OpenSettingsWindowAt(None));
         }
         ShortcutAction::OpenCommandPalette => {
-            command_palette::open_command_palette_window(state, weak);
+            dispatch_action(state, weak, AppAction::OpenCommandPalette);
         }
         ShortcutAction::ToggleAlwaysOnTop => {
             dispatch_action(state, weak, AppAction::ToggleAlwaysOnTop);
         }
-        ShortcutAction::RefreshNow => {
-            dispatch_action(state, weak, AppAction::RefreshNow);
+        ShortcutAction::RefreshNow => dispatch_action(state, weak, AppAction::RefreshNow),
+        ShortcutAction::CycleTheme => {
+            dispatch_action(state, weak, AppAction::CycleTheme { direction: 1 });
         }
-        ShortcutAction::CycleTheme => cycle_theme(state, weak, 1),
-        ShortcutAction::CycleThemePrevious => cycle_theme(state, weak, -1),
-        ShortcutAction::CycleLayout => {
-            dispatch_action(state, weak, AppAction::CycleLayout);
+        ShortcutAction::CycleThemePrevious => {
+            dispatch_action(state, weak, AppAction::CycleTheme { direction: -1 });
         }
+        ShortcutAction::CycleLayout => dispatch_action(state, weak, AppAction::CycleLayout),
         ShortcutAction::Exit => dispatch_action(state, weak, AppAction::Exit),
     }
 
@@ -146,34 +139,6 @@ fn shortcut_matches(binding: &str, key: &str) -> bool {
         _ => key.eq_ignore_ascii_case(binding),
     }
 }
-
-fn cycle_theme(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, direction: i32) {
-    let current_idx = {
-        let state = state.borrow();
-        panopticon::theme::theme_index(state.settings.theme_id.as_deref())
-    };
-    let total = panopticon::theme::theme_labels().len() as i32;
-    let next_idx = (current_idx + direction).rem_euclid(total);
-    let new_id = panopticon::theme::theme_id_by_index(next_idx);
-    let next_background_hex =
-        panopticon::theme::theme_base_background_hex(new_id.as_deref(), "181513");
-
-    update_settings(state, |settings| {
-        settings.theme_id = new_id;
-        if settings.theme_id.is_some() {
-            settings
-                .background_color_hex
-                .clone_from(&next_background_hex);
-        }
-    });
-
-    let state_ref = state.borrow();
-    super::dock::apply_window_appearance(state_ref.hwnd, &state_ref.settings);
-    drop(state_ref);
-
-    refresh_ui(state, weak);
-}
-
 #[cfg(test)]
 mod tests {
     use super::{matched_shortcut_action, shortcut_matches, ShortcutAction};

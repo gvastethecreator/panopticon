@@ -13,16 +13,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use super::actions::{dispatch_action, AppAction};
-use super::dock::{
-    apply_dock_mode, apply_topmost_mode, center_window_on_point_monitor,
-    current_cursor_screen_point, restore_floating_style, unregister_appbar,
-};
-use super::native_runtime::apply_configured_main_window_size;
-use super::secondary_windows;
+use super::dock::{center_window_on_point_monitor, current_cursor_screen_point};
 use super::tray::{show_application_context_menu_at, TrayAction, TrayMenuState};
 use crate::{
-    logical_to_screen_point, recompute_and_update_ui, refresh_ui, refresh_windows,
-    release_all_thumbnails, update_settings, AppState, MainWindow,
+    logical_to_screen_point, recompute_and_update_ui, refresh_windows, release_all_thumbnails,
+    AppState, MainWindow,
 };
 
 pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
@@ -71,10 +66,6 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
     }
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "matches every tray command to its corresponding runtime action"
-)]
 pub(crate) fn handle_tray_action(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
@@ -86,164 +77,64 @@ pub(crate) fn handle_tray_action(
         TrayAction::Refresh => dispatch_action(state, weak, AppAction::RefreshNow),
         TrayAction::NextLayout => dispatch_action(state, weak, AppAction::CycleLayout),
         TrayAction::ToggleMinimizeToTray => {
-            update_settings(state, |settings| {
-                settings.minimize_to_tray = !settings.minimize_to_tray;
-            });
+            dispatch_action(state, weak, AppAction::ToggleMinimizeToTray);
         }
-        TrayAction::ToggleCloseToTray => {
-            update_settings(state, |settings| {
-                settings.close_to_tray = !settings.close_to_tray;
-            });
-        }
+        TrayAction::ToggleCloseToTray => dispatch_action(state, weak, AppAction::ToggleCloseToTray),
         TrayAction::CycleRefreshInterval => {
-            update_settings(
-                state,
-                panopticon::settings::AppSettings::cycle_refresh_interval,
-            );
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::CycleRefreshInterval);
         }
         TrayAction::ToggleAnimateTransitions => {
             dispatch_action(state, weak, AppAction::ToggleAnimations);
         }
         TrayAction::ToggleDefaultAspectRatio => {
-            update_settings(state, |settings| {
-                settings.preserve_aspect_ratio = !settings.preserve_aspect_ratio;
-            });
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::ToggleDefaultAspectRatio);
         }
         TrayAction::ToggleDefaultHideOnSelect => {
-            if state.borrow().settings.dock_edge.is_none() {
-                update_settings(state, |settings| {
-                    settings.hide_on_select = !settings.hide_on_select;
-                });
-                refresh_ui(state, weak);
-            }
+            dispatch_action(state, weak, AppAction::ToggleDefaultHideOnSelect);
         }
-        TrayAction::ToggleAlwaysOnTop => {
-            dispatch_action(state, weak, AppAction::ToggleAlwaysOnTop);
-        }
+        TrayAction::ToggleAlwaysOnTop => dispatch_action(state, weak, AppAction::ToggleAlwaysOnTop),
         TrayAction::SetMonitorFilter(filter) => {
-            update_settings(state, |settings| {
-                settings.set_monitor_filter(filter.as_deref());
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::SetMonitorFilter(filter));
         }
         TrayAction::SetTagFilter(filter) => {
-            update_settings(state, |settings| {
-                settings.set_tag_filter(filter.as_deref());
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::SetTagFilter(filter));
         }
         TrayAction::SetAppFilter(filter) => {
-            update_settings(state, |settings| {
-                settings.set_app_filter(filter.as_deref());
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::SetAppFilter(filter));
         }
         TrayAction::RestoreHidden(app_id) => {
-            update_settings(state, |settings| {
-                let _ = settings.restore_hidden_app(&app_id);
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::RestoreHidden(app_id));
         }
-        TrayAction::RestoreAllHidden => {
-            update_settings(state, |settings| {
-                let _ = settings.restore_all_hidden_apps();
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
-        TrayAction::SetDockEdge(edge) => {
-            let mut floating_settings = None;
-            {
-                let mut state = state.borrow_mut();
-                if state.is_appbar {
-                    unregister_appbar(state.hwnd);
-                    state.is_appbar = false;
-                }
-                state.settings.dock_edge = edge;
-                state.settings = state.settings.normalized();
-                state.current_layout = state.settings.effective_layout();
-                let _ = state.settings.save(state.workspace_name.as_deref());
-                if edge.is_some() {
-                    apply_dock_mode(&mut state);
-                } else {
-                    restore_floating_style(state.hwnd);
-                    apply_topmost_mode(state.hwnd, state.settings.always_on_top);
-                    floating_settings = Some(state.settings.clone());
-                }
-            }
-            if let Some(settings) = floating_settings {
-                if let Some(main_window) = weak.upgrade() {
-                    let _ = apply_configured_main_window_size(&main_window, &settings);
-                }
-            }
-            refresh_windows(state);
-            refresh_ui(state, weak);
-        }
+        TrayAction::RestoreAllHidden => dispatch_action(state, weak, AppAction::RestoreAllHidden),
+        TrayAction::SetDockEdge(edge) => dispatch_action(state, weak, AppAction::SetDockEdge(edge)),
         TrayAction::SetWindowGrouping(grouping) => {
-            update_settings(state, |settings| {
-                settings.group_windows_by = grouping;
-            });
-            refresh_windows(state);
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::SetWindowGrouping(grouping));
         }
-        TrayAction::ToggleToolbar => {
-            dispatch_action(state, weak, AppAction::ToggleToolbar);
-        }
+        TrayAction::ToggleToolbar => dispatch_action(state, weak, AppAction::ToggleToolbar),
         TrayAction::SetToolbarPosition(position) => {
-            update_settings(state, |settings| {
-                settings.toolbar_position = position;
-            });
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::SetToolbarPosition(position));
         }
-        TrayAction::ToggleWindowInfo => {
-            dispatch_action(state, weak, AppAction::ToggleWindowInfo);
-        }
-        TrayAction::ToggleAppIcons => {
-            update_settings(state, |settings| {
-                settings.show_app_icons = !settings.show_app_icons;
-            });
-            refresh_ui(state, weak);
-        }
-        TrayAction::ToggleStartInTray => {
-            update_settings(state, |settings| {
-                settings.start_in_tray = !settings.start_in_tray;
-            });
-            refresh_ui(state, weak);
-        }
+        TrayAction::ToggleWindowInfo => dispatch_action(state, weak, AppAction::ToggleWindowInfo),
+        TrayAction::ToggleAppIcons => dispatch_action(state, weak, AppAction::ToggleAppIcons),
+        TrayAction::ToggleStartInTray => dispatch_action(state, weak, AppAction::ToggleStartInTray),
         TrayAction::ToggleLockedLayout => {
-            update_settings(state, |settings| {
-                settings.locked_layout = !settings.locked_layout;
-            });
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::ToggleLockedLayout);
         }
         TrayAction::ToggleLockCellResize => {
-            update_settings(state, |settings| {
-                settings.lock_cell_resize = !settings.lock_cell_resize;
-            });
-            refresh_ui(state, weak);
+            dispatch_action(state, weak, AppAction::ToggleLockCellResize);
         }
-        TrayAction::OpenSettingsWindow => {
-            secondary_windows::open_settings_window_with_anchor(state, weak, activation_point);
-        }
+        TrayAction::OpenSettingsWindow => dispatch_action(
+            state,
+            weak,
+            AppAction::OpenSettingsWindowAt(activation_point),
+        ),
         TrayAction::OpenAboutWindow => {
-            secondary_windows::open_about_window_with_anchor(state, activation_point);
+            dispatch_action(state, weak, AppAction::OpenAboutWindowAt(activation_point));
         }
         TrayAction::LoadWorkspace(workspace_name) => {
-            let _ = secondary_windows::load_workspace_into_current_instance(
-                state,
-                weak,
-                workspace_name,
-            );
+            dispatch_action(state, weak, AppAction::LoadWorkspace(workspace_name));
         }
-        TrayAction::Exit => {
-            dispatch_action(state, weak, AppAction::Exit);
-        }
+        TrayAction::Exit => dispatch_action(state, weak, AppAction::Exit),
     }
 }
 

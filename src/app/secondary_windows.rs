@@ -1,45 +1,43 @@
 //! Secondary Slint windows: settings, tag dialog, and workspace helpers.
 
+mod dialogs;
+mod placement;
+mod settings_callbacks;
+mod workspace;
+
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
-use std::path::Path;
-use std::process::Command;
 use std::rc::Rc;
-use std::time::Duration;
 
 use panopticon::settings::{
-    AppSelectionEntry, AppSettings, HiddenAppEntry, ThumbnailRefreshMode, WorkspaceNameValidation,
+    AppSelectionEntry, AppSettings, HiddenAppEntry, ThumbnailRefreshMode,
     MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT,
     MIN_FIXED_WINDOW_WIDTH,
 };
 use panopticon::theme as theme_catalog;
 use panopticon::ui_option_ops::{
     app_option_label, current_workspace_label, hidden_app_option_label, parse_option_value,
-    suggested_tag_name, tag_color_hex, tag_color_index, OPTION_SEPARATOR,
+    OPTION_SEPARATOR,
 };
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 use panopticon::window_ops::{collect_available_apps, collect_available_monitors};
-use slint::{
-    CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel,
-};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use windows::Win32::Foundation::{HWND, POINT};
-use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, IsWindowVisible};
 
 use super::dock::{
-    apply_dock_mode, apply_topmost_mode, apply_window_appearance, center_window_on_owner_monitor,
-    center_window_on_point_monitor, keep_dialog_above_owner, reposition_appbar,
-    restore_floating_style, unregister_appbar,
+    apply_dock_mode, apply_topmost_mode, apply_window_appearance, keep_dialog_above_owner,
+    reposition_appbar, restore_floating_style, unregister_appbar,
 };
 use super::global_hotkey;
 use super::native_runtime::apply_configured_main_window_size;
 use super::settings_ui::{apply_settings_window_changes, populate_settings_window};
 use super::startup;
-use super::theme_ui::{
-    apply_about_window_theme_snapshot, apply_main_window_theme_snapshot,
-    apply_settings_window_theme_snapshot, apply_tag_dialog_theme_snapshot,
-};
+use super::theme_ui::apply_settings_window_theme_snapshot;
 use super::tray::apply_window_icons;
-use crate::{AboutWindow, AppState, MainWindow, SettingsWindow, TagDialogWindow};
+use crate::{AppState, MainWindow, SettingsWindow};
+
+use self::placement::SecondaryWindowPlacement;
+use self::workspace::WorkspaceUiSummary;
 
 thread_local! {
     static SETTINGS_APPLY_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
@@ -73,104 +71,27 @@ impl Drop for SettingsApplyGuard {
     }
 }
 
-#[derive(Debug, Clone)]
-struct WorkspaceUiSummary {
-    workspace_name: Option<String>,
-    option_label: String,
-    display_name: String,
-    description: String,
-    created_at_label: String,
-    updated_at_label: String,
-    is_default: bool,
-    is_running: bool,
-    is_modified: bool,
-    missing_apps: usize,
-    status_summary: String,
+fn available_workspace_summaries(
+    state: &AppState,
+    runtime: &RuntimeUiOptions,
+) -> Vec<WorkspaceUiSummary> {
+    workspace::available_workspace_summaries(state, runtime)
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct SecondaryWindowPlacement {
-    owner_hwnd: HWND,
-    center_point: Option<POINT>,
+fn parse_workspace_target_input(value: &str) -> Result<Option<String>, String> {
+    workspace::parse_workspace_target_input(value)
 }
 
-fn visible_component_hwnd<Component>(window: &Component, exclude_hwnd: HWND) -> Option<HWND>
-where
-    Component: ComponentHandle,
-{
-    let hwnd = crate::get_hwnd(window.window())?;
-    if hwnd.0.is_null() || hwnd == exclude_hwnd {
-        return None;
-    }
-
-    let is_visible = unsafe {
-        // SAFETY: this is a read-only visibility query for a live top-level
-        // window owned by this process.
-        IsWindowVisible(hwnd).as_bool()
-    };
-
-    is_visible.then_some(hwnd)
+fn set_workspace_feedback(window: &SettingsWindow, message: &str, is_error: bool) {
+    workspace::set_workspace_feedback(window, message, is_error);
 }
 
-fn collect_visible_panopticon_window_hwnds(state: &AppState, exclude_hwnd: HWND) -> Vec<HWND> {
-    let mut owners = Vec::new();
-
-    crate::SETTINGS_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            if let Some(hwnd) = visible_component_hwnd(window, exclude_hwnd) {
-                owners.push(hwnd);
-            }
-        }
-    });
-    crate::COMMAND_PALETTE_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            if let Some(hwnd) = visible_component_hwnd(window, exclude_hwnd) {
-                owners.push(hwnd);
-            }
-        }
-    });
-    crate::ABOUT_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            if let Some(hwnd) = visible_component_hwnd(window, exclude_hwnd) {
-                owners.push(hwnd);
-            }
-        }
-    });
-    crate::TAG_DIALOG_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            if let Some(hwnd) = visible_component_hwnd(window, exclude_hwnd) {
-                owners.push(hwnd);
-            }
-        }
-    });
-
-    if state.hwnd != exclude_hwnd && !state.hwnd.0.is_null() {
-        let main_is_visible = unsafe {
-            // SAFETY: this is a read-only visibility query for the live main
-            // application window.
-            IsWindowVisible(state.hwnd).as_bool()
-        };
-        if main_is_visible {
-            owners.push(state.hwnd);
-        }
-    }
-
-    owners
+fn clear_workspace_feedback(window: &SettingsWindow) {
+    workspace::clear_workspace_feedback(window);
 }
 
 pub(crate) fn resolve_secondary_window_owner(state: &AppState, exclude_hwnd: HWND) -> HWND {
-    let owners = collect_visible_panopticon_window_hwnds(state, exclude_hwnd);
-    let foreground = unsafe {
-        // SAFETY: foreground-window lookup is a read-only Win32 query.
-        GetForegroundWindow()
-    };
-
-    owners
-        .iter()
-        .copied()
-        .find(|candidate| *candidate == foreground)
-        .or_else(|| owners.first().copied())
-        .unwrap_or(state.hwnd)
+    placement::resolve_secondary_window_owner(state, exclude_hwnd)
 }
 
 fn secondary_window_placement(
@@ -178,131 +99,14 @@ fn secondary_window_placement(
     center_point: Option<POINT>,
     exclude_hwnd: HWND,
 ) -> SecondaryWindowPlacement {
-    SecondaryWindowPlacement {
-        owner_hwnd: resolve_secondary_window_owner(state, exclude_hwnd),
-        center_point,
-    }
+    placement::secondary_window_placement(state, center_point, exclude_hwnd)
 }
 
 pub(crate) fn default_secondary_window_placement(
     state: &AppState,
     exclude_hwnd: HWND,
 ) -> SecondaryWindowPlacement {
-    secondary_window_placement(state, None, exclude_hwnd)
-}
-
-fn workspace_status_summary(is_running: bool, is_modified: bool, missing_apps: usize) -> String {
-    let mut parts = Vec::new();
-    if is_running {
-        parts.push("Loaded in this instance".to_owned());
-    }
-    if is_modified {
-        parts.push("Unsaved changes".to_owned());
-    }
-    if missing_apps > 0 {
-        let label = if missing_apps == 1 {
-            "1 app rule not currently running".to_owned()
-        } else {
-            format!("{missing_apps} app rules not currently running")
-        };
-        parts.push(label);
-    }
-
-    if parts.is_empty() {
-        "Ready".to_owned()
-    } else {
-        parts.join(" · ")
-    }
-}
-
-fn available_workspace_summaries(
-    state: &AppState,
-    runtime: &RuntimeUiOptions,
-) -> Vec<WorkspaceUiSummary> {
-    let workspaces = AppSettings::list_workspaces_with_default().unwrap_or_else(|error| {
-        tracing::warn!(%error, "failed to enumerate available workspaces");
-        vec!["default".to_owned()]
-    });
-
-    let running_apps: BTreeSet<&str> = runtime
-        .apps
-        .iter()
-        .map(|entry| entry.app_id.as_str())
-        .collect();
-    let current_workspace = state.workspace_name.clone();
-    let current_settings = state.settings.normalized();
-
-    workspaces
-        .into_iter()
-        .map(|option_label| {
-            let workspace_name =
-                panopticon::ui_option_ops::selected_workspace_name(&option_label);
-            let settings = AppSettings::load_or_default(workspace_name.as_deref())
-                .unwrap_or_else(|error| {
-                    tracing::warn!(%error, workspace = ?workspace_name, "failed to load workspace metadata summary");
-                    AppSettings::default()
-                });
-            let metadata = settings.workspace.clone();
-
-            let display_name = if metadata.display_name.trim().is_empty() {
-                option_label.clone()
-            } else {
-                metadata.display_name.trim().to_owned()
-            };
-
-            let missing_apps = settings
-                .app_rules
-                .keys()
-                .filter(|app_id| !running_apps.contains(app_id.as_str()))
-                .count();
-            let is_running = workspace_name == current_workspace;
-            let is_modified = is_running && settings.normalized() != current_settings;
-            let status_summary = workspace_status_summary(is_running, is_modified, missing_apps);
-
-            WorkspaceUiSummary {
-                is_default: workspace_name.is_none(),
-                workspace_name,
-                option_label,
-                display_name,
-                description: metadata.description.trim().to_owned(),
-                created_at_label: format_workspace_timestamp(metadata.created_unix_ms),
-                updated_at_label: format_workspace_timestamp(metadata.updated_unix_ms),
-                is_running,
-                is_modified,
-                missing_apps,
-                status_summary,
-            }
-        })
-        .collect()
-}
-
-fn format_workspace_timestamp(value: Option<u64>) -> String {
-    value
-        .map(|timestamp| format!("unix-ms:{timestamp}"))
-        .unwrap_or_default()
-}
-
-fn parse_workspace_target_input(value: &str) -> Result<Option<String>, String> {
-    match panopticon::settings::validate_workspace_name_input(value) {
-        WorkspaceNameValidation::Valid(workspace_name)
-            if workspace_name.eq_ignore_ascii_case("default") =>
-        {
-            Ok(None)
-        }
-        WorkspaceNameValidation::Valid(workspace_name) => Ok(Some(workspace_name)),
-        WorkspaceNameValidation::Empty => Ok(None),
-        WorkspaceNameValidation::Invalid(reason) => Err(reason),
-    }
-}
-
-fn set_workspace_feedback(window: &SettingsWindow, message: &str, is_error: bool) {
-    window.set_workspace_feedback_error(is_error);
-    window.set_workspace_feedback_message(SharedString::from(message));
-}
-
-fn clear_workspace_feedback(window: &SettingsWindow) {
-    window.set_workspace_feedback_error(false);
-    window.set_workspace_feedback_message(SharedString::from(""));
+    placement::default_secondary_window_placement(state, exclude_hwnd)
 }
 
 pub(crate) fn apply_secondary_window_placement(
@@ -310,14 +114,7 @@ pub(crate) fn apply_secondary_window_placement(
     settings: &AppSettings,
     placement: SecondaryWindowPlacement,
 ) {
-    keep_dialog_above_owner(dialog_hwnd, placement.owner_hwnd, settings);
-    if settings.center_secondary_windows {
-        if let Some(center_point) = placement.center_point {
-            center_window_on_point_monitor(dialog_hwnd, center_point);
-        } else {
-            center_window_on_owner_monitor(dialog_hwnd, placement.owner_hwnd);
-        }
-    }
+    placement::apply_secondary_window_placement(dialog_hwnd, settings, placement);
 }
 
 fn set_layout_preset_summary(window: &SettingsWindow, message: &str) {
@@ -442,29 +239,11 @@ fn apply_recorded_shortcut_binding(window: &SettingsWindow, target: &str, bindin
 }
 
 fn selected_workspace_from_settings_window(window: &SettingsWindow) -> Option<String> {
-    selected_model_value(
-        &window.get_available_profile_options(),
-        window.get_available_profile_index(),
-    )
-    .and_then(|value| panopticon::ui_option_ops::selected_workspace_name(&value))
+    workspace::selected_workspace_from_settings_window(window)
 }
 
 fn select_workspace_in_settings_window(window: &SettingsWindow, workspace: Option<&str>) {
-    let options = window.get_available_profile_options();
-    let mut target_index = 0;
-
-    for index in 0..options.row_count() {
-        let Some(option) = options.row_data(index) else {
-            continue;
-        };
-        let option_workspace = panopticon::ui_option_ops::selected_workspace_name(option.as_str());
-        if option_workspace.as_deref() == workspace {
-            target_index = i32::try_from(index).unwrap_or_default();
-            break;
-        }
-    }
-
-    window.set_available_profile_index(target_index);
+    workspace::select_workspace_in_settings_window(window, workspace);
 }
 
 struct RuntimeUiOptions {
@@ -490,17 +269,7 @@ struct AppRuleListEntry {
 }
 
 pub(crate) fn ensure_default_workspaces_exist(settings: &AppSettings) {
-    match AppSettings::list_workspaces() {
-        Ok(workspaces) if workspaces.is_empty() => {
-            for workspace_name in ["workspace-1", "workspace-2"] {
-                if let Err(error) = settings.save(Some(workspace_name)) {
-                    tracing::error!(%error, workspace = workspace_name, "failed to seed default workspace");
-                }
-            }
-        }
-        Ok(_) => {}
-        Err(error) => tracing::warn!(%error, "failed to inspect saved workspaces"),
-    }
+    workspace::ensure_default_workspaces_exist(settings);
 }
 
 pub(crate) fn open_settings_window(
@@ -510,10 +279,6 @@ pub(crate) fn open_settings_window(
     open_settings_window_with_anchor(state, main_weak, None);
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "coordinates the SettingsWindow lifecycle and its callback wiring in one place"
-)]
 pub(crate) fn open_settings_window_with_anchor(
     state: &Rc<RefCell<AppState>>,
     main_weak: &slint::Weak<MainWindow>,
@@ -552,1114 +317,7 @@ pub(crate) fn open_settings_window_with_anchor(
         sync_settings_window_from_state(&settings_window, &state);
     }
 
-    settings_window.on_save_profile({
-        let state = state.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let requested_workspace = if settings_window.get_profile_name().trim().is_empty() {
-                    state.borrow().workspace_name.clone()
-                } else {
-                    match parse_workspace_target_input(&settings_window.get_profile_name()) {
-                        Ok(workspace_name) => workspace_name,
-                        Err(reason) => {
-                            tracing::warn!(%reason, "ignoring invalid workspace save request");
-                            set_workspace_feedback(settings_window, &reason, true);
-                            return;
-                        }
-                    }
-                };
-
-                let display_name = settings_window.get_profile_display_name().to_string();
-                let description = settings_window.get_profile_description().to_string();
-
-                let settings_snapshot = {
-                    let mut state_guard = state.borrow_mut();
-                    state_guard
-                        .settings
-                        .set_workspace_metadata(&display_name, &description);
-                    state_guard.settings = state_guard.settings.normalized();
-                    state_guard.settings.clone()
-                };
-
-                match settings_snapshot.save(requested_workspace.as_deref()) {
-                    Ok(()) => {
-                        settings_window
-                            .set_known_profiles_label(SharedString::from(known_workspaces_label()));
-                        let feedback = format!(
-                            "Workspace {} saved successfully.",
-                            current_workspace_label(requested_workspace.as_deref())
-                        );
-                        set_workspace_feedback(settings_window, &feedback, false);
-                        let state_guard = state.borrow();
-                        sync_settings_window_from_state(settings_window, &state_guard);
-                    }
-                    Err(error) => {
-                        tracing::error!(
-                            %error,
-                            workspace = ?requested_workspace,
-                            "failed to save workspace snapshot"
-                        );
-                        set_workspace_feedback(
-                            settings_window,
-                            "Failed to save workspace snapshot. Check logs for details.",
-                            true,
-                        );
-                    }
-                }
-            });
-        }
-    });
-
-    settings_window.on_open_profile_instance({
-        let state = state.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let current_workspace = selected_workspace_from_settings_window(settings_window)
-                    .or_else(|| state.borrow().workspace_name.clone());
-                let requested = if settings_window.get_profile_name().trim().is_empty() {
-                    current_workspace
-                } else {
-                    match parse_workspace_target_input(&settings_window.get_profile_name()) {
-                        Ok(workspace_name) => workspace_name,
-                        Err(reason) => {
-                            tracing::warn!(%reason, "ignoring invalid extra-instance workspace request");
-                            set_workspace_feedback(settings_window, &reason, true);
-                            return;
-                        }
-                    }
-                };
-
-                let display_name = settings_window.get_profile_display_name().to_string();
-                let description = settings_window.get_profile_description().to_string();
-                let settings_snapshot = {
-                    let mut state_guard = state.borrow_mut();
-                    state_guard
-                        .settings
-                        .set_workspace_metadata(&display_name, &description);
-                    state_guard.settings = state_guard.settings.normalized();
-                    state_guard.settings.clone()
-                };
-                if let Some(workspace_name) = requested.as_deref() {
-                    let _ = save_settings_as_workspace(&settings_snapshot, workspace_name);
-                } else if let Err(error) = settings_snapshot.save(None) {
-                    tracing::error!(%error, "failed to save default workspace before launching instance");
-                }
-
-                let launched = launch_additional_instance(requested.as_deref());
-                settings_window.set_known_profiles_label(SharedString::from(known_workspaces_label()));
-                if launched {
-                    let feedback = format!(
-                        "Opened a new instance for {}.",
-                        current_workspace_label(requested.as_deref())
-                    );
-                    set_workspace_feedback(settings_window, &feedback, false);
-                } else {
-                    set_workspace_feedback(
-                        settings_window,
-                        "Could not open a new instance for this workspace.",
-                        true,
-                    );
-                }
-            });
-        }
-    });
-
-    settings_window.on_profile_selection_changed({
-        let state = state.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-                clear_workspace_feedback(settings_window);
-                let state_guard = state.borrow();
-                let fallback_workspace = state_guard.workspace_name.clone();
-                sync_workspace_editor_from_selection(
-                    settings_window,
-                    fallback_workspace,
-                    &state_guard,
-                );
-            });
-        }
-    });
-
-    settings_window.on_duplicate_selected_profile({
-        let state = state.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let source_workspace = selected_workspace_from_settings_window(settings_window)
-                    .or_else(|| state.borrow().workspace_name.clone());
-                let target_workspace = match parse_workspace_target_input(&settings_window.get_profile_name()) {
-                    Ok(Some(workspace_name)) => workspace_name,
-                    Ok(None) => {
-                        tracing::warn!("duplicate requires a non-default target workspace name");
-                        set_workspace_feedback(
-                            settings_window,
-                            "Duplicate requires a non-default workspace name.",
-                            true,
-                        );
-                        return;
-                    }
-                    Err(reason) => {
-                        tracing::warn!(%reason, "ignoring invalid duplicate workspace request");
-                        set_workspace_feedback(settings_window, &reason, true);
-                        return;
-                    }
-                };
-
-                if let Err(error) = AppSettings::duplicate_workspace(source_workspace.as_deref(), &target_workspace) {
-                    tracing::error!(%error, source = ?source_workspace, target = %target_workspace, "failed to duplicate workspace");
-                    set_workspace_feedback(
-                        settings_window,
-                        "Failed to duplicate workspace. Check logs for details.",
-                        true,
-                    );
-                    return;
-                }
-
-                if let Ok(mut duplicated) = AppSettings::load_or_default(Some(&target_workspace)) {
-                    duplicated.set_workspace_metadata(
-                        &settings_window.get_profile_display_name(),
-                        &settings_window.get_profile_description(),
-                    );
-                    if let Err(error) = duplicated.save(Some(&target_workspace)) {
-                        tracing::warn!(%error, workspace = %target_workspace, "failed to persist duplicated workspace metadata");
-                    }
-                }
-
-                let fallback_workspace = {
-                    let state_guard = state.borrow();
-                    sync_settings_window_from_state(settings_window, &state_guard);
-                    state_guard.workspace_name.clone()
-                };
-                select_workspace_in_settings_window(settings_window, Some(&target_workspace));
-                let state_guard = state.borrow();
-                sync_workspace_editor_from_selection(settings_window, fallback_workspace, &state_guard);
-                let feedback = format!(
-                    "Workspace duplicated into {}.",
-                    current_workspace_label(Some(&target_workspace))
-                );
-                set_workspace_feedback(settings_window, &feedback, false);
-            });
-        }
-    });
-
-    settings_window.on_rename_selected_profile({
-        let state = state.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let Some(source_workspace) = selected_workspace_from_settings_window(settings_window) else {
-                    tracing::warn!("default workspace cannot be renamed");
-                    set_workspace_feedback(settings_window, "Default workspace cannot be renamed.", true);
-                    return;
-                };
-
-                let target_workspace = match parse_workspace_target_input(&settings_window.get_profile_name()) {
-                    Ok(Some(workspace_name)) => workspace_name,
-                    Ok(None) => {
-                        tracing::warn!("rename requires a non-default target workspace name");
-                        set_workspace_feedback(
-                            settings_window,
-                            "Rename requires a non-default workspace name.",
-                            true,
-                        );
-                        return;
-                    }
-                    Err(reason) => {
-                        tracing::warn!(%reason, "ignoring invalid rename workspace request");
-                        set_workspace_feedback(settings_window, &reason, true);
-                        return;
-                    }
-                };
-
-                if source_workspace == target_workspace {
-                    set_workspace_feedback(
-                        settings_window,
-                        "Source and target workspace names are identical.",
-                        true,
-                    );
-                    return;
-                }
-
-                let confirmation_message =
-                    format!("Rename workspace '{source_workspace}' to '{target_workspace}' ?");
-                if !confirm_workspace_action("Rename workspace", &confirmation_message) {
-                    set_workspace_feedback(settings_window, "Rename cancelled.", false);
-                    return;
-                }
-
-                if let Err(error) = AppSettings::rename_workspace(&source_workspace, &target_workspace) {
-                    tracing::error!(%error, source = %source_workspace, target = %target_workspace, "failed to rename workspace");
-                    set_workspace_feedback(
-                        settings_window,
-                        "Failed to rename workspace. Check logs for details.",
-                        true,
-                    );
-                    return;
-                }
-
-                if let Ok(mut renamed) = AppSettings::load_or_default(Some(&target_workspace)) {
-                    renamed.set_workspace_metadata(
-                        &settings_window.get_profile_display_name(),
-                        &settings_window.get_profile_description(),
-                    );
-                    if let Err(error) = renamed.save(Some(&target_workspace)) {
-                        tracing::warn!(%error, workspace = %target_workspace, "failed to persist renamed workspace metadata");
-                    }
-                }
-
-                let should_switch_current = state
-                    .borrow()
-                    .workspace_name
-                    .as_deref()
-                    .is_some_and(|workspace| workspace == source_workspace.as_str());
-                if should_switch_current {
-                    state.borrow_mut().workspace_name = Some(target_workspace.clone());
-                }
-
-                let fallback_workspace = {
-                    let state_guard = state.borrow();
-                    sync_settings_window_from_state(settings_window, &state_guard);
-                    state_guard.workspace_name.clone()
-                };
-                select_workspace_in_settings_window(settings_window, Some(&target_workspace));
-                let state_guard = state.borrow();
-                sync_workspace_editor_from_selection(settings_window, fallback_workspace, &state_guard);
-                let feedback = format!(
-                    "Workspace renamed to {}.",
-                    current_workspace_label(Some(&target_workspace))
-                );
-                set_workspace_feedback(settings_window, &feedback, false);
-            });
-        }
-    });
-
-    settings_window.on_delete_selected_profile({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let Some(selected_workspace) = selected_workspace_from_settings_window(settings_window) else {
-                    tracing::warn!("default workspace cannot be deleted");
-                    set_workspace_feedback(settings_window, "Default workspace cannot be deleted.", true);
-                    return;
-                };
-
-                let confirmation_message =
-                    format!("Delete workspace '{selected_workspace}' ? This action cannot be undone.");
-                if !confirm_workspace_action("Delete workspace", &confirmation_message) {
-                    set_workspace_feedback(settings_window, "Delete cancelled.", false);
-                    return;
-                }
-
-                if let Err(error) = AppSettings::delete_workspace(&selected_workspace) {
-                    tracing::error!(%error, workspace = %selected_workspace, "failed to delete workspace");
-                    set_workspace_feedback(
-                        settings_window,
-                        "Failed to delete workspace. Check logs for details.",
-                        true,
-                    );
-                    return;
-                }
-
-                let deleted_current = state
-                    .borrow()
-                    .workspace_name
-                    .as_deref()
-                    .is_some_and(|workspace| workspace == selected_workspace);
-
-                if deleted_current {
-                    let _ = load_workspace_into_current_instance(&state, &main_weak, None);
-                }
-
-                let fallback_workspace = {
-                    let state_guard = state.borrow();
-                    sync_settings_window_from_state(settings_window, &state_guard);
-                    state_guard.workspace_name.clone()
-                };
-                select_workspace_in_settings_window(settings_window, fallback_workspace.as_deref());
-                let state_guard = state.borrow();
-                sync_workspace_editor_from_selection(settings_window, fallback_workspace, &state_guard);
-                let feedback = format!("Workspace '{selected_workspace}' deleted.");
-                set_workspace_feedback(settings_window, &feedback, false);
-            });
-        }
-    });
-
-    settings_window.on_load_selected_profile({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-                let requested = selected_workspace_from_settings_window(settings_window);
-                drop(guard);
-                let loaded =
-                    load_workspace_into_current_instance(&state, &main_weak, requested.clone());
-                crate::SETTINGS_WIN.with(|handle| {
-                    let guard = handle.borrow();
-                    let Some(settings_window) = guard.as_ref() else {
-                        return;
-                    };
-
-                    if loaded {
-                        let feedback = format!(
-                            "Loaded {} in this instance.",
-                            current_workspace_label(requested.as_deref())
-                        );
-                        set_workspace_feedback(settings_window, &feedback, false);
-                    } else {
-                        set_workspace_feedback(
-                            settings_window,
-                            "Failed to load selected workspace.",
-                            true,
-                        );
-                    }
-                });
-            });
-        }
-    });
-
-    settings_window.on_open_about({
-        let state = state.clone();
-        move || {
-            open_about_window(&state);
-        }
-    });
-
-    settings_window.on_reset_to_defaults({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            let (hwnd, settings_snapshot, workspace_name) = {
-                let mut state = state.borrow_mut();
-                let workspace = state.workspace_name.clone();
-                state.settings = AppSettings::default();
-                state.settings = state.settings.normalized();
-                state.current_layout = state.settings.effective_layout();
-                let _ = state.settings.save(workspace.as_deref());
-                (state.hwnd, state.settings.clone(), workspace)
-            };
-            startup::sync_run_at_startup(
-                settings_snapshot.run_at_startup,
-                workspace_name.as_deref(),
-            );
-            global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                if let Some(settings_window) = guard.as_ref() {
-                    let state_ref = state.borrow();
-                    sync_settings_window_from_state(settings_window, &state_ref);
-                }
-            });
-            let state_ref = state.borrow();
-            apply_window_appearance(state_ref.hwnd, &state_ref.settings);
-            apply_topmost_mode(state_ref.hwnd, state_ref.settings.always_on_top);
-            drop(state_ref);
-            let _ = crate::refresh_windows(&state);
-            if let Some(main_window) = main_weak.upgrade() {
-                let state_ref = state.borrow();
-                let _ = apply_configured_main_window_size(&main_window, &state_ref.settings);
-                drop(state_ref);
-                crate::recompute_and_update_ui(&state, &main_window);
-            }
-        }
-    });
-
-    settings_window.on_refresh_now({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            let _ = crate::refresh_windows(&state);
-            crate::refresh_ui(&state, &main_weak);
-        }
-    });
-
-    settings_window.on_check_updates_now({
-        let state = state.clone();
-        move || {
-            let _ = crate::request_update_check(&state, true);
-        }
-    });
-
-    settings_window.on_shortcut_start_recording(|target| {
-        crate::SETTINGS_WIN.with(|handle| {
-            let guard = handle.borrow();
-            let Some(settings_window) = guard.as_ref() else {
-                return;
-            };
-
-            let target = target.trim().to_string();
-            if target.is_empty() {
-                stop_shortcut_recording(
-                    settings_window,
-                    "Click a Rec button beside a shortcut field to start recording.",
-                );
-                return;
-            }
-
-            if target == "global_activate" {
-                stop_shortcut_recording(
-                    settings_window,
-                    "Global activate uses modifier chords (Ctrl/Alt/Shift). Enter that one manually.",
-                );
-                return;
-            }
-
-            settings_window.set_shortcut_recording_mode(true);
-            settings_window.set_shortcut_recording_target(SharedString::from(target.clone()));
-            settings_window.set_shortcut_recording_hint(SharedString::from(format!(
-                "Press a key for '{}'. Press Esc to cancel.",
-                shortcut_recording_label(&target)
-            )));
-        });
-    });
-
-    settings_window.on_shortcut_stop_recording(|| {
-        crate::SETTINGS_WIN.with(|handle| {
-            let guard = handle.borrow();
-            let Some(settings_window) = guard.as_ref() else {
-                return;
-            };
-            stop_shortcut_recording(settings_window, "Shortcut recording stopped.");
-        });
-    });
-
-    settings_window.on_restore_hidden_selected({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-                let Some(option) = selected_model_value(
-                    &settings_window.get_hidden_app_options(),
-                    settings_window.get_hidden_app_index(),
-                ) else {
-                    return;
-                };
-                let Some(app_id) = parse_option_value(&option) else {
-                    return;
-                };
-
-                crate::update_settings(&state, |settings| {
-                    let _ = settings.restore_hidden_app(&app_id);
-                });
-                let _ = crate::refresh_windows(&state);
-                crate::refresh_ui(&state, &main_weak);
-            });
-        }
-    });
-
-    settings_window.on_restore_hidden_all({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            crate::update_settings(&state, |settings| {
-                let _ = settings.restore_all_hidden_apps();
-            });
-            let _ = crate::refresh_windows(&state);
-            crate::refresh_ui(&state, &main_weak);
-        }
-    });
-
-    settings_window.on_app_rules_select_app({
-        let state = state.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-                let state_guard = state.borrow();
-                sync_selected_app_rule_editor(settings_window, &state_guard.settings);
-            });
-        }
-    });
-
-    settings_window.on_app_rules_refresh_list({
-        let state = state.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let state_guard = state.borrow();
-                settings_window.set_suspend_live_apply(true);
-                populate_settings_window_runtime_fields(settings_window, &state_guard);
-                settings_window.set_suspend_live_apply(false);
-            });
-        }
-    });
-
-    settings_window.on_app_rules_apply_selected({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let selected = selected_model_value(
-                    &settings_window.get_app_rules_options(),
-                    settings_window.get_app_rules_index(),
-                );
-                let Some(selected_option) = selected else {
-                    return;
-                };
-                let Some(app_id) = parse_option_value(&selected_option) else {
-                    return;
-                };
-
-                let display_name = settings_window
-                    .get_app_rules_selected_app_label()
-                    .to_string();
-                let hidden = settings_window.get_app_rules_hidden();
-                let preserve_aspect = settings_window.get_app_rules_preserve_aspect();
-                let hide_on_select = settings_window.get_app_rules_hide_on_select();
-                let refresh_mode =
-                    refresh_mode_from_index(settings_window.get_app_rules_refresh_mode_index());
-                let refresh_interval_ms = settings_window
-                    .get_app_rules_refresh_interval_ms()
-                    .clamp(500, 60_000) as u32;
-                let tags_csv = settings_window.get_app_rules_tags().to_string();
-                let color_hex = settings_window.get_app_rules_color_hex().to_string();
-                let pin_slot_value = settings_window.get_app_rules_pin_slot().max(0) as usize;
-
-                crate::update_settings(&state, |settings| {
-                    let default_preserve = settings.preserve_aspect_ratio;
-                    let default_hide = settings.hide_on_select;
-                    let rule = settings.app_rules.entry(app_id.clone()).or_default();
-
-                    if !display_name.trim().is_empty() {
-                        display_name.trim().clone_into(&mut rule.display_name);
-                    }
-
-                    rule.hidden = hidden;
-                    rule.preserve_aspect_ratio = preserve_aspect;
-                    rule.preserve_aspect_ratio_override =
-                        (preserve_aspect != default_preserve).then_some(preserve_aspect);
-
-                    let effective_hide = if settings.dock_edge.is_some() {
-                        false
-                    } else {
-                        hide_on_select
-                    };
-                    rule.hide_on_select = effective_hide;
-                    rule.hide_on_select_override =
-                        (effective_hide != default_hide).then_some(effective_hide);
-
-                    rule.thumbnail_refresh_mode = refresh_mode;
-                    rule.thumbnail_refresh_interval_ms = (refresh_mode
-                        == ThumbnailRefreshMode::Interval)
-                        .then_some(refresh_interval_ms.max(500));
-
-                    rule.tags = parse_tags_csv(&tags_csv);
-
-                    let color = color_hex.trim().trim_start_matches('#');
-                    rule.color_hex = if color.is_empty() {
-                        None
-                    } else {
-                        Some(color.to_owned())
-                    };
-
-                    rule.pinned_position = if hidden || pin_slot_value == 0 {
-                        None
-                    } else {
-                        Some(pin_slot_value - 1)
-                    };
-                });
-
-                let _ = crate::refresh_windows(&state);
-                crate::refresh_ui(&state, &main_weak);
-            });
-        }
-    });
-
-    settings_window.on_app_rules_reset_selected({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let selected = selected_model_value(
-                    &settings_window.get_app_rules_options(),
-                    settings_window.get_app_rules_index(),
-                );
-                let Some(selected_option) = selected else {
-                    return;
-                };
-                let Some(app_id) = parse_option_value(&selected_option) else {
-                    return;
-                };
-
-                crate::update_settings(&state, |settings| {
-                    settings.app_rules.remove(&app_id);
-                });
-
-                let _ = crate::refresh_windows(&state);
-                crate::refresh_ui(&state, &main_weak);
-            });
-        }
-    });
-
-    settings_window.on_app_rules_clear_unused({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            let running_app_ids: BTreeSet<String> = {
-                let state_guard = state.borrow();
-                collect_runtime_ui_options(&state_guard)
-                    .apps
-                    .into_iter()
-                    .map(|entry| entry.app_id)
-                    .collect()
-            };
-
-            crate::update_settings(&state, |settings| {
-                settings
-                    .app_rules
-                    .retain(|app_id, _| running_app_ids.contains(app_id));
-            });
-
-            let _ = crate::refresh_windows(&state);
-            crate::refresh_ui(&state, &main_weak);
-        }
-    });
-
-    settings_window.on_app_rules_add_tag(|| {
-        crate::SETTINGS_WIN.with(|handle| {
-            let guard = handle.borrow();
-            let Some(settings_window) = guard.as_ref() else {
-                return;
-            };
-
-            let mut tags = parse_tags_csv(settings_window.get_app_rules_tags().as_ref());
-            let draft = settings_window
-                .get_app_rules_tag_input()
-                .trim()
-                .to_ascii_lowercase();
-            if draft.is_empty() {
-                return;
-            }
-
-            tags.push(draft);
-            tags.sort();
-            tags.dedup();
-            sync_app_rule_tags_editor(settings_window, &tags, true);
-        });
-    });
-
-    settings_window.on_app_rules_remove_tag(|tag| {
-        crate::SETTINGS_WIN.with(|handle| {
-            let guard = handle.borrow();
-            let Some(settings_window) = guard.as_ref() else {
-                return;
-            };
-
-            let mut tags = parse_tags_csv(settings_window.get_app_rules_tags().as_ref());
-            tags.retain(|candidate| candidate != tag.as_str());
-            sync_app_rule_tags_editor(settings_window, &tags, false);
-        });
-    });
-
-    settings_window.on_app_rules_apply_tag_suggestion(|suggestion| {
-        crate::SETTINGS_WIN.with(|handle| {
-            let guard = handle.borrow();
-            let Some(settings_window) = guard.as_ref() else {
-                return;
-            };
-
-            let mut tags = parse_tags_csv(settings_window.get_app_rules_tags().as_ref());
-            let normalized = suggestion.trim().to_ascii_lowercase();
-            if normalized.is_empty() {
-                return;
-            }
-
-            tags.push(normalized);
-            tags.sort();
-            tags.dedup();
-            sync_app_rule_tags_editor(settings_window, &tags, false);
-        });
-    });
-
-    settings_window.on_save_layout_preset({
-        let state = state.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let preset_name = settings_window.get_layout_preset_name().trim().to_owned();
-                if preset_name.is_empty() {
-                    set_layout_preset_summary(
-                        settings_window,
-                        "Enter a preset name before saving.",
-                    );
-                    return;
-                }
-
-                let result = {
-                    let mut state_guard = state.borrow_mut();
-                    let active_layout = state_guard.current_layout;
-                    match state_guard
-                        .settings
-                        .save_layout_preset(&preset_name, active_layout)
-                    {
-                        Ok(()) => {
-                            state_guard.settings = state_guard.settings.normalized();
-                            if let Err(error) =
-                                state_guard.settings.save(state_guard.workspace_name.as_deref())
-                            {
-                                tracing::error!(%error, preset = %preset_name, "failed to persist layout preset save");
-                                Err("Saved in memory, but failed to persist preset to disk.".to_owned())
-                            } else {
-                                Ok(())
-                            }
-                        }
-                        Err(reason) => Err(reason),
-                    }
-                };
-
-                match result {
-                    Ok(()) => {
-                        let state_guard = state.borrow();
-                        sync_layout_preset_controls(settings_window, &state_guard.settings);
-                        settings_window.set_layout_preset_name(SharedString::from(preset_name.clone()));
-                        set_layout_preset_summary(
-                            settings_window,
-                            &format!("Saved layout preset '{preset_name}'."),
-                        );
-                    }
-                    Err(reason) => {
-                        set_layout_preset_summary(settings_window, &reason);
-                    }
-                }
-            });
-        }
-    });
-
-    settings_window.on_apply_layout_preset({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let Some(preset_name) = selected_layout_preset_name(settings_window) else {
-                    set_layout_preset_summary(settings_window, "Select a preset to apply.");
-                    return;
-                };
-
-                let apply_outcome = {
-                    let mut state_guard = state.borrow_mut();
-                    if state_guard.settings.apply_layout_preset(&preset_name) {
-                        state_guard.settings = state_guard.settings.normalized();
-                        state_guard.current_layout = state_guard.settings.effective_layout();
-                        if let Err(error) = state_guard
-                            .settings
-                            .save(state_guard.workspace_name.as_deref())
-                        {
-                            tracing::error!(%error, preset = %preset_name, "failed to persist layout preset apply");
-                            Some(false)
-                        } else {
-                            Some(true)
-                        }
-                    } else {
-                        None
-                    }
-                };
-
-                match apply_outcome {
-                    None => {
-                        set_layout_preset_summary(
-                            settings_window,
-                            "Could not apply layout preset. It may have been renamed or deleted.",
-                        );
-                    }
-                    Some(false) => {
-                        set_layout_preset_summary(
-                            settings_window,
-                            "Applied in memory, but failed to persist layout preset changes.",
-                        );
-                    }
-                    Some(true) => {
-                        settings_window.set_layout_preset_name(SharedString::from(preset_name.clone()));
-                        set_layout_preset_summary(
-                            settings_window,
-                            &format!("Applied layout preset '{preset_name}'."),
-                        );
-                        let _ = crate::refresh_windows(&state);
-                        crate::refresh_ui(&state, &main_weak);
-                    }
-                }
-            });
-        }
-    });
-
-    settings_window.on_delete_layout_preset({
-        let state = state.clone();
-        move || {
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return;
-                };
-
-                let Some(preset_name) = selected_layout_preset_name(settings_window) else {
-                    set_layout_preset_summary(settings_window, "Select a preset to delete.");
-                    return;
-                };
-
-                let deleted = {
-                    let mut state_guard = state.borrow_mut();
-                    let removed = state_guard.settings.delete_layout_preset(&preset_name);
-                    if removed {
-                        state_guard.settings = state_guard.settings.normalized();
-                        if let Err(error) = state_guard
-                            .settings
-                            .save(state_guard.workspace_name.as_deref())
-                        {
-                            tracing::error!(%error, preset = %preset_name, "failed to persist layout preset deletion");
-                        }
-                    }
-                    removed
-                };
-
-                if deleted {
-                    let state_guard = state.borrow();
-                    sync_layout_preset_controls(settings_window, &state_guard.settings);
-                    set_layout_preset_summary(
-                        settings_window,
-                        &format!("Deleted layout preset '{preset_name}'."),
-                    );
-                } else {
-                    set_layout_preset_summary(
-                        settings_window,
-                        "Could not delete layout preset. It may have already been removed.",
-                    );
-                }
-            });
-        }
-    });
-
-    settings_window.on_browse_background_image(|| {
-        crate::SETTINGS_WIN.with(|handle| {
-            let guard = handle.borrow();
-            let Some(settings_window) = guard.as_ref() else {
-                return;
-            };
-
-            let dialog = rfd::FileDialog::new()
-                .add_filter(
-                    "Images",
-                    &["png", "jpg", "jpeg", "bmp", "gif", "webp", "svg"],
-                )
-                .set_title(panopticon::i18n::t("dialog.choose_background_image"));
-
-            let dialog = if settings_window.get_bg_image_path().is_empty() {
-                dialog
-            } else {
-                let current_path = settings_window.get_bg_image_path().to_string();
-                let start_dir = Path::new(&current_path)
-                    .parent()
-                    .unwrap_or_else(|| Path::new(&current_path));
-                dialog.set_directory(start_dir)
-            };
-
-            if let Some(path) = dialog.pick_file() {
-                settings_window.set_bg_image_path(SharedString::from(path.display().to_string()));
-                if let Ok(image) = slint::Image::load_from_path(path.as_path()) {
-                    settings_window.set_bg_image_preview(image);
-                }
-                settings_window.invoke_apply();
-            }
-        });
-    });
-
-    settings_window.on_clear_background_image(|| {
-        crate::SETTINGS_WIN.with(|handle| {
-            let guard = handle.borrow();
-            let Some(settings_window) = guard.as_ref() else {
-                return;
-            };
-            settings_window.set_bg_image_path(SharedString::from(""));
-            settings_window.set_bg_image_preview(slint::Image::default());
-            settings_window.invoke_apply();
-        });
-    });
-
-    settings_window.on_apply_bg_color_hex(|hex| {
-        crate::SETTINGS_WIN.with(|handle| {
-            let guard = handle.borrow();
-            let Some(settings_window) = guard.as_ref() else {
-                return;
-            };
-
-            if let Some((red, green, blue)) = parse_rgb_hex(&hex) {
-                apply_background_color(settings_window, red, green, blue);
-            } else {
-                let red = settings_window.get_bg_red_value();
-                let green = settings_window.get_bg_green_value();
-                let blue = settings_window.get_bg_blue_value();
-                apply_background_color(settings_window, red, green, blue);
-            }
-        });
-    });
-
-    settings_window.on_apply_bg_color_rgb(|red, green, blue| {
-        crate::SETTINGS_WIN.with(|handle| {
-            let guard = handle.borrow();
-            let Some(settings_window) = guard.as_ref() else {
-                return;
-            };
-
-            apply_background_color(settings_window, red, green, blue);
-        });
-    });
-
-    let apply_debounce_timer = Rc::new(Timer::default());
-    settings_window.on_apply({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        let apply_debounce_timer = apply_debounce_timer.clone();
-        move || {
-            let should_skip = crate::SETTINGS_WIN.with(|handle| {
-                handle
-                    .borrow()
-                    .as_ref()
-                    .is_some_and(SettingsWindow::get_suspend_live_apply)
-            });
-            if should_skip {
-                tracing::debug!("skipping apply while settings window sync is suspended");
-                return;
-            }
-
-            let state = state.clone();
-            let main_weak = main_weak.clone();
-            apply_debounce_timer.start(
-                TimerMode::SingleShot,
-                Duration::from_millis(140),
-                move || {
-                    apply_settings_window_to_state(&state, &main_weak);
-                },
-            );
-        }
-    });
-
-    settings_window.on_key_pressed({
-        let state = state.clone();
-        let main_weak = main_weak.clone();
-        move |key_text, shift_pressed| {
-            let intercepted = crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                let Some(settings_window) = guard.as_ref() else {
-                    return false;
-                };
-
-                if !settings_window.get_shortcut_recording_mode() {
-                    return false;
-                }
-
-                if key_text == "\u{001B}" {
-                    stop_shortcut_recording(settings_window, "Shortcut recording cancelled.");
-                    return true;
-                }
-
-                let Some(binding) = normalize_recorded_shortcut(key_text.as_str()) else {
-                    settings_window.set_shortcut_recording_hint(SharedString::from(
-                        "Unsupported key for shortcut recording. Try letters, digits, Tab, Enter, Space, or Esc.",
-                    ));
-                    return true;
-                };
-
-                let target = settings_window.get_shortcut_recording_target().to_string();
-                if target.trim().is_empty() {
-                    stop_shortcut_recording(
-                        settings_window,
-                        "No shortcut target selected. Click a Rec button first.",
-                    );
-                    return true;
-                }
-
-                if !apply_recorded_shortcut_binding(settings_window, &target, &binding) {
-                    stop_shortcut_recording(
-                        settings_window,
-                        "Unknown shortcut target. Please choose a field and try again.",
-                    );
-                    return true;
-                }
-
-                settings_window.invoke_apply();
-                stop_shortcut_recording(
-                    settings_window,
-                    &format!(
-                        "Recorded '{}' for '{}'.",
-                        binding,
-                        shortcut_recording_label(&target)
-                    ),
-                );
-                true
-            });
-
-            if intercepted {
-                true
-            } else {
-                super::keyboard_actions::handle_key(&state, &main_weak, &key_text, shift_pressed)
-            }
-        }
-    });
-
-    settings_window.on_closed(|| {
-        let taken = crate::SETTINGS_WIN.with(|handle| handle.borrow_mut().take());
-        if let Some(window) = taken {
-            window.hide().ok();
-        }
-    });
+    settings_callbacks::register_settings_window_callbacks(&settings_window, state, main_weak);
 
     if let Err(error) = settings_window.show() {
         tracing::error!(%error, "failed to show settings window");
@@ -1794,94 +452,18 @@ pub(crate) fn open_settings_window_page(
 }
 
 pub(crate) fn open_about_window(state: &Rc<RefCell<AppState>>) {
-    open_about_window_with_anchor(state, None);
+    dialogs::open_about_window(state);
 }
 
 pub(crate) fn open_about_window_with_anchor(
     state: &Rc<RefCell<AppState>>,
     center_point: Option<POINT>,
 ) {
-    let already_open = crate::ABOUT_WIN.with(|handle| {
-        let guard = handle.borrow();
-        if let Some(existing) = guard.as_ref() {
-            existing.show().ok();
-            if let Some(hwnd) = crate::get_hwnd(existing.window()) {
-                let state = state.borrow();
-                let placement = secondary_window_placement(&state, center_point, hwnd);
-                apply_window_icons(hwnd, &state.icons);
-                apply_secondary_window_placement(hwnd, &state.settings, placement);
-            }
-            true
-        } else {
-            false
-        }
-    });
-    if already_open {
-        return;
-    }
-
-    let about_window = match AboutWindow::new() {
-        Ok(window) => window,
-        Err(error) => {
-            tracing::error!(%error, "failed to create about window");
-            return;
-        }
-    };
-    crate::populate_tr_global(&about_window);
-
-    {
-        let state = state.borrow();
-        sync_about_window_from_state(&about_window, &state);
-    }
-
-    about_window.on_open_github(|| {
-        open_external_url("https://github.com/gvastethecreator");
-    });
-
-    about_window.on_open_x(|| {
-        open_external_url("https://x.com/gvastethecreator");
-    });
-
-    about_window.on_closed(close_about_window);
-
-    about_window.window().on_close_requested(|| {
-        close_about_window();
-        CloseRequestResponse::HideWindow
-    });
-
-    if let Err(error) = about_window.show() {
-        tracing::error!(%error, "failed to show about window");
-        return;
-    }
-
-    if let Some(about_hwnd) = crate::get_hwnd(about_window.window()) {
-        let state = state.borrow();
-        let placement = secondary_window_placement(&state, center_point, about_hwnd);
-        apply_window_icons(about_hwnd, &state.icons);
-        apply_window_appearance(about_hwnd, &state.settings);
-        apply_about_window_theme_snapshot(&about_window, &state.current_theme);
-        apply_secondary_window_placement(about_hwnd, &state.settings, placement);
-    }
-
-    crate::ABOUT_WIN.with(|handle| *handle.borrow_mut() = Some(about_window));
+    dialogs::open_about_window_with_anchor(state, center_point);
 }
 
 pub(crate) fn refresh_open_about_window(state: &Rc<RefCell<AppState>>) {
-    crate::ABOUT_WIN.with(|handle| {
-        let guard = handle.borrow();
-        let Some(window) = guard.as_ref() else {
-            return;
-        };
-        let Ok(state) = state.try_borrow() else {
-            tracing::debug!("skipping about window refresh while app state is busy");
-            return;
-        };
-        sync_about_window_from_state(window, &state);
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
-            let owner_hwnd = resolve_secondary_window_owner(&state, dialog_hwnd);
-            keep_dialog_above_owner(dialog_hwnd, owner_hwnd, &state.settings);
-        }
-    });
+    dialogs::refresh_open_about_window(state);
 }
 
 pub(crate) fn open_create_tag_dialog(
@@ -1889,88 +471,7 @@ pub(crate) fn open_create_tag_dialog(
     weak: &slint::Weak<MainWindow>,
     info: &WindowInfo,
 ) {
-    let already_open = crate::TAG_DIALOG_WIN.with(|dialog| {
-        let guard = dialog.borrow();
-        if let Some(existing) = guard.as_ref() {
-            existing.show().ok();
-            if let Some(dialog_hwnd) = crate::get_hwnd(existing.window()) {
-                let state = state.borrow();
-                let placement = default_secondary_window_placement(&state, dialog_hwnd);
-                apply_window_icons(dialog_hwnd, &state.icons);
-                apply_secondary_window_placement(dialog_hwnd, &state.settings, placement);
-            }
-            true
-        } else {
-            false
-        }
-    });
-    if already_open {
-        return;
-    }
-
-    let suggested_name = suggested_tag_name(info.app_label());
-    let suggested_color = state.borrow().settings.tag_color_hex(&suggested_name);
-
-    let dialog = match TagDialogWindow::new() {
-        Ok(dialog) => dialog,
-        Err(error) => {
-            tracing::error!(%error, app_id = %info.app_id, "failed to create tag dialog");
-            return;
-        }
-    };
-    crate::populate_tr_global(&dialog);
-
-    dialog.set_app_label(SharedString::from(info.app_label()));
-    dialog.set_tag_name(SharedString::from(suggested_name));
-    dialog.set_color_index(tag_color_index(&suggested_color));
-    {
-        let state = state.borrow();
-        apply_tag_dialog_theme_snapshot(&dialog, &state.current_theme);
-    }
-
-    dialog.on_create({
-        let state = state.clone();
-        let weak = weak.clone();
-        let app_id = info.app_id.clone();
-        let display_name = info.app_label().to_owned();
-        move || {
-            crate::TAG_DIALOG_WIN.with(|dialog_cell| {
-                let guard = dialog_cell.borrow();
-                let Some(dialog) = guard.as_ref() else {
-                    return;
-                };
-                let tag_name = dialog.get_tag_name().to_string();
-                let color_hex = tag_color_hex(dialog.get_color_index());
-                drop(guard);
-
-                apply_tag_creation(&state, &weak, &app_id, &display_name, &tag_name, &color_hex);
-                close_tag_dialog_window();
-            });
-        }
-    });
-
-    dialog.on_closed(close_tag_dialog_window);
-
-    dialog.window().on_close_requested(|| {
-        close_tag_dialog_window();
-        CloseRequestResponse::HideWindow
-    });
-
-    if let Err(error) = dialog.show() {
-        tracing::error!(%error, app_id = %info.app_id, "failed to show tag dialog");
-        return;
-    }
-
-    if let Some(dialog_hwnd) = crate::get_hwnd(dialog.window()) {
-        let state = state.borrow();
-        let placement = default_secondary_window_placement(&state, dialog_hwnd);
-        apply_window_icons(dialog_hwnd, &state.icons);
-        apply_window_appearance(dialog_hwnd, &state.settings);
-        apply_tag_dialog_theme_snapshot(&dialog, &state.current_theme);
-        apply_secondary_window_placement(dialog_hwnd, &state.settings, placement);
-    }
-
-    crate::TAG_DIALOG_WIN.with(|dialog_cell| *dialog_cell.borrow_mut() = Some(dialog));
+    dialogs::open_create_tag_dialog(state, weak, info);
 }
 
 fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut AppSettings) {
@@ -2454,51 +955,7 @@ fn sync_workspace_editor_from_selection(
     fallback_workspace: Option<String>,
     state: &AppState,
 ) {
-    let selected_workspace = selected_workspace_from_settings_window(window).or(fallback_workspace);
-    let workspace_settings = AppSettings::load_or_default(selected_workspace.as_deref())
-        .unwrap_or_else(|error| {
-            tracing::warn!(%error, workspace = ?selected_workspace, "failed to load selected workspace metadata");
-            AppSettings::default()
-        });
-
-    let runtime = collect_runtime_ui_options(state);
-    let running_apps: BTreeSet<&str> = runtime
-        .apps
-        .iter()
-        .map(|entry| entry.app_id.as_str())
-        .collect();
-    let missing_apps = workspace_settings
-        .app_rules
-        .keys()
-        .filter(|app_id| !running_apps.contains(app_id.as_str()))
-        .count();
-    let is_running = selected_workspace == state.workspace_name;
-    let is_modified = is_running && workspace_settings.normalized() != state.settings.normalized();
-    let status_summary = workspace_status_summary(is_running, is_modified, missing_apps);
-
-    window.set_profile_name(SharedString::from(
-        selected_workspace.clone().unwrap_or_default(),
-    ));
-    window.set_profile_display_name(SharedString::from(
-        workspace_settings.workspace.display_name.clone(),
-    ));
-    window.set_profile_description(SharedString::from(
-        workspace_settings.workspace.description.clone(),
-    ));
-    window.set_selected_profile_name(SharedString::from(current_workspace_label(
-        selected_workspace.as_deref(),
-    )));
-    window.set_selected_profile_is_default(selected_workspace.is_none());
-    window.set_selected_profile_created_at(SharedString::from(format_workspace_timestamp(
-        workspace_settings.workspace.created_unix_ms,
-    )));
-    window.set_selected_profile_updated_at(SharedString::from(format_workspace_timestamp(
-        workspace_settings.workspace.updated_unix_ms,
-    )));
-    window.set_selected_profile_running(is_running);
-    window.set_selected_profile_modified(is_modified);
-    window.set_selected_profile_missing_apps(missing_apps as i32);
-    window.set_selected_profile_status_summary(SharedString::from(status_summary));
+    workspace::sync_workspace_editor_from_selection(window, fallback_workspace, state);
 }
 
 fn sync_settings_window_from_state(window: &SettingsWindow, state: &AppState) {
@@ -2541,30 +998,8 @@ fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
     }
 }
 
-fn sync_about_window_from_state(window: &AboutWindow, state: &AppState) {
-    crate::populate_tr_global(window);
-    window.set_version_text(SharedString::from(state.app_version.clone()));
-    let (show_update_badge, latest_version_text) = match &state.update_status {
-        crate::UpdateStatus::Available { latest_version, .. } => (true, latest_version.clone()),
-        _ => (false, String::new()),
-    };
-    window.set_show_update_badge(show_update_badge);
-    window.set_latest_version_text(SharedString::from(latest_version_text));
-    apply_about_window_theme_snapshot(window, &state.current_theme);
-}
-
 fn known_workspaces_label() -> String {
-    use panopticon::i18n;
-    match AppSettings::list_workspaces_with_default() {
-        Ok(workspaces) if workspaces.is_empty() => {
-            i18n::t("settings.no_saved_workspaces").to_owned()
-        }
-        Ok(workspaces) => i18n::t_fmt("settings.saved_workspaces_fmt", &workspaces.join(", ")),
-        Err(error) => {
-            tracing::warn!(%error, "failed to list saved workspaces");
-            i18n::t("settings.no_saved_workspaces").to_owned()
-        }
-    }
+    workspace::known_workspaces_label()
 }
 
 fn localized_update_status_text(status: &crate::UpdateStatus) -> String {
@@ -2590,153 +1025,22 @@ pub(crate) fn load_workspace_into_current_instance(
     main_weak: &slint::Weak<MainWindow>,
     requested_workspace: Option<String>,
 ) -> bool {
-    let loaded_settings = match AppSettings::load_or_default(requested_workspace.as_deref()) {
-        Ok(settings) => settings.normalized(),
-        Err(error) => {
-            tracing::error!(%error, workspace = ?requested_workspace, "failed to load workspace");
-            return false;
-        }
-    };
-
-    let (hwnd, previous_language, settings_snapshot, workspace_name) = {
-        let mut guard = state.borrow_mut();
-        let previous_language = guard.settings.language;
-        if guard.is_appbar {
-            unregister_appbar(guard.hwnd);
-            guard.is_appbar = false;
-        }
-        guard.workspace_name = requested_workspace;
-        guard.settings = loaded_settings;
-        guard.current_layout = guard.settings.effective_layout();
-        guard.loaded_background_path = None;
-        guard.current_theme = theme_catalog::resolve_ui_theme(
-            guard.settings.theme_id.as_deref(),
-            &guard.settings.background_color_hex,
-            &guard.settings.theme_color_overrides,
-        );
-        guard.theme_animation = None;
-        (
-            guard.hwnd,
-            previous_language,
-            guard.settings.clone(),
-            guard.workspace_name.clone(),
-        )
-    };
-
-    startup::sync_run_at_startup(settings_snapshot.run_at_startup, workspace_name.as_deref());
-    global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
-    apply_window_appearance(hwnd, &settings_snapshot);
-
-    if let Some(main_window) = main_weak.upgrade() {
-        if settings_snapshot.dock_edge.is_some() {
-            let mut guard = state.borrow_mut();
-            apply_dock_mode(&mut guard);
-        } else {
-            restore_floating_style(hwnd);
-            apply_topmost_mode(hwnd, settings_snapshot.always_on_top);
-            let _ = apply_configured_main_window_size(&main_window, &settings_snapshot);
-            center_window_on_owner_monitor(hwnd, HWND::default());
-        }
-
-        apply_main_window_theme_snapshot(&main_window, &state.borrow().current_theme);
-        let _ = crate::refresh_windows(state);
-        crate::recompute_and_update_ui(state, &main_window);
-    }
-
-    if previous_language != settings_snapshot.language {
-        let _ = panopticon::i18n::set_locale(settings_snapshot.language);
-        if let Some(main_window) = main_weak.upgrade() {
-            crate::populate_tr_global(&main_window);
-        }
-        refresh_open_about_window(state);
-        refresh_open_tag_dialog_window(state);
-        refresh_tray_locale(state);
-    }
-
-    refresh_open_settings_window(state);
-    refresh_secondary_window_stacking(state);
-    true
+    workspace::load_workspace_into_current_instance(state, main_weak, requested_workspace)
 }
 
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "call sites naturally own the optional workspace value and this API keeps that flow ergonomic"
-)]
 pub(crate) fn open_workspace_in_new_instance(
     state: &Rc<RefCell<AppState>>,
     requested_workspace: Option<String>,
 ) -> bool {
-    let settings_snapshot = state.borrow().settings.normalized();
-
-    if let Some(workspace_name) = requested_workspace.as_deref() {
-        let _ = save_settings_as_workspace(&settings_snapshot, workspace_name);
-    } else if let Err(error) = settings_snapshot.save(None) {
-        tracing::error!(%error, "failed to save default workspace before launching instance");
-        return false;
-    }
-
-    launch_additional_instance(requested_workspace.as_deref())
+    workspace::open_workspace_in_new_instance(state, requested_workspace)
 }
 
 fn refresh_open_tag_dialog_window(state: &Rc<RefCell<AppState>>) {
-    crate::TAG_DIALOG_WIN.with(|dialog| {
-        let guard = dialog.borrow();
-        let Some(window) = guard.as_ref() else {
-            return;
-        };
-        crate::populate_tr_global(window);
-        let state = state.borrow();
-        apply_tag_dialog_theme_snapshot(window, &state.current_theme);
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
-            let owner_hwnd = resolve_secondary_window_owner(&state, dialog_hwnd);
-            keep_dialog_above_owner(dialog_hwnd, owner_hwnd, &state.settings);
-        }
-    });
+    dialogs::refresh_open_tag_dialog_window(state);
 }
 
 pub(crate) fn refresh_secondary_window_stacking(state: &Rc<RefCell<AppState>>) {
-    crate::SETTINGS_WIN.with(|handle| {
-        let guard = handle.borrow();
-        let Some(window) = guard.as_ref() else {
-            return;
-        };
-        let Ok(state) = state.try_borrow() else {
-            return;
-        };
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
-            keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
-        }
-    });
-
-    crate::ABOUT_WIN.with(|handle| {
-        let guard = handle.borrow();
-        let Some(window) = guard.as_ref() else {
-            return;
-        };
-        let Ok(state) = state.try_borrow() else {
-            return;
-        };
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
-            let owner_hwnd = resolve_secondary_window_owner(&state, dialog_hwnd);
-            keep_dialog_above_owner(dialog_hwnd, owner_hwnd, &state.settings);
-        }
-    });
-
-    crate::TAG_DIALOG_WIN.with(|dialog| {
-        let guard = dialog.borrow();
-        let Some(window) = guard.as_ref() else {
-            return;
-        };
-        let Ok(state) = state.try_borrow() else {
-            return;
-        };
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
-            let owner_hwnd = resolve_secondary_window_owner(&state, dialog_hwnd);
-            keep_dialog_above_owner(dialog_hwnd, owner_hwnd, &state.settings);
-        }
-    });
-
-    super::command_palette::refresh_open_command_palette_window_stacking(state);
+    placement::refresh_secondary_window_stacking(state);
 }
 
 fn refresh_tray_locale(state: &Rc<RefCell<AppState>>) {
@@ -2757,68 +1061,6 @@ fn selected_model_value(model: &ModelRc<SharedString>, index: i32) -> Option<Str
         .ok()
         .and_then(|index| model.row_data(index))
         .map(|value| value.to_string())
-}
-
-fn save_settings_as_workspace(settings: &AppSettings, workspace_name: &str) -> bool {
-    match settings.save(Some(workspace_name)) {
-        Ok(()) => true,
-        Err(error) => {
-            tracing::error!(%error, workspace = workspace_name, "failed to save workspace");
-            false
-        }
-    }
-}
-
-fn launch_additional_instance(workspace_name: Option<&str>) -> bool {
-    let executable = match std::env::current_exe() {
-        Ok(path) => path,
-        Err(error) => {
-            tracing::error!(%error, "failed to resolve executable path for new instance");
-            return false;
-        }
-    };
-
-    let mut command = Command::new(executable);
-    if let Some(workspace_name) = workspace_name {
-        command.arg("--workspace").arg(workspace_name);
-    }
-
-    match command.spawn() {
-        Ok(_) => true,
-        Err(error) => {
-            tracing::error!(%error, workspace = ?workspace_name, "failed to launch extra instance");
-            false
-        }
-    }
-}
-
-fn apply_tag_creation(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    app_id: &str,
-    display_name: &str,
-    tag_name: &str,
-    color_hex: &str,
-) {
-    crate::update_settings(state, |settings| {
-        let _ = settings.assign_tag_with_color(app_id, display_name, tag_name, color_hex);
-    });
-    let _ = crate::refresh_windows(state);
-    crate::refresh_ui(state, weak);
-}
-
-fn close_tag_dialog_window() {
-    let taken = crate::TAG_DIALOG_WIN.with(|dialog| dialog.borrow_mut().take());
-    if let Some(dialog) = taken {
-        dialog.hide().ok();
-    }
-}
-
-fn close_about_window() {
-    let taken = crate::ABOUT_WIN.with(|handle| handle.borrow_mut().take());
-    if let Some(window) = taken {
-        window.hide().ok();
-    }
 }
 
 fn apply_background_color(window: &SettingsWindow, red: i32, green: i32, blue: i32) {
@@ -2872,14 +1114,47 @@ fn parse_rgb_hex(input: &str) -> Option<(i32, i32, i32)> {
     Some((red, green, blue))
 }
 
-fn open_external_url(url: &str) {
-    if let Err(error) = Command::new("cmd")
-        .arg("/C")
-        .arg("start")
-        .arg("")
-        .arg(url)
-        .spawn()
-    {
-        tracing::warn!(%error, %url, "failed to open external url");
+#[cfg(test)]
+mod tests {
+    use super::{normalize_recorded_shortcut, parse_rgb_hex, parse_tags_csv};
+
+    #[test]
+    fn recorded_shortcut_normalizes_special_keys() {
+        assert_eq!(normalize_recorded_shortcut("\t"), Some("Tab".to_owned()));
+        assert_eq!(normalize_recorded_shortcut("\n"), Some("Enter".to_owned()));
+        assert_eq!(normalize_recorded_shortcut(" "), Some("Space".to_owned()));
+    }
+
+    #[test]
+    fn recorded_shortcut_uppercases_single_alphanumeric_keys() {
+        assert_eq!(normalize_recorded_shortcut("a"), Some("A".to_owned()));
+        assert_eq!(normalize_recorded_shortcut("7"), Some("7".to_owned()));
+    }
+
+    #[test]
+    fn recorded_shortcut_rejects_control_and_multi_character_inputs() {
+        assert_eq!(normalize_recorded_shortcut(""), None);
+        assert_eq!(normalize_recorded_shortcut("ab"), None);
+        assert_eq!(normalize_recorded_shortcut("\u{0001}"), None);
+    }
+
+    #[test]
+    fn parse_tags_csv_normalizes_sorts_and_deduplicates() {
+        assert_eq!(
+            parse_tags_csv(" Work ,alpha,work, Beta ,,ALPHA "),
+            vec!["alpha".to_owned(), "beta".to_owned(), "work".to_owned()]
+        );
+    }
+
+    #[test]
+    fn parse_rgb_hex_accepts_plain_and_prefixed_values() {
+        assert_eq!(parse_rgb_hex("#112233"), Some((17, 34, 51)));
+        assert_eq!(parse_rgb_hex("A0B1C2"), Some((160, 177, 194)));
+    }
+
+    #[test]
+    fn parse_rgb_hex_rejects_invalid_shapes() {
+        assert_eq!(parse_rgb_hex("#123"), None);
+        assert_eq!(parse_rgb_hex("#GG1122"), None);
     }
 }
