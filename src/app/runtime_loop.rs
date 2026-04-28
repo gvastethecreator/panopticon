@@ -269,11 +269,7 @@ fn runtime_activity_flags(state: &Rc<RefCell<AppState>>) -> (bool, bool, bool) {
             let theme_animation_active = state_ref.theme_animation.is_some();
             let is_animating_or_dirty = window_animation_active
                 || theme_animation_active
-                || state_ref.drag_separator.is_some()
-                || state_ref
-                    .windows
-                    .iter()
-                    .any(|managed_window| managed_window.thumbnail.is_none());
+                || state_ref.drag_separator.is_some();
             (
                 window_animation_active,
                 theme_animation_active,
