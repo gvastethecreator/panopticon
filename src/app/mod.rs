@@ -1,6 +1,7 @@
 //! Binary-only application helpers.
 
 pub mod actions;
+pub mod cli;
 pub mod command_palette;
 pub mod dock;
 pub mod dwm;
@@ -11,6 +12,8 @@ pub mod layout_actions;
 pub mod menu_utils;
 pub mod model_sync;
 pub mod native_runtime;
+pub mod runtime_loop;
+pub mod runtime_support;
 pub mod secondary_windows;
 pub mod settings_ui;
 pub mod startup;

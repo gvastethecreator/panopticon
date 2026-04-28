@@ -563,3 +563,16 @@ fn localized_update_status_text(status: &crate::UpdateStatus) -> String {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_tags_csv;
+
+    #[test]
+    fn parse_tags_csv_normalizes_sorts_and_deduplicates() {
+        assert_eq!(
+            parse_tags_csv(" Work ,alpha,work, Beta ,,ALPHA "),
+            vec!["alpha".to_owned(), "beta".to_owned(), "work".to_owned()]
+        );
+    }
+}

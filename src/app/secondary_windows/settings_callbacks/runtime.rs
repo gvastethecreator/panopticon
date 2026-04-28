@@ -5,14 +5,15 @@ use panopticon::settings::AppSettings;
 use panopticon::ui_option_ops::parse_option_value;
 use slint::SharedString;
 
+use crate::app::dock::{apply_topmost_mode, apply_window_appearance};
 use crate::app::global_hotkey;
 use crate::app::native_runtime::apply_configured_main_window_size;
 use crate::app::startup;
 use crate::{AppState, MainWindow, SettingsWindow};
 
 use super::super::{
-    apply_topmost_mode, apply_window_appearance, open_about_window, selected_model_value,
-    shortcut_recording_label, stop_shortcut_recording, sync_settings_window_from_state,
+    open_about_window, selected_model_value, shortcut_recording_label, stop_shortcut_recording,
+    sync_settings_window_from_state,
 };
 
 pub(super) fn register_runtime_callbacks(

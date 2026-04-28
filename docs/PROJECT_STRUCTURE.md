@@ -67,12 +67,17 @@ Groups helpers oriented towards the binary UX.
 | --- | --- |
 | `src/app/mod.rs` | binary helper index |
 | `src/app/actions.rs` | shared dispatcher for runtime actions triggered by keyboard, tray, and command palette |
+| `src/app/cli.rs` | command-line argument parsing plus help/version text for the Windows binary |
 | `src/app/command_palette.rs` | searchable command launcher wired to shared actions |
 | `src/app/keyboard_actions.rs` | keyboard shortcut resolution routed through the shared dispatcher |
 | `src/app/model_sync.rs` | derives Slint-facing view models and empty-state context |
+| `src/app/runtime_loop.rs` | close-request wiring plus recurring Slint timers for native init retries, UI refresh, and scrollbar idle handling |
 | `src/app/secondary_windows.rs` | facade for settings/about/tag/workspace secondary windows |
+| `src/app/runtime_support.rs` | shared runtime helpers re-exported by `main.rs` for update checks, refresh scheduling, resize persistence, and logical/screen coordinate conversion |
 | `src/app/secondary_windows/settings_callbacks/mod.rs` + `*.rs` | modular callback wiring for `SettingsWindow`, split by profiles/runtime/app rules/editor interactions |
+| `src/app/secondary_windows/settings_helpers.rs` | shared `SettingsWindow` helpers for Slint models, presets, shortcut recording, and background colour syncing |
 | `src/app/secondary_windows/settings_sync.rs` | synchronises `SettingsWindow` runtime models, app-rule editors, and state-to-UI hydration |
+| `src/app/secondary_windows/settings_window.rs` | `SettingsWindow` lifecycle/controller: open, apply, refresh, and page navigation |
 | `src/app/secondary_windows/placement.rs` | owner resolution, centering, and z-order helpers for secondary windows |
 | `src/app/secondary_windows/dialogs.rs` | About/Tag dialog lifecycle and callbacks |
 | `src/app/secondary_windows/workspace.rs` | workspace CRUD/load/switch/new-instance helpers |
