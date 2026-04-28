@@ -87,7 +87,7 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         return;
     };
 
-    tracing::info!("recompute checkpoint: entered");
+    tracing::trace!("recompute checkpoint: entered");
 
     let mut state = app_state.borrow_mut();
     if state.windows.is_empty() {
@@ -134,7 +134,7 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         &aspects,
         custom.as_ref(),
     );
-    tracing::info!(
+    tracing::trace!(
         window_count = state.windows.len(),
         "recompute checkpoint: layout computed"
     );
@@ -190,7 +190,7 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
     win.set_scroll_vertical(scroll_v);
     win.set_content_width(state.content_extent as f32);
     win.set_content_height(state.content_extent as f32);
-    tracing::info!("recompute checkpoint: scroll properties applied");
+    tracing::trace!("recompute checkpoint: scroll properties applied");
     clamp_viewport_offsets(
         win,
         scroll_dir,
@@ -198,17 +198,17 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         logical_w,
         content_area.bottom,
     );
-    tracing::info!("recompute checkpoint: viewport clamped");
+    tracing::trace!("recompute checkpoint: viewport clamped");
 
     sync_theme_target(&mut state);
-    tracing::info!("recompute checkpoint: theme synced");
+    tracing::trace!("recompute checkpoint: theme synced");
     sync_settings_to_ui(win, &state.settings);
-    tracing::info!("recompute checkpoint: settings synced");
+    tracing::trace!("recompute checkpoint: settings synced");
     sync_background_image(&mut state, win);
-    tracing::info!("recompute checkpoint: background synced");
+    tracing::trace!("recompute checkpoint: background synced");
 
     drop(state);
-    tracing::info!("recompute reached pre-model-sync checkpoint");
+    tracing::trace!("recompute reached pre-model-sync checkpoint");
     sync_model_to_slint(app_state, win);
 }
 
@@ -310,7 +310,7 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
         return;
     };
 
-    tracing::info!("model sync checkpoint: entered");
+    tracing::trace!("model sync checkpoint: entered");
 
     let mut state = state.borrow_mut();
     let show_footer = state.settings.show_window_info;
@@ -326,7 +326,7 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
             managed_window.cached_icon = None;
         }
     }
-    tracing::info!(
+    tracing::trace!(
         show_icons,
         window_count = state.windows.len(),
         "model sync checkpoint: icons ready"
@@ -337,7 +337,7 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
         .iter()
         .map(|managed_window| build_thumbnail_data(managed_window, &state, show_footer, show_icons))
         .collect();
-    tracing::info!(
+    tracing::trace!(
         thumbnail_rows = data.len(),
         "model sync checkpoint: thumbnail data built"
     );
@@ -379,7 +379,7 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
         .drag_separator
         .as_ref()
         .map_or(-1, |drag| drag.separator_index as i32);
-    tracing::info!(
+    tracing::trace!(
         handle_rows = handles.len(),
         dragging,
         "model sync checkpoint: resize handles built"
@@ -392,24 +392,29 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
     win.set_hidden_count(state.settings.hidden_app_entries().len() as i32);
 
     drop(state);
-    tracing::info!("model sync checkpoint: window labels applied");
-    win.set_thumbnails(ModelRc::new(VecModel::from(data)));
-    tracing::info!("model sync checkpoint: thumbnails model set");
+    tracing::trace!("model sync checkpoint: window labels applied");
 
-    if dragging {
-        let model = win.get_resize_handles();
-        let existing = model.row_count();
-        for (idx, handle_data) in handles.into_iter().enumerate() {
-            if idx < existing {
-                model.set_row_data(idx, handle_data);
-            }
+    let thumbnails_model = win.get_thumbnails();
+    if thumbnails_model.row_count() == data.len() {
+        for (index, item) in data.into_iter().enumerate() {
+            thumbnails_model.set_row_data(index, item);
+        }
+    } else {
+        win.set_thumbnails(ModelRc::new(VecModel::from(data)));
+    }
+    tracing::trace!("model sync checkpoint: thumbnails model set");
+
+    let handles_model = win.get_resize_handles();
+    if handles_model.row_count() == handles.len() {
+        for (index, handle_data) in handles.into_iter().enumerate() {
+            handles_model.set_row_data(index, handle_data);
         }
     } else {
         win.set_resize_handles(ModelRc::new(VecModel::from(handles)));
     }
-    tracing::info!("model sync checkpoint: resize handles set");
+    tracing::trace!("model sync checkpoint: resize handles set");
     win.set_active_drag_index(active_drag);
-    tracing::info!("model sync checkpoint: finished");
+    tracing::trace!("model sync checkpoint: finished");
 }
 
 pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {

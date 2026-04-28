@@ -118,6 +118,9 @@ pub(crate) fn update_dwm_thumbnails(
     if s.hwnd.0.is_null() || !unsafe { IsWindowVisible(s.hwnd).as_bool() } {
         return;
     }
+    if s.windows.is_empty() {
+        return;
+    }
 
     let scale = win.window().scale_factor();
     let phys = win.window().size();
@@ -151,9 +154,17 @@ pub(crate) fn update_dwm_thumbnails(
     let show_info = settings.show_window_info;
 
     for mw in windows.iter_mut() {
-        let preserve = settings.preserve_aspect_ratio_for(&mw.info.app_id);
-        let refresh_mode = settings.thumbnail_refresh_mode_for(&mw.info.app_id);
-        let interval_ms = settings.thumbnail_refresh_interval_ms_for(&mw.info.app_id);
+        let app_rule = settings.app_rules.get(&mw.info.app_id);
+        let preserve = app_rule
+            .and_then(|rule| rule.preserve_aspect_ratio_override)
+            .unwrap_or(settings.preserve_aspect_ratio);
+        let refresh_mode = app_rule.map_or(
+            panopticon::settings::ThumbnailRefreshMode::Realtime,
+            |rule| rule.thumbnail_refresh_mode,
+        );
+        let interval_ms = app_rule
+            .and_then(|rule| rule.thumbnail_refresh_interval_ms)
+            .unwrap_or(5_000);
         let render_scale_pct = settings.thumbnail_render_scale_pct;
         // SAFETY: Win32 queries on window handles discovered through enumeration.
         let is_minimized = unsafe { IsIconic(mw.info.hwnd).as_bool() };
@@ -164,7 +175,7 @@ pub(crate) fn update_dwm_thumbnails(
             release_thumbnail(mw);
             continue;
         }
-        if show_icons {
+        if show_icons && mw.cached_icon.is_none() {
             crate::app::icon::populate_cached_icon(mw);
         }
         let overlay_top_h = if show_info || is_minimized || (show_icons && mw.cached_icon.is_some())
