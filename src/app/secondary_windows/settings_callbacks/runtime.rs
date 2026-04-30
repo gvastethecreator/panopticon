@@ -10,6 +10,9 @@ use crate::app::global_hotkey;
 use crate::app::native_runtime::apply_configured_main_window_size;
 use crate::app::startup;
 use crate::{AppState, MainWindow, SettingsWindow};
+use crate::app::model_sync::recompute_and_update_ui;
+use crate::app::runtime_support::{refresh_ui, request_update_check, update_settings};
+use crate::app::window_sync::refresh_windows;
 
 use super::super::{
     open_about_window, selected_model_value, shortcut_recording_label, stop_shortcut_recording,
@@ -54,9 +57,9 @@ fn register_reset_to_defaults_callback(
                 let workspace = state.workspace_name.clone();
                 state.settings = AppSettings::default();
                 state.settings = state.settings.normalized();
-                state.current_layout = state.settings.effective_layout();
+                state.window_collection.current_layout = state.settings.effective_layout();
                 let _ = state.settings.save(workspace.as_deref());
-                (state.hwnd, state.settings.clone(), workspace)
+                (state.shell.hwnd, state.settings.clone(), workspace)
             };
             startup::sync_run_at_startup(
                 settings_snapshot.run_at_startup,
@@ -71,15 +74,15 @@ fn register_reset_to_defaults_callback(
                 }
             });
             let state_ref = state.borrow();
-            apply_window_appearance(state_ref.hwnd, &state_ref.settings);
-            apply_topmost_mode(state_ref.hwnd, state_ref.settings.always_on_top);
+            apply_window_appearance(state_ref.shell.hwnd, &state_ref.settings);
+            apply_topmost_mode(state_ref.shell.hwnd, state_ref.settings.always_on_top);
             drop(state_ref);
-            let _ = crate::refresh_windows(&state);
+            let _ = refresh_windows(&state);
             if let Some(main_window) = main_weak.upgrade() {
                 let state_ref = state.borrow();
                 let _ = apply_configured_main_window_size(&main_window, &state_ref.settings);
                 drop(state_ref);
-                crate::recompute_and_update_ui(&state, &main_window);
+                recompute_and_update_ui(&state, &main_window);
             }
         }
     });
@@ -94,8 +97,8 @@ fn register_refresh_now_callback(
         let state = state.clone();
         let main_weak = main_weak.clone();
         move || {
-            let _ = crate::refresh_windows(&state);
-            crate::refresh_ui(&state, &main_weak);
+            let _ = refresh_windows(&state);
+            refresh_ui(&state, &main_weak);
         }
     });
 }
@@ -107,7 +110,7 @@ fn register_check_updates_now_callback(
     settings_window.on_check_updates_now({
         let state = state.clone();
         move || {
-            let _ = crate::request_update_check(&state, true);
+            let _ = request_update_check(&state, true);
         }
     });
 }
@@ -183,11 +186,11 @@ fn register_restore_hidden_selected_callback(
                     return;
                 };
 
-                crate::update_settings(&state, |settings| {
+                update_settings(&state, |settings| {
                     let _ = settings.restore_hidden_app(&app_id);
                 });
-                let _ = crate::refresh_windows(&state);
-                crate::refresh_ui(&state, &main_weak);
+                let _ = refresh_windows(&state);
+                refresh_ui(&state, &main_weak);
             });
         }
     });
@@ -202,11 +205,11 @@ fn register_restore_hidden_all_callback(
         let state = state.clone();
         let main_weak = main_weak.clone();
         move || {
-            crate::update_settings(&state, |settings| {
+            update_settings(&state, |settings| {
                 let _ = settings.restore_all_hidden_apps();
             });
-            let _ = crate::refresh_windows(&state);
-            crate::refresh_ui(&state, &main_weak);
+            let _ = refresh_windows(&state);
+            refresh_ui(&state, &main_weak);
         }
     });
 }

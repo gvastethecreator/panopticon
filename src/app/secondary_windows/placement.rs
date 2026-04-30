@@ -10,6 +10,7 @@ use crate::app::dock::{
     center_window_on_owner_monitor, center_window_on_point_monitor, keep_dialog_above_owner,
 };
 use crate::AppState;
+use crate::app::native_runtime::get_hwnd;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SecondaryWindowPlacement {
@@ -21,7 +22,7 @@ fn visible_component_hwnd<Component>(window: &Component, exclude_hwnd: HWND) -> 
 where
     Component: ComponentHandle,
 {
-    let hwnd = crate::get_hwnd(window.window())?;
+    let hwnd = get_hwnd(window.window())?;
     if hwnd.0.is_null() || hwnd == exclude_hwnd {
         return None;
     }
@@ -67,14 +68,14 @@ fn collect_visible_panopticon_window_hwnds(state: &AppState, exclude_hwnd: HWND)
         }
     });
 
-    if state.hwnd != exclude_hwnd && !state.hwnd.0.is_null() {
+    if state.shell.hwnd != exclude_hwnd && !state.shell.hwnd.0.is_null() {
         let main_is_visible = unsafe {
             // SAFETY: this is a read-only visibility query for the live main
             // application window.
-            IsWindowVisible(state.hwnd).as_bool()
+            IsWindowVisible(state.shell.hwnd).as_bool()
         };
         if main_is_visible {
-            owners.push(state.hwnd);
+            owners.push(state.shell.hwnd);
         }
     }
 
@@ -93,7 +94,7 @@ pub(crate) fn resolve_secondary_window_owner(state: &AppState, exclude_hwnd: HWN
         .copied()
         .find(|candidate| *candidate == foreground)
         .or_else(|| owners.first().copied())
-        .unwrap_or(state.hwnd)
+        .unwrap_or(state.shell.hwnd)
 }
 
 pub(super) fn secondary_window_placement(
@@ -138,8 +139,8 @@ pub(crate) fn refresh_secondary_window_stacking(state: &Rc<RefCell<AppState>>) {
         let Ok(state) = state.try_borrow() else {
             return;
         };
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
-            keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
+        if let Some(dialog_hwnd) = get_hwnd(window.window()) {
+            keep_dialog_above_owner(dialog_hwnd, state.shell.hwnd, &state.settings);
         }
     });
 
@@ -151,7 +152,7 @@ pub(crate) fn refresh_secondary_window_stacking(state: &Rc<RefCell<AppState>>) {
         let Ok(state) = state.try_borrow() else {
             return;
         };
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
+        if let Some(dialog_hwnd) = get_hwnd(window.window()) {
             let owner_hwnd = resolve_secondary_window_owner(&state, dialog_hwnd);
             keep_dialog_above_owner(dialog_hwnd, owner_hwnd, &state.settings);
         }
@@ -165,7 +166,7 @@ pub(crate) fn refresh_secondary_window_stacking(state: &Rc<RefCell<AppState>>) {
         let Ok(state) = state.try_borrow() else {
             return;
         };
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
+        if let Some(dialog_hwnd) = get_hwnd(window.window()) {
             let owner_hwnd = resolve_secondary_window_owner(&state, dialog_hwnd);
             keep_dialog_above_owner(dialog_hwnd, owner_hwnd, &state.settings);
         }

@@ -156,16 +156,17 @@ pub(crate) fn sync_theme_target(state: &mut AppState) {
         &state.settings.theme_color_overrides,
     );
     let already_targeting = state
+        .theme
         .theme_animation
         .as_ref()
         .is_some_and(|animation| animation.to == desired);
 
-    if already_targeting || state.current_theme == desired {
+    if already_targeting || state.theme.current_theme == desired {
         return;
     }
 
-    state.theme_animation = Some(crate::ThemeAnimation {
-        from_rgb: theme_catalog::RgbThemeSnapshot::from_ui_theme(&state.current_theme),
+    state.theme.theme_animation = Some(crate::ThemeAnimation {
+        from_rgb: theme_catalog::RgbThemeSnapshot::from_ui_theme(&state.theme.current_theme),
         to_rgb: theme_catalog::RgbThemeSnapshot::from_ui_theme(&desired),
         to: desired,
         started_at: Instant::now(),
@@ -174,7 +175,7 @@ pub(crate) fn sync_theme_target(state: &mut AppState) {
 
 pub(crate) fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let mut s = state.borrow_mut();
-    let Some(animation) = s.theme_animation.as_ref() else {
+    let Some(animation) = s.theme.theme_animation.as_ref() else {
         return;
     };
 
@@ -187,13 +188,13 @@ pub(crate) fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainW
     let progress = (elapsed_ms as f32 / THEME_TRANSITION_DURATION_MS as f32).clamp(0.0, 1.0);
     let eased = 1.0 - (1.0 - progress).powi(3);
     let resolved = from_rgb.interpolate(&to_rgb, eased, &target_theme);
-    s.current_theme = resolved;
+    s.theme.current_theme = resolved;
     let palette_theme = target_theme.clone();
     if progress >= 1.0 {
-        s.current_theme = target_theme;
-        s.theme_animation = None;
+        s.theme.current_theme = target_theme;
+        s.theme.theme_animation = None;
     }
-    let current = s.current_theme.clone();
+    let current = s.theme.current_theme.clone();
     drop(s);
     apply_theme_snapshot_everywhere(win, &current);
     // Keep palette dark/light mode pinned to the target theme while animating.
@@ -229,14 +230,14 @@ pub(crate) fn thumbnail_accent_color(
 pub(crate) fn refresh_thumbnail_accent_rows(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let s = state.borrow();
     let model = win.get_thumbnails();
-    if model.row_count() != s.windows.len() {
+    if model.row_count() != s.window_collection.windows.len() {
         return;
     }
 
-    for (index, managed_window) in s.windows.iter().enumerate() {
+    for (index, managed_window) in s.window_collection.windows.iter().enumerate() {
         if let Some(mut item) = model.row_data(index) {
             item.accent_color =
-                thumbnail_accent_color(&s.settings, &s.current_theme, &managed_window.info.app_id);
+                thumbnail_accent_color(&s.settings, &s.theme.current_theme, &managed_window.info.app_id);
             model.set_row_data(index, item);
         }
     }

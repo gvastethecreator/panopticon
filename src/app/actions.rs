@@ -7,18 +7,17 @@ use panopticon::layout::LayoutType;
 use panopticon::settings::{DockEdge, ToolbarPosition, WindowGrouping};
 use windows::Win32::Foundation::POINT;
 
-use super::command_palette;
-use super::dock::{
-    apply_dock_mode, apply_topmost_mode, apply_window_appearance, restore_floating_style,
-    unregister_appbar,
+use super::action_handlers::{
+    ActionContext, ActionHandler, CycleThemeHandler, SetDockEdgeHandler,
+    ToggleAlwaysOnTopHandler,
 };
-use super::native_runtime::apply_configured_main_window_size;
+use super::command_palette;
 use super::secondary_windows;
 use super::tray_actions;
-use crate::{
-    cycle_layout, queue_exit_request, refresh_ui, refresh_windows, update_settings, AppState,
-    MainWindow,
-};
+use super::layout_actions::cycle_layout;
+use super::runtime_support::{refresh_ui, update_settings};
+use super::window_sync::refresh_windows;
+use crate::{queue_exit_request, AppState, MainWindow};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum AppAction {
@@ -80,33 +79,6 @@ fn mutate_settings_and_refresh_windows(
     refresh_ui(state, weak);
 }
 
-fn cycle_theme(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>, direction: i32) {
-    let current_idx = {
-        let state = state.borrow();
-        panopticon::theme::theme_index(state.settings.theme_id.as_deref())
-    };
-    let total = panopticon::theme::theme_labels().len() as i32;
-    let next_idx = (current_idx + direction).rem_euclid(total);
-    let new_id = panopticon::theme::theme_id_by_index(next_idx);
-    let next_background_hex =
-        panopticon::theme::theme_base_background_hex(new_id.as_deref(), "181513");
-
-    update_settings(state, |settings| {
-        settings.theme_id = new_id;
-        if settings.theme_id.is_some() {
-            settings
-                .background_color_hex
-                .clone_from(&next_background_hex);
-        }
-    });
-
-    let state_ref = state.borrow();
-    apply_window_appearance(state_ref.hwnd, &state_ref.settings);
-    drop(state_ref);
-
-    refresh_ui(state, weak);
-}
-
 #[expect(
     clippy::too_many_lines,
     reason = "centralized runtime dispatch intentionally keeps shared action behavior in one audited entry point"
@@ -140,13 +112,7 @@ pub(crate) fn dispatch_action(
             });
         }
         AppAction::ToggleAlwaysOnTop => {
-            mutate_settings_and_refresh(state, weak, |settings| {
-                settings.always_on_top = !settings.always_on_top;
-            });
-            let state_ref = state.borrow();
-            apply_topmost_mode(state_ref.hwnd, state_ref.settings.always_on_top);
-            drop(state_ref);
-            secondary_windows::refresh_secondary_window_stacking(state);
+            ToggleAlwaysOnTopHandler.handle(&mut ActionContext { state, weak });
         }
         AppAction::ToggleMinimizeToTray => {
             mutate_settings_and_refresh(state, weak, |settings| {
@@ -210,7 +176,9 @@ pub(crate) fn dispatch_action(
             cycle_layout(state);
             refresh_ui(state, weak);
         }
-        AppAction::CycleTheme { direction } => cycle_theme(state, weak, direction),
+        AppAction::CycleTheme { direction } => {
+            CycleThemeHandler { direction }.handle(&mut ActionContext { state, weak });
+        }
         AppAction::SetMonitorFilter(filter) => {
             mutate_settings_and_refresh_windows(state, weak, |settings| {
                 settings.set_monitor_filter(filter.as_deref());
@@ -249,32 +217,7 @@ pub(crate) fn dispatch_action(
             });
         }
         AppAction::SetDockEdge(edge) => {
-            let mut floating_settings = None;
-            {
-                let mut state = state.borrow_mut();
-                if state.is_appbar {
-                    unregister_appbar(state.hwnd);
-                    state.is_appbar = false;
-                }
-                state.settings.dock_edge = edge;
-                state.settings = state.settings.normalized();
-                state.current_layout = state.settings.effective_layout();
-                let _ = state.settings.save(state.workspace_name.as_deref());
-                if edge.is_some() {
-                    apply_dock_mode(&mut state);
-                } else {
-                    restore_floating_style(state.hwnd);
-                    apply_topmost_mode(state.hwnd, state.settings.always_on_top);
-                    floating_settings = Some(state.settings.clone());
-                }
-            }
-            if let Some(settings) = floating_settings {
-                if let Some(main_window) = weak.upgrade() {
-                    let _ = apply_configured_main_window_size(&main_window, &settings);
-                }
-            }
-            let _ = refresh_windows(state);
-            refresh_ui(state, weak);
+            SetDockEdgeHandler(edge).handle(&mut ActionContext { state, weak });
         }
         AppAction::SetWindowGrouping(grouping) => {
             mutate_settings_and_refresh_windows(state, weak, |settings| {

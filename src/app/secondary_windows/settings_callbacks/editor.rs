@@ -6,6 +6,8 @@ use std::time::Duration;
 use slint::{ComponentHandle, SharedString, Timer, TimerMode};
 
 use crate::{AppState, MainWindow, SettingsWindow};
+use crate::app::runtime_support::refresh_ui;
+use crate::app::window_sync::refresh_windows;
 
 use super::super::{
     apply_background_color, apply_recorded_shortcut_binding, apply_settings_window_to_state,
@@ -53,7 +55,7 @@ fn register_save_layout_preset_callback(
 
                 let result = {
                     let mut state_guard = state.borrow_mut();
-                    let active_layout = state_guard.current_layout;
+                    let active_layout = state_guard.window_collection.current_layout;
                     match state_guard
                         .settings
                         .save_layout_preset(&preset_name, active_layout)
@@ -116,7 +118,7 @@ fn register_apply_layout_preset_callback(
                     let mut state_guard = state.borrow_mut();
                     if state_guard.settings.apply_layout_preset(&preset_name) {
                         state_guard.settings = state_guard.settings.normalized();
-                        state_guard.current_layout = state_guard.settings.effective_layout();
+                        state_guard.window_collection.current_layout = state_guard.settings.effective_layout();
                         if let Err(error) = state_guard
                             .settings
                             .save(state_guard.workspace_name.as_deref())
@@ -150,8 +152,8 @@ fn register_apply_layout_preset_callback(
                             settings_window,
                             &format!("Applied layout preset '{preset_name}'."),
                         );
-                        let _ = crate::refresh_windows(&state);
-                        crate::refresh_ui(&state, &main_weak);
+                        let _ = refresh_windows(&state);
+                        refresh_ui(&state, &main_weak);
                     }
                 }
             });

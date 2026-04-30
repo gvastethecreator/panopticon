@@ -14,6 +14,8 @@ use super::dock::{apply_window_appearance, keep_dialog_above_owner};
 use super::secondary_windows;
 use super::tray::apply_window_icons;
 use crate::{AppState, CommandPaletteWindow, MainWindow};
+use crate::app::native_runtime::get_hwnd;
+use crate::app::ui_translations::populate_tr_global;
 
 thread_local! {
     static COMMAND_PALETTE_RECENT_KEYS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
@@ -312,7 +314,7 @@ fn command_entries_for_state(state: &AppState) -> Vec<CommandEntry> {
 
     let windows = enumerate_windows()
         .into_iter()
-        .filter(|window| window.hwnd != state.hwnd)
+        .filter(|window| window.hwnd != state.shell.hwnd)
         .collect::<Vec<_>>();
 
     for monitor in collect_available_monitors(&windows) {
@@ -372,15 +374,15 @@ pub(crate) fn open_command_palette_window(
         let guard = handle.borrow();
         if let Some(existing) = guard.as_ref() {
             let _ = existing.show();
-            if let Some(palette_hwnd) = crate::get_hwnd(existing.window()) {
+            if let Some(palette_hwnd) = get_hwnd(existing.window()) {
                 let state = state.borrow();
                 let placement =
                     secondary_windows::default_secondary_window_placement(&state, palette_hwnd);
-                apply_window_icons(palette_hwnd, &state.icons);
+                apply_window_icons(palette_hwnd, &state.shell.icons);
                 apply_window_appearance(palette_hwnd, &state.settings);
                 super::theme_ui::apply_command_palette_window_theme_snapshot(
                     existing,
-                    &state.current_theme,
+                    &state.theme.current_theme,
                 );
                 secondary_windows::apply_secondary_window_placement(
                     palette_hwnd,
@@ -405,7 +407,7 @@ pub(crate) fn open_command_palette_window(
         }
     };
 
-    crate::populate_tr_global(&window);
+    populate_tr_global(&window);
 
     let filtered = Rc::new(RefCell::new(Vec::<CommandId>::new()));
     let all_entries = Rc::new({
@@ -499,12 +501,12 @@ pub(crate) fn open_command_palette_window(
         return;
     }
 
-    if let Some(palette_hwnd) = crate::get_hwnd(window.window()) {
+    if let Some(palette_hwnd) = get_hwnd(window.window()) {
         let state = state.borrow();
         let placement = secondary_windows::default_secondary_window_placement(&state, palette_hwnd);
-        apply_window_icons(palette_hwnd, &state.icons);
+        apply_window_icons(palette_hwnd, &state.shell.icons);
         apply_window_appearance(palette_hwnd, &state.settings);
-        super::theme_ui::apply_command_palette_window_theme_snapshot(&window, &state.current_theme);
+        super::theme_ui::apply_command_palette_window_theme_snapshot(&window, &state.theme.current_theme);
         secondary_windows::apply_secondary_window_placement(
             palette_hwnd,
             &state.settings,
@@ -524,7 +526,7 @@ pub(crate) fn refresh_open_command_palette_window_stacking(state: &Rc<RefCell<Ap
         let Ok(state) = state.try_borrow() else {
             return;
         };
-        if let Some(palette_hwnd) = crate::get_hwnd(window.window()) {
+        if let Some(palette_hwnd) = get_hwnd(window.window()) {
             let owner_hwnd =
                 secondary_windows::resolve_secondary_window_owner(&state, palette_hwnd);
             keep_dialog_above_owner(palette_hwnd, owner_hwnd, &state.settings);

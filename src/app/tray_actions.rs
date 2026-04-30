@@ -15,15 +15,16 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use super::actions::{dispatch_action, AppAction};
 use super::dock::{center_window_on_point_monitor, current_cursor_screen_point};
 use super::tray::{show_application_context_menu_at, TrayAction, TrayMenuState};
-use crate::{
-    logical_to_screen_point, recompute_and_update_ui, refresh_windows, release_all_thumbnails,
-    AppState, MainWindow,
-};
+use super::dwm::release_all_thumbnails;
+use super::model_sync::recompute_and_update_ui;
+use super::runtime_support::logical_to_screen_point;
+use super::window_sync::refresh_windows;
+use crate::{AppState, MainWindow};
 
 pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
     let available_windows: Vec<WindowInfo> = enumerate_windows()
         .into_iter()
-        .filter(|window| window.hwnd != state.hwnd)
+        .filter(|window| window.hwnd != state.shell.hwnd)
         .collect();
     for window in &available_windows {
         state
@@ -32,7 +33,7 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
     }
 
     TrayMenuState {
-        window_visible: unsafe { IsWindowVisible(state.hwnd).as_bool() },
+        window_visible: unsafe { IsWindowVisible(state.shell.hwnd).as_bool() },
         minimize_to_tray: state.settings.minimize_to_tray,
         close_to_tray: state.settings.close_to_tray,
         refresh_interval_ms: state.settings.refresh_interval_ms,
@@ -48,7 +49,7 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
         available_apps: collect_available_apps(&available_windows),
         hidden_apps: state.settings.hidden_app_entries(),
         dock_edge: state.settings.dock_edge,
-        is_docked: state.is_appbar || state.settings.dock_edge.is_some(),
+        is_docked: state.shell.is_appbar || state.settings.dock_edge.is_some(),
         show_toolbar: state.settings.show_toolbar,
         show_window_info: state.settings.show_window_info,
         show_app_icons: state.settings.show_app_icons,
@@ -150,17 +151,17 @@ pub(crate) fn open_application_context_menu(
 
     let (hwnd, anchor, menu_state) = {
         let mut guard = state.borrow_mut();
-        if guard.hwnd.0.is_null() {
+        if guard.shell.hwnd.0.is_null() {
             return;
         }
         let anchor = coords.map(|(x, y)| {
             logical_to_screen_point(
-                guard.hwnd,
+                guard.shell.hwnd,
                 x * window.window().scale_factor(),
                 y * window.window().scale_factor(),
             )
         });
-        (guard.hwnd, anchor, build_tray_menu_state(&mut guard))
+        (guard.shell.hwnd, anchor, build_tray_menu_state(&mut guard))
     };
 
     let anchor = anchor.or_else(current_cursor_screen_point);
@@ -177,11 +178,11 @@ fn toggle_visibility(
     weak: &slint::Weak<MainWindow>,
     activation_point: Option<POINT>,
 ) {
-    let visible = state.borrow().hwnd != HWND::default()
+    let visible = state.borrow().shell.hwnd != HWND::default()
         && unsafe {
             // SAFETY: read-only visibility/minimized queries for a live top-level window.
-            IsWindowVisible(state.borrow().hwnd).as_bool()
-                && !IsIconic(state.borrow().hwnd).as_bool()
+            IsWindowVisible(state.borrow().shell.hwnd).as_bool()
+                && !IsIconic(state.borrow().shell.hwnd).as_bool()
         };
     if visible {
         release_all_thumbnails(state);
@@ -203,7 +204,7 @@ fn activate_main_window_with_anchor(
     activation_point: Option<POINT>,
 ) {
     if let Some(window) = weak.upgrade() {
-        let hwnd = state.borrow().hwnd;
+        let hwnd = state.borrow().shell.hwnd;
         let was_visible = hwnd != HWND::default()
             && unsafe {
                 // SAFETY: read-only visibility query for a live top-level window.

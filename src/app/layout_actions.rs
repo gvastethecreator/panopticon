@@ -9,16 +9,18 @@ use panopticon::layout::{
 };
 use slint::ComponentHandle;
 
-use crate::{recompute_and_update_ui, refresh_ui, sync_model_to_slint, AppState, MainWindow};
+use super::model_sync::{recompute_and_update_ui, sync_model_to_slint};
+use super::runtime_support::refresh_ui;
+use crate::{AppState, MainWindow};
 
 pub(crate) fn cycle_layout(state: &Rc<RefCell<AppState>>) {
     let mut state = state.borrow_mut();
     if state.settings.locked_layout {
         return;
     }
-    state.current_layout = state.current_layout.next();
-    state.settings.initial_layout = state.current_layout;
-    state.drag_separator = None;
+    state.window_collection.current_layout = state.window_collection.current_layout.next();
+    state.settings.initial_layout = state.window_collection.current_layout;
+    state.window_collection.drag_separator = None;
     let _ = state.settings.save(state.workspace_name.as_deref());
 }
 
@@ -32,12 +34,12 @@ pub(crate) fn set_layout(
         if state_ref.settings.locked_layout {
             return;
         }
-        if state_ref.current_layout == layout {
+        if state_ref.window_collection.current_layout == layout {
             return;
         }
-        state_ref.current_layout = layout;
+        state_ref.window_collection.current_layout = layout;
         state_ref.settings.initial_layout = layout;
-        state_ref.drag_separator = None;
+        state_ref.window_collection.drag_separator = None;
         let _ = state_ref.settings.save(state_ref.workspace_name.as_deref());
     }
     refresh_ui(state, weak);
@@ -45,7 +47,7 @@ pub(crate) fn set_layout(
 
 pub(crate) fn reset_layout_custom(state: &Rc<RefCell<AppState>>) {
     let mut state = state.borrow_mut();
-    let layout = state.current_layout;
+    let layout = state.window_collection.current_layout;
     state.settings.clear_layout_custom(layout);
     state.settings = state.settings.normalized();
     let _ = state.settings.save(state.workspace_name.as_deref());
@@ -60,10 +62,10 @@ pub(crate) fn handle_resize_drag_start(
 ) {
     let mut state = state.borrow_mut();
     if state.settings.lock_cell_resize || state.settings.locked_layout {
-        state.drag_separator = None;
+        state.window_collection.drag_separator = None;
         return;
     }
-    let Some(separator) = state.separators.get(separator_index).copied() else {
+    let Some(separator) = state.window_collection.separators.get(separator_index).copied() else {
         return;
     };
 
@@ -81,20 +83,20 @@ pub(crate) fn handle_resize_drag_start(
         phys.map_or(720, |size| (size.height as f32 / scale).round() as i32) - toolbar_h;
 
     let axis_extent = if separator.horizontal {
-        match state.current_layout.scroll_direction() {
-            ScrollDirection::Vertical => f64::from(state.content_extent.max(logical_h)),
+        match state.window_collection.current_layout.scroll_direction() {
+            ScrollDirection::Vertical => f64::from(state.window_collection.content_extent.max(logical_h)),
             _ => f64::from(logical_h),
         }
     } else {
-        match state.current_layout.scroll_direction() {
-            ScrollDirection::Horizontal => f64::from(state.content_extent.max(logical_w)),
+        match state.window_collection.current_layout.scroll_direction() {
+            ScrollDirection::Horizontal => f64::from(state.window_collection.content_extent.max(logical_w)),
             _ => f64::from(logical_w),
         }
     };
 
     let initial_offset = if separator.horizontal { y } else { x };
 
-    state.drag_separator = Some(crate::DragState {
+    state.window_collection.drag_separator = Some(crate::DragState {
         separator_index,
         horizontal: separator.horizontal,
         ratio_index: separator.ratio_index,
@@ -115,7 +117,7 @@ pub(crate) fn handle_resize_drag_move(
         if state.settings.lock_cell_resize || state.settings.locked_layout {
             return;
         }
-        let Some(drag) = state.drag_separator.as_ref() else {
+        let Some(drag) = state.window_collection.drag_separator.as_ref() else {
             return;
         };
         if drag.separator_index != separator_index || drag.axis_extent <= 0.0 {
@@ -133,7 +135,7 @@ pub(crate) fn handle_resize_drag_move(
     let delta_frac = (pointer_offset - last_pointer_offset) / axis_extent;
 
     let mut state_ref = state.borrow_mut();
-    let layout = state_ref.current_layout;
+    let layout = state_ref.window_collection.current_layout;
     ensure_custom_ratios(&mut state_ref, layout);
 
     let min_frac = 0.03;
@@ -157,7 +159,7 @@ pub(crate) fn handle_resize_drag_move(
         }
     }
 
-    if let Some(drag) = state_ref.drag_separator.as_mut() {
+    if let Some(drag) = state_ref.window_collection.drag_separator.as_mut() {
         if drag.separator_index == separator_index {
             drag.last_pointer_offset = pointer_offset;
         }
@@ -176,7 +178,7 @@ pub(crate) fn handle_resize_drag_end(
     weak: &slint::Weak<MainWindow>,
 ) {
     let mut state_ref = state.borrow_mut();
-    state_ref.drag_separator = None;
+    state_ref.window_collection.drag_separator = None;
     let _ = state_ref.settings.save(state_ref.workspace_name.as_deref());
     drop(state_ref);
 
@@ -186,7 +188,7 @@ pub(crate) fn handle_resize_drag_end(
 }
 
 fn ensure_custom_ratios(state: &mut AppState, layout: LayoutType) {
-    let count = state.windows.len();
+    let count = state.window_collection.windows.len();
     if count == 0 {
         return;
     }

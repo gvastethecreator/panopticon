@@ -268,8 +268,8 @@ pub(crate) fn refresh_secondary_window_stacking(state: &Rc<RefCell<AppState>>) {
 
 fn refresh_tray_locale(state: &Rc<RefCell<AppState>>) {
     let mut state = state.borrow_mut();
-    let icon = state.icons.small;
-    if let Some(tray) = state.tray_icon.as_mut() {
+    let icon = state.shell.icons.small;
+    if let Some(tray) = state.shell.tray_icon.as_mut() {
         tray.refresh(icon);
     }
 }

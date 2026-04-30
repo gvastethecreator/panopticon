@@ -17,6 +17,8 @@ use super::dwm::release_thumbnail;
 use super::global_hotkey;
 use super::tray::{apply_window_icons, TrayIcon};
 use crate::{AppState, MainWindow, ABOUT_WIN, SETTINGS_WIN, TAG_DIALOG_WIN};
+use super::model_sync::recompute_and_update_ui;
+use super::window_sync::refresh_windows;
 
 pub(crate) fn get_hwnd(window: &slint::Window) -> Option<HWND> {
     let slint_handle = window.window_handle();
@@ -31,7 +33,7 @@ pub(crate) fn try_initialize_native_runtime(
     state: &Rc<RefCell<AppState>>,
     win: &MainWindow,
 ) -> bool {
-    if !state.borrow().hwnd.0.is_null() {
+    if !state.borrow().shell.hwnd.0.is_null() {
         return true;
     }
 
@@ -42,10 +44,10 @@ pub(crate) fn try_initialize_native_runtime(
 
     {
         let mut state = state.borrow_mut();
-        if !state.hwnd.0.is_null() {
+        if !state.shell.hwnd.0.is_null() {
             return true;
         }
-        state.hwnd = hwnd;
+        state.shell.hwnd = hwnd;
     }
 
     let settings_snapshot = state.borrow().settings.clone();
@@ -53,7 +55,7 @@ pub(crate) fn try_initialize_native_runtime(
 
     {
         let state = state.borrow();
-        apply_window_icons(hwnd, &state.icons);
+        apply_window_icons(hwnd, &state.shell.icons);
     }
 
     apply_window_appearance(hwnd, &settings_snapshot);
@@ -66,10 +68,10 @@ pub(crate) fn try_initialize_native_runtime(
 
     {
         let mut state = state.borrow_mut();
-        match TrayIcon::add(hwnd, state.icons.small) {
+        match TrayIcon::add(hwnd, state.shell.icons.small) {
             Ok(tray) => {
                 tracing::info!("tray icon registered");
-                state.tray_icon = Some(tray);
+                state.shell.tray_icon = Some(tray);
             }
             Err(error) => tracing::error!(%error, "tray icon registration failed"),
         }
@@ -78,14 +80,14 @@ pub(crate) fn try_initialize_native_runtime(
     super::window_subclass::setup_subclass(hwnd, state, win);
     global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
 
-    let refreshed = crate::refresh_windows(state);
-    let tracked = state.borrow().windows.len();
+    let refreshed = refresh_windows(state);
+    let tracked = state.borrow().window_collection.windows.len();
     tracing::info!(
         refreshed,
         tracked_windows = tracked,
         "initial window refresh completed"
     );
-    crate::recompute_and_update_ui(state, win);
+    recompute_and_update_ui(state, win);
 
     if settings_snapshot.dock_edge.is_some() {
         let mut state = state.borrow_mut();
@@ -94,7 +96,7 @@ pub(crate) fn try_initialize_native_runtime(
 
     if settings_snapshot.start_in_tray {
         tracing::info!("start_in_tray is active — hiding main window");
-        for managed_window in &mut state.borrow_mut().windows {
+        for managed_window in &mut state.borrow_mut().window_collection.windows {
             release_thumbnail(managed_window);
         }
         win.hide().ok();
@@ -143,16 +145,16 @@ pub(crate) fn request_exit(state: &Rc<RefCell<AppState>>) {
     tracing::info!("exiting Panopticon");
     {
         let mut state = state.borrow_mut();
-        global_hotkey::unregister_activate_hotkey(state.hwnd);
-        if state.is_appbar {
-            unregister_appbar(state.hwnd);
-            state.is_appbar = false;
+        global_hotkey::unregister_activate_hotkey(state.shell.hwnd);
+        if state.shell.is_appbar {
+            unregister_appbar(state.shell.hwnd);
+            state.shell.is_appbar = false;
         }
-        for managed_window in &mut state.windows {
+        for managed_window in &mut state.window_collection.windows {
             release_thumbnail(managed_window);
         }
-        state.windows.clear();
-        if let Some(tray) = state.tray_icon.as_mut() {
+        state.window_collection.windows.clear();
+        if let Some(tray) = state.shell.tray_icon.as_mut() {
             tray.remove();
         }
     }

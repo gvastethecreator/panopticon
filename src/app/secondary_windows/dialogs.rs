@@ -11,6 +11,10 @@ use crate::app::dock::{apply_window_appearance, keep_dialog_above_owner};
 use crate::app::theme_ui::{apply_about_window_theme_snapshot, apply_tag_dialog_theme_snapshot};
 use crate::app::tray::apply_window_icons;
 use crate::{AboutWindow, AppState, MainWindow, TagDialogWindow};
+use crate::app::native_runtime::get_hwnd;
+use crate::app::runtime_support::{refresh_ui, update_settings};
+use crate::app::ui_translations::populate_tr_global;
+use crate::app::window_sync::refresh_windows;
 
 use super::placement::{
     apply_secondary_window_placement, default_secondary_window_placement,
@@ -29,10 +33,10 @@ pub(crate) fn open_about_window_with_anchor(
         let guard = handle.borrow();
         if let Some(existing) = guard.as_ref() {
             existing.show().ok();
-            if let Some(hwnd) = crate::get_hwnd(existing.window()) {
+            if let Some(hwnd) = get_hwnd(existing.window()) {
                 let state = state.borrow();
                 let placement = secondary_window_placement(&state, center_point, hwnd);
-                apply_window_icons(hwnd, &state.icons);
+                apply_window_icons(hwnd, &state.shell.icons);
                 apply_secondary_window_placement(hwnd, &state.settings, placement);
             }
             true
@@ -51,7 +55,7 @@ pub(crate) fn open_about_window_with_anchor(
             return;
         }
     };
-    crate::populate_tr_global(&about_window);
+    populate_tr_global(&about_window);
 
     {
         let state = state.borrow();
@@ -78,12 +82,12 @@ pub(crate) fn open_about_window_with_anchor(
         return;
     }
 
-    if let Some(about_hwnd) = crate::get_hwnd(about_window.window()) {
+    if let Some(about_hwnd) = get_hwnd(about_window.window()) {
         let state = state.borrow();
         let placement = secondary_window_placement(&state, center_point, about_hwnd);
-        apply_window_icons(about_hwnd, &state.icons);
+        apply_window_icons(about_hwnd, &state.shell.icons);
         apply_window_appearance(about_hwnd, &state.settings);
-        apply_about_window_theme_snapshot(&about_window, &state.current_theme);
+        apply_about_window_theme_snapshot(&about_window, &state.theme.current_theme);
         apply_secondary_window_placement(about_hwnd, &state.settings, placement);
     }
 
@@ -101,7 +105,7 @@ pub(crate) fn refresh_open_about_window(state: &Rc<RefCell<AppState>>) {
             return;
         };
         sync_about_window_from_state(window, &state);
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
+        if let Some(dialog_hwnd) = get_hwnd(window.window()) {
             let owner_hwnd = resolve_secondary_window_owner(&state, dialog_hwnd);
             keep_dialog_above_owner(dialog_hwnd, owner_hwnd, &state.settings);
         }
@@ -117,10 +121,10 @@ pub(crate) fn open_create_tag_dialog(
         let guard = dialog.borrow();
         if let Some(existing) = guard.as_ref() {
             existing.show().ok();
-            if let Some(dialog_hwnd) = crate::get_hwnd(existing.window()) {
+            if let Some(dialog_hwnd) = get_hwnd(existing.window()) {
                 let state = state.borrow();
                 let placement = default_secondary_window_placement(&state, dialog_hwnd);
-                apply_window_icons(dialog_hwnd, &state.icons);
+                apply_window_icons(dialog_hwnd, &state.shell.icons);
                 apply_secondary_window_placement(dialog_hwnd, &state.settings, placement);
             }
             true
@@ -142,14 +146,14 @@ pub(crate) fn open_create_tag_dialog(
             return;
         }
     };
-    crate::populate_tr_global(&dialog);
+    populate_tr_global(&dialog);
 
     dialog.set_app_label(SharedString::from(info.app_label()));
     dialog.set_tag_name(SharedString::from(suggested_name));
     dialog.set_color_index(tag_color_index(&suggested_color));
     {
         let state = state.borrow();
-        apply_tag_dialog_theme_snapshot(&dialog, &state.current_theme);
+        apply_tag_dialog_theme_snapshot(&dialog, &state.theme.current_theme);
     }
 
     dialog.on_create({
@@ -185,12 +189,12 @@ pub(crate) fn open_create_tag_dialog(
         return;
     }
 
-    if let Some(dialog_hwnd) = crate::get_hwnd(dialog.window()) {
+    if let Some(dialog_hwnd) = get_hwnd(dialog.window()) {
         let state = state.borrow();
         let placement = default_secondary_window_placement(&state, dialog_hwnd);
-        apply_window_icons(dialog_hwnd, &state.icons);
+        apply_window_icons(dialog_hwnd, &state.shell.icons);
         apply_window_appearance(dialog_hwnd, &state.settings);
-        apply_tag_dialog_theme_snapshot(&dialog, &state.current_theme);
+        apply_tag_dialog_theme_snapshot(&dialog, &state.theme.current_theme);
         apply_secondary_window_placement(dialog_hwnd, &state.settings, placement);
     }
 
@@ -203,10 +207,10 @@ pub(super) fn refresh_open_tag_dialog_window(state: &Rc<RefCell<AppState>>) {
         let Some(window) = guard.as_ref() else {
             return;
         };
-        crate::populate_tr_global(window);
+        populate_tr_global(window);
         let state = state.borrow();
-        apply_tag_dialog_theme_snapshot(window, &state.current_theme);
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
+        apply_tag_dialog_theme_snapshot(window, &state.theme.current_theme);
+        if let Some(dialog_hwnd) = get_hwnd(window.window()) {
             let owner_hwnd = resolve_secondary_window_owner(&state, dialog_hwnd);
             keep_dialog_above_owner(dialog_hwnd, owner_hwnd, &state.settings);
         }
@@ -214,7 +218,7 @@ pub(super) fn refresh_open_tag_dialog_window(state: &Rc<RefCell<AppState>>) {
 }
 
 fn sync_about_window_from_state(window: &AboutWindow, state: &AppState) {
-    crate::populate_tr_global(window);
+    populate_tr_global(window);
     window.set_version_text(SharedString::from(state.app_version.clone()));
     let (show_update_badge, latest_version_text) = match &state.update_status {
         crate::UpdateStatus::Available { latest_version, .. } => (true, latest_version.clone()),
@@ -222,7 +226,7 @@ fn sync_about_window_from_state(window: &AboutWindow, state: &AppState) {
     };
     window.set_show_update_badge(show_update_badge);
     window.set_latest_version_text(SharedString::from(latest_version_text));
-    apply_about_window_theme_snapshot(window, &state.current_theme);
+    apply_about_window_theme_snapshot(window, &state.theme.current_theme);
 }
 
 fn apply_tag_creation(
@@ -233,11 +237,11 @@ fn apply_tag_creation(
     tag_name: &str,
     color_hex: &str,
 ) {
-    crate::update_settings(state, |settings| {
+    update_settings(state, |settings| {
         let _ = settings.assign_tag_with_color(app_id, display_name, tag_name, color_hex);
     });
-    let _ = crate::refresh_windows(state);
-    crate::refresh_ui(state, weak);
+    let _ = refresh_windows(state);
+    refresh_ui(state, weak);
 }
 
 fn close_tag_dialog_window() {

@@ -13,6 +13,10 @@ use crate::app::global_hotkey;
 use crate::app::native_runtime::apply_configured_main_window_size;
 use crate::app::startup;
 use crate::{AppState, MainWindow, SettingsWindow};
+use crate::app::model_sync::recompute_and_update_ui;
+use crate::app::native_runtime::get_hwnd;
+use crate::app::ui_translations::populate_tr_global;
+use crate::app::window_sync::refresh_windows;
 
 use super::settings_callbacks;
 use super::{
@@ -69,10 +73,10 @@ pub(super) fn open_settings_window_with_anchor(
         let guard = handle.borrow();
         if let Some(existing) = guard.as_ref() {
             existing.show().ok();
-            if let Some(hwnd) = crate::get_hwnd(existing.window()) {
+            if let Some(hwnd) = get_hwnd(existing.window()) {
                 let state = state.borrow();
                 let placement = secondary_window_placement(&state, center_point, hwnd);
-                crate::app::tray::apply_window_icons(hwnd, &state.icons);
+                crate::app::tray::apply_window_icons(hwnd, &state.shell.icons);
                 apply_secondary_window_placement(hwnd, &state.settings, placement);
             }
             true
@@ -91,7 +95,7 @@ pub(super) fn open_settings_window_with_anchor(
             return;
         }
     };
-    crate::populate_tr_global(&settings_window);
+    populate_tr_global(&settings_window);
 
     {
         let state = state.borrow();
@@ -104,14 +108,14 @@ pub(super) fn open_settings_window_with_anchor(
         tracing::error!(%error, "failed to show settings window");
         return;
     }
-    if let Some(settings_hwnd) = crate::get_hwnd(settings_window.window()) {
+    if let Some(settings_hwnd) = get_hwnd(settings_window.window()) {
         let state = state.borrow();
         let placement = secondary_window_placement(&state, center_point, settings_hwnd);
-        crate::app::tray::apply_window_icons(settings_hwnd, &state.icons);
+        crate::app::tray::apply_window_icons(settings_hwnd, &state.shell.icons);
         apply_window_appearance(settings_hwnd, &state.settings);
         crate::app::theme_ui::apply_settings_window_theme_snapshot(
             &settings_window,
-            &state.current_theme,
+            &state.theme.current_theme,
         );
         apply_secondary_window_placement(settings_hwnd, &state.settings, placement);
     }
@@ -147,11 +151,11 @@ pub(super) fn apply_settings_window_to_state(
         }
 
         state_guard.settings = next_settings;
-        state_guard.current_layout = state_guard.settings.effective_layout();
+        state_guard.window_collection.current_layout = state_guard.settings.effective_layout();
         let _ = state_guard
             .settings
             .save(state_guard.workspace_name.as_deref());
-        let hwnd = state_guard.hwnd;
+        let hwnd = state_guard.shell.hwnd;
         let always_on_top = state_guard.settings.always_on_top;
         let new_dock_edge = state_guard.settings.dock_edge;
         let new_language = state_guard.settings.language;
@@ -160,27 +164,27 @@ pub(super) fn apply_settings_window_to_state(
         let workspace_name = state_guard.workspace_name.clone();
 
         if prev_dock_edge != new_dock_edge {
-            if state_guard.is_appbar {
+            if state_guard.shell.is_appbar {
                 unregister_appbar(hwnd);
-                state_guard.is_appbar = false;
+                state_guard.shell.is_appbar = false;
             }
             if new_dock_edge.is_some() {
                 apply_dock_mode(&mut state_guard);
             } else {
                 restore_floating_style(hwnd);
             }
-        } else if state_guard.is_appbar {
+        } else if state_guard.shell.is_appbar {
             reposition_appbar(&mut state_guard);
         }
 
         drop(state_guard);
         startup::sync_run_at_startup(settings_clone.run_at_startup, workspace_name.as_deref());
         global_hotkey::sync_activate_hotkey(hwnd, &settings_clone);
-        let _ = crate::refresh_windows(state);
+        let _ = refresh_windows(state);
         if locale_changed {
             let _ = panopticon::i18n::set_locale(new_language);
             if let Some(main_window) = main_weak.upgrade() {
-                crate::populate_tr_global(&main_window);
+                populate_tr_global(&main_window);
             }
             refresh_open_about_window(state);
             refresh_open_tag_dialog_window(state);
@@ -198,7 +202,7 @@ pub(super) fn apply_settings_window_to_state(
         }
         if let Some(main_window) = main_weak.upgrade() {
             let _ = apply_configured_main_window_size(&main_window, &settings_clone);
-            crate::recompute_and_update_ui(state, &main_window);
+            recompute_and_update_ui(state, &main_window);
         }
         refresh_secondary_window_stacking(state);
     });
@@ -215,8 +219,8 @@ pub(super) fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
             return;
         };
         sync_settings_window_from_state(window, &state);
-        if let Some(dialog_hwnd) = crate::get_hwnd(window.window()) {
-            keep_dialog_above_owner(dialog_hwnd, state.hwnd, &state.settings);
+        if let Some(dialog_hwnd) = get_hwnd(window.window()) {
+            keep_dialog_above_owner(dialog_hwnd, state.shell.hwnd, &state.settings);
         }
     });
 }

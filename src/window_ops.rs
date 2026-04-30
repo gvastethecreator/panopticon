@@ -162,3 +162,51 @@ fn grouping_sort_key(window: &WindowInfo, grouping: WindowGrouping) -> String {
 fn normalize_sort_value(value: &str) -> String {
     value.trim().to_ascii_lowercase()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::c_void;
+    use windows::Win32::Foundation::HWND;
+
+    #[test]
+    fn apply_pinned_positions_keeps_pinned_app_in_reserved_slot() {
+        let mut settings = AppSettings::default();
+        let _ = settings.toggle_app_pinned_position("app:b", "B", 1);
+
+        let mut windows = vec![
+            WindowInfo {
+                hwnd: HWND(std::ptr::dangling_mut::<c_void>()),
+                title: "Alpha".to_owned(),
+                app_id: "app:a".to_owned(),
+                process_name: "A".to_owned(),
+                process_path: None,
+                class_name: "A".to_owned(),
+                monitor_name: "DISPLAY1".to_owned(),
+            },
+            WindowInfo {
+                hwnd: HWND(2usize as *mut c_void),
+                title: "Bravo".to_owned(),
+                app_id: "app:b".to_owned(),
+                process_name: "B".to_owned(),
+                process_path: None,
+                class_name: "B".to_owned(),
+                monitor_name: "DISPLAY1".to_owned(),
+            },
+            WindowInfo {
+                hwnd: HWND(3usize as *mut c_void),
+                title: "Charlie".to_owned(),
+                app_id: "app:c".to_owned(),
+                process_name: "C".to_owned(),
+                process_path: None,
+                class_name: "C".to_owned(),
+                monitor_name: "DISPLAY1".to_owned(),
+            },
+        ];
+
+        windows.swap(0, 1);
+        apply_pinned_positions(&mut windows, &settings);
+
+        assert_eq!(windows[1].app_id, "app:b");
+    }
+}

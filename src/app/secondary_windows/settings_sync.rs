@@ -14,6 +14,7 @@ use panopticon::window_ops::{collect_available_apps, collect_available_monitors}
 use slint::SharedString;
 
 use crate::{AppState, SettingsWindow};
+use crate::app::ui_translations::populate_tr_global;
 
 use super::super::settings_ui::populate_settings_window;
 use super::super::theme_ui::apply_settings_window_theme_snapshot;
@@ -72,13 +73,13 @@ pub(super) fn populate_settings_window_runtime_fields(window: &SettingsWindow, s
         .iter()
         .map(|summary| summary.option_label.clone())
         .collect();
-    let fallback_fixed_width = u32::try_from(state.last_size.0)
+    let fallback_fixed_width = u32::try_from(state.shell.last_size.0)
         .ok()
         .filter(|value| *value > 0)
         .map_or(MIN_FIXED_WINDOW_WIDTH, |value| {
             value.max(MIN_FIXED_WINDOW_WIDTH)
         });
-    let fallback_fixed_height = u32::try_from(state.last_size.1)
+    let fallback_fixed_height = u32::try_from(state.shell.last_size.1)
         .ok()
         .filter(|value| *value > 0)
         .map_or(MIN_FIXED_WINDOW_HEIGHT, |value| {
@@ -510,7 +511,7 @@ pub(super) fn sync_settings_window_from_state(window: &SettingsWindow, state: &A
     let draft_profile_name = window.get_profile_name();
     let draft_profile_display_name = window.get_profile_display_name();
     let draft_profile_description = window.get_profile_description();
-    crate::populate_tr_global(window);
+    populate_tr_global(window);
     window.set_suspend_live_apply(true);
     populate_settings_window(window, &state.settings);
     populate_settings_window_runtime_fields(window, state);
@@ -535,7 +536,7 @@ pub(super) fn sync_settings_window_from_state(window: &SettingsWindow, state: &A
 pub(super) fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
     let windows: Vec<WindowInfo> = enumerate_windows()
         .into_iter()
-        .filter(|window| window.hwnd != state.hwnd)
+        .filter(|window| window.hwnd != state.shell.hwnd)
         .collect();
 
     RuntimeUiOptions {

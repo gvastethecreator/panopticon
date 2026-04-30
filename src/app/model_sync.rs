@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use panopticon::constants::{ANIMATION_DURATION_MS, TOOLBAR_HEIGHT};
 use panopticon::i18n;
-use panopticon::layout::{compute_layout_custom, AspectHint, ScrollDirection};
+use panopticon::layout::ScrollDirection;
 use panopticon::settings::{AppSettings, ToolbarPosition};
 use panopticon::window_ops::{active_filter_summary, truncate_title};
 use slint::ComponentHandle;
@@ -77,10 +77,6 @@ impl Drop for ModelSyncGuard {
     }
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "layout recompute and immediate UI synchronization are intentionally co-located"
-)]
 pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let Some(_guard) = RecomputeGuard::enter() else {
         tracing::debug!("skipping nested recompute_and_update_ui invocation");
@@ -90,8 +86,8 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
     tracing::trace!("recompute checkpoint: entered");
 
     let mut state = app_state.borrow_mut();
-    if state.windows.is_empty() {
-        state.animation_started_at = None;
+    if state.window_collection.windows.is_empty() {
+        state.theme.animation_started_at = None;
         sync_theme_target(&mut state);
         sync_settings_to_ui(win, &state.settings);
         sync_background_image(&mut state, win);
@@ -117,84 +113,59 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         bottom: (logical_h - toolbar_h).max(1),
     };
 
-    let aspects: Vec<AspectHint> = state
-        .windows
-        .iter()
-        .map(|managed_window| AspectHint {
-            width: f64::from(managed_window.source_size.cx),
-            height: f64::from(managed_window.source_size.cy),
-        })
-        .collect();
-
-    let custom = state.settings.layout_custom(state.current_layout).cloned();
-    let result = compute_layout_custom(
-        state.current_layout,
+    let custom = state.settings.layout_custom(state.window_collection.current_layout).cloned();
+    let (rects, separators) = super::layout_pipeline::compute_layout_rects(
+        state.window_collection.current_layout,
         content_area,
-        state.windows.len(),
-        &aspects,
+        &state.window_collection.windows,
         custom.as_ref(),
     );
     tracing::trace!(
-        window_count = state.windows.len(),
+        window_count = state.window_collection.windows.len(),
         "recompute checkpoint: layout computed"
     );
-    let rects = result.rects;
-    state.separators = result.separators;
+    state.window_collection.separators = separators;
 
-    let scroll_dir = state.current_layout.scroll_direction();
-    state.content_extent = match scroll_dir {
+    let scroll_dir = state.window_collection.current_layout.scroll_direction();
+    state.window_collection.content_extent = match scroll_dir {
         ScrollDirection::Horizontal => rects.iter().map(|rect| rect.right).max().unwrap_or(0),
         ScrollDirection::Vertical => rects.iter().map(|rect| rect.bottom).max().unwrap_or(0),
         ScrollDirection::None => 0,
     };
 
     let can_animate = state.settings.animate_transitions
-        && !state.hwnd.0.is_null()
-        && unsafe { IsWindowVisible(state.hwnd).as_bool() }
-        && state.drag_separator.is_none()
+        && !state.shell.hwnd.0.is_null()
+        && unsafe { IsWindowVisible(state.shell.hwnd).as_bool() }
+        && state.window_collection.drag_separator.is_none()
         && state
+            .window_collection
             .windows
             .iter()
-            .any(|managed_window| rect_has_area(managed_window.display_rect));
-    let mut animation_needed = false;
+            .any(|managed_window| super::layout_pipeline::rect_has_area(managed_window.display_rect));
 
-    for (index, managed_window) in state.windows.iter_mut().enumerate() {
-        if let Some(&rect) = rects.get(index) {
-            let prev = if rect_has_area(managed_window.display_rect) {
-                managed_window.display_rect
-            } else {
-                rect
-            };
-            managed_window.animation_from_rect = prev;
-            managed_window.target_rect = rect;
-            if can_animate && prev != rect {
-                animation_needed = true;
-            } else {
-                managed_window.display_rect = rect;
-            }
-        }
-    }
+    let animation_needed = super::layout_pipeline::apply_layout_rects(
+        &mut state.window_collection.windows,
+        &rects,
+        can_animate,
+    );
 
     if animation_needed {
-        state.animation_started_at = Some(Instant::now());
+        state.theme.animation_started_at = Some(Instant::now());
     } else {
-        state.animation_started_at = None;
-        for managed_window in &mut state.windows {
-            managed_window.display_rect = managed_window.target_rect;
-        }
+        state.theme.animation_started_at = None;
     }
 
     let scroll_h = scroll_dir == ScrollDirection::Horizontal;
     let scroll_v = scroll_dir == ScrollDirection::Vertical;
     win.set_scroll_horizontal(scroll_h);
     win.set_scroll_vertical(scroll_v);
-    win.set_content_width(state.content_extent as f32);
-    win.set_content_height(state.content_extent as f32);
+    win.set_content_width(state.window_collection.content_extent as f32);
+    win.set_content_height(state.window_collection.content_extent as f32);
     tracing::trace!("recompute checkpoint: scroll properties applied");
     clamp_viewport_offsets(
         win,
         scroll_dir,
-        state.content_extent,
+        state.window_collection.content_extent,
         logical_w,
         content_area.bottom,
     );
@@ -304,6 +275,7 @@ fn derive_empty_state_context(settings: &AppSettings) -> EmptyStateContext {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let Some(_guard) = ModelSyncGuard::enter() else {
         tracing::debug!("skipping nested sync_model_to_slint invocation");
@@ -318,21 +290,22 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
     let resize_locked = state.settings.locked_layout || state.settings.lock_cell_resize;
 
     if show_icons {
-        for managed_window in &mut state.windows {
+        for managed_window in &mut state.window_collection.windows {
             populate_cached_icon(managed_window);
         }
     } else {
-        for managed_window in &mut state.windows {
+        for managed_window in &mut state.window_collection.windows {
             managed_window.cached_icon = None;
         }
     }
     tracing::trace!(
         show_icons,
-        window_count = state.windows.len(),
+        window_count = state.window_collection.windows.len(),
         "model sync checkpoint: icons ready"
     );
 
     let data: Vec<ThumbnailData> = state
+        .window_collection
         .windows
         .iter()
         .map(|managed_window| build_thumbnail_data(managed_window, &state, show_footer, show_icons))
@@ -347,6 +320,7 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
         Vec::new()
     } else {
         state
+            .window_collection
             .separators
             .iter()
             .enumerate()
@@ -374,8 +348,9 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
             .collect()
     };
 
-    let dragging = state.drag_separator.is_some();
+    let dragging = state.window_collection.drag_separator.is_some();
     let active_drag = state
+        .window_collection
         .drag_separator
         .as_ref()
         .map_or(-1, |drag| drag.separator_index as i32);
@@ -386,9 +361,9 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
     );
 
     win.set_layout_label(SharedString::from(i18n::t(
-        state.current_layout.translation_key(),
+        state.window_collection.current_layout.translation_key(),
     )));
-    win.set_window_count(state.windows.len() as i32);
+    win.set_window_count(state.window_collection.windows.len() as i32);
     win.set_hidden_count(state.settings.hidden_app_entries().len() as i32);
 
     drop(state);
@@ -421,11 +396,11 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
     let Ok(mut state) = state.try_borrow_mut() else {
         return;
     };
-    let Some(started_at) = state.animation_started_at else {
+    let Some(started_at) = state.theme.animation_started_at else {
         return;
     };
-    if !unsafe { IsWindowVisible(state.hwnd).as_bool() } {
-        state.animation_started_at = None;
+    if !unsafe { IsWindowVisible(state.shell.hwnd).as_bool() } {
+        state.theme.animation_started_at = None;
         return;
     }
 
@@ -433,7 +408,7 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
     let progress = (elapsed_ms as f32 / ANIMATION_DURATION_MS as f32).clamp(0.0, 1.0);
     let eased = 1.0 - (1.0 - progress).powi(3);
 
-    for managed_window in &mut state.windows {
+    for managed_window in &mut state.window_collection.windows {
         managed_window.display_rect = lerp_rect(
             managed_window.animation_from_rect,
             managed_window.target_rect,
@@ -442,8 +417,8 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
     }
 
     if progress >= 1.0 {
-        state.animation_started_at = None;
-        for managed_window in &mut state.windows {
+        state.theme.animation_started_at = None;
+        for managed_window in &mut state.window_collection.windows {
             managed_window.display_rect = managed_window.target_rect;
         }
     }
@@ -452,11 +427,11 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
     let show_icons = state.settings.show_app_icons;
     let model = win.get_thumbnails();
     let row_count = model.row_count();
-    let window_count = state.windows.len();
+    let window_count = state.window_collection.windows.len();
 
     if row_count == window_count {
         // Fast path: update only geometry fields that change during animation.
-        for (index, managed_window) in state.windows.iter().enumerate() {
+        for (index, managed_window) in state.window_collection.windows.iter().enumerate() {
             if let Some(mut item) = model.row_data(index) {
                 let new_x = managed_window.display_rect.left as f32;
                 let new_y = managed_window.display_rect.top as f32;
@@ -479,6 +454,7 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
         }
     } else {
         let data: Vec<ThumbnailData> = state
+            .window_collection
             .windows
             .iter()
             .map(|managed_window| {
@@ -492,7 +468,7 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
 
 fn sync_background_image(state: &mut AppState, win: &MainWindow) {
     let desired = state.settings.background_image_path.clone();
-    if state.loaded_background_path == desired {
+    if state.theme.loaded_background_path == desired {
         return;
     }
 
@@ -500,13 +476,13 @@ fn sync_background_image(state: &mut AppState, win: &MainWindow) {
         match slint::Image::load_from_path(Path::new(path)) {
             Ok(image) => {
                 win.set_background_image(image);
-                state.loaded_background_path = desired;
+                state.theme.loaded_background_path = desired;
             }
             Err(error) => {
                 tracing::warn!(%error, path, "failed to load background image");
                 win.set_background_image(slint::Image::default());
                 state.settings.background_image_path = None;
-                state.loaded_background_path = None;
+                state.theme.loaded_background_path = None;
 
                 if let Err(save_error) = state.settings.save(state.workspace_name.as_deref()) {
                     tracing::warn!(
@@ -519,7 +495,7 @@ fn sync_background_image(state: &mut AppState, win: &MainWindow) {
         }
     } else {
         win.set_background_image(slint::Image::default());
-        state.loaded_background_path = None;
+        state.theme.loaded_background_path = None;
     }
 }
 
@@ -556,7 +532,7 @@ fn build_thumbnail_data(
 ) -> ThumbnailData {
     let accent = thumbnail_accent_color(
         &state.settings,
-        &state.current_theme,
+        &state.theme.current_theme,
         &managed_window.info.app_id,
     );
     let is_minimized = unsafe { IsIconic(managed_window.info.hwnd).as_bool() };
@@ -572,7 +548,7 @@ fn build_thumbnail_data(
         height: (managed_window.display_rect.bottom - managed_window.display_rect.top) as f32,
         title: SharedString::from(truncate_title(&managed_window.info.title)),
         app_label: SharedString::from(managed_window.info.app_label()),
-        is_active: state.active_hwnd == Some(managed_window.info.hwnd),
+        is_active: state.window_collection.active_hwnd == Some(managed_window.info.hwnd),
         accent_color: accent,
         show_footer,
         is_minimized,
@@ -580,10 +556,6 @@ fn build_thumbnail_data(
         show_icon: show_icons,
         pinned_slot,
     }
-}
-
-fn rect_has_area(rect: RECT) -> bool {
-    rect.right > rect.left && rect.bottom > rect.top
 }
 
 fn lerp_rect(from: RECT, to: RECT, t: f32) -> RECT {
@@ -615,28 +587,6 @@ fn rgb_components_from_hex(hex: &str) -> (u8, u8, u8) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rect_has_area_rejects_degenerate_rects() {
-        assert!(!rect_has_area(RECT {
-            left: 10,
-            top: 10,
-            right: 10,
-            bottom: 20,
-        }));
-        assert!(!rect_has_area(RECT {
-            left: 10,
-            top: 10,
-            right: 20,
-            bottom: 10,
-        }));
-        assert!(rect_has_area(RECT {
-            left: 0,
-            top: 0,
-            right: 1,
-            bottom: 1,
-        }));
-    }
 
     #[test]
     fn lerp_i32_interpolates_and_rounds() {
