@@ -2,6 +2,7 @@
 
 pub mod action_handlers;
 pub mod actions;
+pub mod animation_engine;
 pub mod cli;
 pub mod command_palette;
 pub mod dock;
@@ -24,8 +25,10 @@ pub mod tick_phases;
 pub mod startup;
 pub mod theme_ui;
 pub mod thumbnail_interactions;
+pub mod thumbnail_model_builder;
 pub mod tray_runtime;
 pub use self::tray_runtime as tray;
+pub mod viewport_manager;
 pub mod tray_actions;
 pub mod ui_callbacks;
 pub mod ui_translations;

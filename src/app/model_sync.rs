@@ -5,20 +5,20 @@ use std::path::Path;
 use std::rc::Rc;
 use std::time::Instant;
 
-use panopticon::constants::{ANIMATION_DURATION_MS, TOOLBAR_HEIGHT};
+use panopticon::constants::TOOLBAR_HEIGHT;
 use panopticon::i18n;
 use panopticon::layout::ScrollDirection;
 use panopticon::settings::{AppSettings, ToolbarPosition};
-use panopticon::window_ops::{active_filter_summary, truncate_title};
+use panopticon::window_ops::active_filter_summary;
 use slint::ComponentHandle;
-use slint::{Model, ModelRc, SharedString, VecModel};
+use slint::Model;
+use slint::SharedString;
 use windows::Win32::Foundation::RECT;
-use windows::Win32::UI::WindowsAndMessaging::{IsIconic, IsWindowVisible};
+use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
 
-use super::icon::populate_cached_icon;
 use super::settings_ui::background_fit_to_index;
-use super::theme_ui::{sync_theme_target, thumbnail_accent_color};
-use crate::{AppState, MainWindow, ResizeHandleData, ThumbnailData};
+use super::theme_ui::sync_theme_target;
+use crate::{AppState, MainWindow};
 
 thread_local! {
     static RECOMPUTE_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
@@ -162,13 +162,16 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
     win.set_content_width(state.window_collection.content_extent as f32);
     win.set_content_height(state.window_collection.content_extent as f32);
     tracing::trace!("recompute checkpoint: scroll properties applied");
-    clamp_viewport_offsets(
-        win,
+    let (clamped_x, clamped_y) = super::viewport_manager::clamp_offsets(
         scroll_dir,
         state.window_collection.content_extent,
         logical_w,
         content_area.bottom,
+        win.get_viewport_x(),
+        win.get_viewport_y(),
     );
+    win.set_viewport_x(clamped_x);
+    win.set_viewport_y(clamped_y);
     tracing::trace!("recompute checkpoint: viewport clamped");
 
     sync_theme_target(&mut state);
@@ -285,80 +288,9 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
     tracing::trace!("model sync checkpoint: entered");
 
     let mut state = state.borrow_mut();
-    let show_footer = state.settings.show_window_info;
-    let show_icons = state.settings.show_app_icons;
-    let resize_locked = state.settings.locked_layout || state.settings.lock_cell_resize;
 
-    if show_icons {
-        for managed_window in &mut state.window_collection.windows {
-            populate_cached_icon(managed_window);
-        }
-    } else {
-        for managed_window in &mut state.window_collection.windows {
-            managed_window.cached_icon = None;
-        }
-    }
-    tracing::trace!(
-        show_icons,
-        window_count = state.window_collection.windows.len(),
-        "model sync checkpoint: icons ready"
-    );
-
-    let data: Vec<ThumbnailData> = state
-        .window_collection
-        .windows
-        .iter()
-        .map(|managed_window| build_thumbnail_data(managed_window, &state, show_footer, show_icons))
-        .collect();
-    tracing::trace!(
-        thumbnail_rows = data.len(),
-        "model sync checkpoint: thumbnail data built"
-    );
-
-    let handle_thickness: f32 = 14.0;
-    let handles: Vec<ResizeHandleData> = if resize_locked {
-        Vec::new()
-    } else {
-        state
-            .window_collection
-            .separators
-            .iter()
-            .enumerate()
-            .map(|(idx, separator)| {
-                if separator.horizontal {
-                    ResizeHandleData {
-                        x: separator.extent_start as f32,
-                        y: separator.position as f32 - handle_thickness / 2.0,
-                        width: (separator.extent_end - separator.extent_start) as f32,
-                        height: handle_thickness,
-                        horizontal: true,
-                        index: idx as i32,
-                    }
-                } else {
-                    ResizeHandleData {
-                        x: separator.position as f32 - handle_thickness / 2.0,
-                        y: separator.extent_start as f32,
-                        width: handle_thickness,
-                        height: (separator.extent_end - separator.extent_start) as f32,
-                        horizontal: false,
-                        index: idx as i32,
-                    }
-                }
-            })
-            .collect()
-    };
-
-    let dragging = state.window_collection.drag_separator.is_some();
-    let active_drag = state
-        .window_collection
-        .drag_separator
-        .as_ref()
-        .map_or(-1, |drag| drag.separator_index as i32);
-    tracing::trace!(
-        handle_rows = handles.len(),
-        dragging,
-        "model sync checkpoint: resize handles built"
-    );
+    super::thumbnail_model_builder::sync_model_to_slint(&mut state, win);
+    tracing::trace!("model sync checkpoint: thumbnail and handle models synced");
 
     win.set_layout_label(SharedString::from(i18n::t(
         state.window_collection.current_layout.translation_key(),
@@ -366,33 +298,11 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
     win.set_window_count(state.window_collection.windows.len() as i32);
     win.set_hidden_count(state.settings.hidden_app_entries().len() as i32);
 
-    drop(state);
-    tracing::trace!("model sync checkpoint: window labels applied");
-
-    let thumbnails_model = win.get_thumbnails();
-    if thumbnails_model.row_count() == data.len() {
-        for (index, item) in data.into_iter().enumerate() {
-            thumbnails_model.set_row_data(index, item);
-        }
-    } else {
-        win.set_thumbnails(ModelRc::new(VecModel::from(data)));
-    }
-    tracing::trace!("model sync checkpoint: thumbnails model set");
-
-    let handles_model = win.get_resize_handles();
-    if handles_model.row_count() == handles.len() {
-        for (index, handle_data) in handles.into_iter().enumerate() {
-            handles_model.set_row_data(index, handle_data);
-        }
-    } else {
-        win.set_resize_handles(ModelRc::new(VecModel::from(handles)));
-    }
-    tracing::trace!("model sync checkpoint: resize handles set");
-    win.set_active_drag_index(active_drag);
     tracing::trace!("model sync checkpoint: finished");
 }
 
 pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
+    let state_rc = state.clone();
     let Ok(mut state) = state.try_borrow_mut() else {
         return;
     };
@@ -404,65 +314,28 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
         return;
     }
 
-    let elapsed_ms = started_at.elapsed().as_millis() as u32;
-    let progress = (elapsed_ms as f32 / ANIMATION_DURATION_MS as f32).clamp(0.0, 1.0);
-    let eased = 1.0 - (1.0 - progress).powi(3);
+    let status = super::animation_engine::tick(
+        &mut state.window_collection.windows,
+        started_at,
+        std::time::Instant::now(),
+    );
 
-    for managed_window in &mut state.window_collection.windows {
-        managed_window.display_rect = lerp_rect(
-            managed_window.animation_from_rect,
-            managed_window.target_rect,
-            eased,
-        );
-    }
-
-    if progress >= 1.0 {
+    if status == super::animation_engine::AnimationStatus::Complete {
         state.theme.animation_started_at = None;
-        for managed_window in &mut state.window_collection.windows {
-            managed_window.display_rect = managed_window.target_rect;
-        }
     }
 
-    let show_footer = state.settings.show_window_info;
-    let show_icons = state.settings.show_app_icons;
-    let model = win.get_thumbnails();
-    let row_count = model.row_count();
     let window_count = state.window_collection.windows.len();
-
-    if row_count == window_count {
-        // Fast path: update only geometry fields that change during animation.
-        for (index, managed_window) in state.window_collection.windows.iter().enumerate() {
-            if let Some(mut item) = model.row_data(index) {
-                let new_x = managed_window.display_rect.left as f32;
-                let new_y = managed_window.display_rect.top as f32;
-                let new_w =
-                    (managed_window.display_rect.right - managed_window.display_rect.left) as f32;
-                let new_h =
-                    (managed_window.display_rect.bottom - managed_window.display_rect.top) as f32;
-                // These are integer-derived pixel coordinates cast to f32,
-                // so exact bit equality is correct here.
-                #[allow(clippy::float_cmp)]
-                if item.x != new_x || item.y != new_y || item.width != new_w || item.height != new_h
-                {
-                    item.x = new_x;
-                    item.y = new_y;
-                    item.width = new_w;
-                    item.height = new_h;
-                    model.set_row_data(index, item);
-                }
-            }
-        }
+    let model = win.get_thumbnails();
+    if model.row_count() == window_count {
+        super::thumbnail_model_builder::update_animation_geometry(
+            &state.window_collection.windows,
+            win,
+        );
     } else {
-        let data: Vec<ThumbnailData> = state
-            .window_collection
-            .windows
-            .iter()
-            .map(|managed_window| {
-                build_thumbnail_data(managed_window, &state, show_footer, show_icons)
-            })
-            .collect();
         drop(state);
-        win.set_thumbnails(ModelRc::new(VecModel::from(data)));
+        if let Ok(mut state) = state_rc.try_borrow_mut() {
+            super::thumbnail_model_builder::sync_model_to_slint(&mut state, win);
+        }
     }
 }
 
@@ -499,78 +372,6 @@ fn sync_background_image(state: &mut AppState, win: &MainWindow) {
     }
 }
 
-fn clamp_viewport_offsets(
-    win: &MainWindow,
-    scroll_dir: ScrollDirection,
-    content_extent: i32,
-    visible_width: i32,
-    visible_height: i32,
-) {
-    match scroll_dir {
-        ScrollDirection::Horizontal => {
-            let max_scroll = (content_extent - visible_width).max(0) as f32;
-            win.set_viewport_x(win.get_viewport_x().clamp(-max_scroll, 0.0));
-            win.set_viewport_y(0.0);
-        }
-        ScrollDirection::Vertical => {
-            let max_scroll = (content_extent - visible_height).max(0) as f32;
-            win.set_viewport_y(win.get_viewport_y().clamp(-max_scroll, 0.0));
-            win.set_viewport_x(0.0);
-        }
-        ScrollDirection::None => {
-            win.set_viewport_x(0.0);
-            win.set_viewport_y(0.0);
-        }
-    }
-}
-
-fn build_thumbnail_data(
-    managed_window: &crate::ManagedWindow,
-    state: &AppState,
-    show_footer: bool,
-    show_icons: bool,
-) -> ThumbnailData {
-    let accent = thumbnail_accent_color(
-        &state.settings,
-        &state.theme.current_theme,
-        &managed_window.info.app_id,
-    );
-    let is_minimized = unsafe { IsIconic(managed_window.info.hwnd).as_bool() };
-    let pinned_slot = state
-        .settings
-        .pinned_position_for(&managed_window.info.app_id)
-        .and_then(|slot| i32::try_from(slot).ok())
-        .unwrap_or(-1);
-    ThumbnailData {
-        x: managed_window.display_rect.left as f32,
-        y: managed_window.display_rect.top as f32,
-        width: (managed_window.display_rect.right - managed_window.display_rect.left) as f32,
-        height: (managed_window.display_rect.bottom - managed_window.display_rect.top) as f32,
-        title: SharedString::from(truncate_title(&managed_window.info.title)),
-        app_label: SharedString::from(managed_window.info.app_label()),
-        is_active: state.window_collection.active_hwnd == Some(managed_window.info.hwnd),
-        accent_color: accent,
-        show_footer,
-        is_minimized,
-        icon: managed_window.cached_icon.clone().unwrap_or_default(),
-        show_icon: show_icons,
-        pinned_slot,
-    }
-}
-
-fn lerp_rect(from: RECT, to: RECT, t: f32) -> RECT {
-    RECT {
-        left: lerp_i32(from.left, to.left, t),
-        top: lerp_i32(from.top, to.top, t),
-        right: lerp_i32(from.right, to.right, t),
-        bottom: lerp_i32(from.bottom, to.bottom, t),
-    }
-}
-
-fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
-    (from as f32 + (to - from) as f32 * t).round() as i32
-}
-
 fn canvas_background_color(settings: &AppSettings) -> slint::Color {
     let (red, green, blue) = rgb_components_from_hex(&settings.background_color_hex);
     slint::Color::from_argb_u8(255, red, green, blue)
@@ -589,33 +390,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lerp_i32_interpolates_and_rounds() {
-        assert_eq!(lerp_i32(0, 10, 0.0), 0);
-        assert_eq!(lerp_i32(0, 10, 0.5), 5);
-        assert_eq!(lerp_i32(0, 10, 1.0), 10);
-        assert_eq!(lerp_i32(10, 0, 0.25), 8);
+    fn canvas_background_color_parses_hex() {
+        let color = canvas_background_color(&AppSettings {
+            background_color_hex: "#ff0000".to_owned(),
+            ..Default::default()
+        });
+        assert_eq!(color.red(), 255);
+        assert_eq!(color.green(), 0);
+        assert_eq!(color.blue(), 0);
     }
 
     #[test]
-    fn lerp_rect_interpolates_each_edge() {
-        let from = RECT {
-            left: 0,
-            top: 10,
-            right: 100,
-            bottom: 110,
-        };
-        let to = RECT {
-            left: 20,
-            top: 30,
-            right: 140,
-            bottom: 170,
-        };
+    fn rgb_components_from_hex_parses_valid_hex() {
+        let (r, g, b) = rgb_components_from_hex("#AABBCC");
+        assert_eq!(r, 0xAA);
+        assert_eq!(g, 0xBB);
+        assert_eq!(b, 0xCC);
+    }
 
-        let mid = lerp_rect(from, to, 0.5);
-
-        assert_eq!(mid.left, 10);
-        assert_eq!(mid.top, 20);
-        assert_eq!(mid.right, 120);
-        assert_eq!(mid.bottom, 140);
+    #[test]
+    fn rgb_components_from_hex_defaults_on_short_input() {
+        let (r, g, b) = rgb_components_from_hex("#12");
+        assert_eq!(r, 0x12);
+        assert_eq!(g, 0x15);
+        assert_eq!(b, 0x13);
     }
 }
