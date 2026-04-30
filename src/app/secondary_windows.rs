@@ -4,7 +4,10 @@ mod dialogs;
 mod placement;
 #[path = "secondary_windows/settings_callbacks/mod.rs"]
 mod settings_callbacks;
+mod settings_app_rules_sync;
+mod settings_filter_sync;
 mod settings_helpers;
+mod settings_preset_sync;
 mod settings_sync;
 mod settings_window;
 mod workspace;
@@ -200,7 +203,7 @@ pub(crate) fn open_create_tag_dialog(
 }
 
 fn apply_runtime_settings_window_changes(window: &SettingsWindow, settings: &mut AppSettings) {
-    settings_sync::apply_runtime_settings_window_changes(window, settings);
+    settings_filter_sync::apply_runtime_settings_window_changes(window, settings);
 }
 
 fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
@@ -208,19 +211,19 @@ fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppS
 }
 
 fn sync_selected_app_rule_editor(window: &SettingsWindow, settings: &AppSettings) {
-    settings_sync::sync_selected_app_rule_editor(window, settings);
+    settings_app_rules_sync::sync_selected_app_rule_editor(window, settings);
 }
 
 fn sync_app_rule_tags_editor(window: &SettingsWindow, tags: &[String], clear_input: bool) {
-    settings_sync::sync_app_rule_tags_editor(window, tags, clear_input);
+    settings_app_rules_sync::sync_app_rule_tags_editor(window, tags, clear_input);
 }
 
 fn refresh_mode_from_index(index: i32) -> ThumbnailRefreshMode {
-    settings_sync::refresh_mode_from_index(index)
+    settings_app_rules_sync::refresh_mode_from_index(index)
 }
 
 fn parse_tags_csv(raw: &str) -> Vec<String> {
-    settings_sync::parse_tags_csv(raw)
+    settings_app_rules_sync::parse_tags_csv(raw)
 }
 
 fn sync_workspace_editor_from_selection(
