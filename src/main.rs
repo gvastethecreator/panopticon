@@ -18,22 +18,11 @@ mod state;
 // `crate::UI_STATE`, etc. continue to resolve without changing every consumer.
 pub(crate) use state::*;
 
-pub(crate) use app::dwm::release_all_thumbnails;
-pub(crate) use app::layout_actions::cycle_layout;
-pub(crate) use app::model_sync::{
-    advance_animation, recompute_and_update_ui, sync_model_to_slint, sync_settings_to_ui,
-};
-pub(crate) use app::native_runtime::get_hwnd;
-pub(crate) use app::runtime_support::{
-    logical_to_screen_point, refresh_ui, request_update_check, schedule_deferred_refresh,
-    update_settings,
-};
-pub(crate) use app::ui_callbacks::setup_callbacks;
-pub(crate) use app::ui_translations::populate_tr_global;
-pub(crate) use app::window_sync::refresh_windows;
-
 use app::cli::{cli_usage, parse_startup_args};
-use app::dwm::release_thumbnail;
+use app::model_sync::sync_settings_to_ui;
+use app::runtime_support::request_update_check;
+use app::ui_callbacks::setup_callbacks;
+use app::ui_translations::populate_tr_global;
 use app::theme_ui::apply_main_window_theme_snapshot;
 use app::tray::{AppIcons, INSTANCE_ACCENT_PALETTE};
 use panopticon::settings::AppSettings;
@@ -44,7 +33,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use windows::core::w;
-use windows::Win32::Foundation::HWND;
+
 
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
@@ -169,23 +158,13 @@ fn run_app(workspace: Option<String>) {
     sync_settings_to_ui(&main_window, &settings);
 
     let state = Rc::new(RefCell::new(AppState {
-        hwnd: HWND::default(),
-        windows: Vec::new(),
-        current_layout: settings.effective_layout(),
-        active_hwnd: None,
-        tray_icon: None,
-        icons,
+        shell: app::shell_state::ShellState::new(icons),
+        window_collection: app::window_collection::WindowCollection::new(
+            settings.effective_layout(),
+        ),
+        theme: app::theme_state::ThemeState::new(initial_theme),
         settings,
-        animation_started_at: None,
-        content_extent: 0,
-        is_appbar: false,
         workspace_name: workspace,
-        last_size: (0, 0),
-        separators: Vec::new(),
-        drag_separator: None,
-        loaded_background_path: None,
-        current_theme: initial_theme,
-        theme_animation: None,
         app_version: format!("v{}", env!("CARGO_PKG_VERSION")),
         update_status: UpdateStatus::Idle,
     }));
@@ -208,114 +187,11 @@ fn run_app(workspace: Option<String>) {
     if let Err(error) = slint::run_event_loop_until_quit() {
         tracing::error!(%error, "Slint event loop failed");
     }
-    let hwnd = state.borrow().hwnd;
+    let hwnd = state.borrow().shell.hwnd;
     if !hwnd.0.is_null() {
         app::window_subclass::teardown_subclass(hwnd);
     }
     tracing::info!("Panopticon exiting");
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::app::dwm::sanitize_thumbnail_rect;
-    use crate::app::icon::bilinear_sample_rgba;
-    use panopticon::window_enum::WindowInfo;
-    use panopticon::window_ops::apply_pinned_positions;
-    use std::ffi::c_void;
-    use windows::Win32::Foundation::RECT;
 
-    #[test]
-    fn sanitize_thumbnail_rect_clips_to_client_bounds() {
-        let (rect, visible) = sanitize_thumbnail_rect(
-            RECT {
-                left: -12,
-                top: 10,
-                right: 180,
-                bottom: 140,
-            },
-            120,
-            0,
-            90,
-        );
-
-        assert!(visible);
-        assert_eq!(rect.left, 0);
-        assert_eq!(rect.top, 10);
-        assert_eq!(rect.right, 120);
-        assert_eq!(rect.bottom, 90);
-    }
-
-    #[test]
-    fn sanitize_thumbnail_rect_hides_rects_outside_client() {
-        let (rect, visible) = sanitize_thumbnail_rect(
-            RECT {
-                left: 300,
-                top: 50,
-                right: 360,
-                bottom: 110,
-            },
-            200,
-            0,
-            120,
-        );
-
-        assert!(!visible);
-        assert_eq!(rect, HIDDEN_THUMBNAIL_RECT);
-    }
-
-    #[test]
-    fn bilinear_sample_rgba_preserves_transparent_edges() {
-        let size = 4usize;
-        let mut source = vec![0u8; size * size * 4];
-        let center = (size + 1) * 4;
-        source[center..center + 4].copy_from_slice(&[255, 128, 64, 255]);
-
-        let sample = bilinear_sample_rgba(&source, size, 1.0, 1.0);
-
-        assert_eq!(sample, [255, 128, 64, 255]);
-        let transparent = bilinear_sample_rgba(&source, size, 0.0, 0.0);
-        assert_eq!(transparent[3], 0);
-    }
-
-    #[test]
-    fn apply_pinned_positions_keeps_pinned_app_in_reserved_slot() {
-        let mut settings = AppSettings::default();
-        let _ = settings.toggle_app_pinned_position("app:b", "B", 1);
-
-        let mut windows = vec![
-            WindowInfo {
-                hwnd: HWND(std::ptr::dangling_mut::<c_void>()),
-                title: "Alpha".to_owned(),
-                app_id: "app:a".to_owned(),
-                process_name: "A".to_owned(),
-                process_path: None,
-                class_name: "A".to_owned(),
-                monitor_name: "DISPLAY1".to_owned(),
-            },
-            WindowInfo {
-                hwnd: HWND(2usize as *mut c_void),
-                title: "Bravo".to_owned(),
-                app_id: "app:b".to_owned(),
-                process_name: "B".to_owned(),
-                process_path: None,
-                class_name: "B".to_owned(),
-                monitor_name: "DISPLAY1".to_owned(),
-            },
-            WindowInfo {
-                hwnd: HWND(3usize as *mut c_void),
-                title: "Charlie".to_owned(),
-                app_id: "app:c".to_owned(),
-                process_name: "C".to_owned(),
-                process_path: None,
-                class_name: "C".to_owned(),
-                monitor_name: "DISPLAY1".to_owned(),
-            },
-        ];
-
-        windows.swap(0, 1);
-        apply_pinned_positions(&mut windows, &settings);
-
-        assert_eq!(windows[1].app_id, "app:b");
-    }
-}

@@ -18,6 +18,9 @@ use crate::app::native_runtime::apply_configured_main_window_size;
 use crate::app::startup;
 use crate::app::theme_ui::apply_main_window_theme_snapshot;
 use crate::{AppState, MainWindow, SettingsWindow};
+use crate::app::model_sync::recompute_and_update_ui;
+use crate::app::ui_translations::populate_tr_global;
+use crate::app::window_sync::refresh_windows;
 
 use super::dialogs::{refresh_open_about_window, refresh_open_tag_dialog_window};
 use super::placement::refresh_secondary_window_stacking;
@@ -278,22 +281,22 @@ pub(crate) fn load_workspace_into_current_instance(
     let (hwnd, previous_language, settings_snapshot, workspace_name) = {
         let mut guard = state.borrow_mut();
         let previous_language = guard.settings.language;
-        if guard.is_appbar {
-            unregister_appbar(guard.hwnd);
-            guard.is_appbar = false;
+        if guard.shell.is_appbar {
+            unregister_appbar(guard.shell.hwnd);
+            guard.shell.is_appbar = false;
         }
         guard.workspace_name = requested_workspace;
         guard.settings = loaded_settings;
-        guard.current_layout = guard.settings.effective_layout();
-        guard.loaded_background_path = None;
-        guard.current_theme = theme_catalog::resolve_ui_theme(
+        guard.window_collection.current_layout = guard.settings.effective_layout();
+        guard.theme.loaded_background_path = None;
+        guard.theme.current_theme = theme_catalog::resolve_ui_theme(
             guard.settings.theme_id.as_deref(),
             &guard.settings.background_color_hex,
             &guard.settings.theme_color_overrides,
         );
-        guard.theme_animation = None;
+        guard.theme.theme_animation = None;
         (
-            guard.hwnd,
+            guard.shell.hwnd,
             previous_language,
             guard.settings.clone(),
             guard.workspace_name.clone(),
@@ -315,15 +318,15 @@ pub(crate) fn load_workspace_into_current_instance(
             center_window_on_owner_monitor(hwnd, HWND::default());
         }
 
-        apply_main_window_theme_snapshot(&main_window, &state.borrow().current_theme);
-        let _ = crate::refresh_windows(state);
-        crate::recompute_and_update_ui(state, &main_window);
+        apply_main_window_theme_snapshot(&main_window, &state.borrow().theme.current_theme);
+        let _ = refresh_windows(state);
+        recompute_and_update_ui(state, &main_window);
     }
 
     if previous_language != settings_snapshot.language {
         let _ = panopticon::i18n::set_locale(settings_snapshot.language);
         if let Some(main_window) = main_weak.upgrade() {
-            crate::populate_tr_global(&main_window);
+            populate_tr_global(&main_window);
         }
         refresh_open_about_window(state);
         refresh_open_tag_dialog_window(state);

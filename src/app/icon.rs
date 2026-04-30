@@ -347,7 +347,7 @@ pub(crate) fn bilinear_sample_rgba(source: &[u8], size: usize, x: f32, y: f32) -
 
 #[cfg(test)]
 mod tests {
-    use super::{invalidate_cached_app_icon, BoundedCache, APP_ICON_CACHE};
+    use super::{bilinear_sample_rgba, invalidate_cached_app_icon, BoundedCache, APP_ICON_CACHE};
 
     #[test]
     fn bounded_cache_evicts_oldest_entry_when_capacity_is_exceeded() {
@@ -392,5 +392,19 @@ mod tests {
             assert_eq!(cache.get_cloned("demo"), None);
             assert_eq!(cache.len(), 0);
         });
+    }
+
+    #[test]
+    fn bilinear_sample_rgba_preserves_transparent_edges() {
+        let size = 4usize;
+        let mut source = vec![0u8; size * size * 4];
+        let center = (size + 1) * 4;
+        source[center..center + 4].copy_from_slice(&[255, 128, 64, 255]);
+
+        let sample = bilinear_sample_rgba(&source, size, 1.0, 1.0);
+
+        assert_eq!(sample, [255, 128, 64, 255]);
+        let transparent = bilinear_sample_rgba(&source, size, 0.0, 0.0);
+        assert_eq!(transparent[3], 0);
     }
 }

@@ -15,7 +15,7 @@ use crate::{AppState, ManagedWindow};
 
 pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     let mut state = state.borrow_mut();
-    let host_hwnd = state.hwnd;
+    let host_hwnd = state.shell.hwnd;
     if host_hwnd.0.is_null() {
         return false;
     }
@@ -37,23 +37,25 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         .map(|(index, window)| (window.hwnd.0 as isize, index))
         .collect();
 
-    let previous_len = state.windows.len();
+    let previous_len = state.window_collection.windows.len();
     state
+        .window_collection
         .windows
         .retain(|managed_window| discovered_hwnds.contains(&(managed_window.info.hwnd.0 as isize)));
-    let mut changed = state.windows.len() != previous_len;
+    let mut changed = state.window_collection.windows.len() != previous_len;
 
     changed |=
-        update_existing_windows(&mut state.windows, &discovered_map, host_hwnd, host_visible);
+        update_existing_windows(&mut state.window_collection.windows, &discovered_map, host_hwnd, host_visible);
 
     let existing: HashSet<isize> = state
+        .window_collection
         .windows
         .iter()
         .map(|managed_window| managed_window.info.hwnd.0 as isize)
         .collect();
 
     changed |= append_new_windows(
-        &mut state.windows,
+        &mut state.window_collection.windows,
         discovered,
         &existing,
         host_hwnd,
@@ -61,17 +63,19 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     );
 
     let order_before: Vec<isize> = state
+        .window_collection
         .windows
         .iter()
         .map(|managed_window| managed_window.info.hwnd.0 as isize)
         .collect();
-    state.windows.sort_by_key(|managed_window| {
+    state.window_collection.windows.sort_by_key(|managed_window| {
         discovered_order
             .get(&(managed_window.info.hwnd.0 as isize))
             .copied()
             .unwrap_or(usize::MAX)
     });
     let order_after: Vec<isize> = state
+        .window_collection
         .windows
         .iter()
         .map(|managed_window| managed_window.info.hwnd.0 as isize)

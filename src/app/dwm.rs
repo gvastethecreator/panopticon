@@ -77,7 +77,7 @@ pub(crate) fn release_thumbnail(mw: &mut ManagedWindow) {
 
 pub(crate) fn release_all_thumbnails(state: &std::rc::Rc<std::cell::RefCell<crate::AppState>>) {
     if let Ok(mut s) = state.try_borrow_mut() {
-        for mw in &mut s.windows {
+        for mw in &mut s.window_collection.windows {
             release_thumbnail(mw);
         }
     }
@@ -115,10 +115,10 @@ pub(crate) fn update_dwm_thumbnails(
         return;
     };
     // SAFETY: checking visibility is a read-only Win32 query on our live window.
-    if s.hwnd.0.is_null() || !unsafe { IsWindowVisible(s.hwnd).as_bool() } {
+    if s.shell.hwnd.0.is_null() || !unsafe { IsWindowVisible(s.shell.hwnd).as_bool() } {
         return;
     }
-    if s.windows.is_empty() {
+    if s.window_collection.windows.is_empty() {
         return;
     }
 
@@ -128,10 +128,10 @@ pub(crate) fn update_dwm_thumbnails(
     let viewport_y = win.get_viewport_y();
     let now = Instant::now();
 
-    let dest_hwnd = s.hwnd;
+    let dest_hwnd = s.shell.hwnd;
     let (settings, windows) = {
         let state = &mut *s;
-        (&state.settings, &mut state.windows)
+        (&state.settings, &mut state.window_collection.windows)
     };
     let toolbar_phys_h = if settings.show_toolbar {
         (TOOLBAR_HEIGHT as f32 * scale).round() as i32
@@ -350,5 +350,50 @@ pub(crate) fn compute_dwm_rect(
         top: ((scaled_top + viewport_y + content_offset_y as f32) * scale).round() as i32,
         right: ((scaled_right + viewport_x) * scale).round() as i32,
         bottom: ((scaled_bottom + viewport_y + content_offset_y as f32) * scale).round() as i32,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows::Win32::Foundation::RECT;
+
+    #[test]
+    fn sanitize_thumbnail_rect_clips_to_client_bounds() {
+        let (rect, visible) = sanitize_thumbnail_rect(
+            RECT {
+                left: -12,
+                top: 10,
+                right: 180,
+                bottom: 140,
+            },
+            120,
+            0,
+            90,
+        );
+
+        assert!(visible);
+        assert_eq!(rect.left, 0);
+        assert_eq!(rect.top, 10);
+        assert_eq!(rect.right, 120);
+        assert_eq!(rect.bottom, 90);
+    }
+
+    #[test]
+    fn sanitize_thumbnail_rect_hides_rects_outside_client() {
+        let (rect, visible) = sanitize_thumbnail_rect(
+            RECT {
+                left: 300,
+                top: 50,
+                right: 360,
+                bottom: 110,
+            },
+            200,
+            0,
+            120,
+        );
+
+        assert!(!visible);
+        assert_eq!(rect, HIDDEN_THUMBNAIL_RECT);
     }
 }

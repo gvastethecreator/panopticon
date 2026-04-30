@@ -9,16 +9,15 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Instant;
 
-use panopticon::layout::{LayoutType, Separator};
 use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::WindowInfo;
 
-use windows::Win32::Foundation::{HWND, POINT, RECT, SIZE};
+use windows::Win32::Foundation::{POINT, RECT, SIZE};
 use windows::Win32::UI::WindowsAndMessaging::WNDPROC;
 
-use crate::app::tray::{AppIcons, TrayAction, TrayIcon};
+use crate::app::tray::TrayAction;
 use crate::{AboutWindow, CommandPaletteWindow, MainWindow, SettingsWindow, TagDialogWindow};
 
 // ───────────────────────── Constants ─────────────────────────
@@ -37,31 +36,12 @@ pub(crate) const HIDDEN_THUMBNAIL_RECT: RECT = RECT {
 
 /// Root application state shared via `Rc<RefCell<…>>`.
 pub(crate) struct AppState {
-    pub(crate) hwnd: HWND,
-    pub(crate) windows: Vec<ManagedWindow>,
-    pub(crate) current_layout: LayoutType,
-    pub(crate) active_hwnd: Option<HWND>,
-    pub(crate) tray_icon: Option<TrayIcon>,
-    pub(crate) icons: AppIcons,
+    pub(crate) shell: crate::app::shell_state::ShellState,
+    pub(crate) window_collection: crate::app::window_collection::WindowCollection,
+    pub(crate) theme: crate::app::theme_state::ThemeState,
     pub(crate) settings: AppSettings,
-    pub(crate) animation_started_at: Option<Instant>,
-    pub(crate) content_extent: i32,
-    pub(crate) is_appbar: bool,
     pub(crate) workspace_name: Option<String>,
-    pub(crate) last_size: (i32, i32),
-    /// Cached separators from the last layout computation.
-    pub(crate) separators: Vec<Separator>,
-    /// Active drag state: separator index being dragged.
-    pub(crate) drag_separator: Option<DragState>,
-    /// Last background image path loaded into the main window.
-    pub(crate) loaded_background_path: Option<String>,
-    /// Last theme snapshot rendered into Slint globals.
-    pub(crate) current_theme: theme_catalog::UiTheme,
-    /// Optional animated transition between theme snapshots.
-    pub(crate) theme_animation: Option<ThemeAnimation>,
-    /// Formatted application version shown in Settings/About (e.g. `v0.1.21`).
     pub(crate) app_version: String,
-    /// Last known update-check status for manual/automatic checks.
     pub(crate) update_status: UpdateStatus,
 }
 

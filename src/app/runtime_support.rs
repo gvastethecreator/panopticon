@@ -10,6 +10,8 @@ use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::UI::WindowsAndMessaging::GetWindowRect;
 
 use crate::{AppState, MainWindow, UpdateStatus};
+use super::model_sync::recompute_and_update_ui;
+use super::window_sync::refresh_windows;
 
 const FLOATING_SIZE_SYNC_DEBOUNCE_MS: u64 = 220;
 
@@ -125,7 +127,7 @@ pub(crate) fn update_settings(
         state.settings = state.settings.normalized();
         let _ = state.settings.save(state.workspace_name.as_deref());
         (
-            state.hwnd,
+            state.shell.hwnd,
             state.settings.clone(),
             state.workspace_name.clone(),
         )
@@ -139,7 +141,7 @@ pub(crate) fn update_settings(
 
 pub(crate) fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
     if let Some(win) = weak.upgrade() {
-        crate::recompute_and_update_ui(state, &win);
+        recompute_and_update_ui(state, &win);
         crate::app::theme_ui::advance_theme_animation(state, &win);
     }
     crate::app::secondary_windows::refresh_open_settings_window(state);
@@ -152,7 +154,7 @@ pub(crate) fn schedule_deferred_refresh(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
 ) {
-    let _ = crate::refresh_windows(state);
+    let _ = refresh_windows(state);
     refresh_ui(state, weak);
 
     let state2 = state.clone();
@@ -162,9 +164,9 @@ pub(crate) fn schedule_deferred_refresh(
         TimerMode::SingleShot,
         Duration::from_millis(300),
         move || {
-            if crate::refresh_windows(&state2) {
+            if refresh_windows(&state2) {
                 if let Some(win) = weak2.upgrade() {
-                    crate::recompute_and_update_ui(&state2, &win);
+                    recompute_and_update_ui(&state2, &win);
                 }
             }
         },

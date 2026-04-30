@@ -20,7 +20,7 @@ use crate::{AppState, WM_APPBAR_CALLBACK};
 // ───────────────────────── Dock lifecycle ─────────────────────────
 
 pub(crate) fn apply_dock_mode(state: &mut AppState) {
-    let hwnd = state.hwnd;
+    let hwnd = state.shell.hwnd;
     // SAFETY: hwnd is our live main window; switching style to borderless popup
     // on the UI thread before registering as an appbar.
     unsafe {
@@ -28,7 +28,7 @@ pub(crate) fn apply_dock_mode(state: &mut AppState) {
     }
     sync_dock_system_menu(hwnd, true);
     if register_appbar(hwnd) {
-        state.is_appbar = true;
+        state.shell.is_appbar = true;
         reposition_appbar(state);
     }
 }
@@ -62,7 +62,7 @@ pub(crate) fn reposition_appbar(state: &mut AppState) {
     let Some(edge) = state.settings.dock_edge else {
         return;
     };
-    let hwnd = state.hwnd;
+    let hwnd = state.shell.hwnd;
     let monitor_rect = get_monitor_rect(hwnd);
     let abe = dock_edge_to_abe(edge);
     let thickness = state

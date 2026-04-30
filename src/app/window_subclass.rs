@@ -15,8 +15,9 @@ use super::dock::{current_cursor_screen_point, docked_mode_active, is_blocked_do
 use super::dwm::release_thumbnail;
 use super::global_hotkey;
 use super::tray::{handle_tray_message, TrayAction, WM_TRAYICON};
+use super::model_sync::recompute_and_update_ui;
 use crate::{
-    queue_action, recompute_and_update_ui, AppState, MainWindow, PendingAction, SavedWndProc,
+    queue_action, AppState, MainWindow, PendingAction, SavedWndProc,
     TASKBAR_CREATED_MSG,
 };
 
@@ -104,8 +105,8 @@ unsafe extern "system" fn subclass_proc(
         crate::UI_STATE.with(|slot| {
             if let Some(state) = slot.borrow().as_ref() {
                 if let Ok(mut guard) = state.try_borrow_mut() {
-                    let small = guard.icons.small;
-                    if let Some(tray) = guard.tray_icon.as_mut() {
+                    let small = guard.shell.icons.small;
+                    if let Some(tray) = guard.shell.tray_icon.as_mut() {
                         tray.readd(small);
                     }
                 }
@@ -249,7 +250,7 @@ fn handle_show_window(wparam: WPARAM) {
         crate::UI_STATE.with(|slot| {
             if let Some(state) = slot.borrow().as_ref() {
                 if let Ok(mut guard) = state.try_borrow_mut() {
-                    for managed_window in &mut guard.windows {
+                    for managed_window in &mut guard.window_collection.windows {
                         release_thumbnail(managed_window);
                     }
                 }

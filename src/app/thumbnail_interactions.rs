@@ -11,10 +11,13 @@ use windows::Win32::Foundation::HWND;
 
 use super::icon::populate_cached_icon;
 use super::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
-use crate::{
-    logical_to_screen_point, recompute_and_update_ui, refresh_ui, refresh_windows,
-    release_thumbnail, schedule_deferred_refresh, update_settings, AppState, MainWindow,
+use super::dwm::{release_all_thumbnails, release_thumbnail};
+use super::model_sync::recompute_and_update_ui;
+use super::runtime_support::{
+    logical_to_screen_point, refresh_ui, schedule_deferred_refresh, update_settings,
 };
+use super::window_sync::refresh_windows;
+use crate::{AppState, MainWindow};
 
 pub(crate) fn handle_thumbnail_click(
     state: &Rc<RefCell<AppState>>,
@@ -22,12 +25,12 @@ pub(crate) fn handle_thumbnail_click(
     index: usize,
 ) {
     let mut state_guard = state.borrow_mut();
-    let Some(managed_window) = state_guard.windows.get(index) else {
+    let Some(managed_window) = state_guard.window_collection.windows.get(index) else {
         return;
     };
     let info = managed_window.info.clone();
     let hide_on_select = state_guard.settings.hide_on_select_for(&info.app_id);
-    state_guard.active_hwnd = Some(info.hwnd);
+    state_guard.window_collection.active_hwnd = Some(info.hwnd);
     drop(state_guard);
 
     tracing::info!(title = %info.title, app_id = %info.app_id, "activating window");
@@ -35,7 +38,7 @@ pub(crate) fn handle_thumbnail_click(
 
     if hide_on_select {
         if let Some(window) = weak.upgrade() {
-            crate::release_all_thumbnails(state);
+            release_all_thumbnails(state);
             window.hide().ok();
         }
     }
@@ -52,7 +55,7 @@ pub(crate) fn handle_thumbnail_right_click(
         return;
     };
     let mut state_guard = state.borrow_mut();
-    if state_guard.hwnd.0.is_null() {
+    if state_guard.shell.hwnd.0.is_null() {
         return;
     }
     let viewport_x = window.get_viewport_x();
@@ -64,9 +67,9 @@ pub(crate) fn handle_thumbnail_right_click(
     } else {
         0.0
     };
-    let host_hwnd = state_guard.hwnd;
+    let host_hwnd = state_guard.shell.hwnd;
     let scale = window.window().scale_factor();
-    let Some((info, screen_point)) = state_guard.windows.get_mut(index).map(|managed_window| {
+    let Some((info, screen_point)) = state_guard.window_collection.windows.get_mut(index).map(|managed_window| {
         populate_cached_icon(managed_window);
         (
             managed_window.info.clone(),
@@ -114,7 +117,7 @@ pub(crate) fn handle_thumbnail_close(
 ) {
     let info = {
         let state = state.borrow();
-        let Some(managed_window) = state.windows.get(index) else {
+        let Some(managed_window) = state.window_collection.windows.get(index) else {
             return;
         };
         managed_window.info.clone()
@@ -134,11 +137,11 @@ pub(crate) fn handle_thumbnail_drag_ended(
 ) {
     let needs_refresh = {
         let mut state = state.borrow_mut();
-        if src_idx >= state.windows.len() {
+        if src_idx >= state.window_collection.windows.len() {
             return;
         }
 
-        let target_idx = state.windows.iter().position(|managed_window| {
+        let target_idx = state.window_collection.windows.iter().position(|managed_window| {
             let rect = managed_window.target_rect;
             drop_x >= rect.left as f64
                 && drop_x <= rect.right as f64
@@ -150,12 +153,12 @@ pub(crate) fn handle_thumbnail_drag_ended(
             if target_idx == src_idx {
                 false
             } else {
-                let moved_window = state.windows.remove(src_idx);
-                state.windows.insert(target_idx, moved_window);
+                let moved_window = state.window_collection.windows.remove(src_idx);
+                state.window_collection.windows.insert(target_idx, moved_window);
 
                 let mut seen_apps = std::collections::HashSet::new();
                 let mut rules_to_update = Vec::new();
-                for (index, window) in state.windows.iter().enumerate() {
+                for (index, window) in state.window_collection.windows.iter().enumerate() {
                     let app_id = window.info.app_id.clone();
                     if !seen_apps.contains(&app_id) {
                         seen_apps.insert(app_id.clone());
@@ -277,7 +280,7 @@ pub(crate) fn handle_window_menu_action(
 
 fn release_thumbnails_for_app(state: &Rc<RefCell<AppState>>, app_id: &str) {
     let mut state = state.borrow_mut();
-    for managed_window in &mut state.windows {
+    for managed_window in &mut state.window_collection.windows {
         if managed_window.info.app_id == app_id {
             release_thumbnail(managed_window);
         }

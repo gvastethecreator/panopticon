@@ -6,6 +6,8 @@ use panopticon::settings::ThumbnailRefreshMode;
 use panopticon::ui_option_ops::parse_option_value;
 
 use crate::{AppState, MainWindow, SettingsWindow};
+use crate::app::runtime_support::{refresh_ui, update_settings};
+use crate::app::window_sync::refresh_windows;
 
 use super::super::{
     collect_runtime_ui_options, parse_tags_csv, populate_settings_window_runtime_fields,
@@ -110,7 +112,7 @@ fn register_app_rules_apply_selected_callback(
                 let color_hex = settings_window.get_app_rules_color_hex().to_string();
                 let pin_slot_value = settings_window.get_app_rules_pin_slot().max(0) as usize;
 
-                crate::update_settings(&state, |settings| {
+                update_settings(&state, |settings| {
                     let default_preserve = settings.preserve_aspect_ratio;
                     let default_hide = settings.hide_on_select;
                     let rule = settings.app_rules.entry(app_id.clone()).or_default();
@@ -154,8 +156,8 @@ fn register_app_rules_apply_selected_callback(
                     };
                 });
 
-                let _ = crate::refresh_windows(&state);
-                crate::refresh_ui(&state, &main_weak);
+                let _ = refresh_windows(&state);
+                refresh_ui(&state, &main_weak);
             });
         }
     });
@@ -187,12 +189,12 @@ fn register_app_rules_reset_selected_callback(
                     return;
                 };
 
-                crate::update_settings(&state, |settings| {
+                update_settings(&state, |settings| {
                     settings.app_rules.remove(&app_id);
                 });
 
-                let _ = crate::refresh_windows(&state);
-                crate::refresh_ui(&state, &main_weak);
+                let _ = refresh_windows(&state);
+                refresh_ui(&state, &main_weak);
             });
         }
     });
@@ -216,14 +218,14 @@ fn register_app_rules_clear_unused_callback(
                     .collect()
             };
 
-            crate::update_settings(&state, |settings| {
+            update_settings(&state, |settings| {
                 settings
                     .app_rules
                     .retain(|app_id, _| running_app_ids.contains(app_id));
             });
 
-            let _ = crate::refresh_windows(&state);
-            crate::refresh_ui(&state, &main_weak);
+            let _ = refresh_windows(&state);
+            refresh_ui(&state, &main_weak);
         }
     });
 }
