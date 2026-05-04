@@ -14,11 +14,9 @@ use crate::app::startup;
 use crate::app::window_sync::refresh_windows;
 use crate::{AppState, MainWindow, SettingsWindow};
 
-use super::super::settings_helpers::selected_model_value;
-use super::super::{
-    open_about_window, shortcut_recording_label, stop_shortcut_recording,
-    sync_settings_window_from_state,
-};
+use crate::app::secondary_windows::{open_about_window, sync_settings_window_from_state};
+use crate::app::settings::helpers::stop_shortcut_recording;
+use crate::app::settings::{selected_model_value, shortcut_recording_label};
 
 pub(super) fn register_runtime_callbacks(
     settings_window: &SettingsWindow,

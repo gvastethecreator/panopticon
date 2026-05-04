@@ -244,14 +244,11 @@ pub(crate) fn dispatch_action(
             command_palette::open_command_palette_window(state, weak);
         }
         AppAction::LoadWorkspace(workspace_name) => {
-            let _ = secondary_windows::load_workspace_into_current_instance(
-                state,
-                weak,
-                workspace_name,
-            );
+            let _ =
+                super::workspace::load_workspace_into_current_instance(state, weak, workspace_name);
         }
         AppAction::OpenWorkspaceInNewInstance(workspace_name) => {
-            let _ = secondary_windows::open_workspace_in_new_instance(state, workspace_name);
+            let _ = super::workspace::open_workspace_in_new_instance(state, workspace_name);
         }
         AppAction::Exit => {
             queue_exit_request();

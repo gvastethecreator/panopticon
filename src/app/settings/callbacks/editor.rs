@@ -9,12 +9,12 @@ use crate::app::runtime_support::refresh_ui;
 use crate::app::window_sync::refresh_windows;
 use crate::{AppState, MainWindow, SettingsWindow};
 
-use super::super::settings_helpers::apply_background_color;
-use super::super::{
-    apply_recorded_shortcut_binding, apply_settings_window_to_state, normalize_recorded_shortcut,
-    parse_rgb_hex, selected_layout_preset_name, set_layout_preset_summary,
-    shortcut_recording_label, stop_shortcut_recording, sync_layout_preset_controls,
+use crate::app::secondary_windows::apply_settings_window_to_state;
+use crate::app::settings::helpers::{
+    apply_background_color, apply_recorded_shortcut_binding, selected_layout_preset_name,
+    set_layout_preset_summary, stop_shortcut_recording, sync_layout_preset_controls,
 };
+use crate::app::settings::{normalize_recorded_shortcut, parse_rgb_hex, shortcut_recording_label};
 
 pub(super) fn register_editor_callbacks(
     settings_window: &SettingsWindow,

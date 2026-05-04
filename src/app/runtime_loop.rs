@@ -351,6 +351,9 @@ fn host_window_is_visible(state: &Rc<RefCell<AppState>>) -> bool {
     use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
     state.try_borrow().is_ok_and(|state_ref| {
         !state_ref.shell.hwnd.0.is_null()
-            && unsafe { IsWindowVisible(state_ref.shell.hwnd).as_bool() }
+            && unsafe {
+                // SAFETY: read-only visibility query for the application's own top-level window.
+                IsWindowVisible(state_ref.shell.hwnd).as_bool()
+            }
     })
 }

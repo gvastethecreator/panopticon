@@ -6,22 +6,23 @@
 
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 
-use crate::app::settings_ui::populate_settings_window;
+use crate::app::settings::ui::populate_settings_window;
 use crate::app::theme_ui::apply_settings_window_theme_snapshot;
 use crate::app::ui_translations::populate_tr_global;
 use crate::{AppState, SettingsWindow};
 
-use super::{settings_app_rules_sync, settings_filter_sync, settings_preset_sync};
+use super::{app_rules_sync, filter_sync, preset_sync};
+use crate::app::secondary_windows::RuntimeUiOptions;
 
 /// Collect the runtime-derived options (monitors, tags, apps, hidden apps)
 /// that feed the settings-window dropdowns and lists.
-pub(super) fn collect_runtime_ui_options(state: &AppState) -> super::RuntimeUiOptions {
+pub(crate) fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
     let windows: Vec<WindowInfo> = enumerate_windows()
         .into_iter()
         .filter(|window| window.hwnd != state.shell.hwnd)
         .collect();
 
-    super::RuntimeUiOptions {
+    RuntimeUiOptions {
         monitors: panopticon::window_ops::collect_available_monitors(&windows),
         tags: state.settings.known_tags(),
         apps: panopticon::window_ops::collect_available_apps(&windows),
@@ -30,7 +31,7 @@ pub(super) fn collect_runtime_ui_options(state: &AppState) -> super::RuntimeUiOp
 }
 
 /// Top-level synchronisation: rebuild the entire settings window from `AppState`.
-pub(super) fn sync_settings_window_from_state(window: &SettingsWindow, state: &AppState) {
+pub(crate) fn sync_settings_window_from_state(window: &SettingsWindow, state: &AppState) {
     let draft_profile_name = window.get_profile_name();
     let draft_profile_display_name = window.get_profile_display_name();
     let draft_profile_description = window.get_profile_description();
@@ -57,12 +58,12 @@ pub(super) fn sync_settings_window_from_state(window: &SettingsWindow, state: &A
 }
 
 /// Populate all runtime-derived fields in the settings window.
-pub(super) fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
+pub(crate) fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
     let runtime = collect_runtime_ui_options(state);
 
-    settings_preset_sync::populate_preset_options(window, state, &runtime);
-    settings_filter_sync::populate_filter_options(window, state, &runtime);
-    settings_app_rules_sync::populate_app_rules_list(window, state, &runtime);
-    settings_app_rules_sync::sync_selected_app_rule_editor(window, &state.settings);
-    settings_preset_sync::populate_hidden_apps(window, &runtime);
+    preset_sync::populate_preset_options(window, state, &runtime);
+    filter_sync::populate_filter_options(window, state, &runtime);
+    app_rules_sync::populate_app_rules_list(window, state, &runtime);
+    app_rules_sync::sync_selected_app_rule_editor(window, &state.settings);
+    preset_sync::populate_hidden_apps(window, &runtime);
 }

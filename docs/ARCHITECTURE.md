@@ -16,7 +16,7 @@ The project does not use a backend, network, database, or external services. The
 ```mermaid
 flowchart TD
     U[User] --> UI[Slint UI\nMainWindow / SettingsWindow / TagDialogWindow]
-    UI --> CB[Callbacks and UI model\nmain.rs + app/ui_callbacks.rs + app/settings_ui.rs]
+    UI --> CB[Callbacks and UI model\nmain.rs + app/ui_callbacks.rs + app/settings/ui.rs]
     CB --> ST[AppState\nwindows, thumbnails, settings, theme, tray]
     ST --> L[layout.rs\ncompute_layout_custom]
     ST --> E[window_enum.rs\nenumerate_windows]
@@ -25,7 +25,7 @@ flowchart TD
     ST --> TH[theme.rs\npresets and transition]
     ST --> ACT[app/actions.rs\nshared runtime dispatch]
     ST --> SW[app/secondary_windows.rs + app/secondary_windows/*\nsecondary dialogs, placement, workspaces]
-    ST --> TR[app/tray_runtime.rs + app/window_menu.rs\ntray icon, menus, native actions]
+    ST --> TR[app/tray.rs + app/window_menu.rs\ntray icon, menus, native actions]
     E --> W32[Win32 / User32 / Process APIs]
     T --> DWM[Desktop Window Manager]
     TR --> SH[Shell / AppBar / Menus]
@@ -129,10 +129,11 @@ This cleanly separates pure geometry from Win32/Slint integration.
 | `src/app/actions.rs` | shared runtime dispatcher used by keyboard, tray, and command palette flows |
 | `src/app/ui_callbacks.rs` | `MainWindow` callback registration extracted from `main.rs` |
 | `src/app/ui_translations.rs` | translation/global text population for Slint globals |
-| `src/app/secondary_windows.rs` + `src/app/secondary_windows/*` | settings/about/tag/workspace orchestration, callback wiring, placement, and secondary-window stacking |
-| `src/app/tray_runtime.rs` + `src/app/tray_runtime/*` | tray icon registration, icon resolution, popup menu construction, and tray message translation |
+| `src/app/secondary_windows.rs` + `src/app/secondary_windows/*` | settings/about/tag dialog orchestration, callback wiring, placement, and secondary-window stacking |
+| `src/app/workspace.rs` | workspace CRUD, load/switch, and new-instance helpers |
+| `src/app/tray.rs` + `src/app/tray/*` | tray icon registration, icon resolution, popup menu construction, and tray message translation |
 | `src/app/window_menu.rs` | per-window context menu |
-| `src/app/settings_ui.rs` | binding between persisted settings and the settings window |
+| `src/app/settings/ui.rs` | binding between persisted settings and the `SettingsWindow` |
 | `ui/main.slint` | visual definition for windows, cards, toolbar, overlays, and dialogs |
 
 ## Central state
@@ -165,7 +166,7 @@ The event loop still lives in `main.rs`, but action routing is now split across 
 - `app/actions.rs` centralises stateful runtime mutations and shared commands;
 - `app/ui_callbacks.rs` wires the main Slint view to runtime actions;
 - `app/secondary_windows.rs` and its submodules own secondary-window lifecycle, settings callback wiring, and placement;
-- `app/tray_runtime.rs` fronts tray-specific notify/icon/menu helpers while `app::tray` remains a compatibility alias for callers.
+- `app/tray.rs` fronts tray-specific notify/icon/menu helpers.
 
 ## Win32 subclassing
 

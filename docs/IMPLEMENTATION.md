@@ -222,7 +222,7 @@ It also handles:
 - data normalisation;
 - business helpers (`toggle_hidden`, `toggle_app_tag`, `set_tag_filter`, etc.).
 
-### `settings_ui.rs`
+### `settings/ui.rs`
 
 This is the adapter layer between `AppSettings` and `SettingsWindow`. It translates enums, background-fit modes, theme previews, and editable shortcut strings to the Slint settings UI and back.
 

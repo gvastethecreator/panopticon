@@ -132,7 +132,7 @@ fn run_app(workspace: Option<String>) {
     });
     app::startup::sync_run_at_startup(settings.run_at_startup, workspace.as_deref());
     panopticon::i18n::init(settings.language);
-    app::secondary_windows::ensure_default_workspaces_exist(&settings);
+    app::workspace::ensure_default_workspaces_exist(&settings);
 
     let initial_theme = theme_catalog::resolve_ui_theme(
         settings.theme_id.as_deref(),

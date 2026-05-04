@@ -80,12 +80,12 @@ Groups helpers oriented towards the binary UX.
 | `src/app/secondary_windows/settings_window.rs` | `SettingsWindow` lifecycle/controller: open, apply, refresh, and page navigation |
 | `src/app/secondary_windows/placement.rs` | owner resolution, centering, and z-order helpers for secondary windows |
 | `src/app/secondary_windows/dialogs.rs` | About/Tag dialog lifecycle and callbacks |
-| `src/app/secondary_windows/workspace.rs` | workspace CRUD/load/switch/new-instance helpers |
-| `src/app/settings_ui.rs` | bridge between `AppSettings` and `SettingsWindow` |
-| `src/app/tray_runtime.rs` | tray runtime facade re-exported as `app::tray` for callers |
-| `src/app/tray_runtime/icons.rs` | icon loading/generation/resolution for the main window and tray |
-| `src/app/tray_runtime/menu.rs` | native popup-menu construction and `TrayAction` decoding |
-| `src/app/tray_runtime/notify.rs` | `Shell_NotifyIconW` registration/update/remove wrapper |
+| `src/app/workspace.rs` | workspace CRUD/load/switch/new-instance helpers |
+| `src/app/settings/ui.rs` | bridge between `AppSettings` and `SettingsWindow` |
+| `src/app/tray.rs` | tray runtime facade re-exported as `app::tray` for callers |
+| `src/app/tray/icons.rs` | icon loading/generation/resolution for the main window and tray |
+| `src/app/tray/menu.rs` | native popup-menu construction and `TrayAction` decoding |
+| `src/app/tray/notify.rs` | `Shell_NotifyIconW` registration/update/remove wrapper |
 | `src/app/tray_actions.rs` | tray action handling routed through shared runtime dispatch |
 | `src/app/ui_callbacks.rs` | extracted `MainWindow` callback wiring |
 | `src/app/ui_translations.rs` | translation/global text population extracted from `main.rs` |
@@ -175,9 +175,9 @@ The project can be understood in five groups:
 1. **Technical domain core**  
    `layout.rs`, `settings.rs`, `theme.rs`
 2. **Win32/DWM interop**  
-   `window_enum.rs`, `thumbnail.rs`, large parts of `main.rs`, `tray_runtime.rs`, `window_menu.rs`
+   `window_enum.rs`, `thumbnail.rs`, large parts of `main.rs`, `tray.rs`, `window_menu.rs`
 3. **UI layer**  
-   `ui/main.slint`, `settings_ui.rs`
+   `ui/main.slint`, `settings/ui.rs`
 4. **Runtime orchestration**  
    `main.rs`, `app/actions.rs`, `app/ui_callbacks.rs`, `app/secondary_windows.rs`
 5. **Quality and support**  
@@ -205,11 +205,11 @@ The project can be understood in five groups:
 | If you want to change... | Start with... |
 | --- | --- |
 | layout behaviour | `src/layout.rs` + `tests/layout_tests.rs` |
-| persistence or settings | `src/settings.rs` + `src/app/settings_ui.rs` |
+| persistence or settings | `src/settings.rs` + `src/app/settings/ui.rs` |
 | main visual UX | `ui/main.slint` |
 | window enumeration | `src/window_enum.rs` |
 | DWM thumbnails | `src/thumbnail.rs` + `src/main.rs` |
-| tray and quick menus | `src/app/tray_runtime.rs` + `src/app/tray_actions.rs` |
+| tray and quick menus | `src/app/tray.rs` + `src/app/tray_actions.rs` |
 | per-window menu | `src/app/window_menu.rs` |
 | theming | `src/theme.rs` + `assets/themes.json` |
 | internationalisation | `src/i18n.rs` |

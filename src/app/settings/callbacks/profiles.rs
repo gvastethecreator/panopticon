@@ -7,12 +7,12 @@ use slint::SharedString;
 
 use crate::{AppState, MainWindow, SettingsWindow};
 
-use super::super::workspace;
-use super::super::{
-    clear_workspace_feedback, confirm_workspace_action, known_workspaces_label,
-    load_workspace_into_current_instance, parse_workspace_target_input,
+use crate::app::secondary_windows::{confirm_workspace_action, sync_settings_window_from_state};
+use crate::app::workspace::{
+    clear_workspace_feedback, known_workspaces_label, launch_additional_instance,
+    load_workspace_into_current_instance, parse_workspace_target_input, save_settings_as_workspace,
     select_workspace_in_settings_window, selected_workspace_from_settings_window,
-    set_workspace_feedback, sync_settings_window_from_state, sync_workspace_editor_from_selection,
+    set_workspace_feedback, sync_workspace_editor_from_selection,
 };
 
 pub(super) fn register_profile_callbacks(
@@ -133,12 +133,12 @@ fn register_open_profile_instance_callback(
                     state_guard.settings.clone()
                 };
                 if let Some(workspace_name) = requested.as_deref() {
-                    let _ = workspace::save_settings_as_workspace(&settings_snapshot, workspace_name);
+                    let _ = save_settings_as_workspace(&settings_snapshot, workspace_name);
                 } else if let Err(error) = settings_snapshot.save(None) {
                     tracing::error!(%error, "failed to save default workspace before launching instance");
                 }
 
-                let launched = workspace::launch_additional_instance(requested.as_deref());
+                let launched = launch_additional_instance(requested.as_deref());
                 settings_window.set_known_profiles_label(SharedString::from(known_workspaces_label()));
                 if launched {
                     let feedback = format!(

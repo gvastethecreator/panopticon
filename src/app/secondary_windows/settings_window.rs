@@ -18,13 +18,13 @@ use crate::app::ui_translations::populate_tr_global;
 use crate::app::window_sync::refresh_windows;
 use crate::{AppState, MainWindow, SettingsWindow};
 
-use super::settings_callbacks;
 use super::{
     apply_runtime_settings_window_changes, apply_secondary_window_placement,
-    known_workspaces_label, refresh_open_about_window, refresh_open_tag_dialog_window,
-    refresh_secondary_window_stacking, refresh_tray_locale, secondary_window_placement,
-    sync_settings_window_from_state,
+    refresh_open_about_window, refresh_open_tag_dialog_window, refresh_secondary_window_stacking,
+    refresh_tray_locale, secondary_window_placement, sync_settings_window_from_state,
 };
+use crate::app::settings::callbacks as settings_callbacks;
+use crate::app::workspace::known_workspaces_label;
 
 thread_local! {
     static SETTINGS_APPLY_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
@@ -57,14 +57,14 @@ impl Drop for SettingsApplyGuard {
     }
 }
 
-pub(super) fn open_settings_window(
+pub(crate) fn open_settings_window(
     state: &Rc<RefCell<AppState>>,
     main_weak: &slint::Weak<MainWindow>,
 ) {
     open_settings_window_with_anchor(state, main_weak, None);
 }
 
-pub(super) fn open_settings_window_with_anchor(
+pub(crate) fn open_settings_window_with_anchor(
     state: &Rc<RefCell<AppState>>,
     main_weak: &slint::Weak<MainWindow>,
     center_point: Option<POINT>,
@@ -122,7 +122,7 @@ pub(super) fn open_settings_window_with_anchor(
     crate::SETTINGS_WIN.with(|handle| *handle.borrow_mut() = Some(settings_window));
 }
 
-pub(super) fn apply_settings_window_to_state(
+pub(crate) fn apply_settings_window_to_state(
     state: &Rc<RefCell<AppState>>,
     main_weak: &slint::Weak<MainWindow>,
 ) {
@@ -142,7 +142,10 @@ pub(super) fn apply_settings_window_to_state(
         let prev_language = previous_settings.language;
 
         let mut next_settings = previous_settings.clone();
-        crate::app::settings_ui::apply_settings_window_changes(settings_window, &mut next_settings);
+        crate::app::settings::ui::apply_settings_window_changes(
+            settings_window,
+            &mut next_settings,
+        );
         apply_runtime_settings_window_changes(settings_window, &mut next_settings);
         next_settings = next_settings.normalized();
 
@@ -208,7 +211,7 @@ pub(super) fn apply_settings_window_to_state(
     });
 }
 
-pub(super) fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
+pub(crate) fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
     crate::SETTINGS_WIN.with(|handle| {
         let guard = handle.borrow();
         let Some(window) = guard.as_ref() else {
@@ -225,7 +228,7 @@ pub(super) fn refresh_open_settings_window(state: &Rc<RefCell<AppState>>) {
     });
 }
 
-pub(super) fn open_settings_window_page(
+pub(crate) fn open_settings_window_page(
     state: &Rc<RefCell<AppState>>,
     main_weak: &slint::Weak<MainWindow>,
     page_index: i32,

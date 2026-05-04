@@ -9,11 +9,11 @@ use crate::app::runtime_support::{refresh_ui, update_settings};
 use crate::app::window_sync::refresh_windows;
 use crate::{AppState, MainWindow, SettingsWindow};
 
-use super::super::settings_helpers::selected_model_value;
-use super::super::{
+use crate::app::secondary_windows::{
     collect_runtime_ui_options, parse_tags_csv, populate_settings_window_runtime_fields,
     refresh_mode_from_index, sync_app_rule_tags_editor, sync_selected_app_rule_editor,
 };
+use crate::app::settings::selected_model_value;
 
 pub(super) fn register_app_rule_callbacks(
     settings_window: &SettingsWindow,

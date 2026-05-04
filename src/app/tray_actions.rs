@@ -33,7 +33,10 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
     }
 
     TrayMenuState {
-        window_visible: unsafe { IsWindowVisible(state.shell.hwnd).as_bool() },
+        window_visible: unsafe {
+            // SAFETY: read-only visibility query for the application's own top-level window.
+            IsWindowVisible(state.shell.hwnd).as_bool()
+        },
         minimize_to_tray: state.settings.minimize_to_tray,
         close_to_tray: state.settings.close_to_tray,
         refresh_interval_ms: state.settings.refresh_interval_ms,

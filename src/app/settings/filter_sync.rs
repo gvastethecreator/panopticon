@@ -5,11 +5,12 @@
 
 use panopticon::ui_option_ops::{app_option_label, parse_option_value};
 
-use super::settings_helpers::{build_string_model, selected_model_value};
+use super::{build_string_model, selected_model_value};
+use crate::app::secondary_windows::RuntimeUiOptions;
 use crate::{AppState, SettingsWindow};
 
 /// Apply the current filter selections in the settings window to `AppSettings`.
-pub(super) fn apply_runtime_settings_window_changes(
+pub(crate) fn apply_runtime_settings_window_changes(
     window: &SettingsWindow,
     settings: &mut panopticon::settings::AppSettings,
 ) {
@@ -47,10 +48,10 @@ pub(super) fn apply_runtime_settings_window_changes(
 }
 
 /// Populate the monitor, tag, and app filter dropdowns from runtime state.
-pub(super) fn populate_filter_options(
+pub(crate) fn populate_filter_options(
     window: &SettingsWindow,
     state: &AppState,
-    runtime: &super::RuntimeUiOptions,
+    runtime: &RuntimeUiOptions,
 ) {
     let mut monitor_options = vec![panopticon::i18n::t("tray.all_monitors").to_owned()];
     monitor_options.extend(runtime.monitors.iter().cloned());
