@@ -304,6 +304,9 @@ fn release_thumbnails_for_app(state: &Rc<RefCell<AppState>>, app_id: &str) {
 }
 
 fn activate_window(hwnd: HWND) {
+    // SAFETY: hwnd comes from the window enumeration layer and is validated
+    // before this call. ShowWindow / SetForegroundWindow are standard
+    // activation routines on a live top-level window.
     unsafe {
         if windows::Win32::UI::WindowsAndMessaging::IsIconic(hwnd).as_bool() {
             let _ = windows::Win32::UI::WindowsAndMessaging::ShowWindow(
@@ -319,6 +322,8 @@ fn close_target_window(hwnd: HWND) {
     if hwnd.0.is_null() {
         return;
     }
+    // SAFETY: hwnd is validated non-null; PostMessageW with WM_CLOSE is the
+    // standard graceful close request for a live top-level window.
     unsafe {
         let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
             Some(hwnd),
@@ -340,12 +345,16 @@ fn kill_target_process(hwnd: HWND) {
         return;
     }
     let mut pid: u32 = 0;
+    // SAFETY: hwnd is validated non-null; GetWindowThreadProcessId is a read-only
+    // query that writes the PID into the stack-allocated variable.
     unsafe {
         windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&raw mut pid));
     }
     if pid == 0 {
         return;
     }
+    // SAFETY: OpenProcess is called with limited rights (TERMINATE + QUERY) on a
+    // PID obtained from a known window handle. The handle is closed after use.
     unsafe {
         match OpenProcess(
             PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,

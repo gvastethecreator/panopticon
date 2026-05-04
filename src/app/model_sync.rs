@@ -16,7 +16,7 @@ use slint::SharedString;
 use windows::Win32::Foundation::RECT;
 use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
 
-use super::settings_ui::background_fit_to_index;
+use super::settings::ui::background_fit_to_index;
 use super::theme_ui::sync_theme_target;
 use crate::{AppState, MainWindow};
 
@@ -77,6 +77,10 @@ impl Drop for ModelSyncGuard {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "UI recompute is inherently sequential"
+)]
 pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let Some(_guard) = RecomputeGuard::enter() else {
         tracing::debug!("skipping nested recompute_and_update_ui invocation");
@@ -138,7 +142,10 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
 
     let can_animate = state.settings.animate_transitions
         && !state.shell.hwnd.0.is_null()
-        && unsafe { IsWindowVisible(state.shell.hwnd).as_bool() }
+        && unsafe {
+            // SAFETY: read-only visibility query for the application's own top-level window.
+            IsWindowVisible(state.shell.hwnd).as_bool()
+        }
         && state.window_collection.drag_separator.is_none()
         && state
             .window_collection
@@ -314,7 +321,10 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
     let Some(started_at) = state.theme.animation_started_at else {
         return;
     };
-    if !unsafe { IsWindowVisible(state.shell.hwnd).as_bool() } {
+    if !unsafe {
+        // SAFETY: read-only visibility query for the application's own top-level window.
+        IsWindowVisible(state.shell.hwnd).as_bool()
+    } {
         state.theme.animation_started_at = None;
         return;
     }

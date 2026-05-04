@@ -11,11 +11,16 @@ use panopticon::theme as theme_catalog;
 use panopticon::ui_option_ops::{current_workspace_label, hidden_app_option_label};
 use slint::SharedString;
 
-use super::settings_helpers::build_string_model;
+use super::build_string_model;
+use crate::app::secondary_windows::RuntimeUiOptions;
+use crate::app::settings::helpers::sync_layout_preset_controls;
+use crate::app::workspace::{
+    available_workspace_summaries, known_workspaces_label, selected_workspace_from_settings_window,
+};
 use crate::{AppState, SettingsWindow};
 
 /// Populate dimension, theme, version, and update-status fields.
-pub(super) fn populate_dimension_and_theme_options(window: &SettingsWindow, state: &AppState) {
+pub(crate) fn populate_dimension_and_theme_options(window: &SettingsWindow, state: &AppState) {
     let fallback_fixed_width = u32::try_from(state.shell.last_size.0)
         .ok()
         .filter(|value| *value > 0)
@@ -75,25 +80,25 @@ pub(super) fn populate_dimension_and_theme_options(window: &SettingsWindow, stat
     window.set_profile_description(SharedString::from(
         state.settings.workspace.description.clone(),
     ));
-    window.set_known_profiles_label(SharedString::from(super::known_workspaces_label()));
+    window.set_known_profiles_label(SharedString::from(known_workspaces_label()));
 }
 
 /// Populate workspace profile options and related metadata fields.
-pub(super) fn populate_preset_options(
+pub(crate) fn populate_preset_options(
     window: &SettingsWindow,
     state: &AppState,
-    runtime: &super::RuntimeUiOptions,
+    runtime: &RuntimeUiOptions,
 ) {
     populate_dimension_and_theme_options(window, state);
 
-    let workspace_summaries = super::available_workspace_summaries(state, runtime);
+    let workspace_summaries = available_workspace_summaries(state, runtime);
     let workspace_options: Vec<String> = workspace_summaries
         .iter()
         .map(|summary| summary.option_label.clone())
         .collect();
 
-    let requested_workspace = super::selected_workspace_from_settings_window(window)
-        .or_else(|| state.workspace_name.clone());
+    let requested_workspace =
+        selected_workspace_from_settings_window(window).or_else(|| state.workspace_name.clone());
     let profile_index = workspace_summaries
         .iter()
         .position(|summary| summary.workspace_name == requested_workspace)
@@ -137,11 +142,11 @@ pub(super) fn populate_preset_options(
         window.set_selected_profile_status_summary(SharedString::from(""));
     }
 
-    super::sync_layout_preset_controls(window, &state.settings);
+    sync_layout_preset_controls(window, &state.settings);
 }
 
 /// Populate the hidden-apps list model.
-pub(super) fn populate_hidden_apps(window: &SettingsWindow, runtime: &super::RuntimeUiOptions) {
+pub(crate) fn populate_hidden_apps(window: &SettingsWindow, runtime: &RuntimeUiOptions) {
     if runtime.hidden_apps.is_empty() {
         window.set_hidden_app_options(build_string_model(vec![panopticon::i18n::t(
             "settings.no_hidden",

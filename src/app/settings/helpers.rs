@@ -3,19 +3,20 @@
 use std::cell::Cell;
 
 use panopticon::settings::AppSettings;
-use slint::{Model, ModelRc, SharedString, VecModel};
+use slint::SharedString;
 
+use crate::app::settings::{build_string_model, selected_model_value};
 use crate::SettingsWindow;
 
 thread_local! {
     static BG_COLOR_SYNC_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
 }
 
-pub(super) fn set_layout_preset_summary(window: &SettingsWindow, message: &str) {
+pub(crate) fn set_layout_preset_summary(window: &SettingsWindow, message: &str) {
     window.set_layout_preset_summary(SharedString::from(message));
 }
 
-pub(super) fn selected_layout_preset_name(window: &SettingsWindow) -> Option<String> {
+pub(crate) fn selected_layout_preset_name(window: &SettingsWindow) -> Option<String> {
     selected_model_value(
         &window.get_layout_preset_options(),
         window.get_layout_preset_index(),
@@ -27,7 +28,7 @@ pub(super) fn selected_layout_preset_name(window: &SettingsWindow) -> Option<Str
     })
 }
 
-pub(super) fn sync_layout_preset_controls(window: &SettingsWindow, settings: &AppSettings) {
+pub(crate) fn sync_layout_preset_controls(window: &SettingsWindow, settings: &AppSettings) {
     let names = settings.layout_preset_names();
     let selected_before = selected_model_value(
         &window.get_layout_preset_options(),
@@ -52,53 +53,13 @@ pub(super) fn sync_layout_preset_controls(window: &SettingsWindow, settings: &Ap
     }
 }
 
-pub(super) fn stop_shortcut_recording(window: &SettingsWindow, hint: &str) {
+pub(crate) fn stop_shortcut_recording(window: &SettingsWindow, hint: &str) {
     window.set_shortcut_recording_mode(false);
     window.set_shortcut_recording_target(SharedString::from(""));
     window.set_shortcut_recording_hint(SharedString::from(hint));
 }
 
-pub(super) fn shortcut_recording_label(target: &str) -> &str {
-    match target {
-        "layout_column" => "Layout column",
-        "reset_layout" => "Reset layout",
-        "cycle_layout" => "Cycle layout",
-        "toggle_toolbar" => "Toggle toolbar",
-        "toggle_animations" => "Toggle animations",
-        "toggle_window_info" => "Toggle window info",
-        "open_settings" => "Open settings",
-        "open_menu" => "Open menu",
-        "open_command_palette" => "Open command palette",
-        "refresh_now" => "Refresh now",
-        "exit_app" => "Exit app",
-        "toggle_always_on_top" => "Always on top",
-        "global_activate" => "Global activate",
-        _ => "Shortcut",
-    }
-}
-
-pub(super) fn normalize_recorded_shortcut(key_text: &str) -> Option<String> {
-    match key_text {
-        "\t" => Some("Tab".to_owned()),
-        "\n" | "\r" => Some("Enter".to_owned()),
-        " " => Some("Space".to_owned()),
-        _ => {
-            let mut chars = key_text.chars();
-            let first = chars.next()?;
-            if chars.next().is_some() || first.is_control() {
-                return None;
-            }
-
-            if first.is_ascii_alphanumeric() {
-                Some(first.to_ascii_uppercase().to_string())
-            } else {
-                Some(first.to_string())
-            }
-        }
-    }
-}
-
-pub(super) fn apply_recorded_shortcut_binding(
+pub(crate) fn apply_recorded_shortcut_binding(
     window: &SettingsWindow,
     target: &str,
     binding: &str,
@@ -124,19 +85,7 @@ pub(super) fn apply_recorded_shortcut_binding(
     true
 }
 
-pub(super) fn build_string_model(values: Vec<String>) -> ModelRc<SharedString> {
-    let values: Vec<SharedString> = values.into_iter().map(SharedString::from).collect();
-    ModelRc::new(VecModel::from(values))
-}
-
-pub(super) fn selected_model_value(model: &ModelRc<SharedString>, index: i32) -> Option<String> {
-    usize::try_from(index)
-        .ok()
-        .and_then(|index| model.row_data(index))
-        .map(|value| value.to_string())
-}
-
-pub(super) fn apply_background_color(window: &SettingsWindow, red: i32, green: i32, blue: i32) {
+pub(crate) fn apply_background_color(window: &SettingsWindow, red: i32, green: i32, blue: i32) {
     let already_syncing = BG_COLOR_SYNC_IN_PROGRESS.with(|flag| {
         if flag.get() {
             true
@@ -175,21 +124,9 @@ fn clamp_rgb(value: i32) -> i32 {
     value.clamp(0, 255)
 }
 
-pub(super) fn parse_rgb_hex(input: &str) -> Option<(i32, i32, i32)> {
-    let hex = input.trim().trim_start_matches('#');
-    if hex.len() != 6 || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
-        return None;
-    }
-
-    let red = i32::from(u8::from_str_radix(&hex[0..2], 16).ok()?);
-    let green = i32::from(u8::from_str_radix(&hex[2..4], 16).ok()?);
-    let blue = i32::from(u8::from_str_radix(&hex[4..6], 16).ok()?);
-    Some((red, green, blue))
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{normalize_recorded_shortcut, parse_rgb_hex};
+    use super::super::{normalize_recorded_shortcut, parse_rgb_hex};
 
     #[test]
     fn recorded_shortcut_normalizes_special_keys() {

@@ -9,14 +9,15 @@ use panopticon::settings::{AppSettings, ThumbnailRefreshMode};
 use panopticon::ui_option_ops::{app_option_label, parse_option_value, OPTION_SEPARATOR};
 use slint::SharedString;
 
-use super::settings_helpers::{build_string_model, selected_model_value};
+use super::{build_string_model, selected_model_value};
+use crate::app::secondary_windows::{AppRuleListEntry, RuntimeUiOptions};
 use crate::{AppState, SettingsWindow};
 
 /// Build the filtered app-rule list model and sync it to the settings window.
-pub(super) fn populate_app_rules_list(
+pub(crate) fn populate_app_rules_list(
     window: &SettingsWindow,
     state: &AppState,
-    runtime: &super::RuntimeUiOptions,
+    runtime: &RuntimeUiOptions,
 ) {
     let app_rule_entries = collect_app_rule_entries(state, runtime);
 
@@ -69,10 +70,7 @@ pub(super) fn populate_app_rules_list(
     window.set_app_rules_unused_summary(SharedString::from(cleanup_summary));
 }
 
-fn collect_app_rule_entries(
-    state: &AppState,
-    runtime: &super::RuntimeUiOptions,
-) -> Vec<super::AppRuleListEntry> {
+fn collect_app_rule_entries(state: &AppState, runtime: &RuntimeUiOptions) -> Vec<AppRuleListEntry> {
     let mut by_id: BTreeMap<String, String> = BTreeMap::new();
 
     for app in &runtime.apps {
@@ -92,7 +90,7 @@ fn collect_app_rule_entries(
         });
     }
 
-    let mut entries: Vec<super::AppRuleListEntry> = by_id
+    let mut entries: Vec<AppRuleListEntry> = by_id
         .into_iter()
         .map(|(app_id, label)| {
             let rule = state.settings.app_rules.get(&app_id);
@@ -104,7 +102,7 @@ fn collect_app_rule_entries(
                 tags.join(" ").to_ascii_lowercase()
             );
 
-            super::AppRuleListEntry {
+            AppRuleListEntry {
                 option: panopticon::settings::AppSelectionEntry {
                     app_id: app_id.clone(),
                     label,
@@ -136,10 +134,10 @@ fn collect_app_rule_entries(
 }
 
 fn filter_app_rule_entries(
-    entries: Vec<super::AppRuleListEntry>,
+    entries: Vec<AppRuleListEntry>,
     filter_index: i32,
     search_query: &str,
-) -> Vec<super::AppRuleListEntry> {
+) -> Vec<AppRuleListEntry> {
     entries
         .into_iter()
         .filter(|entry| {
@@ -167,7 +165,7 @@ fn filter_app_rule_entries(
 }
 
 /// Sync the app-rule editor panel to the currently selected rule.
-pub(super) fn sync_selected_app_rule_editor(window: &SettingsWindow, settings: &AppSettings) {
+pub(crate) fn sync_selected_app_rule_editor(window: &SettingsWindow, settings: &AppSettings) {
     let selected = selected_model_value(
         &window.get_app_rules_options(),
         window.get_app_rules_index(),
@@ -236,7 +234,7 @@ fn clear_app_rule_editor(window: &SettingsWindow) {
 }
 
 /// Sync the tag-chips model and tags text in the app-rule editor.
-pub(super) fn sync_app_rule_tags_editor(
+pub(crate) fn sync_app_rule_tags_editor(
     window: &SettingsWindow,
     tags: &[String],
     clear_input: bool,
@@ -263,7 +261,7 @@ fn refresh_mode_to_index(mode: ThumbnailRefreshMode) -> i32 {
 }
 
 /// Convert a refresh-mode dropdown index back to the domain type.
-pub(super) fn refresh_mode_from_index(index: i32) -> ThumbnailRefreshMode {
+pub(crate) fn refresh_mode_from_index(index: i32) -> ThumbnailRefreshMode {
     match index {
         1 => ThumbnailRefreshMode::Frozen,
         2 => ThumbnailRefreshMode::Interval,
@@ -272,7 +270,7 @@ pub(super) fn refresh_mode_from_index(index: i32) -> ThumbnailRefreshMode {
 }
 
 /// Parse a comma-separated tag string into normalized, sorted, deduplicated tags.
-pub(super) fn parse_tags_csv(raw: &str) -> Vec<String> {
+pub(crate) fn parse_tags_csv(raw: &str) -> Vec<String> {
     let mut tags: Vec<String> = raw
         .split(',')
         .map(str::trim)

@@ -49,7 +49,10 @@ pub(crate) fn build_thumbnail_data(
         &state.theme.current_theme,
         &managed_window.info.app_id,
     );
-    let is_minimized = unsafe { IsIconic(managed_window.info.hwnd).as_bool() };
+    let is_minimized = unsafe {
+        // SAFETY: read-only iconic-state query for a window handle discovered by enumeration.
+        IsIconic(managed_window.info.hwnd).as_bool()
+    };
     let pinned_slot = state
         .settings
         .pinned_position_for(&managed_window.info.app_id)

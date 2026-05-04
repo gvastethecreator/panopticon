@@ -18,7 +18,8 @@ pub mod native_runtime;
 pub mod runtime_loop;
 pub mod runtime_support;
 pub mod secondary_windows;
-pub mod settings_ui;
+pub mod settings;
+
 pub mod shell_state;
 pub mod startup;
 pub mod theme_state;
@@ -36,3 +37,4 @@ pub mod window_collection;
 pub mod window_menu;
 pub mod window_subclass;
 pub mod window_sync;
+pub mod workspace;

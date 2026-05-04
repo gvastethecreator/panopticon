@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use crate::{AppState, MainWindow, SettingsWindow};
 
-pub(super) fn register_settings_window_callbacks(
+pub(crate) fn register_settings_window_callbacks(
     settings_window: &SettingsWindow,
     state: &Rc<RefCell<AppState>>,
     main_weak: &slint::Weak<MainWindow>,

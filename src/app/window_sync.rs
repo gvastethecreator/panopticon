@@ -19,7 +19,10 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     if host_hwnd.0.is_null() {
         return false;
     }
-    let host_visible = unsafe { IsWindowVisible(host_hwnd).as_bool() };
+    let host_visible = unsafe {
+        // SAFETY: read-only visibility query for the application's own top-level window.
+        IsWindowVisible(host_hwnd).as_bool()
+    };
 
     let mut discovered = collect_discovered_windows(&mut state, host_hwnd);
 

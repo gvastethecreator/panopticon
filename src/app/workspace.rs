@@ -22,25 +22,26 @@ use crate::app::ui_translations::populate_tr_global;
 use crate::app::window_sync::refresh_windows;
 use crate::{AppState, MainWindow, SettingsWindow};
 
-use super::dialogs::{refresh_open_about_window, refresh_open_tag_dialog_window};
-use super::placement::refresh_secondary_window_stacking;
-use super::settings_helpers::selected_model_value;
-use super::RuntimeUiOptions;
-use super::{collect_runtime_ui_options, refresh_open_settings_window, refresh_tray_locale};
+use crate::app::secondary_windows::{
+    collect_runtime_ui_options, refresh_open_about_window, refresh_open_settings_window,
+    refresh_open_tag_dialog_window, refresh_secondary_window_stacking, refresh_tray_locale,
+    RuntimeUiOptions,
+};
+use crate::app::settings::selected_model_value;
 
 #[derive(Debug, Clone)]
-pub(super) struct WorkspaceUiSummary {
-    pub(super) workspace_name: Option<String>,
-    pub(super) option_label: String,
-    pub(super) display_name: String,
-    pub(super) description: String,
-    pub(super) created_at_label: String,
-    pub(super) updated_at_label: String,
-    pub(super) is_default: bool,
-    pub(super) is_running: bool,
-    pub(super) is_modified: bool,
-    pub(super) missing_apps: usize,
-    pub(super) status_summary: String,
+pub(crate) struct WorkspaceUiSummary {
+    pub(crate) workspace_name: Option<String>,
+    pub(crate) option_label: String,
+    pub(crate) display_name: String,
+    pub(crate) description: String,
+    pub(crate) created_at_label: String,
+    pub(crate) updated_at_label: String,
+    pub(crate) is_default: bool,
+    pub(crate) is_running: bool,
+    pub(crate) is_modified: bool,
+    pub(crate) missing_apps: usize,
+    pub(crate) status_summary: String,
 }
 
 fn workspace_status_summary(is_running: bool, is_modified: bool, missing_apps: usize) -> String {
@@ -67,7 +68,7 @@ fn workspace_status_summary(is_running: bool, is_modified: bool, missing_apps: u
     }
 }
 
-pub(super) fn available_workspace_summaries(
+pub(crate) fn available_workspace_summaries(
     state: &AppState,
     runtime: &RuntimeUiOptions,
 ) -> Vec<WorkspaceUiSummary> {
@@ -134,7 +135,7 @@ fn format_workspace_timestamp(value: Option<u64>) -> String {
         .unwrap_or_default()
 }
 
-pub(super) fn parse_workspace_target_input(value: &str) -> Result<Option<String>, String> {
+pub(crate) fn parse_workspace_target_input(value: &str) -> Result<Option<String>, String> {
     match panopticon::settings::validate_workspace_name_input(value) {
         WorkspaceNameValidation::Valid(workspace_name)
             if workspace_name.eq_ignore_ascii_case("default") =>
@@ -147,17 +148,17 @@ pub(super) fn parse_workspace_target_input(value: &str) -> Result<Option<String>
     }
 }
 
-pub(super) fn set_workspace_feedback(window: &SettingsWindow, message: &str, is_error: bool) {
+pub(crate) fn set_workspace_feedback(window: &SettingsWindow, message: &str, is_error: bool) {
     window.set_workspace_feedback_error(is_error);
     window.set_workspace_feedback_message(SharedString::from(message));
 }
 
-pub(super) fn clear_workspace_feedback(window: &SettingsWindow) {
+pub(crate) fn clear_workspace_feedback(window: &SettingsWindow) {
     window.set_workspace_feedback_error(false);
     window.set_workspace_feedback_message(SharedString::from(""));
 }
 
-pub(super) fn selected_workspace_from_settings_window(window: &SettingsWindow) -> Option<String> {
+pub(crate) fn selected_workspace_from_settings_window(window: &SettingsWindow) -> Option<String> {
     selected_model_value(
         &window.get_available_profile_options(),
         window.get_available_profile_index(),
@@ -165,7 +166,7 @@ pub(super) fn selected_workspace_from_settings_window(window: &SettingsWindow) -
     .and_then(|value| panopticon::ui_option_ops::selected_workspace_name(&value))
 }
 
-pub(super) fn select_workspace_in_settings_window(
+pub(crate) fn select_workspace_in_settings_window(
     window: &SettingsWindow,
     workspace: Option<&str>,
 ) {
@@ -200,7 +201,7 @@ pub(crate) fn ensure_default_workspaces_exist(settings: &AppSettings) {
     }
 }
 
-pub(super) fn sync_workspace_editor_from_selection(
+pub(crate) fn sync_workspace_editor_from_selection(
     window: &SettingsWindow,
     fallback_workspace: Option<String>,
     state: &AppState,
@@ -252,7 +253,7 @@ pub(super) fn sync_workspace_editor_from_selection(
     window.set_selected_profile_status_summary(SharedString::from(status_summary));
 }
 
-pub(super) fn known_workspaces_label() -> String {
+pub(crate) fn known_workspaces_label() -> String {
     use panopticon::i18n;
     match AppSettings::list_workspaces_with_default() {
         Ok(workspaces) if workspaces.is_empty() => {
@@ -359,7 +360,7 @@ pub(crate) fn open_workspace_in_new_instance(
     launch_additional_instance(requested_workspace.as_deref())
 }
 
-pub(super) fn save_settings_as_workspace(settings: &AppSettings, workspace_name: &str) -> bool {
+pub(crate) fn save_settings_as_workspace(settings: &AppSettings, workspace_name: &str) -> bool {
     match settings.save(Some(workspace_name)) {
         Ok(()) => true,
         Err(error) => {
@@ -369,7 +370,7 @@ pub(super) fn save_settings_as_workspace(settings: &AppSettings, workspace_name:
     }
 }
 
-pub(super) fn launch_additional_instance(workspace_name: Option<&str>) -> bool {
+pub(crate) fn launch_additional_instance(workspace_name: Option<&str>) -> bool {
     let executable = match std::env::current_exe() {
         Ok(path) => path,
         Err(error) => {
