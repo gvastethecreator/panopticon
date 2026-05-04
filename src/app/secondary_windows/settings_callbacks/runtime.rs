@@ -7,15 +7,16 @@ use slint::SharedString;
 
 use crate::app::dock::{apply_topmost_mode, apply_window_appearance};
 use crate::app::global_hotkey;
-use crate::app::native_runtime::apply_configured_main_window_size;
-use crate::app::startup;
-use crate::{AppState, MainWindow, SettingsWindow};
 use crate::app::model_sync::recompute_and_update_ui;
+use crate::app::native_runtime::apply_configured_main_window_size;
 use crate::app::runtime_support::{refresh_ui, request_update_check, update_settings};
+use crate::app::startup;
 use crate::app::window_sync::refresh_windows;
+use crate::{AppState, MainWindow, SettingsWindow};
 
+use super::super::settings_helpers::selected_model_value;
 use super::super::{
-    open_about_window, selected_model_value, shortcut_recording_label, stop_shortcut_recording,
+    open_about_window, shortcut_recording_label, stop_shortcut_recording,
     sync_settings_window_from_state,
 };
 

@@ -5,14 +5,14 @@ use std::rc::Rc;
 use panopticon::settings::ThumbnailRefreshMode;
 use panopticon::ui_option_ops::parse_option_value;
 
-use crate::{AppState, MainWindow, SettingsWindow};
 use crate::app::runtime_support::{refresh_ui, update_settings};
 use crate::app::window_sync::refresh_windows;
+use crate::{AppState, MainWindow, SettingsWindow};
 
+use super::super::settings_helpers::selected_model_value;
 use super::super::{
     collect_runtime_ui_options, parse_tags_csv, populate_settings_window_runtime_fields,
-    refresh_mode_from_index, selected_model_value, sync_app_rule_tags_editor,
-    sync_selected_app_rule_editor,
+    refresh_mode_from_index, sync_app_rule_tags_editor, sync_selected_app_rule_editor,
 };
 
 pub(super) fn register_app_rule_callbacks(

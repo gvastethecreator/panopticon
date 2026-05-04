@@ -44,8 +44,12 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         .retain(|managed_window| discovered_hwnds.contains(&(managed_window.info.hwnd.0 as isize)));
     let mut changed = state.window_collection.windows.len() != previous_len;
 
-    changed |=
-        update_existing_windows(&mut state.window_collection.windows, &discovered_map, host_hwnd, host_visible);
+    changed |= update_existing_windows(
+        &mut state.window_collection.windows,
+        &discovered_map,
+        host_hwnd,
+        host_visible,
+    );
 
     let existing: HashSet<isize> = state
         .window_collection
@@ -68,12 +72,15 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         .iter()
         .map(|managed_window| managed_window.info.hwnd.0 as isize)
         .collect();
-    state.window_collection.windows.sort_by_key(|managed_window| {
-        discovered_order
-            .get(&(managed_window.info.hwnd.0 as isize))
-            .copied()
-            .unwrap_or(usize::MAX)
-    });
+    state
+        .window_collection
+        .windows
+        .sort_by_key(|managed_window| {
+            discovered_order
+                .get(&(managed_window.info.hwnd.0 as isize))
+                .copied()
+                .unwrap_or(usize::MAX)
+        });
     let order_after: Vec<isize> = state
         .window_collection
         .windows

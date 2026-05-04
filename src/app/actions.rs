@@ -8,14 +8,13 @@ use panopticon::settings::{DockEdge, ToolbarPosition, WindowGrouping};
 use windows::Win32::Foundation::POINT;
 
 use super::action_handlers::{
-    ActionContext, ActionHandler, CycleThemeHandler, SetDockEdgeHandler,
-    ToggleAlwaysOnTopHandler,
+    ActionContext, ActionHandler, CycleThemeHandler, SetDockEdgeHandler, ToggleAlwaysOnTopHandler,
 };
 use super::command_palette;
-use super::secondary_windows;
-use super::tray_actions;
 use super::layout_actions::cycle_layout;
 use super::runtime_support::{refresh_ui, update_settings};
+use super::secondary_windows;
+use super::tray_actions;
 use super::window_sync::refresh_windows;
 use crate::{queue_exit_request, AppState, MainWindow};
 

@@ -2,9 +2,9 @@
 
 mod dialogs;
 mod placement;
+mod settings_app_rules_sync;
 #[path = "secondary_windows/settings_callbacks/mod.rs"]
 mod settings_callbacks;
-mod settings_app_rules_sync;
 mod settings_filter_sync;
 mod settings_helpers;
 mod settings_preset_sync;
@@ -17,7 +17,7 @@ use std::rc::Rc;
 
 use panopticon::settings::{AppSelectionEntry, AppSettings, HiddenAppEntry, ThumbnailRefreshMode};
 use panopticon::window_enum::WindowInfo;
-use slint::{ModelRc, SharedString};
+
 use windows::Win32::Foundation::{HWND, POINT};
 
 use crate::{AppState, MainWindow, SettingsWindow};
@@ -145,13 +145,6 @@ pub(crate) fn ensure_default_workspaces_exist(settings: &AppSettings) {
     workspace::ensure_default_workspaces_exist(settings);
 }
 
-pub(crate) fn open_settings_window(
-    state: &Rc<RefCell<AppState>>,
-    main_weak: &slint::Weak<MainWindow>,
-) {
-    settings_window::open_settings_window(state, main_weak);
-}
-
 pub(crate) fn open_settings_window_with_anchor(
     state: &Rc<RefCell<AppState>>,
     main_weak: &slint::Weak<MainWindow>,
@@ -275,18 +268,6 @@ fn refresh_tray_locale(state: &Rc<RefCell<AppState>>) {
     if let Some(tray) = state.shell.tray_icon.as_mut() {
         tray.refresh(icon);
     }
-}
-
-fn build_string_model(values: Vec<String>) -> ModelRc<SharedString> {
-    settings_helpers::build_string_model(values)
-}
-
-fn selected_model_value(model: &ModelRc<SharedString>, index: i32) -> Option<String> {
-    settings_helpers::selected_model_value(model, index)
-}
-
-fn apply_background_color(window: &SettingsWindow, red: i32, green: i32, blue: i32) {
-    settings_helpers::apply_background_color(window, red, green, blue);
 }
 
 fn parse_rgb_hex(input: &str) -> Option<(i32, i32, i32)> {

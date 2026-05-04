@@ -6,14 +6,12 @@
 
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 
-use crate::{AppState, SettingsWindow};
 use crate::app::settings_ui::populate_settings_window;
 use crate::app::theme_ui::apply_settings_window_theme_snapshot;
 use crate::app::ui_translations::populate_tr_global;
+use crate::{AppState, SettingsWindow};
 
-use super::{
-    settings_preset_sync, settings_filter_sync, settings_app_rules_sync,
-};
+use super::{settings_app_rules_sync, settings_filter_sync, settings_preset_sync};
 
 /// Collect the runtime-derived options (monitors, tags, apps, hidden apps)
 /// that feed the settings-window dropdowns and lists.
@@ -59,10 +57,7 @@ pub(super) fn sync_settings_window_from_state(window: &SettingsWindow, state: &A
 }
 
 /// Populate all runtime-derived fields in the settings window.
-pub(super) fn populate_settings_window_runtime_fields(
-    window: &SettingsWindow,
-    state: &AppState,
-) {
+pub(super) fn populate_settings_window_runtime_fields(window: &SettingsWindow, state: &AppState) {
     let runtime = collect_runtime_ui_options(state);
 
     settings_preset_sync::populate_preset_options(window, state, &runtime);
@@ -70,12 +65,4 @@ pub(super) fn populate_settings_window_runtime_fields(
     settings_app_rules_sync::populate_app_rules_list(window, state, &runtime);
     settings_app_rules_sync::sync_selected_app_rule_editor(window, &state.settings);
     settings_preset_sync::populate_hidden_apps(window, &runtime);
-}
-
-/// Apply the current filter selections from the settings window back to `AppSettings`.
-pub(super) fn apply_runtime_settings_window_changes(
-    window: &SettingsWindow,
-    settings: &mut panopticon::settings::AppSettings,
-) {
-    settings_filter_sync::apply_runtime_settings_window_changes(window, settings);
 }

@@ -35,11 +35,7 @@ pub(crate) fn tick(
     let eased = 1.0 - (1.0 - progress).powi(3);
 
     for window in windows.iter_mut() {
-        window.display_rect = lerp_rect(
-            window.animation_from_rect,
-            window.target_rect,
-            eased,
-        );
+        window.display_rect = lerp_rect(window.animation_from_rect, window.target_rect, eased);
     }
 
     if progress >= 1.0 {
@@ -52,8 +48,8 @@ pub(crate) fn tick(
     }
 }
 
-/// Cancel an in-progress animation and snap all windows to their targets.
-pub(crate) fn cancel(windows: &mut [ManagedWindow]) {
+#[cfg(test)]
+fn cancel(windows: &mut [ManagedWindow]) {
     for window in windows.iter_mut() {
         window.display_rect = window.target_rect;
     }
@@ -75,10 +71,10 @@ fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::c_void;
-    use windows::Win32::Foundation::{HWND, RECT, SIZE};
     use crate::ManagedWindow;
     use panopticon::window_enum::WindowInfo;
+    use std::ffi::c_void;
+    use windows::Win32::Foundation::{HWND, RECT, SIZE};
 
     fn dummy_window(display_rect: RECT, target_rect: RECT) -> ManagedWindow {
         ManagedWindow {
@@ -105,10 +101,21 @@ mod tests {
 
     #[test]
     fn tick_completes_when_progress_reaches_one() {
-        let target = RECT { left: 10, top: 10, right: 110, bottom: 110 };
-        let mut windows = vec![
-            dummy_window(RECT { left: 0, top: 0, right: 100, bottom: 100 }, target),
-        ];
+        let target = RECT {
+            left: 10,
+            top: 10,
+            right: 110,
+            bottom: 110,
+        };
+        let mut windows = vec![dummy_window(
+            RECT {
+                left: 0,
+                top: 0,
+                right: 100,
+                bottom: 100,
+            },
+            target,
+        )];
 
         let started = Instant::now();
         let ended = started + std::time::Duration::from_millis(ANIMATION_DURATION_MS as u64 + 10);
@@ -120,8 +127,18 @@ mod tests {
 
     #[test]
     fn tick_interpolates_partially() {
-        let from = RECT { left: 0, top: 0, right: 100, bottom: 100 };
-        let to = RECT { left: 100, top: 0, right: 200, bottom: 100 };
+        let from = RECT {
+            left: 0,
+            top: 0,
+            right: 100,
+            bottom: 100,
+        };
+        let to = RECT {
+            left: 100,
+            top: 0,
+            right: 200,
+            bottom: 100,
+        };
         let mut windows = vec![dummy_window(from, to)];
         windows[0].animation_from_rect = from;
 
@@ -139,10 +156,21 @@ mod tests {
 
     #[test]
     fn cancel_snaps_to_targets() {
-        let target = RECT { left: 50, top: 50, right: 150, bottom: 150 };
-        let mut windows = vec![
-            dummy_window(RECT { left: 0, top: 0, right: 100, bottom: 100 }, target),
-        ];
+        let target = RECT {
+            left: 50,
+            top: 50,
+            right: 150,
+            bottom: 150,
+        };
+        let mut windows = vec![dummy_window(
+            RECT {
+                left: 0,
+                top: 0,
+                right: 100,
+                bottom: 100,
+            },
+            target,
+        )];
 
         cancel(&mut windows);
 

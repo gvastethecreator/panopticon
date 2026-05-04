@@ -9,8 +9,8 @@ use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, IsWindowVisib
 use crate::app::dock::{
     center_window_on_owner_monitor, center_window_on_point_monitor, keep_dialog_above_owner,
 };
-use crate::AppState;
 use crate::app::native_runtime::get_hwnd;
+use crate::AppState;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SecondaryWindowPlacement {

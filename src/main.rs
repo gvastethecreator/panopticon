@@ -1,6 +1,5 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(
-    dead_code,
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss,
@@ -21,10 +20,10 @@ pub(crate) use state::*;
 use app::cli::{cli_usage, parse_startup_args};
 use app::model_sync::sync_settings_to_ui;
 use app::runtime_support::request_update_check;
-use app::ui_callbacks::setup_callbacks;
-use app::ui_translations::populate_tr_global;
 use app::theme_ui::apply_main_window_theme_snapshot;
 use app::tray::{AppIcons, INSTANCE_ACCENT_PALETTE};
+use app::ui_callbacks::setup_callbacks;
+use app::ui_translations::populate_tr_global;
 use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 
@@ -33,7 +32,6 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use windows::core::w;
-
 
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
@@ -76,7 +74,6 @@ fn select_text_friendly_renderer() {
 #[cfg(not(target_os = "windows"))]
 fn select_text_friendly_renderer() {}
 
-#[allow(clippy::too_many_lines)]
 fn main() {
     let _ = panopticon::i18n::set_locale(panopticon::i18n::Locale::English);
     let startup_args = match parse_startup_args() {
@@ -99,7 +96,6 @@ fn main() {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn run_app(workspace: Option<String>) {
     let _log_guard = panopticon::logging::init().ok();
     select_text_friendly_renderer();
@@ -193,5 +189,3 @@ fn run_app(workspace: Option<String>) {
     }
     tracing::info!("Panopticon exiting");
 }
-
-

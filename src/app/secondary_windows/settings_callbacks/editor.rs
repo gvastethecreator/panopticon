@@ -5,15 +5,15 @@ use std::time::Duration;
 
 use slint::{ComponentHandle, SharedString, Timer, TimerMode};
 
-use crate::{AppState, MainWindow, SettingsWindow};
 use crate::app::runtime_support::refresh_ui;
 use crate::app::window_sync::refresh_windows;
+use crate::{AppState, MainWindow, SettingsWindow};
 
+use super::super::settings_helpers::apply_background_color;
 use super::super::{
-    apply_background_color, apply_recorded_shortcut_binding, apply_settings_window_to_state,
-    normalize_recorded_shortcut, parse_rgb_hex, selected_layout_preset_name,
-    set_layout_preset_summary, shortcut_recording_label, stop_shortcut_recording,
-    sync_layout_preset_controls,
+    apply_recorded_shortcut_binding, apply_settings_window_to_state, normalize_recorded_shortcut,
+    parse_rgb_hex, selected_layout_preset_name, set_layout_preset_summary,
+    shortcut_recording_label, stop_shortcut_recording, sync_layout_preset_controls,
 };
 
 pub(super) fn register_editor_callbacks(

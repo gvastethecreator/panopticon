@@ -5,8 +5,8 @@
 
 use panopticon::ui_option_ops::{app_option_label, parse_option_value};
 
-use crate::{AppState, SettingsWindow};
 use super::settings_helpers::{build_string_model, selected_model_value};
+use crate::{AppState, SettingsWindow};
 
 /// Apply the current filter selections in the settings window to `AppSettings`.
 pub(super) fn apply_runtime_settings_window_changes(

@@ -10,12 +10,11 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use slint::{ComponentHandle, Timer, TimerMode};
-use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
 
-use crate::{AppState, MainWindow, PendingAction, UpdateStatus, PENDING_ACTIONS};
-use panopticon::settings::RefreshPerformanceMode;
 use super::model_sync::{advance_animation, recompute_and_update_ui};
 use super::window_sync::refresh_windows;
+use crate::{AppState, MainWindow, PendingAction, UpdateStatus, PENDING_ACTIONS};
+use panopticon::settings::RefreshPerformanceMode;
 
 // ───────────────────────── Constants ─────────────────────────
 
@@ -40,10 +39,7 @@ pub(crate) struct TickEffects {
     pub recomputed_from_resize: bool,
     pub recomputed_from_refresh: bool,
     pub viewport_changed: bool,
-    pub window_animation_active: bool,
-    pub theme_animation_active: bool,
     pub is_animating_or_dirty: bool,
-    pub should_sync_dwm: bool,
 }
 
 impl TickEffects {
@@ -89,10 +85,7 @@ pub(crate) fn poll_update_check(state: &Rc<RefCell<AppState>>) {
 }
 
 /// Phase 3 — drain the pending action queue.
-pub(crate) fn drain_actions(
-    state: &Rc<RefCell<AppState>>,
-    win: &MainWindow,
-) -> bool {
+pub(crate) fn drain_actions(state: &Rc<RefCell<AppState>>, win: &MainWindow) -> bool {
     PENDING_ACTIONS.with(|queue_cell| {
         let mut queue = queue_cell.borrow_mut();
         if queue.is_empty() {
@@ -174,9 +167,7 @@ pub(crate) fn detect_viewport_change(
 }
 
 /// Phase 7 — compute runtime activity flags (animations, drag).
-pub(crate) fn compute_activity_flags(
-    state: &Rc<RefCell<AppState>>,
-) -> (bool, bool, bool) {
+pub(crate) fn compute_activity_flags(state: &Rc<RefCell<AppState>>) -> (bool, bool, bool) {
     state
         .try_borrow()
         .map_or((false, false, false), |state_ref| {
@@ -258,10 +249,8 @@ fn schedule_native_runtime_retry(
         Duration::from_millis(350),
         move || {
             if let Some(win_retry) = weak_retry.upgrade() {
-                let _ = super::native_runtime::try_initialize_native_runtime(
-                    &state_retry,
-                    &win_retry,
-                );
+                let _ =
+                    super::native_runtime::try_initialize_native_runtime(&state_retry, &win_retry);
             }
         },
     );
@@ -335,12 +324,6 @@ pub(crate) const fn manual_dwm_idle_sync_every_ticks(refresh_interval_ms: u32) -
     } else {
         DWM_IDLE_SYNC_EVERY_TICKS_MANUAL_SLOW
     }
-}
-
-fn host_window_is_visible(state: &Rc<RefCell<AppState>>) -> bool {
-    state.try_borrow().is_ok_and(|state_ref| {
-        !state_ref.shell.hwnd.0.is_null() && unsafe { IsWindowVisible(state_ref.shell.hwnd).as_bool() }
-    })
 }
 
 pub(crate) fn effective_refresh_interval_ms(state: &Rc<RefCell<AppState>>) -> u32 {

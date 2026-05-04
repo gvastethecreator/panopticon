@@ -113,7 +113,10 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         bottom: (logical_h - toolbar_h).max(1),
     };
 
-    let custom = state.settings.layout_custom(state.window_collection.current_layout).cloned();
+    let custom = state
+        .settings
+        .layout_custom(state.window_collection.current_layout)
+        .cloned();
     let (rects, separators) = super::layout_pipeline::compute_layout_rects(
         state.window_collection.current_layout,
         content_area,
@@ -141,7 +144,9 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
             .window_collection
             .windows
             .iter()
-            .any(|managed_window| super::layout_pipeline::rect_has_area(managed_window.display_rect));
+            .any(|managed_window| {
+                super::layout_pipeline::rect_has_area(managed_window.display_rect)
+            });
 
     let animation_needed = super::layout_pipeline::apply_layout_rects(
         &mut state.window_collection.windows,

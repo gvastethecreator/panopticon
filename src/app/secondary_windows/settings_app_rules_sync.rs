@@ -9,8 +9,8 @@ use panopticon::settings::{AppSettings, ThumbnailRefreshMode};
 use panopticon::ui_option_ops::{app_option_label, parse_option_value, OPTION_SEPARATOR};
 use slint::SharedString;
 
-use crate::{AppState, SettingsWindow};
 use super::settings_helpers::{build_string_model, selected_model_value};
+use crate::{AppState, SettingsWindow};
 
 /// Build the filtered app-rule list model and sync it to the settings window.
 pub(super) fn populate_app_rules_list(
@@ -210,7 +210,7 @@ pub(super) fn sync_selected_app_rule_editor(window: &SettingsWindow, settings: &
         settings.thumbnail_refresh_mode_for(&app_id),
     ));
     window.set_app_rules_refresh_interval_ms(
-        settings.thumbnail_refresh_interval_ms_for(&app_id) as i32,
+        settings.thumbnail_refresh_interval_ms_for(&app_id) as i32
     );
     window.set_app_rules_tags(SharedString::from(tags));
     sync_app_rule_tags_editor(window, &tags_vec, false);

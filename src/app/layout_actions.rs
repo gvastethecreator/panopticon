@@ -65,7 +65,12 @@ pub(crate) fn handle_resize_drag_start(
         state.window_collection.drag_separator = None;
         return;
     }
-    let Some(separator) = state.window_collection.separators.get(separator_index).copied() else {
+    let Some(separator) = state
+        .window_collection
+        .separators
+        .get(separator_index)
+        .copied()
+    else {
         return;
     };
 
@@ -84,12 +89,16 @@ pub(crate) fn handle_resize_drag_start(
 
     let axis_extent = if separator.horizontal {
         match state.window_collection.current_layout.scroll_direction() {
-            ScrollDirection::Vertical => f64::from(state.window_collection.content_extent.max(logical_h)),
+            ScrollDirection::Vertical => {
+                f64::from(state.window_collection.content_extent.max(logical_h))
+            }
             _ => f64::from(logical_h),
         }
     } else {
         match state.window_collection.current_layout.scroll_direction() {
-            ScrollDirection::Horizontal => f64::from(state.window_collection.content_extent.max(logical_w)),
+            ScrollDirection::Horizontal => {
+                f64::from(state.window_collection.content_extent.max(logical_w))
+            }
             _ => f64::from(logical_w),
         }
     };
