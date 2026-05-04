@@ -15,10 +15,10 @@ use super::dock::{
 };
 use super::dwm::release_thumbnail;
 use super::global_hotkey;
-use super::tray::{apply_window_icons, TrayIcon};
-use crate::{AppState, MainWindow, ABOUT_WIN, SETTINGS_WIN, TAG_DIALOG_WIN};
 use super::model_sync::recompute_and_update_ui;
+use super::tray::{apply_window_icons, TrayIcon};
 use super::window_sync::refresh_windows;
+use crate::{AppState, MainWindow, ABOUT_WIN, SETTINGS_WIN, TAG_DIALOG_WIN};
 
 pub(crate) fn get_hwnd(window: &slint::Window) -> Option<HWND> {
     let slint_handle = window.window_handle();

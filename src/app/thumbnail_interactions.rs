@@ -9,13 +9,13 @@ use panopticon::window_enum::WindowInfo;
 use slint::ComponentHandle;
 use windows::Win32::Foundation::HWND;
 
-use super::icon::populate_cached_icon;
-use super::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
 use super::dwm::{release_all_thumbnails, release_thumbnail};
+use super::icon::populate_cached_icon;
 use super::model_sync::recompute_and_update_ui;
 use super::runtime_support::{
     logical_to_screen_point, refresh_ui, schedule_deferred_refresh, update_settings,
 };
+use super::window_menu::{show_window_context_menu, WindowMenuAction, WindowMenuState};
 use super::window_sync::refresh_windows;
 use crate::{AppState, MainWindow};
 
@@ -69,18 +69,27 @@ pub(crate) fn handle_thumbnail_right_click(
     };
     let host_hwnd = state_guard.shell.hwnd;
     let scale = window.window().scale_factor();
-    let Some((info, screen_point)) = state_guard.window_collection.windows.get_mut(index).map(|managed_window| {
-        populate_cached_icon(managed_window);
-        (
-            managed_window.info.clone(),
-            logical_to_screen_point(
-                host_hwnd,
-                (managed_window.display_rect.left as f32 + viewport_x + x) * scale,
-                (managed_window.display_rect.top as f32 + viewport_y + content_offset_y + y)
-                    * scale,
-            ),
-        )
-    }) else {
+    let Some((info, screen_point)) =
+        state_guard
+            .window_collection
+            .windows
+            .get_mut(index)
+            .map(|managed_window| {
+                populate_cached_icon(managed_window);
+                (
+                    managed_window.info.clone(),
+                    logical_to_screen_point(
+                        host_hwnd,
+                        (managed_window.display_rect.left as f32 + viewport_x + x) * scale,
+                        (managed_window.display_rect.top as f32
+                            + viewport_y
+                            + content_offset_y
+                            + y)
+                            * scale,
+                    ),
+                )
+            })
+    else {
         return;
     };
 
@@ -141,20 +150,27 @@ pub(crate) fn handle_thumbnail_drag_ended(
             return;
         }
 
-        let target_idx = state.window_collection.windows.iter().position(|managed_window| {
-            let rect = managed_window.target_rect;
-            drop_x >= rect.left as f64
-                && drop_x <= rect.right as f64
-                && drop_y >= rect.top as f64
-                && drop_y <= rect.bottom as f64
-        });
+        let target_idx = state
+            .window_collection
+            .windows
+            .iter()
+            .position(|managed_window| {
+                let rect = managed_window.target_rect;
+                drop_x >= rect.left as f64
+                    && drop_x <= rect.right as f64
+                    && drop_y >= rect.top as f64
+                    && drop_y <= rect.bottom as f64
+            });
 
         if let Some(target_idx) = target_idx {
             if target_idx == src_idx {
                 false
             } else {
                 let moved_window = state.window_collection.windows.remove(src_idx);
-                state.window_collection.windows.insert(target_idx, moved_window);
+                state
+                    .window_collection
+                    .windows
+                    .insert(target_idx, moved_window);
 
                 let mut seen_apps = std::collections::HashSet::new();
                 let mut rules_to_update = Vec::new();

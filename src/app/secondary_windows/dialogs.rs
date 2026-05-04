@@ -8,13 +8,13 @@ use slint::{CloseRequestResponse, ComponentHandle, SharedString};
 use windows::Win32::Foundation::POINT;
 
 use crate::app::dock::{apply_window_appearance, keep_dialog_above_owner};
-use crate::app::theme_ui::{apply_about_window_theme_snapshot, apply_tag_dialog_theme_snapshot};
-use crate::app::tray::apply_window_icons;
-use crate::{AboutWindow, AppState, MainWindow, TagDialogWindow};
 use crate::app::native_runtime::get_hwnd;
 use crate::app::runtime_support::{refresh_ui, update_settings};
+use crate::app::theme_ui::{apply_about_window_theme_snapshot, apply_tag_dialog_theme_snapshot};
+use crate::app::tray::apply_window_icons;
 use crate::app::ui_translations::populate_tr_global;
 use crate::app::window_sync::refresh_windows;
+use crate::{AboutWindow, AppState, MainWindow, TagDialogWindow};
 
 use super::placement::{
     apply_secondary_window_placement, default_secondary_window_placement,

@@ -13,9 +13,9 @@ use super::actions::{dispatch_action, AppAction};
 use super::dock::{apply_window_appearance, keep_dialog_above_owner};
 use super::secondary_windows;
 use super::tray::apply_window_icons;
-use crate::{AppState, CommandPaletteWindow, MainWindow};
 use crate::app::native_runtime::get_hwnd;
 use crate::app::ui_translations::populate_tr_global;
+use crate::{AppState, CommandPaletteWindow, MainWindow};
 
 thread_local! {
     static COMMAND_PALETTE_RECENT_KEYS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
@@ -506,7 +506,10 @@ pub(crate) fn open_command_palette_window(
         let placement = secondary_windows::default_secondary_window_placement(&state, palette_hwnd);
         apply_window_icons(palette_hwnd, &state.shell.icons);
         apply_window_appearance(palette_hwnd, &state.settings);
-        super::theme_ui::apply_command_palette_window_theme_snapshot(&window, &state.theme.current_theme);
+        super::theme_ui::apply_command_palette_window_theme_snapshot(
+            &window,
+            &state.theme.current_theme,
+        );
         secondary_windows::apply_secondary_window_placement(
             palette_hwnd,
             &state.settings,

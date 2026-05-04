@@ -236,8 +236,11 @@ pub(crate) fn refresh_thumbnail_accent_rows(state: &Rc<RefCell<AppState>>, win: 
 
     for (index, managed_window) in s.window_collection.windows.iter().enumerate() {
         if let Some(mut item) = model.row_data(index) {
-            item.accent_color =
-                thumbnail_accent_color(&s.settings, &s.theme.current_theme, &managed_window.info.app_id);
+            item.accent_color = thumbnail_accent_color(
+                &s.settings,
+                &s.theme.current_theme,
+                &managed_window.info.app_id,
+            );
             model.set_row_data(index, item);
         }
     }

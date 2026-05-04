@@ -16,7 +16,7 @@ thiserror = "2.0.18"
 anyhow = "1.0.102"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-ureq = { version = "2.12.1", features = ["json"] }
+
 toml = "1.1.2"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
@@ -40,6 +40,7 @@ features = [
     "Win32_UI_HiDpi",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
+    "Win32_Networking_WinHttp",
 ]
 
 # ── Profiles ──────────────────────────────────────────────────
@@ -50,6 +51,9 @@ lto = true
 strip = true
 
 # ── Lints ─────────────────────────────────────────────────────
+
+[lints.rust]
+dead_code = "allow"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }

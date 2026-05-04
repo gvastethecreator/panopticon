@@ -14,18 +14,19 @@ use crate::app::dock::{
     restore_floating_style, unregister_appbar,
 };
 use crate::app::global_hotkey;
+use crate::app::model_sync::recompute_and_update_ui;
 use crate::app::native_runtime::apply_configured_main_window_size;
 use crate::app::startup;
 use crate::app::theme_ui::apply_main_window_theme_snapshot;
-use crate::{AppState, MainWindow, SettingsWindow};
-use crate::app::model_sync::recompute_and_update_ui;
 use crate::app::ui_translations::populate_tr_global;
 use crate::app::window_sync::refresh_windows;
+use crate::{AppState, MainWindow, SettingsWindow};
 
 use super::dialogs::{refresh_open_about_window, refresh_open_tag_dialog_window};
 use super::placement::refresh_secondary_window_stacking;
+use super::settings_helpers::selected_model_value;
+use super::RuntimeUiOptions;
 use super::{collect_runtime_ui_options, refresh_open_settings_window, refresh_tray_locale};
-use super::{selected_model_value, RuntimeUiOptions};
 
 #[derive(Debug, Clone)]
 pub(super) struct WorkspaceUiSummary {

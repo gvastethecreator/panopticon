@@ -8,17 +8,14 @@ use panopticon::window_ops::truncate_title;
 use slint::{Model, ModelRc, SharedString, VecModel};
 use windows::Win32::UI::WindowsAndMessaging::IsIconic;
 
-use crate::{AppState, MainWindow, ManagedWindow, ResizeHandleData, ThumbnailData};
 use super::icon::populate_cached_icon;
 use super::theme_ui::thumbnail_accent_color;
+use crate::{AppState, MainWindow, ManagedWindow, ResizeHandleData, ThumbnailData};
 
 const HANDLE_THICKNESS: f32 = 14.0;
 
 /// Build the complete thumbnail model from current state.
-pub(crate) fn build_thumbnails(
-    state: &mut AppState,
-    _win: &MainWindow,
-) -> Vec<ThumbnailData> {
+pub(crate) fn build_thumbnails(state: &mut AppState, _win: &MainWindow) -> Vec<ThumbnailData> {
     let show_footer = state.settings.show_window_info;
     let show_icons = state.settings.show_app_icons;
 
@@ -116,10 +113,7 @@ pub(crate) fn build_resize_handles(
 ///
 /// Compares row counts and uses the fast path (row update) when possible,
 /// falling back to full model replacement when the count changed.
-pub(crate) fn sync_model_to_slint(
-    state: &mut AppState,
-    win: &MainWindow,
-) {
+pub(crate) fn sync_model_to_slint(state: &mut AppState, win: &MainWindow) {
     let thumbnails = build_thumbnails(state, win);
     let resize_locked = state.settings.locked_layout || state.settings.lock_cell_resize;
     let handles = build_resize_handles(
@@ -159,10 +153,7 @@ pub(crate) fn sync_model_to_slint(
 /// Fast-path animation model update: only geometry fields that change.
 ///
 /// Assumes the model row count already matches the window count.
-pub(crate) fn update_animation_geometry(
-    windows: &[ManagedWindow],
-    win: &MainWindow,
-) {
+pub(crate) fn update_animation_geometry(windows: &[ManagedWindow], win: &MainWindow) {
     let model = win.get_thumbnails();
     for (index, managed_window) in windows.iter().enumerate() {
         if let Some(mut item) = model.row_data(index) {

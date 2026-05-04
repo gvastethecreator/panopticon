@@ -10,13 +10,13 @@ use crate::app::dock::{
     reposition_appbar, restore_floating_style, unregister_appbar,
 };
 use crate::app::global_hotkey;
-use crate::app::native_runtime::apply_configured_main_window_size;
-use crate::app::startup;
-use crate::{AppState, MainWindow, SettingsWindow};
 use crate::app::model_sync::recompute_and_update_ui;
+use crate::app::native_runtime::apply_configured_main_window_size;
 use crate::app::native_runtime::get_hwnd;
+use crate::app::startup;
 use crate::app::ui_translations::populate_tr_global;
 use crate::app::window_sync::refresh_windows;
+use crate::{AppState, MainWindow, SettingsWindow};
 
 use super::settings_callbacks;
 use super::{

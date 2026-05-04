@@ -176,9 +176,9 @@ fn run_ui_tick(
     tick_state: &UiTickState,
 ) {
     use super::tick_phases::{
-        advance_theme_animation, advance_window_animation, compute_activity_flags,
-        decide_dwm_sync, detect_resize, detect_viewport_change, drain_actions,
-        poll_update_check, reconcile_refresh, sync_dwm, try_native_init, TickEffects,
+        advance_theme_animation, advance_window_animation, compute_activity_flags, decide_dwm_sync,
+        detect_resize, detect_viewport_change, drain_actions, poll_update_check, reconcile_refresh,
+        sync_dwm, try_native_init, TickEffects,
     };
 
     let Some(win) = weak.upgrade() else {
@@ -214,10 +214,7 @@ fn run_ui_tick(
         recomputed_from_resize,
         recomputed_from_refresh,
         viewport_changed,
-        window_animation_active,
-        theme_animation_active,
         is_animating_or_dirty,
-        should_sync_dwm: false,
     };
 
     let should_sync_dwm = decide_dwm_sync(effects, &tick_state.dwm_idle_ticks, state);
@@ -353,8 +350,7 @@ fn record_perf_tick(perf: &UiPerfCounters, signals: UiTickSignals) {
 fn host_window_is_visible(state: &Rc<RefCell<AppState>>) -> bool {
     use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
     state.try_borrow().is_ok_and(|state_ref| {
-        !state_ref.shell.hwnd.0.is_null() && unsafe { IsWindowVisible(state_ref.shell.hwnd).as_bool() }
+        !state_ref.shell.hwnd.0.is_null()
+            && unsafe { IsWindowVisible(state_ref.shell.hwnd).as_bool() }
     })
 }
-
-

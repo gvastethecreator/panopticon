@@ -6,6 +6,12 @@ use std::sync::{
 };
 
 use serde::Deserialize;
+use windows::core::{w, PCWSTR};
+use windows::Win32::Networking::WinHttp::{
+    WinHttpCloseHandle, WinHttpConnect, WinHttpOpen, WinHttpOpenRequest, WinHttpQueryDataAvailable,
+    WinHttpReadData, WinHttpReceiveResponse, WinHttpSendRequest, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+    WINHTTP_FLAG_SECURE, WINHTTP_OPEN_REQUEST_FLAGS,
+};
 
 const LATEST_RELEASE_ENDPOINT: &str =
     "https://api.github.com/repos/gvastethecreator/panopticon/releases/latest";
@@ -108,37 +114,151 @@ fn check_latest_release(current_version: &str) -> UpdateCheckOutcome {
 }
 
 fn fetch_latest_release_payload(user_agent: &str) -> Result<GitHubReleasePayload, String> {
-    fetch_release_payload(LATEST_RELEASE_ENDPOINT, user_agent)
-        .and_then(validate_published_release)
+    let body = http_get(LATEST_RELEASE_ENDPOINT, user_agent)?;
+    let payload: GitHubReleasePayload =
+        serde_json::from_str(&body).map_err(|error| error.to_string())?;
+    validate_published_release(payload)
+        .map_err(|error| format!("{error}; fallback to release list"))
         .or_else(|latest_error| {
-            let releases = fetch_release_list(user_agent).map_err(|fallback_error| {
-                format!("{latest_error}; fallback list failed: {fallback_error}")
-            })?;
+            let list_body = http_get(RELEASES_ENDPOINT, user_agent)?;
+            let releases: Vec<GitHubReleasePayload> =
+                serde_json::from_str(&list_body).map_err(|error| error.to_string())?;
             select_latest_published_release(releases).ok_or_else(|| {
                 format!("{latest_error}; fallback list returned no published releases")
             })
         })
 }
 
-fn fetch_release_payload(url: &str, user_agent: &str) -> Result<GitHubReleasePayload, String> {
-    github_request(url, user_agent)?
-        .into_json()
-        .map_err(|error| error.to_string())
+/// Convert a Rust string to a null-terminated wide-string buffer.
+fn to_wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(Some(0)).collect()
 }
 
-fn fetch_release_list(user_agent: &str) -> Result<Vec<GitHubReleasePayload>, String> {
-    github_request(RELEASES_ENDPOINT, user_agent)?
-        .into_json()
-        .map_err(|error| error.to_string())
+/// RAII guard for `WinHTTP` HINTERNET handles (raw `*mut std::ffi::c_void`).
+struct HttpHandle(*mut std::ffi::c_void);
+
+impl Drop for HttpHandle {
+    fn drop(&mut self) {
+        // SAFETY: handle is always valid until we close it.
+        unsafe {
+            let _ = WinHttpCloseHandle(self.0);
+        }
+    }
 }
 
-fn github_request(url: &str, user_agent: &str) -> Result<ureq::Response, String> {
-    ureq::get(url)
-        .set("Accept", "application/vnd.github+json")
-        .set("User-Agent", user_agent)
-        .set("X-GitHub-Api-Version", "2022-11-28")
-        .call()
-        .map_err(|error| error.to_string())
+/// Perform a synchronous HTTP GET via `WinHTTP`.
+///
+/// # Errors
+///
+/// Returns an error string if any `WinHTTP` step fails.
+fn http_get(url: &str, user_agent: &str) -> Result<String, String> {
+    let (host, path, is_https) = parse_url(url)?;
+
+    let user_agent_wide = to_wide(user_agent);
+    let host_wide = to_wide(&host);
+    let path_wide = to_wide(&path);
+
+    // SAFETY: WinHTTP APIs are thread-safe; we synchronously open, request, read, and close.
+    unsafe {
+        // 1. Open a WinHTTP session.
+        let session = WinHttpOpen(
+            PCWSTR(user_agent_wide.as_ptr()),
+            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+            PCWSTR::null(),
+            PCWSTR::null(),
+            0,
+        );
+        if session.is_null() {
+            return Err("WinHttpOpen failed".to_owned());
+        }
+        let _session_guard = HttpHandle(session);
+
+        // 2. Connect to the server.
+        let port = if is_https { 443 } else { 80 };
+        let connect = WinHttpConnect(session, PCWSTR(host_wide.as_ptr()), port, 0);
+        if connect.is_null() {
+            return Err("WinHttpConnect failed".to_owned());
+        }
+        let _connect_guard = HttpHandle(connect);
+
+        // 3. Open the request.
+        let flags = if is_https {
+            WINHTTP_FLAG_SECURE
+        } else {
+            WINHTTP_OPEN_REQUEST_FLAGS(0)
+        };
+        let request = WinHttpOpenRequest(
+            connect,
+            w!("GET"),
+            PCWSTR(path_wide.as_ptr()),
+            None,
+            PCWSTR::null(),
+            std::ptr::null(),
+            flags,
+        );
+        if request.is_null() {
+            return Err("WinHttpOpenRequest failed".to_owned());
+        }
+        let _request_guard = HttpHandle(request);
+
+        // 4. Build and send headers.
+        let headers = "Accept: application/vnd.github+json\r\nX-GitHub-Api-Version: 2022-11-28\r\n";
+        let headers_wide: Vec<u16> = headers.encode_utf16().collect();
+        WinHttpSendRequest(
+            request,
+            Some(&headers_wide),
+            None,
+            headers_wide.len() as u32,
+            0,
+            0,
+        )
+        .map_err(|error| format!("WinHttpSendRequest failed: {error}"))?;
+
+        // 5. Receive the response.
+        WinHttpReceiveResponse(request, std::ptr::null_mut())
+            .map_err(|error| format!("WinHttpReceiveResponse failed: {error}"))?;
+
+        // 6. Read the response body.
+        let mut body = Vec::new();
+        loop {
+            let mut available: u32 = 0;
+            WinHttpQueryDataAvailable(request, &raw mut available)
+                .map_err(|error| format!("WinHttpQueryDataAvailable failed: {error}"))?;
+            if available == 0 {
+                break;
+            }
+            let mut chunk = vec![0u8; available as usize];
+            let mut read: u32 = 0;
+            WinHttpReadData(
+                request,
+                chunk.as_mut_ptr().cast::<std::ffi::c_void>(),
+                available,
+                &raw mut read,
+            )
+            .map_err(|error| format!("WinHttpReadData failed: {error}"))?;
+            chunk.truncate(read as usize);
+            body.extend_from_slice(&chunk);
+        }
+
+        String::from_utf8(body).map_err(|error| format!("invalid UTF-8 in response: {error}"))
+    }
+}
+
+/// Extract host, path, and HTTPS flag from a URL.
+/// Supports `http://host/path` and `https://host/path`.
+fn parse_url(url: &str) -> Result<(String, String, bool), String> {
+    let rest = url
+        .strip_prefix("https://")
+        .map(|r| (r, true))
+        .or_else(|| url.strip_prefix("http://").map(|r| (r, false)))
+        .ok_or_else(|| "URL must start with http:// or https://".to_owned())?;
+
+    let (host_and_port, path) = rest.0.split_once('/').unwrap_or((rest.0, "/"));
+    let host = host_and_port
+        .split_once(':')
+        .map_or(host_and_port, |(h, _)| h);
+
+    Ok((host.to_owned(), format!("/{path}"), rest.1))
 }
 
 fn validate_published_release(

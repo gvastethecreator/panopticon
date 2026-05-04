@@ -30,24 +30,4 @@ impl WindowCollection {
             active_hwnd: None,
         }
     }
-
-    #[inline]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.windows.is_empty()
-    }
-
-    #[inline]
-    pub(crate) fn len(&self) -> usize {
-        self.windows.len()
-    }
-
-    #[inline]
-    pub(crate) fn reset_drag(&mut self) {
-        self.drag_separator = None;
-    }
-
-    #[inline]
-    pub(crate) fn set_active(&mut self, hwnd: HWND) {
-        self.active_hwnd = Some(hwnd);
-    }
 }

@@ -14,12 +14,9 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use super::dock::{current_cursor_screen_point, docked_mode_active, is_blocked_dock_syscommand};
 use super::dwm::release_thumbnail;
 use super::global_hotkey;
-use super::tray::{handle_tray_message, TrayAction, WM_TRAYICON};
 use super::model_sync::recompute_and_update_ui;
-use crate::{
-    queue_action, AppState, MainWindow, PendingAction, SavedWndProc,
-    TASKBAR_CREATED_MSG,
-};
+use super::tray::{handle_tray_message, TrayAction, WM_TRAYICON};
+use crate::{queue_action, AppState, MainWindow, PendingAction, SavedWndProc, TASKBAR_CREATED_MSG};
 
 /// Duration after which the scrollbar overlay auto-hides.
 pub(crate) const SCROLLBAR_HIDE_DELAY: Duration = Duration::from_millis(1500);

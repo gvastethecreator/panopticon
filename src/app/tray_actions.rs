@@ -14,10 +14,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use super::actions::{dispatch_action, AppAction};
 use super::dock::{center_window_on_point_monitor, current_cursor_screen_point};
-use super::tray::{show_application_context_menu_at, TrayAction, TrayMenuState};
 use super::dwm::release_all_thumbnails;
 use super::model_sync::recompute_and_update_ui;
 use super::runtime_support::logical_to_screen_point;
+use super::tray::{show_application_context_menu_at, TrayAction, TrayMenuState};
 use super::window_sync::refresh_windows;
 use crate::{AppState, MainWindow};
 

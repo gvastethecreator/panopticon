@@ -9,9 +9,9 @@ use slint::{Timer, TimerMode};
 use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::UI::WindowsAndMessaging::GetWindowRect;
 
-use crate::{AppState, MainWindow, UpdateStatus};
 use super::model_sync::recompute_and_update_ui;
 use super::window_sync::refresh_windows;
+use crate::{AppState, MainWindow, UpdateStatus};
 
 const FLOATING_SIZE_SYNC_DEBOUNCE_MS: u64 = 220;
 

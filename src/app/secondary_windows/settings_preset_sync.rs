@@ -4,15 +4,15 @@
 //! and the fixed-size / dock-thickness dimension fields.
 
 use panopticon::settings::{
-    MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS,
-    MIN_FIXED_WINDOW_HEIGHT, MIN_FIXED_WINDOW_WIDTH,
+    MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT,
+    MIN_FIXED_WINDOW_WIDTH,
 };
 use panopticon::theme as theme_catalog;
 use panopticon::ui_option_ops::{current_workspace_label, hidden_app_option_label};
 use slint::SharedString;
 
-use crate::{AppState, SettingsWindow};
 use super::settings_helpers::build_string_model;
+use crate::{AppState, SettingsWindow};
 
 /// Populate dimension, theme, version, and update-status fields.
 pub(super) fn populate_dimension_and_theme_options(window: &SettingsWindow, state: &AppState) {
@@ -63,9 +63,9 @@ pub(super) fn populate_dimension_and_theme_options(window: &SettingsWindow, stat
             .unwrap_or(MIN_DOCK_ROW_THICKNESS)
             .max(MIN_DOCK_ROW_THICKNESS) as i32,
     );
-    window.set_current_profile_label(SharedString::from(
-        current_workspace_label(state.workspace_name.as_deref()),
-    ));
+    window.set_current_profile_label(SharedString::from(current_workspace_label(
+        state.workspace_name.as_deref(),
+    )));
     window.set_profile_name(SharedString::from(
         state.workspace_name.clone().unwrap_or_default(),
     ));
@@ -92,8 +92,8 @@ pub(super) fn populate_preset_options(
         .map(|summary| summary.option_label.clone())
         .collect();
 
-    let requested_workspace =
-        super::selected_workspace_from_settings_window(window).or_else(|| state.workspace_name.clone());
+    let requested_workspace = super::selected_workspace_from_settings_window(window)
+        .or_else(|| state.workspace_name.clone());
     let profile_index = workspace_summaries
         .iter()
         .position(|summary| summary.workspace_name == requested_workspace)

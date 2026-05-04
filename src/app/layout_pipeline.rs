@@ -4,7 +4,9 @@
 //! runtime's [`ManagedWindow`] collection.  Everything in this module is
 //! deterministic and testable without Slint or DWM.
 
-use panopticon::layout::{compute_layout_custom, AspectHint, LayoutCustomization, LayoutType, Separator};
+use panopticon::layout::{
+    compute_layout_custom, AspectHint, LayoutCustomization, LayoutType, Separator,
+};
 use windows::Win32::Foundation::RECT;
 
 use crate::ManagedWindow;
@@ -75,10 +77,10 @@ pub(crate) fn rect_has_area(rect: RECT) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::c_void;
-    use windows::Win32::Foundation::{HWND, RECT, SIZE};
     use crate::ManagedWindow;
     use panopticon::window_enum::WindowInfo;
+    use std::ffi::c_void;
+    use windows::Win32::Foundation::{HWND, RECT, SIZE};
 
     fn dummy_window(display_rect: RECT) -> ManagedWindow {
         ManagedWindow {
@@ -92,9 +94,19 @@ mod tests {
                 monitor_name: String::new(),
             },
             thumbnail: None,
-            target_rect: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+            target_rect: RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
             display_rect,
-            animation_from_rect: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+            animation_from_rect: RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
             source_size: SIZE { cx: 800, cy: 600 },
             last_thumb_update: None,
             last_thumb_dest: None,
@@ -105,10 +117,18 @@ mod tests {
 
     #[test]
     fn apply_layout_rects_updates_target_and_display_when_no_animation() {
-        let mut windows = vec![
-            dummy_window(RECT { left: 0, top: 0, right: 100, bottom: 100 }),
-        ];
-        let rects = vec![RECT { left: 10, top: 10, right: 110, bottom: 110 }];
+        let mut windows = vec![dummy_window(RECT {
+            left: 0,
+            top: 0,
+            right: 100,
+            bottom: 100,
+        })];
+        let rects = vec![RECT {
+            left: 10,
+            top: 10,
+            right: 110,
+            bottom: 110,
+        }];
 
         let needed = apply_layout_rects(&mut windows, &rects, false);
 
@@ -119,24 +139,48 @@ mod tests {
 
     #[test]
     fn apply_layout_rects_flags_animation_when_rect_changes_and_allowed() {
-        let mut windows = vec![
-            dummy_window(RECT { left: 0, top: 0, right: 100, bottom: 100 }),
-        ];
-        let rects = vec![RECT { left: 10, top: 10, right: 110, bottom: 110 }];
+        let mut windows = vec![dummy_window(RECT {
+            left: 0,
+            top: 0,
+            right: 100,
+            bottom: 100,
+        })];
+        let rects = vec![RECT {
+            left: 10,
+            top: 10,
+            right: 110,
+            bottom: 110,
+        }];
 
         let needed = apply_layout_rects(&mut windows, &rects, true);
 
         assert!(needed);
         assert_eq!(windows[0].target_rect, rects[0]);
-        assert_eq!(windows[0].display_rect, RECT { left: 0, top: 0, right: 100, bottom: 100 });
+        assert_eq!(
+            windows[0].display_rect,
+            RECT {
+                left: 0,
+                top: 0,
+                right: 100,
+                bottom: 100
+            }
+        );
     }
 
     #[test]
     fn apply_layout_rects_syncs_display_to_target_when_animation_not_needed() {
-        let mut windows = vec![
-            dummy_window(RECT { left: 5, top: 5, right: 105, bottom: 105 }),
-        ];
-        let rects = vec![RECT { left: 5, top: 5, right: 105, bottom: 105 }];
+        let mut windows = vec![dummy_window(RECT {
+            left: 5,
+            top: 5,
+            right: 105,
+            bottom: 105,
+        })];
+        let rects = vec![RECT {
+            left: 5,
+            top: 5,
+            right: 105,
+            bottom: 105,
+        }];
 
         let needed = apply_layout_rects(&mut windows, &rects, true);
 
