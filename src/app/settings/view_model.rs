@@ -9,6 +9,7 @@ pub(crate) struct RuntimeUiOptions {
     pub(crate) hidden_apps: Vec<HiddenAppEntry>,
 }
 
+#[derive(Clone)]
 #[expect(
     clippy::struct_excessive_bools,
     reason = "UI filters need explicit boolean flags to drive quick predicates without extra allocations"

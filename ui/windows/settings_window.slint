@@ -2309,6 +2309,19 @@ component KeyFieldSettingCard inherits Rectangle {
                                     helper: Tr.settings-section-theme-grid-helper;
                                 }
 
+                                SettingRow {
+                                    icon: @image-url("../../assets/ui-icons/section-theme.svg");
+                                    title: "Theme catalog";
+                                    description: "Select any installed theme. Preview cards show a bounded subset.";
+
+                                    CustomComboBox {
+                                        width: 260px;
+                                        height: 34px;
+                                        options: root.theme-options;
+                                        selected-index <=> root.theme-index;
+                                    }
+                                }
+
                                 theme-list-scroll := ScrollView {
                                     width: parent.width;
                                     vertical-stretch: 1;

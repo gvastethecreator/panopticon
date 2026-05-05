@@ -1,10 +1,16 @@
 //! Workspace file-store for persisted Panopticon settings snapshots.
 
+use std::io::Write;
+use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
 
 use crate::error::{PanopticonError, Result};
 use crate::i18n;
 use crate::settings::{validate_workspace_name_input, AppSettings, WorkspaceNameValidation};
+use windows::core::PCWSTR;
+use windows::Win32::Storage::FileSystem::{
+    MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+};
 
 const WORKSPACE_METADATA_SCHEMA_VERSION: u32 = 1;
 
@@ -158,7 +164,13 @@ impl WorkspaceStore {
 
         let toml = toml::to_string_pretty(&normalized)
             .map_err(|error| PanopticonError::SettingsParse(error.to_string()))?;
-        std::fs::write(path, toml)?;
+        let temp_path = path.with_extension("toml.tmp");
+        {
+            let mut file = std::fs::File::create(&temp_path)?;
+            file.write_all(toml.as_bytes())?;
+            file.sync_all()?;
+        }
+        replace_file_atomically(&temp_path, &path)?;
         Ok(())
     }
 
@@ -245,6 +257,32 @@ impl WorkspaceStore {
         std::fs::remove_file(path)?;
         Ok(())
     }
+}
+
+fn replace_file_atomically(
+    temp_path: &std::path::Path,
+    target_path: &std::path::Path,
+) -> Result<()> {
+    let temp_wide = wide_null(temp_path);
+    let target_wide = wide_null(target_path);
+    let replaced = unsafe {
+        // SAFETY: both paths are encoded as nul-terminated UTF-16 buffers that
+        // live for the duration of the call. MOVEFILE_REPLACE_EXISTING keeps
+        // replacement atomic from callers' perspective on the same volume.
+        MoveFileExW(
+            PCWSTR(temp_wide.as_ptr()),
+            PCWSTR(target_wide.as_ptr()),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if replaced.is_err() {
+        return Err(PanopticonError::SettingsIo(std::io::Error::last_os_error()));
+    }
+    Ok(())
+}
+
+fn wide_null(path: &std::path::Path) -> Vec<u16> {
+    path.as_os_str().encode_wide().chain([0]).collect()
 }
 
 fn validate_named_workspace(input: &str, reserved_message: &str) -> Result<String> {

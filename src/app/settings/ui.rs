@@ -1,5 +1,6 @@
 //! Helpers for synchronizing the Slint settings window with persisted settings.
 
+use std::cell::RefCell;
 use std::path::Path;
 
 use panopticon::i18n;
@@ -16,6 +17,10 @@ use slint::{ModelRc, VecModel};
 use crate::{SettingsWindow, ThemePreviewData};
 
 const MAX_THEME_PREVIEW_CARDS: usize = 48;
+
+thread_local! {
+    static THEME_PREVIEW_CACHE: RefCell<Option<Vec<ThemePreviewData>>> = const { RefCell::new(None) };
+}
 
 #[derive(Debug, Clone, PartialEq)]
 #[expect(
@@ -457,6 +462,14 @@ fn hex_to_color(hex: &str) -> slint::Color {
 }
 
 fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
+    THEME_PREVIEW_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let previews = cache.get_or_insert_with(build_theme_preview_rows).clone();
+        ModelRc::new(VecModel::from(previews))
+    })
+}
+
+fn build_theme_preview_rows() -> Vec<ThemePreviewData> {
     let preset_preview_count = theme::theme_presets()
         .len()
         .min(MAX_THEME_PREVIEW_CARDS.saturating_sub(1));
@@ -487,7 +500,7 @@ fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
             }),
     );
 
-    ModelRc::new(VecModel::from(previews))
+    previews
 }
 
 fn populate_theme_colour_overrides(

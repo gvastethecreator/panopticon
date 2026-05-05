@@ -10,10 +10,19 @@ use crate::app::window_sync::refresh_windows;
 use crate::{AppState, MainWindow, SettingsWindow};
 
 use crate::app::secondary_windows::{
-    collect_runtime_ui_options, parse_tags_csv, populate_settings_window_runtime_fields,
-    refresh_mode_from_index, sync_app_rule_tags_editor, sync_selected_app_rule_editor,
+    collect_runtime_ui_options, parse_tags_csv, refresh_mode_from_index, sync_app_rule_tags_editor,
+    sync_selected_app_rule_editor,
+};
+use crate::app::settings::app_rules_sync::{
+    collect_app_rule_entries, populate_app_rules_list_from_entries,
 };
 use crate::app::settings::selected_model_value;
+use crate::app::settings::view_model::{AppRuleListEntry, RuntimeUiOptions};
+
+thread_local! {
+    static APP_RULE_LIST_CACHE: RefCell<Option<(RuntimeUiOptions, Vec<AppRuleListEntry>)>> =
+        const { RefCell::new(None) };
+}
 
 pub(super) fn register_app_rule_callbacks(
     settings_window: &SettingsWindow,
@@ -64,7 +73,21 @@ fn register_app_rules_refresh_list_callback(
 
                 let state_guard = state.borrow();
                 settings_window.set_suspend_live_apply(true);
-                populate_settings_window_runtime_fields(settings_window, &state_guard);
+                APP_RULE_LIST_CACHE.with(|cache| {
+                    let mut cache = cache.borrow_mut();
+                    let (runtime, entries) = cache.get_or_insert_with(|| {
+                        let runtime = collect_runtime_ui_options(&state_guard);
+                        let entries = collect_app_rule_entries(&state_guard, &runtime);
+                        (runtime, entries)
+                    });
+                    populate_app_rules_list_from_entries(
+                        settings_window,
+                        &state_guard,
+                        entries,
+                        runtime,
+                    );
+                    sync_selected_app_rule_editor(settings_window, &state_guard.settings);
+                });
                 settings_window.set_suspend_live_apply(false);
             });
         }
@@ -155,6 +178,7 @@ fn register_app_rules_apply_selected_callback(
                         Some(pin_slot_value - 1)
                     };
                 });
+                clear_app_rule_list_cache();
 
                 let _ = refresh_windows(&state);
                 refresh_ui(&state, &main_weak);
@@ -192,6 +216,7 @@ fn register_app_rules_reset_selected_callback(
                 update_settings(&state, |settings| {
                     settings.app_rules.remove(&app_id);
                 });
+                clear_app_rule_list_cache();
 
                 let _ = refresh_windows(&state);
                 refresh_ui(&state, &main_weak);
@@ -223,10 +248,17 @@ fn register_app_rules_clear_unused_callback(
                     .app_rules
                     .retain(|app_id, _| running_app_ids.contains(app_id));
             });
+            clear_app_rule_list_cache();
 
             let _ = refresh_windows(&state);
             refresh_ui(&state, &main_weak);
         }
+    });
+}
+
+fn clear_app_rule_list_cache() {
+    APP_RULE_LIST_CACHE.with(|cache| {
+        cache.borrow_mut().take();
     });
 }
 

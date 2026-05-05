@@ -142,15 +142,11 @@ pub(crate) fn detect_resize(
 
 /// Phase 5 — reconcile refresh-triggered recompute.
 pub(crate) fn reconcile_refresh(
-    state: &Rc<RefCell<AppState>>,
-    win: &MainWindow,
+    _state: &Rc<RefCell<AppState>>,
+    _win: &MainWindow,
     refresh_recompute_pending: &Cell<bool>,
 ) -> bool {
-    let did_refresh = refresh_recompute_pending.replace(false);
-    if did_refresh {
-        recompute_and_update_ui(state, win);
-    }
-    did_refresh
+    refresh_recompute_pending.replace(false)
 }
 
 /// Phase 6 — detect viewport scroll change.

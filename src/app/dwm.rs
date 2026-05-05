@@ -218,7 +218,7 @@ pub(crate) fn update_dwm_thumbnails(
                 panopticon::settings::ThumbnailRefreshMode::Interval => mw
                     .last_thumb_update
                     .is_none_or(|t| now.duration_since(t).as_millis() >= u128::from(interval_ms)),
-                panopticon::settings::ThumbnailRefreshMode::Realtime => true,
+                panopticon::settings::ThumbnailRefreshMode::Realtime => false,
             };
 
         let registered_thumbnail = ensure_thumbnail(dest_hwnd, mw);
