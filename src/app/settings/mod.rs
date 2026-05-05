@@ -6,6 +6,7 @@
 //! migrated the re-export is removed.
 
 pub mod app_rules_sync;
+pub mod apply_effects;
 pub mod callbacks;
 pub mod filter_sync;
 pub mod helpers;
@@ -13,6 +14,7 @@ pub mod preset_sync;
 pub mod sync;
 pub mod translations;
 pub mod ui;
+pub mod view_model;
 
 use slint::{Model, ModelRc, SharedString, VecModel};
 

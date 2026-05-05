@@ -12,11 +12,11 @@ use super::action_handlers::{
 };
 use super::command_palette;
 use super::layout_actions::cycle_layout;
-use super::runtime_support::{refresh_ui, update_settings};
+use super::runtime_effects::{apply_runtime_effects, RuntimeEffect};
+use super::runtime_support::update_settings;
 use super::secondary_windows;
 use super::tray_actions;
-use super::window_sync::refresh_windows;
-use crate::{queue_exit_request, AppState, MainWindow};
+use crate::{AppState, MainWindow};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum AppAction {
@@ -65,7 +65,7 @@ fn mutate_settings_and_refresh(
     mutate: impl FnOnce(&mut panopticon::settings::AppSettings),
 ) {
     update_settings(state, mutate);
-    refresh_ui(state, weak);
+    apply_runtime_effects(state, weak, [RuntimeEffect::RefreshUi]);
 }
 
 fn mutate_settings_and_refresh_windows(
@@ -74,8 +74,11 @@ fn mutate_settings_and_refresh_windows(
     mutate: impl FnOnce(&mut panopticon::settings::AppSettings),
 ) {
     update_settings(state, mutate);
-    let _ = refresh_windows(state);
-    refresh_ui(state, weak);
+    apply_runtime_effects(
+        state,
+        weak,
+        [RuntimeEffect::RefreshWindows, RuntimeEffect::RefreshUi],
+    );
 }
 
 #[expect(
@@ -93,7 +96,7 @@ pub(crate) fn dispatch_action(
         }
         AppAction::ResetLayoutRatios => {
             super::layout_actions::reset_layout_custom(state);
-            refresh_ui(state, weak);
+            apply_runtime_effects(state, weak, [RuntimeEffect::RefreshUi]);
         }
         AppAction::ToggleAnimations => {
             mutate_settings_and_refresh(state, weak, |settings| {
@@ -168,12 +171,15 @@ pub(crate) fn dispatch_action(
             );
         }
         AppAction::RefreshNow => {
-            let _ = refresh_windows(state);
-            refresh_ui(state, weak);
+            apply_runtime_effects(
+                state,
+                weak,
+                [RuntimeEffect::RefreshWindows, RuntimeEffect::RefreshUi],
+            );
         }
         AppAction::CycleLayout => {
             cycle_layout(state);
-            refresh_ui(state, weak);
+            apply_runtime_effects(state, weak, [RuntimeEffect::RefreshUi]);
         }
         AppAction::CycleTheme { direction } => {
             CycleThemeHandler { direction }.handle(&mut ActionContext { state, weak });
@@ -251,7 +257,7 @@ pub(crate) fn dispatch_action(
             let _ = super::workspace::open_workspace_in_new_instance(state, workspace_name);
         }
         AppAction::Exit => {
-            queue_exit_request();
+            apply_runtime_effects(state, weak, [RuntimeEffect::Exit]);
         }
     }
 }

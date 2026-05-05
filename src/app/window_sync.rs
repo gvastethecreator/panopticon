@@ -1,17 +1,17 @@
 //! Window enumeration refresh and synchronization with managed state.
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 use panopticon::window_ops::{apply_pinned_positions, sort_windows_for_grouping};
-use windows::Win32::Foundation::{HWND, RECT, SIZE};
+use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
 
-use super::dwm::{ensure_thumbnail, query_source_size};
+use super::dwm::hydrate_reconciled_thumbnails;
 use super::icon::invalidate_cached_app_icon;
-use crate::{AppState, ManagedWindow};
+use super::managed_window_reconcile::reconcile_managed_windows;
+use crate::AppState;
 
 pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     let mut state = state.borrow_mut();
@@ -29,72 +29,18 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     sort_windows_for_grouping(&mut discovered, &state.settings);
     apply_pinned_positions(&mut discovered, &state.settings);
 
-    let discovered_map: HashMap<isize, &WindowInfo> = discovered
-        .iter()
-        .map(|window| (window.hwnd.0 as isize, window))
-        .collect();
-    let discovered_hwnds: HashSet<isize> = discovered_map.keys().copied().collect();
-    let discovered_order: HashMap<isize, usize> = discovered
-        .iter()
-        .enumerate()
-        .map(|(index, window)| (window.hwnd.0 as isize, index))
-        .collect();
-
-    let previous_len = state.window_collection.windows.len();
-    state
-        .window_collection
-        .windows
-        .retain(|managed_window| discovered_hwnds.contains(&(managed_window.info.hwnd.0 as isize)));
-    let mut changed = state.window_collection.windows.len() != previous_len;
-
-    changed |= update_existing_windows(
-        &mut state.window_collection.windows,
-        &discovered_map,
-        host_hwnd,
-        host_visible,
-    );
-
-    let existing: HashSet<isize> = state
-        .window_collection
-        .windows
-        .iter()
-        .map(|managed_window| managed_window.info.hwnd.0 as isize)
-        .collect();
-
-    changed |= append_new_windows(
-        &mut state.window_collection.windows,
-        discovered,
-        &existing,
-        host_hwnd,
-        host_visible,
-    );
-
-    let order_before: Vec<isize> = state
-        .window_collection
-        .windows
-        .iter()
-        .map(|managed_window| managed_window.info.hwnd.0 as isize)
-        .collect();
-    state
-        .window_collection
-        .windows
-        .sort_by_key(|managed_window| {
-            discovered_order
-                .get(&(managed_window.info.hwnd.0 as isize))
-                .copied()
-                .unwrap_or(usize::MAX)
-        });
-    let order_after: Vec<isize> = state
-        .window_collection
-        .windows
-        .iter()
-        .map(|managed_window| managed_window.info.hwnd.0 as isize)
-        .collect();
-    if order_before != order_after {
-        changed = true;
+    let outcome = reconcile_managed_windows(&mut state.window_collection.windows, discovered);
+    for app_id in &outcome.icon_invalidations {
+        invalidate_cached_app_icon(app_id);
     }
 
-    changed
+    let dwm_changed = hydrate_reconciled_thumbnails(
+        host_hwnd,
+        host_visible,
+        &mut state.window_collection.windows,
+    );
+
+    outcome.changed || dwm_changed
 }
 
 fn collect_discovered_windows(state: &mut AppState, host_hwnd: HWND) -> Vec<WindowInfo> {
@@ -134,97 +80,9 @@ fn collect_discovered_windows(state: &mut AppState, host_hwnd: HWND) -> Vec<Wind
         .collect()
 }
 
-fn append_new_windows(
-    windows: &mut Vec<ManagedWindow>,
-    discovered: Vec<WindowInfo>,
-    existing: &HashSet<isize>,
-    host_hwnd: HWND,
-    host_visible: bool,
-) -> bool {
-    let mut changed = false;
-    for info in discovered {
-        if existing.contains(&(info.hwnd.0 as isize)) {
-            continue;
-        }
-        let mut managed_window = ManagedWindow {
-            info,
-            thumbnail: None,
-            target_rect: RECT::default(),
-            display_rect: RECT::default(),
-            animation_from_rect: RECT::default(),
-            source_size: SIZE { cx: 800, cy: 600 },
-            last_thumb_update: None,
-            last_thumb_dest: None,
-            last_thumb_visible: false,
-            cached_icon: None,
-        };
-        if host_visible {
-            let _ = ensure_thumbnail(host_hwnd, &mut managed_window);
-        }
-        windows.push(managed_window);
-        changed = true;
-    }
-    changed
-}
-
-fn update_existing_windows(
-    windows: &mut [ManagedWindow],
-    discovered_map: &HashMap<isize, &WindowInfo>,
-    host_hwnd: HWND,
-    host_visible: bool,
-) -> bool {
-    let mut changed = false;
-    for managed_window in windows.iter_mut() {
-        if let Some(fresh) = discovered_map.get(&(managed_window.info.hwnd.0 as isize)) {
-            let metadata_changed = window_metadata_changed(&managed_window.info, fresh);
-            if metadata_changed {
-                let icon_changed = should_reset_cached_icon(&managed_window.info, fresh);
-                let previous_app_id = managed_window.info.app_id.clone();
-                managed_window.info = (*fresh).clone();
-                if icon_changed {
-                    invalidate_cached_app_icon(&previous_app_id);
-                    if managed_window.info.app_id != previous_app_id {
-                        invalidate_cached_app_icon(&managed_window.info.app_id);
-                    }
-                    managed_window.cached_icon = None;
-                }
-                changed = true;
-            }
-            if host_visible {
-                if ensure_thumbnail(host_hwnd, managed_window) {
-                    changed = true;
-                }
-                if let Some(thumbnail) = managed_window.thumbnail.as_ref() {
-                    let fresh_size = query_source_size(thumbnail.handle());
-                    if fresh_size.cx != managed_window.source_size.cx
-                        || fresh_size.cy != managed_window.source_size.cy
-                    {
-                        managed_window.source_size = fresh_size;
-                        changed = true;
-                    }
-                }
-            }
-        }
-    }
-    changed
-}
-
-fn window_metadata_changed(current: &WindowInfo, fresh: &WindowInfo) -> bool {
-    // Cheapest comparisons first (small fixed strings) → expensive last (title).
-    fresh.app_id != current.app_id
-        || fresh.class_name != current.class_name
-        || fresh.monitor_name != current.monitor_name
-        || fresh.process_name != current.process_name
-        || fresh.process_path != current.process_path
-        || fresh.title != current.title
-}
-
-fn should_reset_cached_icon(current: &WindowInfo, fresh: &WindowInfo) -> bool {
-    fresh.app_id != current.app_id || fresh.process_path != current.process_path
-}
-
 #[cfg(test)]
 mod tests {
+    use super::super::managed_window_reconcile::{new_managed_window, reconcile_managed_windows};
     use super::*;
     use std::ffi::c_void;
 
@@ -269,8 +127,13 @@ mod tests {
             "DISPLAY1",
         );
 
-        assert!(window_metadata_changed(&current, &fresh));
-        assert!(!window_metadata_changed(&current, &current));
+        let mut windows = vec![new_managed_window(current.clone())];
+        let changed = reconcile_managed_windows(&mut windows, vec![fresh]).changed;
+        assert!(changed);
+
+        let mut windows = vec![new_managed_window(current.clone())];
+        let unchanged = reconcile_managed_windows(&mut windows, vec![current]).changed;
+        assert!(!unchanged);
     }
 
     #[test]
@@ -312,8 +175,17 @@ mod tests {
             "DISPLAY1",
         );
 
-        assert!(!should_reset_cached_icon(&current, &title_only));
-        assert!(should_reset_cached_icon(&current, &path_changed));
-        assert!(should_reset_cached_icon(&current, &app_changed));
+        for (fresh, expected) in [
+            (title_only, Vec::<String>::new()),
+            (path_changed, vec!["app:alpha".to_owned()]),
+            (
+                app_changed,
+                vec!["app:alpha".to_owned(), "app:beta".to_owned()],
+            ),
+        ] {
+            let mut windows = vec![new_managed_window(current.clone())];
+            let outcome = reconcile_managed_windows(&mut windows, vec![fresh]);
+            assert_eq!(outcome.icon_invalidations, expected);
+        }
     }
 }

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{PanopticonError, Result};
+use crate::error::Result;
 use crate::i18n;
 use crate::layout::{LayoutCustomization, LayoutType};
 
@@ -186,7 +186,7 @@ impl WorkspaceMetadata {
         }
     }
 
-    fn touch_for_save(&mut self) {
+    pub(crate) fn touch_for_save(&mut self) {
         let now = unix_time_millis_now();
         if self.created_unix_ms.is_none() {
             self.created_unix_ms = Some(now);
@@ -1083,15 +1083,7 @@ impl AppSettings {
     /// Resolve the on-disk settings path for a given instance workspace.
     #[must_use]
     pub fn path_for(workspace: Option<&str>) -> PathBuf {
-        let base_dir = std::env::var_os("APPDATA")
-            .map_or_else(|| std::env::temp_dir().join("Panopticon"), PathBuf::from);
-        let base = base_dir.join("Panopticon");
-        match workspace.filter(|p| !p.trim().is_empty()) {
-            Some(name) => base
-                .join("workspaces")
-                .join(format!("{}.toml", name.trim())),
-            None => base.join("settings.toml"),
-        }
+        crate::workspace::WorkspaceStore::from_appdata().path_for(workspace)
     }
 
     /// Resolve the on-disk settings path (default workspace).
@@ -1106,30 +1098,7 @@ impl AppSettings {
     ///
     /// Returns an error if the workspace directory exists but cannot be enumerated.
     pub fn list_workspaces() -> Result<Vec<String>> {
-        let workspaces_dir = Self::path_for(Some("sample"))
-            .parent()
-            .map_or_else(|| Self::path().with_file_name("workspaces"), PathBuf::from);
-
-        if !workspaces_dir.exists() {
-            return Ok(Vec::new());
-        }
-
-        let mut workspaces = Vec::new();
-        for entry in std::fs::read_dir(workspaces_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().and_then(|ext| ext.to_str()) != Some("toml") {
-                continue;
-            }
-            if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
-                if let Some(workspace) = normalize_workspace_name(stem) {
-                    workspaces.push(workspace);
-                }
-            }
-        }
-        workspaces.sort();
-        workspaces.dedup();
-        Ok(workspaces)
+        crate::workspace::WorkspaceStore::from_appdata().list_named()
     }
 
     /// Return all workspace labels, always including the implicit `default` one.
@@ -1138,16 +1107,13 @@ impl AppSettings {
     ///
     /// Returns an error when the named-workspace directory cannot be enumerated.
     pub fn list_workspaces_with_default() -> Result<Vec<String>> {
-        let mut workspaces = Self::list_workspaces()?;
-        workspaces.insert(0, "default".to_owned());
-        workspaces.dedup();
-        Ok(workspaces)
+        crate::workspace::WorkspaceStore::from_appdata().list_with_default()
     }
 
     /// Returns whether the corresponding workspace settings file currently exists.
     #[must_use]
     pub fn workspace_exists(workspace: Option<&str>) -> bool {
-        Self::path_for(workspace).exists()
+        crate::workspace::WorkspaceStore::from_appdata().exists(workspace)
     }
 
     /// Update user-facing metadata fields for the current workspace snapshot.
@@ -1167,38 +1133,7 @@ impl AppSettings {
     /// Returns an error if source loading fails, the target name is invalid,
     /// or the target workspace already exists.
     pub fn duplicate_workspace(source: Option<&str>, target: &str) -> Result<()> {
-        let target = match validate_workspace_name_input(target) {
-            WorkspaceNameValidation::Valid(workspace_name) => workspace_name,
-            WorkspaceNameValidation::Empty => {
-                return Err(PanopticonError::SettingsParse(
-                    i18n::t("settings.workspace_empty_name").to_owned(),
-                ));
-            }
-            WorkspaceNameValidation::Invalid(reason) => {
-                return Err(PanopticonError::SettingsParse(reason));
-            }
-        };
-
-        if target.eq_ignore_ascii_case("default") {
-            return Err(PanopticonError::SettingsParse(
-                "cannot duplicate into reserved workspace name 'default'".to_owned(),
-            ));
-        }
-
-        if Self::workspace_exists(Some(&target)) {
-            return Err(PanopticonError::SettingsParse(format!(
-                "workspace '{target}' already exists"
-            )));
-        }
-
-        let mut settings = Self::load_or_default(source)?;
-        settings.workspace.created_unix_ms = None;
-        settings.workspace.updated_unix_ms = None;
-        settings.workspace.schema_version = Some(WORKSPACE_METADATA_SCHEMA_VERSION);
-        if settings.workspace.display_name.trim().is_empty() {
-            settings.workspace.display_name.clone_from(&target);
-        }
-        settings.save(Some(&target))
+        crate::workspace::WorkspaceStore::from_appdata().duplicate(source, target)
     }
 
     /// Rename a named workspace file.
@@ -1208,66 +1143,7 @@ impl AppSettings {
     /// Returns an error if source/target names are invalid, if source does not
     /// exist, or if target already exists.
     pub fn rename_workspace(source: &str, target: &str) -> Result<()> {
-        let source = match validate_workspace_name_input(source) {
-            WorkspaceNameValidation::Valid(workspace_name) => workspace_name,
-            WorkspaceNameValidation::Empty => {
-                return Err(PanopticonError::SettingsParse(
-                    i18n::t("settings.workspace_empty_name").to_owned(),
-                ));
-            }
-            WorkspaceNameValidation::Invalid(reason) => {
-                return Err(PanopticonError::SettingsParse(reason));
-            }
-        };
-        let target = match validate_workspace_name_input(target) {
-            WorkspaceNameValidation::Valid(workspace_name) => workspace_name,
-            WorkspaceNameValidation::Empty => {
-                return Err(PanopticonError::SettingsParse(
-                    i18n::t("settings.workspace_empty_name").to_owned(),
-                ));
-            }
-            WorkspaceNameValidation::Invalid(reason) => {
-                return Err(PanopticonError::SettingsParse(reason));
-            }
-        };
-
-        if source.eq_ignore_ascii_case("default") {
-            return Err(PanopticonError::SettingsParse(
-                "the default workspace cannot be renamed".to_owned(),
-            ));
-        }
-        if target.eq_ignore_ascii_case("default") {
-            return Err(PanopticonError::SettingsParse(
-                "cannot rename to reserved workspace name 'default'".to_owned(),
-            ));
-        }
-
-        let source_path = Self::path_for(Some(&source));
-        if !source_path.exists() {
-            return Err(PanopticonError::SettingsParse(format!(
-                "workspace '{source}' does not exist"
-            )));
-        }
-
-        let target_path = Self::path_for(Some(&target));
-        if target_path.exists() {
-            return Err(PanopticonError::SettingsParse(format!(
-                "workspace '{target}' already exists"
-            )));
-        }
-
-        std::fs::rename(source_path, &target_path)?;
-
-        let mut updated = Self::load_or_default(Some(&target))?;
-        if updated.workspace.display_name.trim().is_empty()
-            || updated.workspace.display_name.eq_ignore_ascii_case(&source)
-        {
-            updated.workspace.display_name.clone_from(&target);
-        }
-        updated.workspace.schema_version = Some(WORKSPACE_METADATA_SCHEMA_VERSION);
-        updated.save(Some(&target))?;
-
-        Ok(())
+        crate::workspace::WorkspaceStore::from_appdata().rename(source, target)
     }
 
     /// Delete a named workspace file.
@@ -1277,33 +1153,7 @@ impl AppSettings {
     /// Returns an error if the workspace name is invalid/reserved or when file
     /// removal fails.
     pub fn delete_workspace(workspace: &str) -> Result<()> {
-        let workspace = match validate_workspace_name_input(workspace) {
-            WorkspaceNameValidation::Valid(workspace_name) => workspace_name,
-            WorkspaceNameValidation::Empty => {
-                return Err(PanopticonError::SettingsParse(
-                    i18n::t("settings.workspace_empty_name").to_owned(),
-                ));
-            }
-            WorkspaceNameValidation::Invalid(reason) => {
-                return Err(PanopticonError::SettingsParse(reason));
-            }
-        };
-
-        if workspace.eq_ignore_ascii_case("default") {
-            return Err(PanopticonError::SettingsParse(
-                "the default workspace cannot be deleted".to_owned(),
-            ));
-        }
-
-        let path = Self::path_for(Some(&workspace));
-        if !path.exists() {
-            return Err(PanopticonError::SettingsParse(format!(
-                "workspace '{workspace}' does not exist"
-            )));
-        }
-
-        std::fs::remove_file(path)?;
-        Ok(())
+        crate::workspace::WorkspaceStore::from_appdata().delete(workspace)
     }
 
     /// Load settings from disk, returning defaults if the file does not exist.
@@ -1312,15 +1162,7 @@ impl AppSettings {
     ///
     /// Returns an error if the file exists but cannot be read or parsed.
     pub fn load_or_default(workspace: Option<&str>) -> Result<Self> {
-        let path = Self::path_for(workspace);
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-
-        let contents = std::fs::read_to_string(path)?;
-        let settings: Self = toml::from_str(&contents)
-            .map_err(|error| PanopticonError::SettingsParse(error.to_string()))?;
-        Ok(settings.normalized())
+        crate::workspace::WorkspaceStore::from_appdata().load_settings(workspace)
     }
 
     /// Persist the current settings to disk.
@@ -1330,18 +1172,7 @@ impl AppSettings {
     /// Returns an error if the settings directory cannot be created or if the
     /// TOML payload cannot be serialized.
     pub fn save(&self, workspace: Option<&str>) -> Result<()> {
-        let path = Self::path_for(workspace);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        let mut normalized = self.normalized();
-        normalized.workspace.touch_for_save();
-
-        let toml = toml::to_string_pretty(&normalized)
-            .map_err(|error| PanopticonError::SettingsParse(error.to_string()))?;
-        std::fs::write(path, toml)?;
-        Ok(())
+        crate::workspace::WorkspaceStore::from_appdata().save_settings(workspace, self)
     }
 
     /// Advance the refresh interval through a curated list.

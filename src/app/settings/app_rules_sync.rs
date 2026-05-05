@@ -10,7 +10,7 @@ use panopticon::ui_option_ops::{app_option_label, parse_option_value, OPTION_SEP
 use slint::SharedString;
 
 use super::{build_string_model, selected_model_value};
-use crate::app::secondary_windows::{AppRuleListEntry, RuntimeUiOptions};
+use crate::app::settings::view_model::{AppRuleListEntry, RuntimeUiOptions};
 use crate::{AppState, SettingsWindow};
 
 /// Build the filtered app-rule list model and sync it to the settings window.

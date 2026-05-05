@@ -12,7 +12,7 @@ use crate::app::ui_translations::populate_tr_global;
 use crate::{AppState, SettingsWindow};
 
 use super::{app_rules_sync, filter_sync, preset_sync};
-use crate::app::secondary_windows::RuntimeUiOptions;
+use crate::app::settings::view_model::RuntimeUiOptions;
 
 /// Collect the runtime-derived options (monitors, tags, apps, hidden apps)
 /// that feed the settings-window dropdowns and lists.

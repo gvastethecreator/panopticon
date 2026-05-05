@@ -12,8 +12,8 @@ use panopticon::ui_option_ops::{current_workspace_label, hidden_app_option_label
 use slint::SharedString;
 
 use super::build_string_model;
-use crate::app::secondary_windows::RuntimeUiOptions;
 use crate::app::settings::helpers::sync_layout_preset_controls;
+use crate::app::settings::view_model::RuntimeUiOptions;
 use crate::app::workspace::{
     available_workspace_summaries, known_workspaces_label, selected_workspace_from_settings_window,
 };

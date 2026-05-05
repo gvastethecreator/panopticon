@@ -7,15 +7,13 @@ use panopticon::constants::TOOLBAR_HEIGHT;
 use panopticon::input_ops::{decode_mouse_lparam, scroll_pixels_from_wheel_delta};
 use slint::ComponentHandle;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::UI::Input::KeyboardAndMouse::VK_F1;
-use windows::Win32::UI::Shell::ABN_POSCHANGED;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-use super::dock::{current_cursor_screen_point, docked_mode_active, is_blocked_dock_syscommand};
+use super::dock::{current_cursor_screen_point, docked_mode_active};
 use super::dwm::release_thumbnail;
-use super::global_hotkey;
 use super::model_sync::recompute_and_update_ui;
-use super::tray::{handle_tray_message, TrayAction, WM_TRAYICON};
+use super::native_events::{route_native_message, NativeDispatch, NativeEvent, NativeMessage};
+use super::tray::{handle_tray_message, TrayAction};
 use crate::{queue_action, AppState, MainWindow, PendingAction, SavedWndProc, TASKBAR_CREATED_MSG};
 
 /// Duration after which the scrollbar overlay auto-hides.
@@ -87,10 +85,6 @@ fn forward_to_original(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> 
     unsafe { CallWindowProcW(saved.as_wndproc(), hwnd, msg, wparam, lparam) }
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "centralized Win32 message handling keeps the native subclass deterministic"
-)]
 unsafe extern "system" fn subclass_proc(
     hwnd: HWND,
     msg: u32,
@@ -98,146 +92,75 @@ unsafe extern "system" fn subclass_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     let taskbar_msg = TASKBAR_CREATED_MSG.load(std::sync::atomic::Ordering::Relaxed);
-    if taskbar_msg != 0 && msg == taskbar_msg {
-        crate::UI_STATE.with(|slot| {
-            if let Some(state) = slot.borrow().as_ref() {
-                if let Ok(mut guard) = state.try_borrow_mut() {
-                    let small = guard.shell.icons.small;
-                    if let Some(tray) = guard.shell.tray_icon.as_mut() {
-                        tray.readd(small);
-                    }
-                }
-            }
-        });
-        return forward_to_original(hwnd, msg, wparam, lparam);
+    let pan_active = crate::PAN_STATE.with(|slot| slot.borrow().active);
+    let route = route_native_message(
+        NativeMessage {
+            hwnd,
+            msg,
+            wparam,
+            lparam,
+        },
+        taskbar_msg,
+        crate::WM_APPBAR_CALLBACK,
+        docked_mode_active(),
+        pan_active,
+    );
+
+    if let Some(event) = route.event {
+        apply_native_event(hwnd, wparam, lparam, event);
     }
 
-    match msg {
-        WM_TRAYICON => {
-            handle_tray_subclass(hwnd, lparam);
-            LRESULT(0)
-        }
-        WM_HOTKEY => {
-            if global_hotkey::is_activate_hotkey(wparam.0) {
-                queue_action(PendingAction::ActivateMainWindow);
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        WM_KEYDOWN => {
-            if wparam.0 as u32 == u32::from(VK_F1.0) && (lparam.0 & 0x4000_0000) == 0 {
-                queue_action(PendingAction::Tray(TrayAction::OpenAboutWindow, None));
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        WM_SYSKEYDOWN => {
-            if wparam.0 as u32 == 0x12 && (lparam.0 & 0x4000_0000) == 0 {
-                toggle_toolbar_from_alt_hotkey();
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        crate::WM_APPBAR_CALLBACK => {
-            if wparam.0 as u32 == ABN_POSCHANGED {
-                queue_action(PendingAction::Reposition);
-            }
-            LRESULT(0)
-        }
-        WM_WINDOWPOSCHANGED | WM_DISPLAYCHANGE | WM_DPICHANGED | WM_SETTINGCHANGE => {
-            if docked_mode_active() {
-                queue_action(PendingAction::Reposition);
-            }
-            forward_to_original(hwnd, msg, wparam, lparam)
-        }
-        WM_SYSCOMMAND => {
-            if docked_mode_active() && is_blocked_dock_syscommand(wparam.0) {
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        WM_CLOSE => {
-            let should_hide = crate::UI_STATE.with(|slot| {
-                slot.borrow()
-                    .as_ref()
-                    .and_then(|state| {
-                        state
-                            .try_borrow()
-                            .ok()
-                            .map(|guard| guard.settings.close_to_tray)
-                    })
-                    .unwrap_or(false)
-            });
-            if should_hide {
-                queue_action(PendingAction::HideToTray);
-            } else {
-                crate::queue_exit_request();
-            }
-            LRESULT(0)
-        }
-        WM_SIZE => {
-            if wparam.0 as u32 == 1 {
-                let should_hide = crate::UI_STATE.with(|slot| {
-                    slot.borrow()
-                        .as_ref()
-                        .and_then(|state| {
-                            state
-                                .try_borrow()
-                                .ok()
-                                .map(|guard| guard.settings.minimize_to_tray)
-                        })
-                        .unwrap_or(false)
-                });
-                if should_hide {
-                    queue_action(PendingAction::HideToTray);
-                }
-            }
-            forward_to_original(hwnd, msg, wparam, lparam)
-        }
-        WM_SHOWWINDOW => {
-            handle_show_window(wparam);
-            forward_to_original(hwnd, msg, wparam, lparam)
-        }
-        WM_MBUTTONDOWN => {
-            let (x, y) = decode_mouse_lparam(lparam.0);
-            crate::PAN_STATE.with(|slot| {
-                let mut pan = slot.borrow_mut();
-                pan.active = true;
-                pan.last_x = x;
-                pan.last_y = y;
-            });
-            LRESULT(0)
-        }
-        WM_MOUSEWHEEL => {
-            if handle_wheel_scroll(wparam) {
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        WM_MBUTTONUP => {
-            crate::PAN_STATE.with(|slot| slot.borrow_mut().active = false);
-            LRESULT(0)
-        }
-        WM_MOUSEMOVE => {
-            let pan_active = crate::PAN_STATE.with(|slot| slot.borrow().active);
-            if pan_active {
-                if wparam.0 & 0x0010 == 0 {
-                    crate::PAN_STATE.with(|slot| slot.borrow_mut().active = false);
-                    return forward_to_original(hwnd, msg, wparam, lparam);
-                }
-                handle_middle_pan_move(lparam);
-                LRESULT(0)
-            } else {
-                forward_to_original(hwnd, msg, wparam, lparam)
-            }
-        }
-        _ => forward_to_original(hwnd, msg, wparam, lparam),
+    match route.dispatch {
+        NativeDispatch::Handled => LRESULT(0),
+        NativeDispatch::Forward => forward_to_original(hwnd, msg, wparam, lparam),
     }
+}
+
+fn apply_native_event(hwnd: HWND, wparam: WPARAM, lparam: LPARAM, event: NativeEvent) {
+    match event {
+        NativeEvent::TaskbarCreated => readd_tray_icon(),
+        NativeEvent::TrayIcon { mouse_msg } => handle_tray_subclass(hwnd, mouse_msg, lparam),
+        NativeEvent::ActivateHotkey => queue_action(PendingAction::ActivateMainWindow),
+        NativeEvent::OpenAboutHotkey => {
+            queue_action(PendingAction::Tray(TrayAction::OpenAboutWindow, None));
+        }
+        NativeEvent::ToggleToolbarHotkey => toggle_toolbar_from_alt_hotkey(),
+        NativeEvent::AppbarPositionChanged | NativeEvent::DockSurfaceChanged => {
+            queue_action(PendingAction::Reposition);
+        }
+        NativeEvent::BlockDockSysCommand => {}
+        NativeEvent::CloseRequested => handle_close_requested(),
+        NativeEvent::MinimizeRequested => handle_minimize_requested(),
+        NativeEvent::WindowShown => queue_action(PendingAction::Refresh),
+        NativeEvent::WindowHidden => release_all_current_thumbnails(),
+        NativeEvent::MiddlePanStart => handle_middle_pan_start(lparam),
+        NativeEvent::MiddlePanEnd => {
+            crate::PAN_STATE.with(|slot| slot.borrow_mut().active = false);
+        }
+        NativeEvent::MiddlePanMove { middle_button_down } => {
+            if middle_button_down {
+                handle_middle_pan_move(lparam);
+            } else {
+                crate::PAN_STATE.with(|slot| slot.borrow_mut().active = false);
+            }
+        }
+        NativeEvent::Wheel => {
+            let _ = handle_wheel_scroll(wparam);
+        }
+    }
+}
+
+fn readd_tray_icon() {
+    crate::UI_STATE.with(|slot| {
+        if let Some(state) = slot.borrow().as_ref() {
+            if let Ok(mut guard) = state.try_borrow_mut() {
+                let small = guard.shell.icons.small;
+                if let Some(tray) = guard.shell.tray_icon.as_mut() {
+                    tray.readd(small);
+                }
+            }
+        }
+    });
 }
 
 fn handle_show_window(wparam: WPARAM) {
@@ -256,8 +179,7 @@ fn handle_show_window(wparam: WPARAM) {
     }
 }
 
-fn handle_tray_subclass(hwnd: HWND, lparam: LPARAM) {
-    let mouse_msg = lparam.0 as u32;
+fn handle_tray_subclass(hwnd: HWND, mouse_msg: u32, lparam: LPARAM) {
     let activation_point = current_cursor_screen_point();
 
     if mouse_msg == WM_LBUTTONUP {
@@ -277,6 +199,64 @@ fn handle_tray_subclass(hwnd: HWND, lparam: LPARAM) {
             }
         }
     }
+}
+
+fn handle_close_requested() {
+    let should_hide = crate::UI_STATE.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .and_then(|state| {
+                state
+                    .try_borrow()
+                    .ok()
+                    .map(|guard| guard.settings.close_to_tray)
+            })
+            .unwrap_or(false)
+    });
+    if should_hide {
+        queue_action(PendingAction::HideToTray);
+    } else {
+        crate::queue_exit_request();
+    }
+}
+
+fn handle_minimize_requested() {
+    let should_hide = crate::UI_STATE.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .and_then(|state| {
+                state
+                    .try_borrow()
+                    .ok()
+                    .map(|guard| guard.settings.minimize_to_tray)
+            })
+            .unwrap_or(false)
+    });
+    if should_hide {
+        queue_action(PendingAction::HideToTray);
+    }
+}
+
+fn release_all_current_thumbnails() {
+    crate::UI_STATE.with(|slot| {
+        if let Some(state) = slot.borrow().as_ref() {
+            if let Ok(mut guard) = state.try_borrow_mut() {
+                for managed_window in &mut guard.window_collection.windows {
+                    release_thumbnail(managed_window);
+                }
+            }
+        }
+    });
+}
+
+fn handle_middle_pan_start(lparam: LPARAM) {
+    let (x, y) = decode_mouse_lparam(lparam.0);
+    crate::PAN_STATE.with(|slot| {
+        let mut pan = slot.borrow_mut();
+        pan.active = true;
+        pan.last_x = x;
+        pan.last_y = y;
+    });
 }
 
 fn handle_wheel_scroll(wparam: WPARAM) -> bool {

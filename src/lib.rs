@@ -37,3 +37,4 @@ pub mod thumbnail;
 pub mod ui_option_ops;
 pub mod window_enum;
 pub mod window_ops;
+pub mod workspace;

@@ -25,9 +25,9 @@ use crate::{AppState, MainWindow, SettingsWindow};
 use crate::app::secondary_windows::{
     collect_runtime_ui_options, refresh_open_about_window, refresh_open_settings_window,
     refresh_open_tag_dialog_window, refresh_secondary_window_stacking, refresh_tray_locale,
-    RuntimeUiOptions,
 };
 use crate::app::settings::selected_model_value;
+use crate::app::settings::view_model::RuntimeUiOptions;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WorkspaceUiSummary {

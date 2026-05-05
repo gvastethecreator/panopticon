@@ -13,6 +13,7 @@ use crate::app::global_hotkey;
 use crate::app::model_sync::recompute_and_update_ui;
 use crate::app::native_runtime::apply_configured_main_window_size;
 use crate::app::native_runtime::get_hwnd;
+use crate::app::settings::apply_effects::SettingsApplyEffects;
 use crate::app::startup;
 use crate::app::ui_translations::populate_tr_global;
 use crate::app::window_sync::refresh_windows;
@@ -138,8 +139,6 @@ pub(crate) fn apply_settings_window_to_state(
         };
         let mut state_guard = state.borrow_mut();
         let previous_settings = state_guard.settings.clone();
-        let prev_dock_edge = previous_settings.dock_edge;
-        let prev_language = previous_settings.language;
 
         let mut next_settings = previous_settings.clone();
         crate::app::settings::ui::apply_settings_window_changes(
@@ -152,6 +151,7 @@ pub(crate) fn apply_settings_window_to_state(
         if next_settings == previous_settings {
             return;
         }
+        let effects = SettingsApplyEffects::plan(&previous_settings, &next_settings);
 
         state_guard.settings = next_settings;
         state_guard.window_collection.current_layout = state_guard.settings.effective_layout();
@@ -162,11 +162,10 @@ pub(crate) fn apply_settings_window_to_state(
         let always_on_top = state_guard.settings.always_on_top;
         let new_dock_edge = state_guard.settings.dock_edge;
         let new_language = state_guard.settings.language;
-        let locale_changed = prev_language != new_language;
         let settings_clone = state_guard.settings.clone();
         let workspace_name = state_guard.workspace_name.clone();
 
-        if prev_dock_edge != new_dock_edge {
+        if effects.dock_changed {
             if state_guard.shell.is_appbar {
                 unregister_appbar(hwnd);
                 state_guard.shell.is_appbar = false;
@@ -181,10 +180,16 @@ pub(crate) fn apply_settings_window_to_state(
         }
 
         drop(state_guard);
-        startup::sync_run_at_startup(settings_clone.run_at_startup, workspace_name.as_deref());
-        global_hotkey::sync_activate_hotkey(hwnd, &settings_clone);
-        let _ = refresh_windows(state);
-        if locale_changed {
+        if effects.startup_changed {
+            startup::sync_run_at_startup(settings_clone.run_at_startup, workspace_name.as_deref());
+        }
+        if effects.hotkey_changed {
+            global_hotkey::sync_activate_hotkey(hwnd, &settings_clone);
+        }
+        if effects.refresh_windows {
+            let _ = refresh_windows(state);
+        }
+        if effects.locale_changed {
             let _ = panopticon::i18n::set_locale(new_language);
             if let Some(main_window) = main_weak.upgrade() {
                 populate_tr_global(&main_window);
@@ -193,7 +198,9 @@ pub(crate) fn apply_settings_window_to_state(
             refresh_open_tag_dialog_window(state);
             refresh_tray_locale(state);
         }
-        apply_window_appearance(hwnd, &settings_clone);
+        if effects.window_appearance {
+            apply_window_appearance(hwnd, &settings_clone);
+        }
         apply_topmost_mode(hwnd, always_on_top);
         settings_window.set_known_profiles_label(SharedString::from(known_workspaces_label()));
         settings_window.set_current_profile_label(SharedString::from(current_workspace_label(
@@ -203,9 +210,11 @@ pub(crate) fn apply_settings_window_to_state(
             let refreshed = state.borrow();
             sync_settings_window_from_state(settings_window, &refreshed);
         }
-        if let Some(main_window) = main_weak.upgrade() {
-            let _ = apply_configured_main_window_size(&main_window, &settings_clone);
-            recompute_and_update_ui(state, &main_window);
+        if effects.recompute_ui {
+            if let Some(main_window) = main_weak.upgrade() {
+                let _ = apply_configured_main_window_size(&main_window, &settings_clone);
+                recompute_and_update_ui(state, &main_window);
+            }
         }
         refresh_secondary_window_stacking(state);
     });

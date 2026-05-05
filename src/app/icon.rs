@@ -283,7 +283,6 @@ pub(crate) fn bilinear_sample_rgba(source: &[u8], size: usize, x: f32, y: f32) -
 #[cfg(test)]
 mod tests {
     use super::{bilinear_sample_rgba, invalidate_cached_app_icon, APP_ICON_CACHE};
-    use crate::app::cache::BoundedCache;
 
     #[test]
     fn invalidating_shared_icon_cache_removes_entry() {
