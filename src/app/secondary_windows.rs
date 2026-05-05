@@ -7,7 +7,7 @@ mod settings_window;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use panopticon::settings::{AppSelectionEntry, AppSettings, HiddenAppEntry, ThumbnailRefreshMode};
+use panopticon::settings::{AppSettings, ThumbnailRefreshMode};
 use panopticon::window_enum::WindowInfo;
 
 use windows::Win32::Foundation::{HWND, POINT};
@@ -53,28 +53,6 @@ pub(crate) fn confirm_workspace_action(title: &str, description: &str) -> bool {
             .show(),
         rfd::MessageDialogResult::Yes
     )
-}
-
-pub(crate) struct RuntimeUiOptions {
-    pub(crate) monitors: Vec<String>,
-    pub(crate) tags: Vec<String>,
-    pub(crate) apps: Vec<AppSelectionEntry>,
-    pub(crate) hidden_apps: Vec<HiddenAppEntry>,
-}
-
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "UI filters need explicit boolean flags to drive quick predicates without extra allocations"
-)]
-pub(crate) struct AppRuleListEntry {
-    pub(crate) option: AppSelectionEntry,
-    pub(crate) is_running: bool,
-    pub(crate) has_saved_rule: bool,
-    pub(crate) is_hidden: bool,
-    pub(crate) has_tags: bool,
-    pub(crate) has_custom_refresh: bool,
-    pub(crate) is_pinned: bool,
-    pub(crate) searchable_blob: String,
 }
 
 pub(crate) use self::settings_window::{
@@ -140,7 +118,9 @@ pub(crate) fn sync_settings_window_from_state(window: &SettingsWindow, state: &A
     crate::app::settings::sync::sync_settings_window_from_state(window, state);
 }
 
-pub(crate) fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
+pub(crate) fn collect_runtime_ui_options(
+    state: &AppState,
+) -> crate::app::settings::view_model::RuntimeUiOptions {
     crate::app::settings::sync::collect_runtime_ui_options(state)
 }
 

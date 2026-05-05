@@ -5,15 +5,54 @@ use std::path::Path;
 use panopticon::i18n;
 use panopticon::layout::LayoutType;
 use panopticon::settings::{
-    AppSettings, BackgroundImageFit, DockEdge, RefreshPerformanceMode, ThemeColorOverrides,
-    ToolbarPosition, WindowGrouping, MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS,
-    MIN_FIXED_WINDOW_HEIGHT, MIN_FIXED_WINDOW_WIDTH,
+    AppSettings, BackgroundImageFit, DockEdge, RefreshPerformanceMode, ShortcutBindings,
+    ThemeColorOverrides, ToolbarPosition, WindowGrouping, MIN_DOCK_COLUMN_THICKNESS,
+    MIN_DOCK_ROW_THICKNESS, MIN_FIXED_WINDOW_HEIGHT, MIN_FIXED_WINDOW_WIDTH,
 };
 use panopticon::theme;
 use slint::SharedString;
 use slint::{ModelRc, VecModel};
 
 use crate::{SettingsWindow, ThemePreviewData};
+
+const MAX_THEME_PREVIEW_CARDS: usize = 48;
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SettingsWindowDraft {
+    language_index: i32,
+    always_on_top: bool,
+    center_secondary_windows: bool,
+    animate_transitions: bool,
+    minimize_to_tray: bool,
+    close_to_tray: bool,
+    preserve_aspect_ratio: bool,
+    hide_on_select: bool,
+    show_toolbar: bool,
+    toolbar_position_index: i32,
+    show_window_info: bool,
+    start_in_tray: bool,
+    run_at_startup: bool,
+    locked_layout: bool,
+    lock_cell_resize: bool,
+    show_app_icons: bool,
+    thumbnail_render_scale_value: i32,
+    theme_index: i32,
+    theme_color_overrides: ThemeColorOverrides,
+    background_color_hex: String,
+    background_image_path: String,
+    background_image_fit_index: i32,
+    background_image_opacity_value: i32,
+    fixed_width_value: i32,
+    fixed_height_value: i32,
+    dock_column_thickness_value: i32,
+    dock_row_thickness_value: i32,
+    dock_edge_index: i32,
+    group_windows_index: i32,
+    refresh_performance_mode_index: i32,
+    refresh_index: i32,
+    shortcuts: ShortcutBindings,
+    layout_index: i32,
+}
 
 #[expect(
     clippy::too_many_lines,
@@ -127,95 +166,134 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
 }
 
 pub fn apply_settings_window_changes(window: &SettingsWindow, settings: &mut AppSettings) {
-    settings.language = index_to_locale(window.get_language_index());
-    settings.always_on_top = window.get_always_on_top_setting();
-    settings.center_secondary_windows = window.get_center_secondary_windows_setting();
-    settings.animate_transitions = window.get_animate_transitions_setting();
-    settings.minimize_to_tray = window.get_minimize_to_tray_setting();
-    settings.close_to_tray = window.get_close_to_tray_setting();
-    settings.preserve_aspect_ratio = window.get_preserve_aspect_ratio_setting();
-    settings.hide_on_select = window.get_hide_on_select_setting();
-    settings.show_toolbar = window.get_show_toolbar_setting();
-    settings.toolbar_position = index_to_toolbar_position(window.get_toolbar_position_index());
-    settings.show_window_info = window.get_show_info_setting();
-    settings.start_in_tray = window.get_start_in_tray_setting();
-    settings.run_at_startup = window.get_run_at_startup_setting();
-    settings.locked_layout = window.get_locked_layout_setting();
-    settings.lock_cell_resize = window.get_lock_cell_resize_setting();
-    settings.show_app_icons = window.get_show_app_icons_setting();
-    settings.thumbnail_render_scale_pct =
-        window.get_thumbnail_render_scale_value().clamp(25, 100) as u8;
-    settings.theme_color_overrides = ThemeColorOverrides {
-        accent_hex: optional_theme_override(&window.get_theme_accent_hex()),
-        surface_hex: optional_theme_override(&window.get_theme_surface_hex()),
-        card_hex: optional_theme_override(&window.get_theme_card_hex()),
-        text_hex: optional_theme_override(&window.get_theme_text_hex()),
-        muted_hex: optional_theme_override(&window.get_theme_muted_hex()),
-        border_hex: optional_theme_override(&window.get_theme_border_hex()),
-    };
-    let next_theme_id = theme::theme_id_by_index(window.get_theme_index());
+    let draft = read_settings_window_draft(window);
+    apply_settings_draft(settings, &draft);
+}
+
+pub(crate) fn read_settings_window_draft(window: &SettingsWindow) -> SettingsWindowDraft {
+    SettingsWindowDraft {
+        language_index: window.get_language_index(),
+        always_on_top: window.get_always_on_top_setting(),
+        center_secondary_windows: window.get_center_secondary_windows_setting(),
+        animate_transitions: window.get_animate_transitions_setting(),
+        minimize_to_tray: window.get_minimize_to_tray_setting(),
+        close_to_tray: window.get_close_to_tray_setting(),
+        preserve_aspect_ratio: window.get_preserve_aspect_ratio_setting(),
+        hide_on_select: window.get_hide_on_select_setting(),
+        show_toolbar: window.get_show_toolbar_setting(),
+        toolbar_position_index: window.get_toolbar_position_index(),
+        show_window_info: window.get_show_info_setting(),
+        start_in_tray: window.get_start_in_tray_setting(),
+        run_at_startup: window.get_run_at_startup_setting(),
+        locked_layout: window.get_locked_layout_setting(),
+        lock_cell_resize: window.get_lock_cell_resize_setting(),
+        show_app_icons: window.get_show_app_icons_setting(),
+        thumbnail_render_scale_value: window.get_thumbnail_render_scale_value(),
+        theme_index: window.get_theme_index(),
+        theme_color_overrides: ThemeColorOverrides {
+            accent_hex: optional_theme_override(&window.get_theme_accent_hex()),
+            surface_hex: optional_theme_override(&window.get_theme_surface_hex()),
+            card_hex: optional_theme_override(&window.get_theme_card_hex()),
+            text_hex: optional_theme_override(&window.get_theme_text_hex()),
+            muted_hex: optional_theme_override(&window.get_theme_muted_hex()),
+            border_hex: optional_theme_override(&window.get_theme_border_hex()),
+        },
+        background_color_hex: window.get_bg_color_hex().to_string(),
+        background_image_path: window.get_bg_image_path().to_string(),
+        background_image_fit_index: window.get_bg_image_fit_index(),
+        background_image_opacity_value: window.get_bg_image_opacity_value(),
+        fixed_width_value: window.get_fixed_width_value(),
+        fixed_height_value: window.get_fixed_height_value(),
+        dock_column_thickness_value: window.get_dock_column_thickness_value(),
+        dock_row_thickness_value: window.get_dock_row_thickness_value(),
+        dock_edge_index: window.get_dock_edge_index(),
+        group_windows_index: window.get_group_windows_index(),
+        refresh_performance_mode_index: window.get_refresh_performance_mode_index(),
+        refresh_index: window.get_refresh_index(),
+        shortcuts: ShortcutBindings {
+            layout_grid: window.get_shortcut_layout_grid().to_string(),
+            layout_mosaic: window.get_shortcut_layout_mosaic().to_string(),
+            layout_bento: window.get_shortcut_layout_bento().to_string(),
+            layout_fibonacci: window.get_shortcut_layout_fibonacci().to_string(),
+            layout_columns: window.get_shortcut_layout_columns().to_string(),
+            layout_row: window.get_shortcut_layout_row().to_string(),
+            layout_column: window.get_shortcut_layout_column().to_string(),
+            reset_layout: window.get_shortcut_reset_layout().to_string(),
+            cycle_layout: window.get_shortcut_cycle_layout().to_string(),
+            cycle_theme: window.get_shortcut_cycle_theme().to_string(),
+            toggle_animations: window.get_shortcut_toggle_animations().to_string(),
+            toggle_toolbar: window.get_shortcut_toggle_toolbar().to_string(),
+            toggle_window_info: window.get_shortcut_toggle_window_info().to_string(),
+            toggle_always_on_top: window.get_shortcut_toggle_always_on_top().to_string(),
+            open_settings: window.get_shortcut_open_settings().to_string(),
+            open_menu: window.get_shortcut_open_menu().to_string(),
+            open_command_palette: window.get_shortcut_open_command_palette().to_string(),
+            global_activate: Some(window.get_shortcut_global_activate().to_string()),
+            refresh_now: window.get_shortcut_refresh_now().to_string(),
+            exit_app: window.get_shortcut_exit_app().to_string(),
+            alt_toggles_toolbar: window.get_alt_toolbar_shortcut_enabled(),
+        },
+        layout_index: window.get_layout_index(),
+    }
+}
+
+pub(crate) fn apply_settings_draft(settings: &mut AppSettings, draft: &SettingsWindowDraft) {
+    settings.language = index_to_locale(draft.language_index);
+    settings.always_on_top = draft.always_on_top;
+    settings.center_secondary_windows = draft.center_secondary_windows;
+    settings.animate_transitions = draft.animate_transitions;
+    settings.minimize_to_tray = draft.minimize_to_tray;
+    settings.close_to_tray = draft.close_to_tray;
+    settings.preserve_aspect_ratio = draft.preserve_aspect_ratio;
+    settings.hide_on_select = draft.hide_on_select;
+    settings.show_toolbar = draft.show_toolbar;
+    settings.toolbar_position = index_to_toolbar_position(draft.toolbar_position_index);
+    settings.show_window_info = draft.show_window_info;
+    settings.start_in_tray = draft.start_in_tray;
+    settings.run_at_startup = draft.run_at_startup;
+    settings.locked_layout = draft.locked_layout;
+    settings.lock_cell_resize = draft.lock_cell_resize;
+    settings.show_app_icons = draft.show_app_icons;
+    settings.thumbnail_render_scale_pct = draft.thumbnail_render_scale_value.clamp(25, 100) as u8;
+    settings.theme_color_overrides = draft.theme_color_overrides.clone();
+    let next_theme_id = theme::theme_id_by_index(draft.theme_index);
     let theme_changed = settings.theme_id != next_theme_id;
     settings.theme_id = next_theme_id;
-    let requested_bg_hex = window.get_bg_color_hex().to_string();
     settings.background_color_hex = if theme_changed && settings.theme_id.is_some() {
-        theme::theme_base_background_hex(settings.theme_id.as_deref(), &requested_bg_hex)
+        theme::theme_base_background_hex(settings.theme_id.as_deref(), &draft.background_color_hex)
     } else {
-        requested_bg_hex
+        draft.background_color_hex.clone()
     };
-    let img_path = window.get_bg_image_path().to_string();
-    settings.background_image_path = if img_path.is_empty() {
+    settings.background_image_path = if draft.background_image_path.is_empty() {
         None
     } else {
-        Some(img_path)
+        Some(draft.background_image_path.clone())
     };
-    settings.background_image_fit = index_to_background_fit(window.get_bg_image_fit_index());
-    settings.background_image_opacity_pct = window.get_bg_image_opacity_value().clamp(0, 100) as u8;
+    settings.background_image_fit = index_to_background_fit(draft.background_image_fit_index);
+    settings.background_image_opacity_pct = draft.background_image_opacity_value.clamp(0, 100) as u8;
 
     settings.fixed_width =
-        optional_dimension_with_min(window.get_fixed_width_value(), MIN_FIXED_WINDOW_WIDTH);
+        optional_dimension_with_min(draft.fixed_width_value, MIN_FIXED_WINDOW_WIDTH);
     settings.fixed_height =
-        optional_dimension_with_min(window.get_fixed_height_value(), MIN_FIXED_WINDOW_HEIGHT);
+        optional_dimension_with_min(draft.fixed_height_value, MIN_FIXED_WINDOW_HEIGHT);
     settings.dock_column_thickness = optional_dimension_with_min(
-        window.get_dock_column_thickness_value(),
+        draft.dock_column_thickness_value,
         MIN_DOCK_COLUMN_THICKNESS,
     );
     settings.dock_row_thickness = optional_dimension_with_min(
-        window.get_dock_row_thickness_value(),
+        draft.dock_row_thickness_value,
         MIN_DOCK_ROW_THICKNESS,
     );
 
-    settings.dock_edge = index_to_dock_edge(window.get_dock_edge_index());
-    settings.group_windows_by = index_to_grouping(window.get_group_windows_index());
-    settings.refresh_performance_mode =
-        index_to_refresh_mode(window.get_refresh_performance_mode_index());
+    settings.dock_edge = index_to_dock_edge(draft.dock_edge_index);
+    settings.group_windows_by = index_to_grouping(draft.group_windows_index);
+    settings.refresh_performance_mode = index_to_refresh_mode(draft.refresh_performance_mode_index);
     settings.refresh_interval_ms = settings
         .refresh_performance_mode
         .fixed_interval_ms()
-        .unwrap_or_else(|| index_to_refresh(window.get_refresh_index()));
-    settings.shortcuts.layout_grid = window.get_shortcut_layout_grid().to_string();
-    settings.shortcuts.layout_mosaic = window.get_shortcut_layout_mosaic().to_string();
-    settings.shortcuts.layout_bento = window.get_shortcut_layout_bento().to_string();
-    settings.shortcuts.layout_fibonacci = window.get_shortcut_layout_fibonacci().to_string();
-    settings.shortcuts.layout_columns = window.get_shortcut_layout_columns().to_string();
-    settings.shortcuts.layout_row = window.get_shortcut_layout_row().to_string();
-    settings.shortcuts.layout_column = window.get_shortcut_layout_column().to_string();
-    settings.shortcuts.reset_layout = window.get_shortcut_reset_layout().to_string();
-    settings.shortcuts.cycle_layout = window.get_shortcut_cycle_layout().to_string();
-    settings.shortcuts.cycle_theme = window.get_shortcut_cycle_theme().to_string();
-    settings.shortcuts.toggle_animations = window.get_shortcut_toggle_animations().to_string();
-    settings.shortcuts.toggle_toolbar = window.get_shortcut_toggle_toolbar().to_string();
-    settings.shortcuts.toggle_window_info = window.get_shortcut_toggle_window_info().to_string();
-    settings.shortcuts.toggle_always_on_top =
-        window.get_shortcut_toggle_always_on_top().to_string();
-    settings.shortcuts.open_settings = window.get_shortcut_open_settings().to_string();
-    settings.shortcuts.open_menu = window.get_shortcut_open_menu().to_string();
-    settings.shortcuts.open_command_palette =
-        window.get_shortcut_open_command_palette().to_string();
-    settings.shortcuts.global_activate = Some(window.get_shortcut_global_activate().to_string());
-    settings.shortcuts.refresh_now = window.get_shortcut_refresh_now().to_string();
-    settings.shortcuts.exit_app = window.get_shortcut_exit_app().to_string();
-    settings.shortcuts.alt_toggles_toolbar = window.get_alt_toolbar_shortcut_enabled();
-    settings.initial_layout = index_to_layout(window.get_layout_index());
+        .unwrap_or_else(|| index_to_refresh(draft.refresh_index));
+    settings.shortcuts = draft.shortcuts.clone();
+    settings.initial_layout = index_to_layout(draft.layout_index);
 }
 
 pub(crate) const fn background_fit_to_index(fit: BackgroundImageFit) -> i32 {
@@ -378,7 +456,9 @@ fn hex_to_color(hex: &str) -> slint::Color {
 }
 
 fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
-    let preset_preview_count = theme::theme_presets().len();
+    let preset_preview_count = theme::theme_presets()
+        .len()
+        .min(MAX_THEME_PREVIEW_CARDS.saturating_sub(1));
     let mut previews = Vec::with_capacity(preset_preview_count + 1);
     previews.push(ThemePreviewData {
         index: 0,
@@ -499,9 +579,54 @@ fn load_image_preview(path: Option<&str>) -> slint::Image {
 
 #[cfg(test)]
 mod tests {
-    use super::{background_fit_to_index, build_theme_preview_model, index_to_background_fit};
-    use panopticon::settings::BackgroundImageFit;
+    use super::{
+        apply_settings_draft, background_fit_to_index, build_theme_preview_model,
+        index_to_background_fit, SettingsWindowDraft, MAX_THEME_PREVIEW_CARDS,
+    };
+    use panopticon::settings::{
+        AppSettings, BackgroundImageFit, RefreshPerformanceMode, ShortcutBindings,
+        ThemeColorOverrides, MIN_DOCK_COLUMN_THICKNESS, MIN_DOCK_ROW_THICKNESS,
+        MIN_FIXED_WINDOW_HEIGHT, MIN_FIXED_WINDOW_WIDTH,
+    };
     use slint::Model;
+
+    fn base_draft() -> SettingsWindowDraft {
+        SettingsWindowDraft {
+            language_index: 0,
+            always_on_top: false,
+            center_secondary_windows: true,
+            animate_transitions: true,
+            minimize_to_tray: true,
+            close_to_tray: true,
+            preserve_aspect_ratio: true,
+            hide_on_select: true,
+            show_toolbar: true,
+            toolbar_position_index: 0,
+            show_window_info: true,
+            start_in_tray: false,
+            run_at_startup: false,
+            locked_layout: false,
+            lock_cell_resize: false,
+            show_app_icons: true,
+            thumbnail_render_scale_value: 100,
+            theme_index: 0,
+            theme_color_overrides: ThemeColorOverrides::default(),
+            background_color_hex: "181513".to_owned(),
+            background_image_path: String::new(),
+            background_image_fit_index: 0,
+            background_image_opacity_value: 25,
+            fixed_width_value: MIN_FIXED_WINDOW_WIDTH as i32,
+            fixed_height_value: MIN_FIXED_WINDOW_HEIGHT as i32,
+            dock_column_thickness_value: MIN_DOCK_COLUMN_THICKNESS as i32,
+            dock_row_thickness_value: MIN_DOCK_ROW_THICKNESS as i32,
+            dock_edge_index: 0,
+            group_windows_index: 0,
+            refresh_performance_mode_index: 3,
+            refresh_index: 1,
+            shortcuts: ShortcutBindings::default(),
+            layout_index: 0,
+        }
+    }
 
     #[test]
     fn background_fit_indices_roundtrip_all_supported_modes() {
@@ -525,8 +650,79 @@ mod tests {
     }
 
     #[test]
-    fn theme_preview_model_includes_all_available_themes() {
-        // Classic theme + all preset themes (~365)
-        assert_eq!(build_theme_preview_model().row_count(), 366);
+    fn theme_preview_model_is_capped_for_settings_rendering() {
+        assert_eq!(build_theme_preview_model().row_count(), MAX_THEME_PREVIEW_CARDS);
+    }
+
+    #[test]
+    fn draft_applies_clamped_numeric_fields() {
+        let mut settings = AppSettings::default();
+        let mut draft = base_draft();
+        draft.thumbnail_render_scale_value = 5;
+        draft.background_image_opacity_value = 250;
+        draft.fixed_width_value = 10;
+        draft.fixed_height_value = 10;
+        draft.dock_column_thickness_value = 10;
+        draft.dock_row_thickness_value = 10;
+
+        apply_settings_draft(&mut settings, &draft);
+
+        assert_eq!(settings.thumbnail_render_scale_pct, 25);
+        assert_eq!(settings.background_image_opacity_pct, 100);
+        assert_eq!(settings.fixed_width, Some(MIN_FIXED_WINDOW_WIDTH));
+        assert_eq!(settings.fixed_height, Some(MIN_FIXED_WINDOW_HEIGHT));
+        assert_eq!(
+            settings.dock_column_thickness,
+            Some(MIN_DOCK_COLUMN_THICKNESS)
+        );
+        assert_eq!(settings.dock_row_thickness, Some(MIN_DOCK_ROW_THICKNESS));
+    }
+
+    #[test]
+    fn draft_fixed_refresh_modes_override_manual_interval_index() {
+        let mut settings = AppSettings::default();
+        let mut draft = base_draft();
+        draft.refresh_performance_mode_index = 0;
+        draft.refresh_index = 3;
+
+        apply_settings_draft(&mut settings, &draft);
+
+        assert_eq!(settings.refresh_performance_mode, RefreshPerformanceMode::Realtime);
+        assert_eq!(settings.refresh_interval_ms, 1_000);
+    }
+
+    #[test]
+    fn draft_invalid_theme_overrides_are_ignored() {
+        let mut settings = AppSettings::default();
+        let mut draft = base_draft();
+        draft.theme_color_overrides = ThemeColorOverrides {
+            accent_hex: Some("not-a-colour".to_owned()),
+            surface_hex: Some("#12345".to_owned()),
+            card_hex: Some("123456".to_owned()),
+            text_hex: None,
+            muted_hex: None,
+            border_hex: None,
+        };
+
+        // Simulates the Slint adapter, where invalid values are normalised
+        // before the draft reaches pure settings application.
+        draft.theme_color_overrides.accent_hex = super::optional_theme_override(
+            draft.theme_color_overrides.accent_hex.as_deref().unwrap_or_default(),
+        );
+        draft.theme_color_overrides.surface_hex = super::optional_theme_override(
+            draft.theme_color_overrides.surface_hex.as_deref().unwrap_or_default(),
+        );
+        draft.theme_color_overrides.card_hex = super::optional_theme_override(
+            draft.theme_color_overrides.card_hex.as_deref().unwrap_or_default(),
+        );
+
+        apply_settings_draft(&mut settings, &draft);
+
+        assert_eq!(settings.theme_color_overrides.accent_hex, None);
+        assert_eq!(settings.theme_color_overrides.surface_hex, None);
+        assert_eq!(
+            settings.theme_color_overrides.card_hex,
+            Some("123456".to_owned())
+        );
     }
 }

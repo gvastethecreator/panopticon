@@ -95,6 +95,33 @@ pub(crate) fn query_source_size(handle: isize) -> SIZE {
     size
 }
 
+pub(crate) fn hydrate_reconciled_thumbnails(
+    owner: HWND,
+    host_visible: bool,
+    windows: &mut [ManagedWindow],
+) -> bool {
+    if !host_visible {
+        return false;
+    }
+
+    let mut changed = false;
+    for managed_window in windows {
+        if ensure_thumbnail(owner, managed_window) {
+            changed = true;
+        }
+        if let Some(thumbnail) = managed_window.thumbnail.as_ref() {
+            let fresh_size = query_source_size(thumbnail.handle());
+            if fresh_size.cx != managed_window.source_size.cx
+                || fresh_size.cy != managed_window.source_size.cy
+            {
+                managed_window.source_size = fresh_size;
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
 // ───────────────────────── DWM thumbnail sync ─────────────────────────
 
 /// Synchronise all DWM thumbnail positions, visibility, and refresh timing.

@@ -6,7 +6,7 @@
 use panopticon::ui_option_ops::{app_option_label, parse_option_value};
 
 use super::{build_string_model, selected_model_value};
-use crate::app::secondary_windows::RuntimeUiOptions;
+use crate::app::settings::view_model::RuntimeUiOptions;
 use crate::{AppState, SettingsWindow};
 
 /// Apply the current filter selections in the settings window to `AppSettings`.
