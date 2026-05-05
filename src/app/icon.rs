@@ -1,8 +1,6 @@
 //! Window icon extraction and HICON-to-Slint rendering helpers.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
-use std::collections::VecDeque;
 use std::ffi::c_void;
 use std::mem;
 
@@ -14,6 +12,7 @@ use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, DrawIconEx, DI_NORMAL
 
 use panopticon::window_enum::WindowInfo;
 
+use crate::app::cache::BoundedCache;
 use crate::app::tray::{
     resolve_window_icon, resolve_window_icon_from_executable, resolve_window_icon_sized,
 };
@@ -22,70 +21,6 @@ use crate::ManagedWindow;
 // ───────────────────────── Per-app icon cache ─────────────────────────
 
 const APP_ICON_CACHE_CAPACITY: usize = 64;
-
-struct BoundedCache<V> {
-    capacity: usize,
-    entries: HashMap<String, V>,
-    access_order: VecDeque<String>,
-}
-
-impl<V> BoundedCache<V> {
-    fn new(capacity: usize) -> Self {
-        Self {
-            capacity,
-            entries: HashMap::with_capacity(capacity),
-            access_order: VecDeque::with_capacity(capacity),
-        }
-    }
-
-    fn insert(&mut self, key: &str, value: V) {
-        if self.capacity == 0 {
-            return;
-        }
-
-        self.entries.insert(key.to_owned(), value);
-        self.touch(key);
-
-        while self.entries.len() > self.capacity {
-            let Some(stale_key) = self.access_order.pop_front() else {
-                break;
-            };
-            self.entries.remove(&stale_key);
-        }
-    }
-
-    fn get_cloned(&mut self, key: &str) -> Option<V>
-    where
-        V: Clone,
-    {
-        let value = self.entries.get(key).cloned();
-        if value.is_some() {
-            self.touch(key);
-        }
-        value
-    }
-
-    fn remove(&mut self, key: &str) -> Option<V> {
-        self.access_order.retain(|existing| existing != key);
-        self.entries.remove(key)
-    }
-
-    #[cfg(test)]
-    fn clear(&mut self) {
-        self.entries.clear();
-        self.access_order.clear();
-    }
-
-    #[cfg(test)]
-    fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    fn touch(&mut self, key: &str) {
-        self.access_order.retain(|existing| existing != key);
-        self.access_order.push_back(key.to_owned());
-    }
-}
 
 thread_local! {
     /// Cache of rendered Slint icons keyed by `app_id`.
@@ -347,34 +282,8 @@ pub(crate) fn bilinear_sample_rgba(source: &[u8], size: usize, x: f32, y: f32) -
 
 #[cfg(test)]
 mod tests {
-    use super::{bilinear_sample_rgba, invalidate_cached_app_icon, BoundedCache, APP_ICON_CACHE};
-
-    #[test]
-    fn bounded_cache_evicts_oldest_entry_when_capacity_is_exceeded() {
-        let mut cache = BoundedCache::new(2);
-        cache.insert("alpha", 1);
-        cache.insert("bravo", 2);
-        cache.insert("charlie", 3);
-
-        assert_eq!(cache.get_cloned("alpha"), None);
-        assert_eq!(cache.get_cloned("bravo"), Some(2));
-        assert_eq!(cache.get_cloned("charlie"), Some(3));
-    }
-
-    #[test]
-    fn bounded_cache_refreshes_recently_accessed_entries() {
-        let mut cache = BoundedCache::new(2);
-        cache.insert("alpha", 1);
-        cache.insert("bravo", 2);
-
-        assert_eq!(cache.get_cloned("alpha"), Some(1));
-
-        cache.insert("charlie", 3);
-
-        assert_eq!(cache.get_cloned("alpha"), Some(1));
-        assert_eq!(cache.get_cloned("bravo"), None);
-        assert_eq!(cache.get_cloned("charlie"), Some(3));
-    }
+    use super::{bilinear_sample_rgba, invalidate_cached_app_icon, APP_ICON_CACHE};
+    use crate::app::cache::BoundedCache;
 
     #[test]
     fn invalidating_shared_icon_cache_removes_entry() {

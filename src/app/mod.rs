@@ -3,6 +3,7 @@
 pub mod action_handlers;
 pub mod actions;
 pub mod animation_engine;
+pub mod cache;
 pub mod cli;
 pub mod command_palette;
 pub mod dock;

@@ -41,7 +41,8 @@ pub fn populate_settings_window(window: &SettingsWindow, settings: &AppSettings)
     window.set_thumbnail_render_scale_value(i32::from(settings.thumbnail_render_scale_pct));
     window.set_theme_index(theme::theme_index(settings.theme_id.as_deref()));
     window.set_bg_color_hex(SharedString::from(&settings.background_color_hex));
-    let (bg_red, bg_green, bg_blue) = rgb_components_from_hex(&settings.background_color_hex);
+    let (bg_red, bg_green, bg_blue) =
+        super::rgb_components_from_hex(&settings.background_color_hex);
     window.set_bg_red_value(i32::from(bg_red));
     window.set_bg_green_value(i32::from(bg_green));
     window.set_bg_blue_value(i32::from(bg_blue));
@@ -374,14 +375,6 @@ fn hex_to_color(hex: &str) -> slint::Color {
     let green = u8::from_str_radix(sanitized.get(2..4).unwrap_or("9A"), 16).unwrap_or(0x9A);
     let blue = u8::from_str_radix(sanitized.get(4..6).unwrap_or("5C"), 16).unwrap_or(0x5C);
     slint::Color::from_rgb_u8(red, green, blue)
-}
-
-fn rgb_components_from_hex(hex: &str) -> (u8, u8, u8) {
-    let sanitized = hex.trim().trim_start_matches('#');
-    let red = u8::from_str_radix(sanitized.get(0..2).unwrap_or("18"), 16).unwrap_or(0x18);
-    let green = u8::from_str_radix(sanitized.get(2..4).unwrap_or("15"), 16).unwrap_or(0x15);
-    let blue = u8::from_str_radix(sanitized.get(4..6).unwrap_or("13"), 16).unwrap_or(0x13);
-    (red, green, blue)
 }
 
 fn build_theme_preview_model() -> ModelRc<ThemePreviewData> {
