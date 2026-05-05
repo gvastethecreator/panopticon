@@ -234,6 +234,23 @@ mod tests {
             ),
             NativeRoute::handled(NativeEvent::AppbarPositionChanged)
         );
+        assert_eq!(
+            route_native_message(msg(APPBAR_CALLBACK, 99, 0), 0, APPBAR_CALLBACK, true, false),
+            NativeRoute {
+                event: None,
+                dispatch: NativeDispatch::Handled,
+            }
+        );
+        assert_eq!(
+            route_native_message(
+                msg(TASKBAR_CREATED, 0, 0),
+                TASKBAR_CREATED,
+                APPBAR_CALLBACK,
+                false,
+                false,
+            ),
+            NativeRoute::forward(Some(NativeEvent::TaskbarCreated))
+        );
     }
 
     #[test]
@@ -289,6 +306,26 @@ mod tests {
             NativeRoute::handled(NativeEvent::MiddlePanMove {
                 middle_button_down: false
             })
+        );
+        assert_eq!(
+            route_native_message(msg(WM_MOUSEMOVE, 0, 0), 0, APPBAR_CALLBACK, false, false),
+            NativeRoute::forward(None)
+        );
+        assert_eq!(
+            route_native_message(msg(WM_SHOWWINDOW, 0, 0), 0, APPBAR_CALLBACK, false, false),
+            NativeRoute::forward(Some(NativeEvent::WindowHidden))
+        );
+        assert_eq!(
+            route_native_message(msg(WM_MBUTTONDOWN, 0, 0), 0, APPBAR_CALLBACK, false, false),
+            NativeRoute::handled(NativeEvent::MiddlePanStart)
+        );
+        assert_eq!(
+            route_native_message(msg(WM_MBUTTONUP, 0, 0), 0, APPBAR_CALLBACK, false, true),
+            NativeRoute::handled(NativeEvent::MiddlePanEnd)
+        );
+        assert_eq!(
+            route_native_message(msg(WM_MOUSEWHEEL, 0, 0), 0, APPBAR_CALLBACK, false, false),
+            NativeRoute::handled(NativeEvent::Wheel)
         );
     }
 }

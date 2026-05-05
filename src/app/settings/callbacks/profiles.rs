@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use panopticon::settings::AppSettings;
 use panopticon::ui_option_ops::current_workspace_label;
+use panopticon::workspace::WorkspaceStore;
 use slint::SharedString;
 
 use crate::{AppState, MainWindow, SettingsWindow};
@@ -64,7 +64,8 @@ fn register_save_profile_callback(settings_window: &SettingsWindow, state: &Rc<R
                     state_guard.settings.clone()
                 };
 
-                match settings_snapshot.save(requested_workspace.as_deref()) {
+                let store = WorkspaceStore::from_appdata();
+                match store.save_settings(requested_workspace.as_deref(), &settings_snapshot) {
                     Ok(()) => {
                         settings_window
                             .set_known_profiles_label(SharedString::from(known_workspaces_label()));
@@ -134,7 +135,9 @@ fn register_open_profile_instance_callback(
                 };
                 if let Some(workspace_name) = requested.as_deref() {
                     let _ = save_settings_as_workspace(&settings_snapshot, workspace_name);
-                } else if let Err(error) = settings_snapshot.save(None) {
+                } else if let Err(error) =
+                    WorkspaceStore::from_appdata().save_settings(None, &settings_snapshot)
+                {
                     tracing::error!(%error, "failed to save default workspace before launching instance");
                 }
 
@@ -216,7 +219,9 @@ fn register_duplicate_selected_profile_callback(
                     }
                 };
 
-                if let Err(error) = AppSettings::duplicate_workspace(source_workspace.as_deref(), &target_workspace) {
+                let store = WorkspaceStore::from_appdata();
+                if let Err(error) = store.duplicate(source_workspace.as_deref(), &target_workspace)
+                {
                     tracing::error!(%error, source = ?source_workspace, target = %target_workspace, "failed to duplicate workspace");
                     set_workspace_feedback(
                         settings_window,
@@ -226,12 +231,12 @@ fn register_duplicate_selected_profile_callback(
                     return;
                 }
 
-                if let Ok(mut duplicated) = AppSettings::load_or_default(Some(&target_workspace)) {
+                if let Ok(mut duplicated) = store.load_settings(Some(&target_workspace)) {
                     duplicated.set_workspace_metadata(
                         &settings_window.get_profile_display_name(),
                         &settings_window.get_profile_description(),
                     );
-                    if let Err(error) = duplicated.save(Some(&target_workspace)) {
+                    if let Err(error) = store.save_settings(Some(&target_workspace), &duplicated) {
                         tracing::warn!(%error, workspace = %target_workspace, "failed to persist duplicated workspace metadata");
                     }
                 }
@@ -307,7 +312,8 @@ fn register_rename_selected_profile_callback(
                     return;
                 }
 
-                if let Err(error) = AppSettings::rename_workspace(&source_workspace, &target_workspace) {
+                let store = WorkspaceStore::from_appdata();
+                if let Err(error) = store.rename(&source_workspace, &target_workspace) {
                     tracing::error!(%error, source = %source_workspace, target = %target_workspace, "failed to rename workspace");
                     set_workspace_feedback(
                         settings_window,
@@ -317,12 +323,12 @@ fn register_rename_selected_profile_callback(
                     return;
                 }
 
-                if let Ok(mut renamed) = AppSettings::load_or_default(Some(&target_workspace)) {
+                if let Ok(mut renamed) = store.load_settings(Some(&target_workspace)) {
                     renamed.set_workspace_metadata(
                         &settings_window.get_profile_display_name(),
                         &settings_window.get_profile_description(),
                     );
-                    if let Err(error) = renamed.save(Some(&target_workspace)) {
+                    if let Err(error) = store.save_settings(Some(&target_workspace), &renamed) {
                         tracing::warn!(%error, workspace = %target_workspace, "failed to persist renamed workspace metadata");
                     }
                 }
@@ -382,7 +388,7 @@ fn register_delete_selected_profile_callback(
                     return;
                 }
 
-                if let Err(error) = AppSettings::delete_workspace(&selected_workspace) {
+                if let Err(error) = WorkspaceStore::from_appdata().delete(&selected_workspace) {
                     tracing::error!(%error, workspace = %selected_workspace, "failed to delete workspace");
                     set_workspace_feedback(
                         settings_window,

@@ -40,40 +40,28 @@ pub(crate) fn handle_key(
         return false;
     };
 
-    match action {
-        ShortcutAction::SetLayout(layout) => {
-            dispatch_action(state, weak, AppAction::SetLayout(layout));
-        }
-        ShortcutAction::ResetLayout => dispatch_action(state, weak, AppAction::ResetLayoutRatios),
-        ShortcutAction::ToggleAnimations => {
-            dispatch_action(state, weak, AppAction::ToggleAnimations);
-        }
-        ShortcutAction::ToggleToolbar => dispatch_action(state, weak, AppAction::ToggleToolbar),
-        ShortcutAction::ToggleWindowInfo => {
-            dispatch_action(state, weak, AppAction::ToggleWindowInfo);
-        }
-        ShortcutAction::OpenMenu => dispatch_action(state, weak, AppAction::OpenContextMenu),
-        ShortcutAction::OpenSettings => {
-            dispatch_action(state, weak, AppAction::OpenSettingsWindowAt(None));
-        }
-        ShortcutAction::OpenCommandPalette => {
-            dispatch_action(state, weak, AppAction::OpenCommandPalette);
-        }
-        ShortcutAction::ToggleAlwaysOnTop => {
-            dispatch_action(state, weak, AppAction::ToggleAlwaysOnTop);
-        }
-        ShortcutAction::RefreshNow => dispatch_action(state, weak, AppAction::RefreshNow),
-        ShortcutAction::CycleTheme => {
-            dispatch_action(state, weak, AppAction::CycleTheme { direction: 1 });
-        }
-        ShortcutAction::CycleThemePrevious => {
-            dispatch_action(state, weak, AppAction::CycleTheme { direction: -1 });
-        }
-        ShortcutAction::CycleLayout => dispatch_action(state, weak, AppAction::CycleLayout),
-        ShortcutAction::Exit => dispatch_action(state, weak, AppAction::Exit),
-    }
+    dispatch_action(state, weak, app_action_for_shortcut(action));
 
     true
+}
+
+fn app_action_for_shortcut(action: ShortcutAction) -> AppAction {
+    match action {
+        ShortcutAction::SetLayout(layout) => AppAction::SetLayout(layout),
+        ShortcutAction::ResetLayout => AppAction::ResetLayoutRatios,
+        ShortcutAction::ToggleAnimations => AppAction::ToggleAnimations,
+        ShortcutAction::ToggleToolbar => AppAction::ToggleToolbar,
+        ShortcutAction::ToggleWindowInfo => AppAction::ToggleWindowInfo,
+        ShortcutAction::OpenMenu => AppAction::OpenContextMenu,
+        ShortcutAction::OpenSettings => AppAction::OpenSettingsWindowAt(None),
+        ShortcutAction::OpenCommandPalette => AppAction::OpenCommandPalette,
+        ShortcutAction::ToggleAlwaysOnTop => AppAction::ToggleAlwaysOnTop,
+        ShortcutAction::RefreshNow => AppAction::RefreshNow,
+        ShortcutAction::CycleTheme => AppAction::CycleTheme { direction: 1 },
+        ShortcutAction::CycleThemePrevious => AppAction::CycleTheme { direction: -1 },
+        ShortcutAction::CycleLayout => AppAction::CycleLayout,
+        ShortcutAction::Exit => AppAction::Exit,
+    }
 }
 
 fn matched_shortcut_action(
@@ -141,7 +129,10 @@ fn shortcut_matches(binding: &str, key: &str) -> bool {
 }
 #[cfg(test)]
 mod tests {
-    use super::{matched_shortcut_action, shortcut_matches, ShortcutAction};
+    use super::{
+        app_action_for_shortcut, matched_shortcut_action, shortcut_matches, ShortcutAction,
+    };
+    use crate::app::actions::AppAction;
     use panopticon::layout::LayoutType;
     use panopticon::settings::AppSettings;
 
@@ -178,6 +169,26 @@ mod tests {
         assert_eq!(
             matched_shortcut_action(&settings, "T", true),
             Some(ShortcutAction::CycleThemePrevious)
+        );
+    }
+
+    #[test]
+    fn shortcut_actions_map_to_app_actions() {
+        assert_eq!(
+            app_action_for_shortcut(ShortcutAction::SetLayout(LayoutType::Bento)),
+            AppAction::SetLayout(LayoutType::Bento)
+        );
+        assert_eq!(
+            app_action_for_shortcut(ShortcutAction::CycleThemePrevious),
+            AppAction::CycleTheme { direction: -1 }
+        );
+        assert_eq!(
+            app_action_for_shortcut(ShortcutAction::OpenSettings),
+            AppAction::OpenSettingsWindowAt(None)
+        );
+        assert_eq!(
+            app_action_for_shortcut(ShortcutAction::Exit),
+            AppAction::Exit
         );
     }
 }

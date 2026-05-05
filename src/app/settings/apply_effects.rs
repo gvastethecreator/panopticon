@@ -1,8 +1,12 @@
-//! Effect planning for applying SettingsWindow changes to the runtime.
+//! Effect planning for applying `SettingsWindow` changes to the runtime.
 
 use panopticon::settings::AppSettings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "settings apply planning tracks independent runtime side effects explicitly"
+)]
 pub(crate) struct SettingsApplyEffects {
     pub(crate) dock_changed: bool,
     pub(crate) locale_changed: bool,

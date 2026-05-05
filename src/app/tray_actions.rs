@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 use panopticon::window_ops::{collect_available_apps, collect_available_monitors};
+use panopticon::workspace::WorkspaceStore;
 use slint::ComponentHandle;
 use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -62,7 +63,8 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
         lock_cell_resize: state.settings.lock_cell_resize,
         group_windows_by: state.settings.group_windows_by,
         current_workspace: state.workspace_name.clone(),
-        available_workspaces: panopticon::settings::AppSettings::list_workspaces_with_default()
+        available_workspaces: WorkspaceStore::from_appdata()
+            .list_with_default()
             .unwrap_or_else(|error| {
                 tracing::warn!(%error, "failed to enumerate workspaces for tray menu");
                 vec!["default".to_owned()]
@@ -78,68 +80,48 @@ pub(crate) fn handle_tray_action(
 ) {
     match action {
         TrayAction::Toggle => toggle_visibility(state, weak, activation_point),
-        TrayAction::Refresh => dispatch_action(state, weak, AppAction::RefreshNow),
-        TrayAction::NextLayout => dispatch_action(state, weak, AppAction::CycleLayout),
-        TrayAction::ToggleMinimizeToTray => {
-            dispatch_action(state, weak, AppAction::ToggleMinimizeToTray);
+        action => {
+            if let Some(app_action) = app_action_for_tray_action(action, activation_point) {
+                dispatch_action(state, weak, app_action);
+            }
         }
-        TrayAction::ToggleCloseToTray => dispatch_action(state, weak, AppAction::ToggleCloseToTray),
-        TrayAction::CycleRefreshInterval => {
-            dispatch_action(state, weak, AppAction::CycleRefreshInterval);
-        }
-        TrayAction::ToggleAnimateTransitions => {
-            dispatch_action(state, weak, AppAction::ToggleAnimations);
-        }
-        TrayAction::ToggleDefaultAspectRatio => {
-            dispatch_action(state, weak, AppAction::ToggleDefaultAspectRatio);
-        }
-        TrayAction::ToggleDefaultHideOnSelect => {
-            dispatch_action(state, weak, AppAction::ToggleDefaultHideOnSelect);
-        }
-        TrayAction::ToggleAlwaysOnTop => dispatch_action(state, weak, AppAction::ToggleAlwaysOnTop),
-        TrayAction::SetMonitorFilter(filter) => {
-            dispatch_action(state, weak, AppAction::SetMonitorFilter(filter));
-        }
-        TrayAction::SetTagFilter(filter) => {
-            dispatch_action(state, weak, AppAction::SetTagFilter(filter));
-        }
-        TrayAction::SetAppFilter(filter) => {
-            dispatch_action(state, weak, AppAction::SetAppFilter(filter));
-        }
-        TrayAction::RestoreHidden(app_id) => {
-            dispatch_action(state, weak, AppAction::RestoreHidden(app_id));
-        }
-        TrayAction::RestoreAllHidden => dispatch_action(state, weak, AppAction::RestoreAllHidden),
-        TrayAction::SetDockEdge(edge) => dispatch_action(state, weak, AppAction::SetDockEdge(edge)),
-        TrayAction::SetWindowGrouping(grouping) => {
-            dispatch_action(state, weak, AppAction::SetWindowGrouping(grouping));
-        }
-        TrayAction::ToggleToolbar => dispatch_action(state, weak, AppAction::ToggleToolbar),
-        TrayAction::SetToolbarPosition(position) => {
-            dispatch_action(state, weak, AppAction::SetToolbarPosition(position));
-        }
-        TrayAction::ToggleWindowInfo => dispatch_action(state, weak, AppAction::ToggleWindowInfo),
-        TrayAction::ToggleAppIcons => dispatch_action(state, weak, AppAction::ToggleAppIcons),
-        TrayAction::ToggleStartInTray => dispatch_action(state, weak, AppAction::ToggleStartInTray),
-        TrayAction::ToggleLockedLayout => {
-            dispatch_action(state, weak, AppAction::ToggleLockedLayout);
-        }
-        TrayAction::ToggleLockCellResize => {
-            dispatch_action(state, weak, AppAction::ToggleLockCellResize);
-        }
-        TrayAction::OpenSettingsWindow => dispatch_action(
-            state,
-            weak,
-            AppAction::OpenSettingsWindowAt(activation_point),
-        ),
-        TrayAction::OpenAboutWindow => {
-            dispatch_action(state, weak, AppAction::OpenAboutWindowAt(activation_point));
-        }
-        TrayAction::LoadWorkspace(workspace_name) => {
-            dispatch_action(state, weak, AppAction::LoadWorkspace(workspace_name));
-        }
-        TrayAction::Exit => dispatch_action(state, weak, AppAction::Exit),
     }
+}
+
+fn app_action_for_tray_action(
+    action: TrayAction,
+    activation_point: Option<POINT>,
+) -> Option<AppAction> {
+    Some(match action {
+        TrayAction::Toggle => return None,
+        TrayAction::Refresh => AppAction::RefreshNow,
+        TrayAction::NextLayout => AppAction::CycleLayout,
+        TrayAction::ToggleMinimizeToTray => AppAction::ToggleMinimizeToTray,
+        TrayAction::ToggleCloseToTray => AppAction::ToggleCloseToTray,
+        TrayAction::CycleRefreshInterval => AppAction::CycleRefreshInterval,
+        TrayAction::ToggleAnimateTransitions => AppAction::ToggleAnimations,
+        TrayAction::ToggleDefaultAspectRatio => AppAction::ToggleDefaultAspectRatio,
+        TrayAction::ToggleDefaultHideOnSelect => AppAction::ToggleDefaultHideOnSelect,
+        TrayAction::ToggleAlwaysOnTop => AppAction::ToggleAlwaysOnTop,
+        TrayAction::SetMonitorFilter(filter) => AppAction::SetMonitorFilter(filter),
+        TrayAction::SetTagFilter(filter) => AppAction::SetTagFilter(filter),
+        TrayAction::SetAppFilter(filter) => AppAction::SetAppFilter(filter),
+        TrayAction::RestoreHidden(app_id) => AppAction::RestoreHidden(app_id),
+        TrayAction::RestoreAllHidden => AppAction::RestoreAllHidden,
+        TrayAction::SetDockEdge(edge) => AppAction::SetDockEdge(edge),
+        TrayAction::SetWindowGrouping(grouping) => AppAction::SetWindowGrouping(grouping),
+        TrayAction::ToggleToolbar => AppAction::ToggleToolbar,
+        TrayAction::ToggleWindowInfo => AppAction::ToggleWindowInfo,
+        TrayAction::ToggleAppIcons => AppAction::ToggleAppIcons,
+        TrayAction::SetToolbarPosition(position) => AppAction::SetToolbarPosition(position),
+        TrayAction::ToggleStartInTray => AppAction::ToggleStartInTray,
+        TrayAction::ToggleLockedLayout => AppAction::ToggleLockedLayout,
+        TrayAction::ToggleLockCellResize => AppAction::ToggleLockCellResize,
+        TrayAction::OpenSettingsWindow => AppAction::OpenSettingsWindowAt(activation_point),
+        TrayAction::OpenAboutWindow => AppAction::OpenAboutWindowAt(activation_point),
+        TrayAction::LoadWorkspace(workspace_name) => AppAction::LoadWorkspace(workspace_name),
+        TrayAction::Exit => AppAction::Exit,
+    })
 }
 
 pub(crate) fn open_application_context_menu(
@@ -238,5 +220,49 @@ fn activate_main_window_with_anchor(
             refresh_windows(state);
             recompute_and_update_ui(state, &window);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::app_action_for_tray_action;
+    use crate::app::actions::AppAction;
+    use crate::app::tray::TrayAction;
+    use panopticon::settings::DockEdge;
+    use windows::Win32::Foundation::POINT;
+
+    #[test]
+    fn tray_action_mapping_leaves_toggle_as_visibility_flow() {
+        assert_eq!(app_action_for_tray_action(TrayAction::Toggle, None), None);
+    }
+
+    #[test]
+    fn tray_action_mapping_covers_simple_runtime_actions() {
+        assert_eq!(
+            app_action_for_tray_action(TrayAction::Refresh, None),
+            Some(AppAction::RefreshNow)
+        );
+        assert_eq!(
+            app_action_for_tray_action(TrayAction::SetDockEdge(Some(DockEdge::Left)), None),
+            Some(AppAction::SetDockEdge(Some(DockEdge::Left)))
+        );
+        assert_eq!(
+            app_action_for_tray_action(TrayAction::LoadWorkspace(Some("studio".to_owned())), None),
+            Some(AppAction::LoadWorkspace(Some("studio".to_owned())))
+        );
+    }
+
+    #[test]
+    fn tray_window_actions_preserve_activation_point() {
+        let point = Some(POINT { x: 10, y: 20 });
+
+        assert_eq!(
+            app_action_for_tray_action(TrayAction::OpenSettingsWindow, point),
+            Some(AppAction::OpenSettingsWindowAt(point))
+        );
+        assert_eq!(
+            app_action_for_tray_action(TrayAction::OpenAboutWindow, point),
+            Some(AppAction::OpenAboutWindowAt(point))
+        );
     }
 }
