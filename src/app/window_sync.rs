@@ -3,6 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use panopticon::settings::AppSettings;
 use panopticon::window_enum::{enumerate_windows, WindowInfo};
 use panopticon::window_ops::{apply_pinned_positions, sort_windows_for_grouping};
 use windows::Win32::Foundation::HWND;
@@ -24,10 +25,8 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         IsWindowVisible(host_hwnd).as_bool()
     };
 
-    let mut discovered = collect_discovered_windows(&mut state, host_hwnd);
-
-    sort_windows_for_grouping(&mut discovered, &state.settings);
-    apply_pinned_positions(&mut discovered, &state.settings);
+    let discovered =
+        prepare_discovered_windows(enumerate_windows(), host_hwnd, &mut state.settings);
 
     let outcome = reconcile_managed_windows(&mut state.window_collection.windows, discovered);
     for app_id in &outcome.icon_invalidations {
@@ -43,23 +42,25 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
     outcome.changed || dwm_changed
 }
 
-fn collect_discovered_windows(state: &mut AppState, host_hwnd: HWND) -> Vec<WindowInfo> {
-    let discovered_all: Vec<WindowInfo> = enumerate_windows()
+fn prepare_discovered_windows(
+    discovered_all: Vec<WindowInfo>,
+    host_hwnd: HWND,
+    settings: &mut AppSettings,
+) -> Vec<WindowInfo> {
+    let discovered_all: Vec<WindowInfo> = discovered_all
         .into_iter()
         .filter(|window| window.hwnd != host_hwnd)
         .collect();
 
     for window in &discovered_all {
-        state
-            .settings
-            .refresh_app_label(&window.app_id, window.app_label());
+        settings.refresh_app_label(&window.app_id, window.app_label());
     }
 
-    let monitor_filter = state.settings.active_monitor_filter.clone();
-    let tag_filter = state.settings.active_tag_filter.clone();
-    let app_filter = state.settings.active_app_filter.clone();
+    let monitor_filter = settings.active_monitor_filter.clone();
+    let tag_filter = settings.active_tag_filter.clone();
+    let app_filter = settings.active_app_filter.clone();
 
-    discovered_all
+    let mut discovered: Vec<WindowInfo> = discovered_all
         .into_iter()
         .filter(|window| {
             monitor_filter
@@ -69,15 +70,19 @@ fn collect_discovered_windows(state: &mut AppState, host_hwnd: HWND) -> Vec<Wind
         .filter(|window| {
             tag_filter
                 .as_deref()
-                .is_none_or(|tag| state.settings.app_has_tag(&window.app_id, tag))
+                .is_none_or(|tag| settings.app_has_tag(&window.app_id, tag))
         })
         .filter(|window| {
             app_filter
                 .as_deref()
                 .is_none_or(|app_id| window.app_id == app_id)
         })
-        .filter(|window| !state.settings.is_hidden(&window.app_id))
-        .collect()
+        .filter(|window| !settings.is_hidden(&window.app_id))
+        .collect();
+
+    sort_windows_for_grouping(&mut discovered, settings);
+    apply_pinned_positions(&mut discovered, settings);
+    discovered
 }
 
 #[cfg(test)]
@@ -187,5 +192,49 @@ mod tests {
             let outcome = reconcile_managed_windows(&mut windows, vec![fresh]);
             assert_eq!(outcome.icon_invalidations, expected);
         }
+    }
+
+    #[test]
+    fn prepare_discovered_windows_filters_host_hidden_monitor_tag_and_app() {
+        let host = HWND(99usize as *mut c_void);
+        let alpha = window_info(
+            1,
+            "Alpha",
+            "app:alpha",
+            "Alpha",
+            Some("C:/Alpha.exe"),
+            "AlphaClass",
+            "DISPLAY1",
+        );
+        let beta = window_info(
+            2,
+            "Beta",
+            "app:beta",
+            "Beta",
+            Some("C:/Beta.exe"),
+            "BetaClass",
+            "DISPLAY2",
+        );
+        let host_window = window_info(
+            99,
+            "Panopticon",
+            "app:panopticon",
+            "Panopticon",
+            Some("C:/Panopticon.exe"),
+            "PanopticonClass",
+            "DISPLAY1",
+        );
+        let mut settings = AppSettings::default();
+        let _ = settings.toggle_hidden("app:beta", "Beta");
+        let _ = settings.toggle_app_tag("app:alpha", "Alpha", "focus");
+        settings.set_monitor_filter(Some("DISPLAY1"));
+        settings.set_tag_filter(Some("focus"));
+        settings.set_app_filter(Some("app:alpha"));
+
+        let discovered =
+            prepare_discovered_windows(vec![host_window, beta, alpha], host, &mut settings);
+
+        assert_eq!(discovered.len(), 1);
+        assert_eq!(discovered[0].app_id, "app:alpha");
     }
 }

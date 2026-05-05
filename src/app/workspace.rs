@@ -6,6 +6,7 @@ use std::rc::Rc;
 use panopticon::settings::{AppSettings, WorkspaceNameValidation};
 use panopticon::theme as theme_catalog;
 use panopticon::ui_option_ops::current_workspace_label;
+use panopticon::workspace::WorkspaceStore;
 use slint::{Model, SharedString};
 use windows::Win32::Foundation::HWND;
 
@@ -72,7 +73,8 @@ pub(crate) fn available_workspace_summaries(
     state: &AppState,
     runtime: &RuntimeUiOptions,
 ) -> Vec<WorkspaceUiSummary> {
-    let workspaces = AppSettings::list_workspaces_with_default().unwrap_or_else(|error| {
+    let store = WorkspaceStore::from_appdata();
+    let workspaces = store.list_with_default().unwrap_or_else(|error| {
         tracing::warn!(%error, "failed to enumerate available workspaces");
         vec!["default".to_owned()]
     });
@@ -90,7 +92,8 @@ pub(crate) fn available_workspace_summaries(
         .map(|option_label| {
             let workspace_name =
                 panopticon::ui_option_ops::selected_workspace_name(&option_label);
-            let settings = AppSettings::load_or_default(workspace_name.as_deref())
+            let settings = store
+                .load_settings(workspace_name.as_deref())
                 .unwrap_or_else(|error| {
                     tracing::warn!(%error, workspace = ?workspace_name, "failed to load workspace metadata summary");
                     AppSettings::default()
@@ -188,10 +191,11 @@ pub(crate) fn select_workspace_in_settings_window(
 }
 
 pub(crate) fn ensure_default_workspaces_exist(settings: &AppSettings) {
-    match AppSettings::list_workspaces() {
+    let store = WorkspaceStore::from_appdata();
+    match store.list_named() {
         Ok(workspaces) if workspaces.is_empty() => {
             for workspace_name in ["workspace-1", "workspace-2"] {
-                if let Err(error) = settings.save(Some(workspace_name)) {
+                if let Err(error) = store.save_settings(Some(workspace_name), settings) {
                     tracing::error!(%error, workspace = workspace_name, "failed to seed default workspace");
                 }
             }
@@ -207,7 +211,9 @@ pub(crate) fn sync_workspace_editor_from_selection(
     state: &AppState,
 ) {
     let selected_workspace = selected_workspace_from_settings_window(window).or(fallback_workspace);
-    let workspace_settings = AppSettings::load_or_default(selected_workspace.as_deref())
+    let store = WorkspaceStore::from_appdata();
+    let workspace_settings = store
+        .load_settings(selected_workspace.as_deref())
         .unwrap_or_else(|error| {
             tracing::warn!(%error, workspace = ?selected_workspace, "failed to load selected workspace metadata");
             AppSettings::default()
@@ -255,7 +261,7 @@ pub(crate) fn sync_workspace_editor_from_selection(
 
 pub(crate) fn known_workspaces_label() -> String {
     use panopticon::i18n;
-    match AppSettings::list_workspaces_with_default() {
+    match WorkspaceStore::from_appdata().list_with_default() {
         Ok(workspaces) if workspaces.is_empty() => {
             i18n::t("settings.no_saved_workspaces").to_owned()
         }
@@ -272,7 +278,9 @@ pub(crate) fn load_workspace_into_current_instance(
     main_weak: &slint::Weak<MainWindow>,
     requested_workspace: Option<String>,
 ) -> bool {
-    let loaded_settings = match AppSettings::load_or_default(requested_workspace.as_deref()) {
+    let loaded_settings = match WorkspaceStore::from_appdata()
+        .load_settings(requested_workspace.as_deref())
+    {
         Ok(settings) => settings.normalized(),
         Err(error) => {
             tracing::error!(%error, workspace = ?requested_workspace, "failed to load workspace");
@@ -352,7 +360,9 @@ pub(crate) fn open_workspace_in_new_instance(
 
     if let Some(workspace_name) = requested_workspace.as_deref() {
         let _ = save_settings_as_workspace(&settings_snapshot, workspace_name);
-    } else if let Err(error) = settings_snapshot.save(None) {
+    } else if let Err(error) =
+        WorkspaceStore::from_appdata().save_settings(None, &settings_snapshot)
+    {
         tracing::error!(%error, "failed to save default workspace before launching instance");
         return false;
     }
@@ -361,7 +371,7 @@ pub(crate) fn open_workspace_in_new_instance(
 }
 
 pub(crate) fn save_settings_as_workspace(settings: &AppSettings, workspace_name: &str) -> bool {
-    match settings.save(Some(workspace_name)) {
+    match WorkspaceStore::from_appdata().save_settings(Some(workspace_name), settings) {
         Ok(()) => true,
         Err(error) => {
             tracing::error!(%error, workspace = workspace_name, "failed to save workspace");

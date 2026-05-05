@@ -18,6 +18,10 @@ use crate::{SettingsWindow, ThemePreviewData};
 const MAX_THEME_PREVIEW_CARDS: usize = 48;
 
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "settings draft mirrors boolean controls from the Slint settings window"
+)]
 pub(crate) struct SettingsWindowDraft {
     language_index: i32,
     always_on_top: bool,
@@ -270,20 +274,17 @@ pub(crate) fn apply_settings_draft(settings: &mut AppSettings, draft: &SettingsW
         Some(draft.background_image_path.clone())
     };
     settings.background_image_fit = index_to_background_fit(draft.background_image_fit_index);
-    settings.background_image_opacity_pct = draft.background_image_opacity_value.clamp(0, 100) as u8;
+    settings.background_image_opacity_pct =
+        draft.background_image_opacity_value.clamp(0, 100) as u8;
 
     settings.fixed_width =
         optional_dimension_with_min(draft.fixed_width_value, MIN_FIXED_WINDOW_WIDTH);
     settings.fixed_height =
         optional_dimension_with_min(draft.fixed_height_value, MIN_FIXED_WINDOW_HEIGHT);
-    settings.dock_column_thickness = optional_dimension_with_min(
-        draft.dock_column_thickness_value,
-        MIN_DOCK_COLUMN_THICKNESS,
-    );
-    settings.dock_row_thickness = optional_dimension_with_min(
-        draft.dock_row_thickness_value,
-        MIN_DOCK_ROW_THICKNESS,
-    );
+    settings.dock_column_thickness =
+        optional_dimension_with_min(draft.dock_column_thickness_value, MIN_DOCK_COLUMN_THICKNESS);
+    settings.dock_row_thickness =
+        optional_dimension_with_min(draft.dock_row_thickness_value, MIN_DOCK_ROW_THICKNESS);
 
     settings.dock_edge = index_to_dock_edge(draft.dock_edge_index);
     settings.group_windows_by = index_to_grouping(draft.group_windows_index);
@@ -651,7 +652,10 @@ mod tests {
 
     #[test]
     fn theme_preview_model_is_capped_for_settings_rendering() {
-        assert_eq!(build_theme_preview_model().row_count(), MAX_THEME_PREVIEW_CARDS);
+        assert_eq!(
+            build_theme_preview_model().row_count(),
+            MAX_THEME_PREVIEW_CARDS
+        );
     }
 
     #[test]
@@ -687,7 +691,10 @@ mod tests {
 
         apply_settings_draft(&mut settings, &draft);
 
-        assert_eq!(settings.refresh_performance_mode, RefreshPerformanceMode::Realtime);
+        assert_eq!(
+            settings.refresh_performance_mode,
+            RefreshPerformanceMode::Realtime
+        );
         assert_eq!(settings.refresh_interval_ms, 1_000);
     }
 
@@ -707,13 +714,25 @@ mod tests {
         // Simulates the Slint adapter, where invalid values are normalised
         // before the draft reaches pure settings application.
         draft.theme_color_overrides.accent_hex = super::optional_theme_override(
-            draft.theme_color_overrides.accent_hex.as_deref().unwrap_or_default(),
+            draft
+                .theme_color_overrides
+                .accent_hex
+                .as_deref()
+                .unwrap_or_default(),
         );
         draft.theme_color_overrides.surface_hex = super::optional_theme_override(
-            draft.theme_color_overrides.surface_hex.as_deref().unwrap_or_default(),
+            draft
+                .theme_color_overrides
+                .surface_hex
+                .as_deref()
+                .unwrap_or_default(),
         );
         draft.theme_color_overrides.card_hex = super::optional_theme_override(
-            draft.theme_color_overrides.card_hex.as_deref().unwrap_or_default(),
+            draft
+                .theme_color_overrides
+                .card_hex
+                .as_deref()
+                .unwrap_or_default(),
         );
 
         apply_settings_draft(&mut settings, &draft);
