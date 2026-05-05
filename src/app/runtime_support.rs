@@ -15,6 +15,10 @@ use crate::{AppState, MainWindow, UpdateStatus};
 
 const FLOATING_SIZE_SYNC_DEBOUNCE_MS: u64 = 220;
 
+thread_local! {
+    static DEFERRED_REFRESH_TIMER: Rc<Timer> = Rc::new(Timer::default());
+}
+
 pub(crate) fn request_update_check(state: &Rc<RefCell<AppState>>, user_initiated: bool) -> bool {
     {
         let mut guard = state.borrow_mut();
@@ -157,24 +161,21 @@ pub(crate) fn schedule_deferred_refresh(
     let _ = refresh_windows(state);
     refresh_ui(state, weak);
 
-    let state2 = state.clone();
-    let weak2 = weak.clone();
-    let timer = Timer::default();
-    timer.start(
-        TimerMode::SingleShot,
-        Duration::from_millis(300),
-        move || {
-            if refresh_windows(&state2) {
-                if let Some(win) = weak2.upgrade() {
-                    recompute_and_update_ui(&state2, &win);
+    DEFERRED_REFRESH_TIMER.with(|timer| {
+        let state2 = state.clone();
+        let weak2 = weak.clone();
+        timer.start(
+            TimerMode::SingleShot,
+            Duration::from_millis(300),
+            move || {
+                if refresh_windows(&state2) {
+                    if let Some(win) = weak2.upgrade() {
+                        recompute_and_update_ui(&state2, &win);
+                    }
                 }
-            }
-        },
-    );
-    // Intentional: the Slint event loop owns the timer until it fires;
-    // dropping it here would cancel the callback. `forget` transfers
-    // ownership to the event loop (no real leak for SingleShot timers).
-    std::mem::forget(timer);
+            },
+        );
+    });
 }
 
 pub(crate) fn logical_to_screen_point(hwnd: HWND, logical_x: f32, logical_y: f32) -> POINT {

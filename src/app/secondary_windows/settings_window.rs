@@ -21,8 +21,9 @@ use crate::{AppState, MainWindow, SettingsWindow};
 
 use super::{
     apply_runtime_settings_window_changes, apply_secondary_window_placement,
-    refresh_open_about_window, refresh_open_tag_dialog_window, refresh_secondary_window_stacking,
-    refresh_tray_locale, secondary_window_placement, sync_settings_window_from_state,
+    populate_settings_window_runtime_fields, refresh_open_about_window,
+    refresh_open_tag_dialog_window, refresh_secondary_window_stacking, refresh_tray_locale,
+    secondary_window_placement, sync_settings_window_from_state,
 };
 use crate::app::settings::callbacks as settings_callbacks;
 use crate::app::workspace::known_workspaces_label;
@@ -206,9 +207,11 @@ pub(crate) fn apply_settings_window_to_state(
         settings_window.set_current_profile_label(SharedString::from(current_workspace_label(
             workspace_name.as_deref(),
         )));
-        {
+        if effects.refresh_windows {
             let refreshed = state.borrow();
-            sync_settings_window_from_state(settings_window, &refreshed);
+            settings_window.set_suspend_live_apply(true);
+            populate_settings_window_runtime_fields(settings_window, &refreshed);
+            settings_window.set_suspend_live_apply(false);
         }
         if effects.recompute_ui {
             if let Some(main_window) = main_weak.upgrade() {

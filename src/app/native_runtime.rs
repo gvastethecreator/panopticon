@@ -146,6 +146,7 @@ pub(crate) fn request_exit(state: &Rc<RefCell<AppState>>) {
     {
         let mut state = state.borrow_mut();
         global_hotkey::unregister_activate_hotkey(state.shell.hwnd);
+        super::window_subclass::teardown_subclass(state.shell.hwnd);
         if state.shell.is_appbar {
             unregister_appbar(state.shell.hwnd);
             state.shell.is_appbar = false;

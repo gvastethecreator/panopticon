@@ -20,7 +20,15 @@ pub(crate) fn populate_app_rules_list(
     runtime: &RuntimeUiOptions,
 ) {
     let app_rule_entries = collect_app_rule_entries(state, runtime);
+    populate_app_rules_list_from_entries(window, state, &app_rule_entries, runtime);
+}
 
+pub(crate) fn populate_app_rules_list_from_entries(
+    window: &SettingsWindow,
+    state: &AppState,
+    app_rule_entries: &[AppRuleListEntry],
+    runtime: &RuntimeUiOptions,
+) {
     let previous_app_rule_selection = selected_model_value(
         &window.get_app_rules_options(),
         window.get_app_rules_index(),
@@ -29,8 +37,11 @@ pub(crate) fn populate_app_rules_list(
 
     let app_rule_search = window.get_app_rules_search().trim().to_ascii_lowercase();
     let app_rule_filter = window.get_app_rules_filter_index();
-    let filtered_app_rule_entries =
-        filter_app_rule_entries(app_rule_entries, app_rule_filter, app_rule_search.as_str());
+    let filtered_app_rule_entries = filter_app_rule_entries(
+        app_rule_entries.iter().cloned(),
+        app_rule_filter,
+        app_rule_search.as_str(),
+    );
 
     let mut app_rule_options =
         vec![panopticon::i18n::t("settings.app_rules.select_option").to_owned()];
@@ -70,7 +81,10 @@ pub(crate) fn populate_app_rules_list(
     window.set_app_rules_unused_summary(SharedString::from(cleanup_summary));
 }
 
-fn collect_app_rule_entries(state: &AppState, runtime: &RuntimeUiOptions) -> Vec<AppRuleListEntry> {
+pub(crate) fn collect_app_rule_entries(
+    state: &AppState,
+    runtime: &RuntimeUiOptions,
+) -> Vec<AppRuleListEntry> {
     let mut by_id: BTreeMap<String, String> = BTreeMap::new();
 
     for app in &runtime.apps {
@@ -133,8 +147,8 @@ fn collect_app_rule_entries(state: &AppState, runtime: &RuntimeUiOptions) -> Vec
     entries
 }
 
-fn filter_app_rule_entries(
-    entries: Vec<AppRuleListEntry>,
+pub(crate) fn filter_app_rule_entries(
+    entries: impl IntoIterator<Item = AppRuleListEntry>,
     filter_index: i32,
     search_query: &str,
 ) -> Vec<AppRuleListEntry> {
