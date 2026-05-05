@@ -11,6 +11,7 @@ pub mod filter_sync;
 pub mod helpers;
 pub mod preset_sync;
 pub mod sync;
+pub mod translations;
 pub mod ui;
 
 use slint::{Model, ModelRc, SharedString, VecModel};
@@ -28,6 +29,16 @@ pub fn parse_rgb_hex(input: &str) -> Option<(i32, i32, i32)> {
     let green = i32::from(u8::from_str_radix(&hex[2..4], 16).ok()?);
     let blue = i32::from(u8::from_str_radix(&hex[4..6], 16).ok()?);
     Some((red, green, blue))
+}
+
+/// Extract `(r, g, b)` from a hex string, falling back to the default dark-grey
+/// background colour when the input is malformed.
+pub fn rgb_components_from_hex(hex: &str) -> (u8, u8, u8) {
+    let sanitized = hex.trim().trim_start_matches('#');
+    let red = u8::from_str_radix(sanitized.get(0..2).unwrap_or("18"), 16).unwrap_or(0x18);
+    let green = u8::from_str_radix(sanitized.get(2..4).unwrap_or("15"), 16).unwrap_or(0x15);
+    let blue = u8::from_str_radix(sanitized.get(4..6).unwrap_or("13"), 16).unwrap_or(0x13);
+    (red, green, blue)
 }
 
 /// Build a Slint string model from a vector of Rust strings.
@@ -86,5 +97,26 @@ pub fn normalize_recorded_shortcut(key_text: &str) -> Option<String> {
                 Some(first.to_string())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rgb_components_from_hex;
+
+    #[test]
+    fn rgb_components_from_hex_parses_valid_hex() {
+        let (r, g, b) = rgb_components_from_hex("#AABBCC");
+        assert_eq!(r, 0xAA);
+        assert_eq!(g, 0xBB);
+        assert_eq!(b, 0xCC);
+    }
+
+    #[test]
+    fn rgb_components_from_hex_defaults_on_short_input() {
+        let (r, g, b) = rgb_components_from_hex("#12");
+        assert_eq!(r, 0x12);
+        assert_eq!(g, 0x15);
+        assert_eq!(b, 0x13);
     }
 }
