@@ -1,5 +1,6 @@
 //! Binary-only application helpers.
 
+pub mod action_execution;
 pub mod action_handlers;
 pub mod actions;
 pub mod animation_engine;
@@ -13,16 +14,19 @@ pub mod icon;
 pub mod keyboard_actions;
 pub mod layout_actions;
 pub mod layout_pipeline;
+pub mod managed_window_lifecycle;
 pub mod managed_window_reconcile;
 pub mod menu_utils;
 pub mod model_sync;
 pub mod native_events;
 pub mod native_runtime;
+pub mod presentation;
 pub mod runtime_effects;
 pub mod runtime_loop;
 pub mod runtime_support;
 pub mod secondary_windows;
 pub mod settings;
+pub mod settings_state;
 
 pub mod shell_state;
 pub mod startup;

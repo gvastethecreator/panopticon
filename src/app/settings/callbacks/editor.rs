@@ -56,17 +56,22 @@ fn register_save_layout_preset_callback(
                 let result = {
                     let mut state_guard = state.borrow_mut();
                     let active_layout = state_guard.window_collection.current_layout;
-                    match state_guard
-                        .settings
-                        .save_layout_preset(&preset_name, active_layout)
-                    {
+                    let mut save_result = Ok(());
+                    let changed = state_guard.settings.update_persisted(|settings| {
+                        save_result = settings.save_layout_preset(&preset_name, active_layout);
+                    });
+
+                    match save_result {
                         Ok(()) => {
-                            state_guard.settings = state_guard.settings.normalized();
-                            if let Err(error) =
-                                state_guard.settings.save(state_guard.workspace_name.as_deref())
-                            {
-                                tracing::error!(%error, preset = %preset_name, "failed to persist layout preset save");
-                                Err("Saved in memory, but failed to persist preset to disk.".to_owned())
+                            if changed.is_some() {
+                                if let Err(error) =
+                                    state_guard.settings.save(state_guard.workspace_name.as_deref())
+                                {
+                                    tracing::error!(%error, preset = %preset_name, "failed to persist layout preset save");
+                                    Err("Saved in memory, but failed to persist preset to disk.".to_owned())
+                                } else {
+                                    Ok(())
+                                }
                             } else {
                                 Ok(())
                             }
@@ -116,9 +121,12 @@ fn register_apply_layout_preset_callback(
 
                 let apply_outcome = {
                     let mut state_guard = state.borrow_mut();
-                    if state_guard.settings.apply_layout_preset(&preset_name) {
-                        state_guard.settings = state_guard.settings.normalized();
-                        state_guard.window_collection.current_layout = state_guard.settings.effective_layout();
+                    let mut applied = false;
+                    let _ = state_guard.settings.update_persisted(|settings| {
+                        applied = settings.apply_layout_preset(&preset_name);
+                    });
+                    if applied {
+                        state_guard.window_collection.current_layout = state_guard.settings.runtime().effective_layout;
                         if let Err(error) = state_guard
                             .settings
                             .save(state_guard.workspace_name.as_deref())
@@ -181,9 +189,11 @@ fn register_delete_layout_preset_callback(
 
                 let deleted = {
                     let mut state_guard = state.borrow_mut();
-                    let removed = state_guard.settings.delete_layout_preset(&preset_name);
-                    if removed {
-                        state_guard.settings = state_guard.settings.normalized();
+                    let mut removed = false;
+                    let changed = state_guard.settings.update_persisted(|settings| {
+                        removed = settings.delete_layout_preset(&preset_name);
+                    });
+                    if removed && changed.is_some() {
                         if let Err(error) = state_guard
                             .settings
                             .save(state_guard.workspace_name.as_deref())

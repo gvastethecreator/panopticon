@@ -18,6 +18,10 @@ flowchart TD
     U[User] --> UI[Slint UI\nMainWindow / SettingsWindow / TagDialogWindow]
     UI --> CB[Callbacks and UI model\nmain.rs + app/ui_callbacks.rs + app/settings/ui.rs]
     CB --> ST[AppState\nwindows, thumbnails, settings, theme, tray]
+    ST --> SS[app/settings_state.rs\npersisted snapshot + runtime projections]
+    ST --> AX[app/action_execution.rs\nsettings-backed runtime effect seam]
+    ST --> MW[app/managed_window_lifecycle.rs\nmanaged-window preview lifecycle]
+    ST --> PR[app/presentation.rs\nSlint presentation + background + theme transition]
     ST --> L[layout.rs\ncompute_layout_custom]
     ST --> E[window_enum.rs\nenumerate_windows]
     ST --> T[thumbnail.rs\nRAII DWM thumbnail]
@@ -76,13 +80,14 @@ Windows are filtered before entering the main state.
 
 ### 2. Visible state materialisation
 
-`main.rs` converts `WindowInfo` into `ManagedWindow`, which adds:
+`window_sync.rs` and `managed_window_reconcile.rs` materialise `WindowInfo` into `ManagedWindow`, which now keeps two distinct runtime concerns side by side:
 
-- optional DWM thumbnail;
-- target and displayed rectangles;
-- thumbnail source size;
-- thumbnail refresh timestamps;
-- cached icon for secondary rendering.
+- geometry used by layout and animation (`target_rect`, `display_rect`, `animation_from_rect`);
+- a preview lifecycle sub-state (`ManagedWindowPreview`) with:
+    - optional DWM thumbnail;
+    - thumbnail source size;
+    - refresh bookkeeping;
+    - cached icon for secondary rendering.
 
 ### 3. Layout
 
@@ -111,9 +116,15 @@ This cleanly separates pure geometry from Win32/Slint integration.
 - handles `Realtime`, `Frozen`, and `Interval` modes;
 - releases thumbnails when the source window is minimised or no longer valid.
 
-### 5. UI synchronisation
+### 5. Presentation synchronisation
 
-`sync_model_to_slint()` updates the `ThumbnailData` model and `ResizeHandleData` used by `ui/main.slint`.
+`app/presentation.rs` owns the main-window presentation seam:
+
+- syncs Slint-facing dashboard properties from persisted/runtime state;
+- applies background-image changes and empty-state copy;
+- owns theme-target resolution and theme-transition advancement.
+
+`sync_model_to_slint()` then updates the `ThumbnailData` model and `ResizeHandleData` used by `ui/main.slint`.
 
 ## Main modules
 
@@ -126,7 +137,11 @@ This cleanly separates pure geometry from Win32/Slint integration.
 | `src/settings.rs` | persistence, normalisation, and per-app rules |
 | `src/theme.rs` | theme catalogue, resolution, and interpolation |
 | `src/i18n.rs` | internationalisation (English / Spanish) |
+| `src/app/settings_state.rs` | persisted settings snapshot plus runtime-derived projections/effects |
 | `src/app/actions.rs` | shared runtime dispatcher used by keyboard, tray, and command palette flows |
+| `src/app/action_execution.rs` | central settings-backed action execution and runtime effect application |
+| `src/app/managed_window_lifecycle.rs` | constructor/reset helpers for managed-window preview lifecycle |
+| `src/app/presentation.rs` | Slint property sync, background image sync, and theme-transition presentation seam |
 | `src/app/ui_callbacks.rs` | `MainWindow` callback registration extracted from `main.rs` |
 | `src/app/ui_translations.rs` | translation/global text population for Slint globals |
 | `src/app/secondary_windows.rs` + `src/app/secondary_windows/*` | settings/about/tag dialog orchestration, callback wiring, placement, and secondary-window stacking |
@@ -163,7 +178,11 @@ Panopticon uses three main timers:
 
 The event loop still lives in `main.rs`, but action routing is now split across dedicated modules:
 
+- `app/settings_state.rs` separates persisted settings from runtime-only projections and effect planning;
 - `app/actions.rs` centralises stateful runtime mutations and shared commands;
+- `app/action_execution.rs` owns the common “settings mutation → persist → runtime effects” path;
+- `app/managed_window_lifecycle.rs` localises preview defaults and thumbnail reset behaviour;
+- `app/presentation.rs` owns dashboard-facing property sync, background state, and theme transition flow;
 - `app/ui_callbacks.rs` wires the main Slint view to runtime actions;
 - `app/secondary_windows.rs` and its submodules own secondary-window lifecycle, settings callback wiring, and placement;
 - `app/tray.rs` fronts tray-specific notify/icon/menu helpers.
@@ -229,6 +248,17 @@ Panopticon prioritises live system thumbnails over self-made screenshots. This r
 
 Filters, groups, themes, and per-app rules are not just ephemeral UI state: the user can close and reopen the application without losing context.
 
+### Explicit runtime seams
+
+The runtime now has dedicated seams for:
+
+- persisted vs runtime settings (`app/settings_state.rs`);
+- action execution (`app/action_execution.rs`);
+- managed-window preview lifecycle (`app/managed_window_lifecycle.rs`);
+- presentation sync (`app/presentation.rs`).
+
+This keeps pure/layout code and Win32/Slint adapters decoupled without inventing extra abstractions beyond the active runtime.
+
 ### Tray as the primary operating pattern
 
 Panopticon is designed more as a persistent desktop utility than as a traditional open-and-close window.
@@ -242,6 +272,7 @@ Panopticon is designed more as a persistent desktop utility than as a traditiona
 
 ## Recommended reading
 
+- [`docs/adr/0007-runtime-seams.md`](adr/0007-runtime-seams.md)
 - [`docs/IMPLEMENTATION.md`](IMPLEMENTATION.md)
 - [`docs/SYSTEM_INTEGRATIONS.md`](SYSTEM_INTEGRATIONS.md)
 - [`docs/PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md)

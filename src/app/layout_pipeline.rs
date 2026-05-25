@@ -24,8 +24,8 @@ pub(crate) fn compute_layout_rects(
     let aspects: Vec<AspectHint> = windows
         .iter()
         .map(|w| AspectHint {
-            width: f64::from(w.source_size.cx),
-            height: f64::from(w.source_size.cy),
+            width: f64::from(w.preview.source_size.cx),
+            height: f64::from(w.preview.source_size.cy),
         })
         .collect();
     let result = compute_layout_custom(layout, content_area, windows.len(), &aspects, custom);
@@ -77,10 +77,10 @@ pub(crate) fn rect_has_area(rect: RECT) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ManagedWindow;
+    use crate::{ManagedWindow, ManagedWindowPreview};
     use panopticon::window_enum::WindowInfo;
     use std::ffi::c_void;
-    use windows::Win32::Foundation::{HWND, RECT, SIZE};
+    use windows::Win32::Foundation::{HWND, RECT};
 
     fn dummy_window(display_rect: RECT) -> ManagedWindow {
         ManagedWindow {
@@ -93,7 +93,6 @@ mod tests {
                 class_name: String::new(),
                 monitor_name: String::new(),
             },
-            thumbnail: None,
             target_rect: RECT {
                 left: 0,
                 top: 0,
@@ -107,11 +106,7 @@ mod tests {
                 right: 0,
                 bottom: 0,
             },
-            source_size: SIZE { cx: 800, cy: 600 },
-            last_thumb_update: None,
-            last_thumb_dest: None,
-            last_thumb_visible: false,
-            cached_icon: None,
+            preview: ManagedWindowPreview::new(),
         }
     }
 

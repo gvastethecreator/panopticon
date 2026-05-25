@@ -19,8 +19,11 @@ pub(crate) fn cycle_layout(state: &Rc<RefCell<AppState>>) {
         return;
     }
     state.window_collection.current_layout = state.window_collection.current_layout.next();
-    state.settings.initial_layout = state.window_collection.current_layout;
+    let next_layout = state.window_collection.current_layout;
     state.window_collection.drag_separator = None;
+    let _ = state.settings.update_persisted(|settings| {
+        settings.initial_layout = next_layout;
+    });
     let _ = state.settings.save(state.workspace_name.as_deref());
 }
 
@@ -38,7 +41,9 @@ pub(crate) fn set_layout(
             return;
         }
         state_ref.window_collection.current_layout = layout;
-        state_ref.settings.initial_layout = layout;
+        let _ = state_ref.settings.update_persisted(|settings| {
+            settings.initial_layout = layout;
+        });
         state_ref.window_collection.drag_separator = None;
         let _ = state_ref.settings.save(state_ref.workspace_name.as_deref());
     }
@@ -48,8 +53,9 @@ pub(crate) fn set_layout(
 pub(crate) fn reset_layout_custom(state: &Rc<RefCell<AppState>>) {
     let mut state = state.borrow_mut();
     let layout = state.window_collection.current_layout;
-    state.settings.clear_layout_custom(layout);
-    state.settings = state.settings.normalized();
+    let _ = state.settings.update_persisted(|settings| {
+        settings.clear_layout_custom(layout);
+    });
     let _ = state.settings.save(state.workspace_name.as_deref());
 }
 
@@ -145,36 +151,34 @@ pub(crate) fn handle_resize_drag_move(
 
     let mut state_ref = state.borrow_mut();
     let layout = state_ref.window_collection.current_layout;
-    ensure_custom_ratios(&mut state_ref, layout);
+    let window_count = state_ref.window_collection.windows.len();
 
     let min_frac = 0.03;
-    if let Some(custom) = state_ref
-        .settings
-        .layout_customizations
-        .get_mut(layout.storage_key())
-    {
-        let ratios = if horizontal {
-            &mut custom.row_ratios
-        } else {
-            &mut custom.col_ratios
-        };
-        if ratio_index + 1 < ratios.len() {
-            match layout {
-                LayoutType::Columns | LayoutType::Row | LayoutType::Column => {
-                    apply_separator_drag_grouped(ratios, ratio_index, delta_frac, min_frac);
+    let _ = state_ref.settings.update_persisted(|settings| {
+        ensure_custom_ratios(settings, layout, window_count);
+
+        if let Some(custom) = settings.layout_customizations.get_mut(layout.storage_key()) {
+            let ratios = if horizontal {
+                &mut custom.row_ratios
+            } else {
+                &mut custom.col_ratios
+            };
+            if ratio_index + 1 < ratios.len() {
+                match layout {
+                    LayoutType::Columns | LayoutType::Row | LayoutType::Column => {
+                        apply_separator_drag_grouped(ratios, ratio_index, delta_frac, min_frac);
+                    }
+                    _ => apply_separator_drag(ratios, ratio_index, delta_frac, min_frac),
                 }
-                _ => apply_separator_drag(ratios, ratio_index, delta_frac, min_frac),
             }
         }
-    }
+    });
 
     if let Some(drag) = state_ref.window_collection.drag_separator.as_mut() {
         if drag.separator_index == separator_index {
             drag.last_pointer_offset = pointer_offset;
         }
     }
-
-    state_ref.settings = state_ref.settings.normalized();
     drop(state_ref);
 
     if let Some(window) = weak.upgrade() {
@@ -196,14 +200,16 @@ pub(crate) fn handle_resize_drag_end(
     }
 }
 
-fn ensure_custom_ratios(state: &mut AppState, layout: LayoutType) {
-    let count = state.window_collection.windows.len();
+fn ensure_custom_ratios(
+    settings: &mut panopticon::settings::AppSettings,
+    layout: LayoutType,
+    count: usize,
+) {
     if count == 0 {
         return;
     }
 
-    let entry = state
-        .settings
+    let entry = settings
         .layout_customizations
         .entry(layout.storage_key().to_owned())
         .or_default();

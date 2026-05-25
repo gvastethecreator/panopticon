@@ -3,7 +3,6 @@
 use std::collections::{HashMap, HashSet};
 
 use panopticon::window_enum::WindowInfo;
-use windows::Win32::Foundation::{RECT, SIZE};
 
 use crate::ManagedWindow;
 
@@ -17,18 +16,7 @@ pub(crate) struct ReconcileOutcome {
 }
 
 pub(crate) fn new_managed_window(info: WindowInfo) -> ManagedWindow {
-    ManagedWindow {
-        info,
-        thumbnail: None,
-        target_rect: RECT::default(),
-        display_rect: RECT::default(),
-        animation_from_rect: RECT::default(),
-        source_size: SIZE { cx: 800, cy: 600 },
-        last_thumb_update: None,
-        last_thumb_dest: None,
-        last_thumb_visible: false,
-        cached_icon: None,
-    }
+    ManagedWindow::new(info)
 }
 
 pub(crate) fn reconcile_managed_windows(
@@ -69,7 +57,7 @@ pub(crate) fn reconcile_managed_windows(
             if fresh.app_id != previous_app_id {
                 push_unique(&mut outcome.icon_invalidations, fresh.app_id.clone());
             }
-            managed_window.cached_icon = None;
+            managed_window.invalidate_cached_icon();
         }
 
         managed_window.info = fresh.clone();
@@ -134,7 +122,7 @@ fn should_reset_cached_icon(current: &WindowInfo, fresh: &WindowInfo) -> bool {
 mod tests {
     use super::*;
     use std::ffi::c_void;
-    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Foundation::{HWND, RECT};
 
     fn window_info(
         hwnd_value: usize,
@@ -168,15 +156,15 @@ mod tests {
             "DISPLAY1",
         ));
 
-        assert!(managed.thumbnail.is_none());
-        assert_eq!(managed.source_size.cx, 800);
-        assert_eq!(managed.source_size.cy, 600);
+        assert!(managed.preview.thumbnail.is_none());
+        assert_eq!(managed.preview.source_size.cx, 800);
+        assert_eq!(managed.preview.source_size.cy, 600);
         assert_eq!(managed.target_rect, RECT::default());
         assert_eq!(managed.display_rect, RECT::default());
-        assert!(managed.last_thumb_update.is_none());
-        assert!(managed.last_thumb_dest.is_none());
-        assert!(!managed.last_thumb_visible);
-        assert!(managed.cached_icon.is_none());
+        assert!(managed.preview.last_thumb_update.is_none());
+        assert!(managed.preview.last_thumb_dest.is_none());
+        assert!(!managed.preview.last_thumb_visible);
+        assert!(managed.preview.cached_icon.is_none());
     }
 
     #[test]
@@ -265,7 +253,7 @@ mod tests {
             outcome.icon_invalidations,
             vec!["app:alpha".to_owned(), "app:alpha-renamed".to_owned()]
         );
-        assert!(windows[0].cached_icon.is_none());
+        assert!(windows[0].preview.cached_icon.is_none());
     }
 
     #[test]

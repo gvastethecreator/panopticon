@@ -50,7 +50,7 @@ pub(crate) fn try_initialize_native_runtime(
         state.shell.hwnd = hwnd;
     }
 
-    let settings_snapshot = state.borrow().settings.clone();
+    let settings_snapshot = state.borrow().settings.snapshot();
     tracing::info!(hwnd = ?hwnd, "native HWND acquired");
 
     {

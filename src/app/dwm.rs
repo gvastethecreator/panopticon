@@ -56,12 +56,12 @@ impl Drop for DwmSyncGuard {
 /// Register a DWM thumbnail for a managed window if one does not already exist.
 /// Returns `true` if a new thumbnail was registered.
 pub(crate) fn ensure_thumbnail(owner: HWND, mw: &mut ManagedWindow) -> bool {
-    if mw.thumbnail.is_some() {
+    if mw.preview.thumbnail.is_some() {
         return false;
     }
     if let Ok(thumb) = Thumbnail::register(owner, mw.info.hwnd) {
-        mw.source_size = query_source_size(thumb.handle());
-        mw.thumbnail = Some(thumb);
+        mw.preview.source_size = query_source_size(thumb.handle());
+        mw.preview.thumbnail = Some(thumb);
         true
     } else {
         false
@@ -69,10 +69,7 @@ pub(crate) fn ensure_thumbnail(owner: HWND, mw: &mut ManagedWindow) -> bool {
 }
 
 pub(crate) fn release_thumbnail(mw: &mut ManagedWindow) {
-    mw.thumbnail = None;
-    mw.last_thumb_update = None;
-    mw.last_thumb_dest = None;
-    mw.last_thumb_visible = false;
+    mw.release_thumbnail_preview();
 }
 
 pub(crate) fn release_all_thumbnails(state: &std::rc::Rc<std::cell::RefCell<crate::AppState>>) {
@@ -109,12 +106,12 @@ pub(crate) fn hydrate_reconciled_thumbnails(
         if ensure_thumbnail(owner, managed_window) {
             changed = true;
         }
-        if let Some(thumbnail) = managed_window.thumbnail.as_ref() {
+        if let Some(thumbnail) = managed_window.preview.thumbnail.as_ref() {
             let fresh_size = query_source_size(thumbnail.handle());
-            if fresh_size.cx != managed_window.source_size.cx
-                || fresh_size.cy != managed_window.source_size.cy
+            if fresh_size.cx != managed_window.preview.source_size.cx
+                || fresh_size.cy != managed_window.preview.source_size.cy
             {
-                managed_window.source_size = fresh_size;
+                managed_window.preview.source_size = fresh_size;
                 changed = true;
             }
         }
@@ -202,30 +199,33 @@ pub(crate) fn update_dwm_thumbnails(
             release_thumbnail(mw);
             continue;
         }
-        if show_icons && mw.cached_icon.is_none() {
+        if show_icons && mw.preview.cached_icon.is_none() {
             crate::app::icon::populate_cached_icon(mw);
         }
-        let overlay_top_h = if show_info || is_minimized || (show_icons && mw.cached_icon.is_some())
-        {
-            THUMBNAIL_INFO_STRIP_HEIGHT
-        } else {
-            0
-        };
+        let overlay_top_h =
+            if show_info || is_minimized || (show_icons && mw.preview.cached_icon.is_some()) {
+                THUMBNAIL_INFO_STRIP_HEIGHT
+            } else {
+                0
+            };
 
         let should_refresh_bitmap = !is_minimized
             && match refresh_mode {
-                panopticon::settings::ThumbnailRefreshMode::Frozen => mw.thumbnail.is_none(),
+                panopticon::settings::ThumbnailRefreshMode::Frozen => {
+                    mw.preview.thumbnail.is_none()
+                }
                 panopticon::settings::ThumbnailRefreshMode::Interval => mw
+                    .preview
                     .last_thumb_update
                     .is_none_or(|t| now.duration_since(t).as_millis() >= u128::from(interval_ms)),
                 panopticon::settings::ThumbnailRefreshMode::Realtime => false,
             };
 
         let registered_thumbnail = ensure_thumbnail(dest_hwnd, mw);
-        if let Some(thumb) = mw.thumbnail.as_ref() {
+        if let Some(thumb) = mw.preview.thumbnail.as_ref() {
             let raw_dest = compute_dwm_rect(
                 &mw.display_rect,
-                mw.source_size,
+                mw.preview.source_size,
                 preserve,
                 overlay_top_h,
                 content_phys_top,
@@ -241,8 +241,8 @@ pub(crate) fn update_dwm_thumbnails(
                 content_phys_bottom,
             );
             let props_changed = registered_thumbnail
-                || mw.last_thumb_dest != Some(dest)
-                || mw.last_thumb_visible != visible;
+                || mw.preview.last_thumb_dest != Some(dest)
+                || mw.preview.last_thumb_visible != visible;
             let should_push_update = props_changed || should_refresh_bitmap;
 
             if should_push_update {
@@ -258,10 +258,10 @@ pub(crate) fn update_dwm_thumbnails(
                     );
                     release_thumbnail(mw);
                 } else {
-                    mw.last_thumb_dest = Some(dest);
-                    mw.last_thumb_visible = visible;
+                    mw.preview.last_thumb_dest = Some(dest);
+                    mw.preview.last_thumb_visible = visible;
                     if should_refresh_bitmap {
-                        mw.last_thumb_update = Some(now);
+                        mw.preview.last_thumb_update = Some(now);
                     }
                 }
             }

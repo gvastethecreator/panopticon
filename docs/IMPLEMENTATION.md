@@ -40,11 +40,24 @@ This deferred-initialisation pattern is important: Slint needs to create the win
 Each window visible in the dashboard is modelled as an enriched structure combining:
 
 - persistable metadata (`WindowInfo`);
-- optional DWM thumbnail;
 - target/display rectangles for animation;
-- thumbnail source size;
-- timestamps and caches for refresh;
-- rasterised icon for fallback and headers.
+- a `ManagedWindowPreview` sub-state with:
+	- optional DWM thumbnail;
+	- thumbnail source size;
+	- timestamps and caches for refresh;
+	- rasterised icon for fallback and headers.
+
+This split keeps preview lifecycle concerns separate from geometry ahead of the broader presentation seam.
+
+### `SettingsState`
+
+`AppState.settings` now stores `SettingsState` instead of raw `AppSettings`.
+
+That seam keeps:
+
+- the persisted snapshot used for save/load and UI editing;
+- runtime-derived projections such as effective layout and parsed global-hotkey binding;
+- the planned runtime side effects implied by a settings change.
 
 ### `AppState`
 
@@ -74,7 +87,9 @@ In practical terms, `AppState` is the operational source of truth for the progra
 4. apply persistent filters by monitor, tag, app, and `hidden`;
 5. sort the result if `group_windows_by` is active;
 6. reconcile the current `ManagedWindow` vector with the new discovery;
-7. create or retain thumbnails as appropriate.
+7. hydrate or retain DWM thumbnails as appropriate.
+
+`managed_window_reconcile.rs` stays pure and focuses on diffing order/metadata, while `managed_window_lifecycle.rs` owns preview defaults and reset behavior.
 
 ### `window_enum.rs`
 
@@ -102,7 +117,7 @@ This makes per-application rules relatively stable across sessions.
 
 ### Registration and update
 
-`main.rs` decides when to create or release a `Thumbnail`:
+`dwm.rs` and `managed_window_lifecycle.rs` decide when to create or release a `Thumbnail`:
 
 - created when a managed window needs to be displayed and does not yet have a thumbnail;
 - released if the app is hidden, if the source window is minimised, or if the update fails.
@@ -183,6 +198,30 @@ It also defines the reusable components that structure the UX:
 
 The main menu interaction is resolved through native Win32 menus implemented in `src/app/tray.rs` and `src/app/window_menu.rs`. The declarative UI maintains the dashboard and dialogs, but the real menu flow no longer depends on Slint overlays.
 
+## Runtime seams added around the UI
+
+### `src/app/action_execution.rs`
+
+Settings-backed actions now flow through a shared execution seam that:
+
+1. mutates the persisted snapshot;
+2. derives runtime effects;
+3. persists the new snapshot;
+4. applies startup/hotkey/dock/window-refresh/locale/presentation side effects in one place.
+
+This removes duplicated runtime choreography from tray, keyboard, command-palette, and settings flows.
+
+### `src/app/presentation.rs`
+
+The main-window presentation seam now owns:
+
+- Slint-facing dashboard properties (toolbar flags, empty-state copy, filters label, etc.);
+- scroll/viewport property application;
+- background-image loading/clearing;
+- runtime theme targeting and theme-transition advancement.
+
+`model_sync.rs` is therefore narrower: it computes layout, updates animation state, and delegates UI-facing property work to the presentation seam.
+
 ## Keyboard and mouse interaction
 
 The implementation supports direct shortcuts in `handle_key()`:
@@ -221,6 +260,14 @@ It also handles:
 - TOML save/load;
 - data normalisation;
 - business helpers (`toggle_hidden`, `toggle_app_tag`, `set_tag_filter`, etc.).
+
+### `settings_state.rs`
+
+This module wraps `AppSettings` with runtime projections and change planning. It is now the canonical seam between:
+
+- persisted configuration;
+- runtime-only derivations;
+- higher-level action/presentation orchestration.
 
 ### `settings/ui.rs`
 

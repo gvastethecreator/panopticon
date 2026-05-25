@@ -1,23 +1,16 @@
 //! Layout recomputation, Slint model synchronization, and thumbnail animation.
 
 use std::cell::{Cell, RefCell};
-use std::path::Path;
 use std::rc::Rc;
 use std::time::Instant;
 
 use panopticon::constants::TOOLBAR_HEIGHT;
-use panopticon::i18n;
 use panopticon::layout::ScrollDirection;
-use panopticon::settings::{AppSettings, ToolbarPosition};
-use panopticon::window_ops::active_filter_summary;
 use slint::ComponentHandle;
 use slint::Model;
-use slint::SharedString;
 use windows::Win32::Foundation::RECT;
 use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
 
-use super::settings::ui::background_fit_to_index;
-use super::theme_ui::sync_theme_target;
 use crate::{AppState, MainWindow};
 
 thread_local! {
@@ -77,10 +70,6 @@ impl Drop for ModelSyncGuard {
     }
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "UI recompute is inherently sequential"
-)]
 pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let Some(_guard) = RecomputeGuard::enter() else {
         tracing::debug!("skipping nested recompute_and_update_ui invocation");
@@ -92,9 +81,9 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
     let mut state = app_state.borrow_mut();
     if state.window_collection.windows.is_empty() {
         state.theme.animation_started_at = None;
-        sync_theme_target(&mut state);
-        sync_settings_to_ui(win, &state.settings);
-        sync_background_image(&mut state, win);
+        super::presentation::sync_theme_target(&mut state);
+        super::presentation::sync_settings_to_ui(win, &state.settings);
+        super::presentation::sync_background_image(&mut state, win);
         drop(state);
         sync_model_to_slint(app_state, win);
         return;
@@ -167,13 +156,6 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         state.theme.animation_started_at = None;
     }
 
-    let scroll_h = scroll_dir == ScrollDirection::Horizontal;
-    let scroll_v = scroll_dir == ScrollDirection::Vertical;
-    win.set_scroll_horizontal(scroll_h);
-    win.set_scroll_vertical(scroll_v);
-    win.set_content_width(state.window_collection.content_extent as f32);
-    win.set_content_height(state.window_collection.content_extent as f32);
-    tracing::trace!("recompute checkpoint: scroll properties applied");
     let (clamped_x, clamped_y) = super::viewport_manager::clamp_offsets(
         scroll_dir,
         state.window_collection.content_extent,
@@ -182,112 +164,26 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         win.get_viewport_x(),
         win.get_viewport_y(),
     );
-    win.set_viewport_x(clamped_x);
-    win.set_viewport_y(clamped_y);
+    let scroll_presentation = super::presentation::ScrollPresentation::new(
+        scroll_dir,
+        state.window_collection.content_extent,
+        clamped_x,
+        clamped_y,
+    );
+    super::presentation::apply_scroll_presentation(win, &scroll_presentation);
+    tracing::trace!("recompute checkpoint: scroll properties applied");
     tracing::trace!("recompute checkpoint: viewport clamped");
 
-    sync_theme_target(&mut state);
+    super::presentation::sync_theme_target(&mut state);
     tracing::trace!("recompute checkpoint: theme synced");
-    sync_settings_to_ui(win, &state.settings);
+    super::presentation::sync_settings_to_ui(win, &state.settings);
     tracing::trace!("recompute checkpoint: settings synced");
-    sync_background_image(&mut state, win);
+    super::presentation::sync_background_image(&mut state, win);
     tracing::trace!("recompute checkpoint: background synced");
 
     drop(state);
     tracing::trace!("recompute reached pre-model-sync checkpoint");
     sync_model_to_slint(app_state, win);
-}
-
-pub(crate) fn sync_settings_to_ui(win: &MainWindow, settings: &AppSettings) {
-    win.set_show_toolbar(settings.show_toolbar);
-    win.set_toolbar_on_top(matches!(settings.toolbar_position, ToolbarPosition::Top));
-    win.set_show_window_info(settings.show_window_info);
-    win.set_is_always_on_top(settings.always_on_top);
-    win.set_animate_transitions(settings.animate_transitions);
-    win.set_resize_locked(settings.locked_layout || settings.lock_cell_resize);
-    win.set_canvas_background_color(canvas_background_color(settings));
-    win.set_background_image_fit_index(background_fit_to_index(settings.background_image_fit));
-    win.set_background_image_opacity(settings.background_image_opacity_pct as f32 / 100.0);
-    win.set_empty_welcome_dismissed(settings.dismissed_empty_state_welcome);
-    win.set_refresh_label(SharedString::from(settings.refresh_status_label()));
-    win.set_filters_label(SharedString::from(
-        active_filter_summary(settings).unwrap_or_default(),
-    ));
-
-    let empty_context = derive_empty_state_context(settings);
-    win.set_empty_message(SharedString::from(empty_context.message));
-    win.set_empty_helper(SharedString::from(empty_context.helper));
-    win.set_empty_status_summary(SharedString::from(empty_context.status_summary));
-    win.set_empty_can_clear_filters(empty_context.can_clear_filters);
-    win.set_empty_can_show_hidden(empty_context.can_show_hidden);
-}
-
-struct EmptyStateContext {
-    message: String,
-    helper: String,
-    status_summary: String,
-    can_clear_filters: bool,
-    can_show_hidden: bool,
-}
-
-fn derive_empty_state_context(settings: &AppSettings) -> EmptyStateContext {
-    let has_filters = settings.active_monitor_filter.is_some()
-        || settings.active_tag_filter.is_some()
-        || settings.active_app_filter.is_some();
-    let hidden_count = settings.hidden_app_entries().len();
-    let can_show_hidden = hidden_count > 0;
-    let filter_summary = active_filter_summary(settings).unwrap_or_default();
-
-    let status_summary = match (has_filters, hidden_count) {
-        (true, 0) if !filter_summary.is_empty() => format!("Active filters: {filter_summary}"),
-        (true, 0) => "Active filters are restricting visible windows.".to_owned(),
-        (false, count) if count > 0 => {
-            if count == 1 {
-                "1 app is currently hidden.".to_owned()
-            } else {
-                format!("{count} apps are currently hidden.")
-            }
-        }
-        (true, count) => {
-            let hidden_label = if count == 1 {
-                "1 hidden app".to_owned()
-            } else {
-                format!("{count} hidden apps")
-            };
-            if filter_summary.is_empty() {
-                format!("Active filters + {hidden_label}")
-            } else {
-                format!("{filter_summary} · {hidden_label}")
-            }
-        }
-        _ => String::new(),
-    };
-
-    if has_filters {
-        EmptyStateContext {
-            message: "No windows match your current filters".to_owned(),
-            helper: "Try clearing filters or refreshing to repopulate visible windows.".to_owned(),
-            status_summary,
-            can_clear_filters: true,
-            can_show_hidden,
-        }
-    } else if can_show_hidden {
-        EmptyStateContext {
-            message: "All tracked windows are hidden".to_owned(),
-            helper: "Restore hidden apps to bring them back into the layout.".to_owned(),
-            status_summary,
-            can_clear_filters: false,
-            can_show_hidden: true,
-        }
-    } else {
-        EmptyStateContext {
-            message: i18n::t("ui.empty_message").to_owned(),
-            helper: i18n::t("ui.empty_helper").to_owned(),
-            status_summary,
-            can_clear_filters: false,
-            can_show_hidden: false,
-        }
-    }
 }
 
 #[allow(clippy::too_many_lines)]
@@ -304,11 +200,7 @@ pub(crate) fn sync_model_to_slint(state: &Rc<RefCell<AppState>>, win: &MainWindo
     super::thumbnail_model_builder::sync_model_to_slint(&mut state, win);
     tracing::trace!("model sync checkpoint: thumbnail and handle models synced");
 
-    win.set_layout_label(SharedString::from(i18n::t(
-        state.window_collection.current_layout.translation_key(),
-    )));
-    win.set_window_count(state.window_collection.windows.len() as i32);
-    win.set_hidden_count(state.settings.hidden_app_entries().len() as i32);
+    super::presentation::sync_main_window_metadata(win, &state);
 
     tracing::trace!("model sync checkpoint: finished");
 }
@@ -351,60 +243,5 @@ pub(crate) fn advance_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow)
         if let Ok(mut state) = state_rc.try_borrow_mut() {
             super::thumbnail_model_builder::sync_model_to_slint(&mut state, win);
         }
-    }
-}
-
-fn sync_background_image(state: &mut AppState, win: &MainWindow) {
-    let desired = state.settings.background_image_path.clone();
-    if state.theme.loaded_background_path == desired {
-        return;
-    }
-
-    if let Some(path) = desired.as_deref() {
-        match slint::Image::load_from_path(Path::new(path)) {
-            Ok(image) => {
-                win.set_background_image(image);
-                state.theme.loaded_background_path = desired;
-            }
-            Err(error) => {
-                tracing::warn!(%error, path, "failed to load background image");
-                win.set_background_image(slint::Image::default());
-                state.settings.background_image_path = None;
-                state.theme.loaded_background_path = None;
-
-                if let Err(save_error) = state.settings.save(state.workspace_name.as_deref()) {
-                    tracing::warn!(
-                        %save_error,
-                        path,
-                        "failed to persist cleared background image path"
-                    );
-                }
-            }
-        }
-    } else {
-        win.set_background_image(slint::Image::default());
-        state.theme.loaded_background_path = None;
-    }
-}
-
-fn canvas_background_color(settings: &AppSettings) -> slint::Color {
-    let (red, green, blue) =
-        super::settings::rgb_components_from_hex(&settings.background_color_hex);
-    slint::Color::from_argb_u8(255, red, green, blue)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn canvas_background_color_parses_hex() {
-        let color = canvas_background_color(&AppSettings {
-            background_color_hex: "#ff0000".to_owned(),
-            ..Default::default()
-        });
-        assert_eq!(color.red(), 255);
-        assert_eq!(color.green(), 0);
-        assert_eq!(color.blue(), 0);
     }
 }
