@@ -7,13 +7,13 @@ use panopticon::layout::LayoutType;
 use panopticon::settings::{DockEdge, ToolbarPosition, WindowGrouping};
 use windows::Win32::Foundation::POINT;
 
+use super::action_execution::execute_settings_action;
 use super::action_handlers::{
     ActionContext, ActionHandler, CycleThemeHandler, SetDockEdgeHandler, ToggleAlwaysOnTopHandler,
 };
 use super::command_palette;
 use super::layout_actions::cycle_layout;
 use super::runtime_effects::{apply_runtime_effects, RuntimeEffect};
-use super::runtime_support::update_settings;
 use super::secondary_windows;
 use super::tray_actions;
 use crate::{AppState, MainWindow};
@@ -59,28 +59,6 @@ pub(crate) enum AppAction {
     Exit,
 }
 
-fn mutate_settings_and_refresh(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    mutate: impl FnOnce(&mut panopticon::settings::AppSettings),
-) {
-    update_settings(state, mutate);
-    apply_runtime_effects(state, weak, [RuntimeEffect::RefreshUi]);
-}
-
-fn mutate_settings_and_refresh_windows(
-    state: &Rc<RefCell<AppState>>,
-    weak: &slint::Weak<MainWindow>,
-    mutate: impl FnOnce(&mut panopticon::settings::AppSettings),
-) {
-    update_settings(state, mutate);
-    apply_runtime_effects(
-        state,
-        weak,
-        [RuntimeEffect::RefreshWindows, RuntimeEffect::RefreshUi],
-    );
-}
-
 #[expect(
     clippy::too_many_lines,
     reason = "centralized runtime dispatch intentionally keeps shared action behavior in one audited entry point"
@@ -99,17 +77,17 @@ pub(crate) fn dispatch_action(
             apply_runtime_effects(state, weak, [RuntimeEffect::RefreshUi]);
         }
         AppAction::ToggleAnimations => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.animate_transitions = !settings.animate_transitions;
             });
         }
         AppAction::ToggleToolbar => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.show_toolbar = !settings.show_toolbar;
             });
         }
         AppAction::ToggleWindowInfo => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.show_window_info = !settings.show_window_info;
             });
         }
@@ -117,54 +95,54 @@ pub(crate) fn dispatch_action(
             ToggleAlwaysOnTopHandler.handle(&mut ActionContext { state, weak });
         }
         AppAction::ToggleMinimizeToTray => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.minimize_to_tray = !settings.minimize_to_tray;
             });
         }
         AppAction::ToggleCloseToTray => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.close_to_tray = !settings.close_to_tray;
             });
         }
         AppAction::ToggleDefaultAspectRatio => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.preserve_aspect_ratio = !settings.preserve_aspect_ratio;
             });
         }
         AppAction::ToggleDefaultHideOnSelect => {
             if state.borrow().settings.dock_edge.is_none() {
-                mutate_settings_and_refresh(state, weak, |settings| {
+                let _ = execute_settings_action(state, weak, |settings| {
                     settings.hide_on_select = !settings.hide_on_select;
                 });
             }
         }
         AppAction::ToggleAppIcons => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.show_app_icons = !settings.show_app_icons;
             });
         }
         AppAction::ToggleStartInTray => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.start_in_tray = !settings.start_in_tray;
             });
         }
         AppAction::ToggleLockedLayout => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.locked_layout = !settings.locked_layout;
             });
         }
         AppAction::ToggleLockCellResize => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.lock_cell_resize = !settings.lock_cell_resize;
             });
         }
         AppAction::DismissEmptyStateWelcome => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.dismissed_empty_state_welcome = true;
             });
         }
         AppAction::CycleRefreshInterval => {
-            mutate_settings_and_refresh(
+            let _ = execute_settings_action(
                 state,
                 weak,
                 panopticon::settings::AppSettings::cycle_refresh_interval,
@@ -185,39 +163,39 @@ pub(crate) fn dispatch_action(
             CycleThemeHandler { direction }.handle(&mut ActionContext { state, weak });
         }
         AppAction::SetMonitorFilter(filter) => {
-            mutate_settings_and_refresh_windows(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.set_monitor_filter(filter.as_deref());
             });
         }
         AppAction::SetTagFilter(filter) => {
-            mutate_settings_and_refresh_windows(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.set_tag_filter(filter.as_deref());
             });
         }
         AppAction::SetAppFilter(filter) => {
-            mutate_settings_and_refresh_windows(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.set_app_filter(filter.as_deref());
             });
         }
         AppAction::ClearAllFilters => {
-            mutate_settings_and_refresh_windows(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.set_monitor_filter(None);
                 settings.set_tag_filter(None);
                 settings.set_app_filter(None);
             });
         }
         AppAction::RestoreHidden(app_id) => {
-            mutate_settings_and_refresh_windows(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 let _ = settings.restore_hidden_app(&app_id);
             });
         }
         AppAction::RestoreAllHidden => {
-            mutate_settings_and_refresh_windows(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 let _ = settings.restore_all_hidden_apps();
             });
         }
         AppAction::HideApp { app_id, app_label } => {
-            mutate_settings_and_refresh_windows(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 let _ = settings.toggle_hidden(&app_id, &app_label);
             });
         }
@@ -225,12 +203,12 @@ pub(crate) fn dispatch_action(
             SetDockEdgeHandler(edge).handle(&mut ActionContext { state, weak });
         }
         AppAction::SetWindowGrouping(grouping) => {
-            mutate_settings_and_refresh_windows(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.group_windows_by = grouping;
             });
         }
         AppAction::SetToolbarPosition(position) => {
-            mutate_settings_and_refresh(state, weak, |settings| {
+            let _ = execute_settings_action(state, weak, |settings| {
                 settings.toolbar_position = position;
             });
         }

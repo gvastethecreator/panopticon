@@ -33,20 +33,20 @@ thread_local! {
 
 /// Extract and cache the application icon for a managed window.
 pub(crate) fn populate_cached_icon(mw: &mut ManagedWindow) {
-    if mw.cached_icon.is_some() {
+    if mw.preview.cached_icon.is_some() {
         return;
     }
     // Try the per-app shared cache first before hitting GDI.
     let cached = APP_ICON_CACHE.with(|cache| cache.borrow_mut().get_cloned(&mw.info.app_id));
     if let Some(entry) = cached {
-        mw.cached_icon = entry;
+        mw.preview.cached_icon = entry;
         return;
     }
     let image = hicon_to_slint_image(&mw.info);
     APP_ICON_CACHE.with(|cache| {
         cache.borrow_mut().insert(&mw.info.app_id, image.clone());
     });
-    mw.cached_icon = image;
+    mw.preview.cached_icon = image;
 }
 
 /// Remove a cached shared icon entry so it can be re-rendered on demand.

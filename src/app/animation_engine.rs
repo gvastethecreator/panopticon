@@ -71,10 +71,10 @@ fn lerp_i32(from: i32, to: i32, t: f32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ManagedWindow;
+    use crate::{ManagedWindow, ManagedWindowPreview};
     use panopticon::window_enum::WindowInfo;
     use std::ffi::c_void;
-    use windows::Win32::Foundation::{HWND, RECT, SIZE};
+    use windows::Win32::Foundation::{HWND, RECT};
 
     fn dummy_window(display_rect: RECT, target_rect: RECT) -> ManagedWindow {
         ManagedWindow {
@@ -87,15 +87,10 @@ mod tests {
                 class_name: String::new(),
                 monitor_name: String::new(),
             },
-            thumbnail: None,
             target_rect,
             display_rect,
             animation_from_rect: display_rect,
-            source_size: SIZE { cx: 800, cy: 600 },
-            last_thumb_update: None,
-            last_thumb_dest: None,
-            last_thumb_visible: false,
-            cached_icon: None,
+            preview: ManagedWindowPreview::new(),
         }
     }
 

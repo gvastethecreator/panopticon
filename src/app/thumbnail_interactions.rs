@@ -183,11 +183,13 @@ pub(crate) fn handle_thumbnail_drag_ended(
                     }
                 }
 
-                for (app_id, app_label, index) in rules_to_update {
-                    let rule = state.settings.app_rules.entry(app_id).or_default();
-                    rule.display_name = app_label;
-                    rule.pinned_position = Some(index);
-                }
+                let _ = state.settings.update_persisted(|settings| {
+                    for (app_id, app_label, index) in rules_to_update {
+                        let rule = settings.app_rules.entry(app_id).or_default();
+                        rule.display_name = app_label;
+                        rule.pinned_position = Some(index);
+                    }
+                });
 
                 let profile = state.workspace_name.clone();
                 let _ = state.settings.save(profile.as_deref());

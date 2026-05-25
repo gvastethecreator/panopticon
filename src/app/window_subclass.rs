@@ -365,7 +365,10 @@ fn toggle_toolbar_from_alt_hotkey() {
                 if !guard.settings.shortcuts.alt_toggles_toolbar {
                     return;
                 }
-                guard.settings.show_toolbar = !guard.settings.show_toolbar;
+                let next_show_toolbar = !guard.settings.show_toolbar;
+                let _ = guard.settings.update_persisted(|settings| {
+                    settings.show_toolbar = next_show_toolbar;
+                });
                 let _ = guard.settings.save(guard.workspace_name.as_deref());
             }
             recompute_and_update_ui(&state, &window);

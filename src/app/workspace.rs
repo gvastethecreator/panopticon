@@ -85,7 +85,7 @@ pub(crate) fn available_workspace_summaries(
         .map(|entry| entry.app_id.as_str())
         .collect();
     let current_workspace = state.workspace_name.clone();
-    let current_settings = state.settings.normalized();
+    let current_settings = state.settings.snapshot();
 
     workspaces
         .into_iter()
@@ -231,7 +231,7 @@ pub(crate) fn sync_workspace_editor_from_selection(
         .filter(|app_id| !running_apps.contains(app_id.as_str()))
         .count();
     let is_running = selected_workspace == state.workspace_name;
-    let is_modified = is_running && workspace_settings.normalized() != state.settings.normalized();
+    let is_modified = is_running && workspace_settings.normalized() != state.settings.snapshot();
     let status_summary = workspace_status_summary(is_running, is_modified, missing_apps);
 
     window.set_profile_name(SharedString::from(
@@ -296,8 +296,8 @@ pub(crate) fn load_workspace_into_current_instance(
             guard.shell.is_appbar = false;
         }
         guard.workspace_name = requested_workspace;
-        guard.settings = loaded_settings;
-        guard.window_collection.current_layout = guard.settings.effective_layout();
+        guard.settings = crate::app::settings_state::SettingsState::new(&loaded_settings);
+        guard.window_collection.current_layout = guard.settings.runtime().effective_layout;
         guard.theme.loaded_background_path = None;
         guard.theme.current_theme = theme_catalog::resolve_ui_theme(
             guard.settings.theme_id.as_deref(),
@@ -308,7 +308,7 @@ pub(crate) fn load_workspace_into_current_instance(
         (
             guard.shell.hwnd,
             previous_language,
-            guard.settings.clone(),
+            guard.settings.snapshot(),
             guard.workspace_name.clone(),
         )
     };
@@ -356,7 +356,7 @@ pub(crate) fn open_workspace_in_new_instance(
     state: &Rc<RefCell<AppState>>,
     requested_workspace: Option<String>,
 ) -> bool {
-    let settings_snapshot = state.borrow().settings.normalized();
+    let settings_snapshot = state.borrow().settings.snapshot();
 
     if let Some(workspace_name) = requested_workspace.as_deref() {
         let _ = save_settings_as_workspace(&settings_snapshot, workspace_name);

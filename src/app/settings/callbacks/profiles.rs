@@ -57,11 +57,10 @@ fn register_save_profile_callback(settings_window: &SettingsWindow, state: &Rc<R
 
                 let settings_snapshot = {
                     let mut state_guard = state.borrow_mut();
-                    state_guard
-                        .settings
-                        .set_workspace_metadata(&display_name, &description);
-                    state_guard.settings = state_guard.settings.normalized();
-                    state_guard.settings.clone()
+                    let _ = state_guard.settings.update_persisted(|settings| {
+                        settings.set_workspace_metadata(&display_name, &description);
+                    });
+                    state_guard.settings.snapshot()
                 };
 
                 let store = WorkspaceStore::from_appdata();
@@ -127,11 +126,10 @@ fn register_open_profile_instance_callback(
                 let description = settings_window.get_profile_description().to_string();
                 let settings_snapshot = {
                     let mut state_guard = state.borrow_mut();
-                    state_guard
-                        .settings
-                        .set_workspace_metadata(&display_name, &description);
-                    state_guard.settings = state_guard.settings.normalized();
-                    state_guard.settings.clone()
+                    let _ = state_guard.settings.update_persisted(|settings| {
+                        settings.set_workspace_metadata(&display_name, &description);
+                    });
+                    state_guard.settings.snapshot()
                 };
                 if let Some(workspace_name) = requested.as_deref() {
                     let _ = save_settings_as_workspace(&settings_snapshot, workspace_name);

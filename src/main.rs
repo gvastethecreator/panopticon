@@ -18,7 +18,7 @@ mod state;
 pub(crate) use state::*;
 
 use app::cli::{cli_usage, parse_startup_args};
-use app::model_sync::sync_settings_to_ui;
+use app::presentation::sync_settings_to_ui;
 use app::runtime_support::request_update_check;
 use app::theme_ui::apply_main_window_theme_snapshot;
 use app::tray::{AppIcons, INSTANCE_ACCENT_PALETTE};
@@ -139,6 +139,7 @@ fn run_app(workspace: Option<String>) {
         &settings.background_color_hex,
         &settings.theme_color_overrides,
     );
+    let settings_state = app::settings_state::SettingsState::new(&settings);
 
     let main_window = match MainWindow::new() {
         Ok(window) => window,
@@ -151,15 +152,15 @@ fn run_app(workspace: Option<String>) {
     apply_main_window_theme_snapshot(&main_window, &initial_theme);
 
     // Apply initial property values from settings.
-    sync_settings_to_ui(&main_window, &settings);
+    sync_settings_to_ui(&main_window, settings_state.persisted());
 
     let state = Rc::new(RefCell::new(AppState {
         shell: app::shell_state::ShellState::new(icons),
         window_collection: app::window_collection::WindowCollection::new(
-            settings.effective_layout(),
+            settings_state.runtime().effective_layout,
         ),
         theme: app::theme_state::ThemeState::new(initial_theme),
-        settings,
+        settings: settings_state,
         workspace_name: workspace,
         app_version: format!("v{}", env!("CARGO_PKG_VERSION")),
         update_status: UpdateStatus::Idle,

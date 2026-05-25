@@ -27,11 +27,11 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
         .into_iter()
         .filter(|window| window.hwnd != state.shell.hwnd)
         .collect();
-    for window in &available_windows {
-        state
-            .settings
-            .refresh_app_label(&window.app_id, window.app_label());
-    }
+    let _ = state.settings.update_persisted(|settings| {
+        for window in &available_windows {
+            settings.refresh_app_label(&window.app_id, window.app_label());
+        }
+    });
 
     TrayMenuState {
         window_visible: unsafe {

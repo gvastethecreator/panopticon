@@ -1,19 +1,13 @@
 //! Theme snapshot application, interpolation, and Slint globals sync.
 
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::time::Instant;
-
 use slint::language::ColorScheme;
-use slint::{ComponentHandle, Model};
+use slint::ComponentHandle;
 
 use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 
 use crate::{
-    AboutWindow, AppState, CommandPaletteWindow, MainWindow, Palette, SettingsWindow,
-    TagDialogWindow, Theme, ABOUT_WIN, COMMAND_PALETTE_WIN, SETTINGS_WIN, TAG_DIALOG_WIN,
-    THEME_TRANSITION_DURATION_MS,
+    AboutWindow, CommandPaletteWindow, MainWindow, Palette, SettingsWindow, TagDialogWindow, Theme,
 };
 
 fn palette_color_scheme_for_theme(resolved: &theme_catalog::UiTheme) -> ColorScheme {
@@ -59,6 +53,41 @@ macro_rules! apply_runtime_theme {
 
 // ───────────────────────── Snapshot apply ─────────────────────────
 
+pub(crate) fn apply_main_window_palette_color_scheme(
+    window: &MainWindow,
+    resolved: &theme_catalog::UiTheme,
+) {
+    apply_palette_color_scheme(window, resolved);
+}
+
+pub(crate) fn apply_settings_window_palette_color_scheme(
+    window: &SettingsWindow,
+    resolved: &theme_catalog::UiTheme,
+) {
+    apply_palette_color_scheme(window, resolved);
+}
+
+pub(crate) fn apply_tag_dialog_palette_color_scheme(
+    window: &TagDialogWindow,
+    resolved: &theme_catalog::UiTheme,
+) {
+    apply_palette_color_scheme(window, resolved);
+}
+
+pub(crate) fn apply_about_window_palette_color_scheme(
+    window: &AboutWindow,
+    resolved: &theme_catalog::UiTheme,
+) {
+    apply_palette_color_scheme(window, resolved);
+}
+
+pub(crate) fn apply_command_palette_window_palette_color_scheme(
+    window: &CommandPaletteWindow,
+    resolved: &theme_catalog::UiTheme,
+) {
+    apply_palette_color_scheme(window, resolved);
+}
+
 pub(crate) fn apply_main_window_theme_snapshot(
     window: &MainWindow,
     resolved: &theme_catalog::UiTheme,
@@ -99,111 +128,6 @@ pub(crate) fn apply_command_palette_window_theme_snapshot(
     apply_runtime_theme!(window, resolved);
 }
 
-pub(crate) fn apply_theme_snapshot_everywhere(win: &MainWindow, resolved: &theme_catalog::UiTheme) {
-    apply_main_window_theme_snapshot(win, resolved);
-    SETTINGS_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_settings_window_theme_snapshot(window, resolved);
-        }
-    });
-    TAG_DIALOG_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_tag_dialog_theme_snapshot(window, resolved);
-        }
-    });
-    ABOUT_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_about_window_theme_snapshot(window, resolved);
-        }
-    });
-    COMMAND_PALETTE_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_command_palette_window_theme_snapshot(window, resolved);
-        }
-    });
-}
-
-fn apply_palette_color_scheme_everywhere(win: &MainWindow, resolved: &theme_catalog::UiTheme) {
-    apply_palette_color_scheme(win, resolved);
-    SETTINGS_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_palette_color_scheme(window, resolved);
-        }
-    });
-    TAG_DIALOG_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_palette_color_scheme(window, resolved);
-        }
-    });
-    ABOUT_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_palette_color_scheme(window, resolved);
-        }
-    });
-    COMMAND_PALETTE_WIN.with(|handle| {
-        if let Some(window) = handle.borrow().as_ref() {
-            apply_palette_color_scheme(window, resolved);
-        }
-    });
-}
-
-// ───────────────────────── Theme target + animation ─────────────────────────
-
-pub(crate) fn sync_theme_target(state: &mut AppState) {
-    let desired = theme_catalog::resolve_ui_theme(
-        state.settings.theme_id.as_deref(),
-        &state.settings.background_color_hex,
-        &state.settings.theme_color_overrides,
-    );
-    let already_targeting = state
-        .theme
-        .theme_animation
-        .as_ref()
-        .is_some_and(|animation| animation.to == desired);
-
-    if already_targeting || state.theme.current_theme == desired {
-        return;
-    }
-
-    state.theme.theme_animation = Some(crate::ThemeAnimation {
-        from_rgb: theme_catalog::RgbThemeSnapshot::from_ui_theme(&state.theme.current_theme),
-        to_rgb: theme_catalog::RgbThemeSnapshot::from_ui_theme(&desired),
-        to: desired,
-        started_at: Instant::now(),
-    });
-}
-
-pub(crate) fn advance_theme_animation(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let mut s = state.borrow_mut();
-    let Some(animation) = s.theme.theme_animation.as_ref() else {
-        return;
-    };
-
-    let from_rgb = animation.from_rgb;
-    let to_rgb = animation.to_rgb;
-    let target_theme = animation.to.clone();
-    let started_at = animation.started_at;
-
-    let elapsed_ms = started_at.elapsed().as_millis() as u32;
-    let progress = (elapsed_ms as f32 / THEME_TRANSITION_DURATION_MS as f32).clamp(0.0, 1.0);
-    let eased = 1.0 - (1.0 - progress).powi(3);
-    let resolved = from_rgb.interpolate(&to_rgb, eased, &target_theme);
-    s.theme.current_theme = resolved;
-    let palette_theme = target_theme.clone();
-    if progress >= 1.0 {
-        s.theme.current_theme = target_theme;
-        s.theme.theme_animation = None;
-    }
-    let current = s.theme.current_theme.clone();
-    drop(s);
-    apply_theme_snapshot_everywhere(win, &current);
-    // Keep palette dark/light mode pinned to the target theme while animating.
-    // This avoids rapid scheme flips near luminance thresholds that can cause
-    // occasional blank/flicker artifacts during theme transitions.
-    apply_palette_color_scheme_everywhere(win, &palette_theme);
-    refresh_thumbnail_accent_rows(state, win);
-}
-
 // ───────────────────────── Accent / color helpers ─────────────────────────
 
 pub(crate) fn default_thumbnail_accent_color(
@@ -225,25 +149,6 @@ pub(crate) fn thumbnail_accent_color(
         || default_thumbnail_accent_color(settings, theme),
         hex_to_slint_color,
     )
-}
-
-pub(crate) fn refresh_thumbnail_accent_rows(state: &Rc<RefCell<AppState>>, win: &MainWindow) {
-    let s = state.borrow();
-    let model = win.get_thumbnails();
-    if model.row_count() != s.window_collection.windows.len() {
-        return;
-    }
-
-    for (index, managed_window) in s.window_collection.windows.iter().enumerate() {
-        if let Some(mut item) = model.row_data(index) {
-            item.accent_color = thumbnail_accent_color(
-                &s.settings,
-                &s.theme.current_theme,
-                &managed_window.info.app_id,
-            );
-            model.set_row_data(index, item);
-        }
-    }
 }
 
 pub(crate) fn hex_to_slint_color(hex: &str) -> slint::Color {

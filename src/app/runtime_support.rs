@@ -98,8 +98,10 @@ pub(crate) fn sync_floating_window_size_with_resize(
         if guard.settings.dock_edge.is_some() {
             return;
         }
-        guard.settings.fixed_width = Some(clamped_width);
-        guard.settings.fixed_height = Some(clamped_height);
+        let _ = guard.settings.update_persisted(|settings| {
+            settings.fixed_width = Some(clamped_width);
+            settings.fixed_height = Some(clamped_height);
+        });
     }
 
     let state_for_save = state.clone();
@@ -107,11 +109,10 @@ pub(crate) fn sync_floating_window_size_with_resize(
         TimerMode::SingleShot,
         Duration::from_millis(FLOATING_SIZE_SYNC_DEBOUNCE_MS),
         move || {
-            let mut guard = state_for_save.borrow_mut();
+            let guard = state_for_save.borrow_mut();
             if guard.settings.dock_edge.is_some() {
                 return;
             }
-            guard.settings = guard.settings.normalized();
             if let Err(error) = guard.settings.save(guard.workspace_name.as_deref()) {
                 tracing::warn!(%error, "failed to persist floating window size after resize");
             }
@@ -125,28 +126,40 @@ pub(crate) fn update_settings(
     state: &Rc<RefCell<AppState>>,
     mutate: impl FnOnce(&mut AppSettings),
 ) {
-    let (hwnd, settings_snapshot, workspace_name) = {
+    let (hwnd, settings_snapshot, workspace_name, effects) = {
         let mut state = state.borrow_mut();
-        mutate(&mut state.settings);
-        state.settings = state.settings.normalized();
-        let _ = state.settings.save(state.workspace_name.as_deref());
+        let Some(change) = state.settings.update_persisted(mutate) else {
+            return;
+        };
+        if let Err(error) = state.settings.save(state.workspace_name.as_deref()) {
+            tracing::warn!(
+                %error,
+                workspace = ?state.workspace_name,
+                "failed to persist settings change"
+            );
+        }
         (
             state.shell.hwnd,
-            state.settings.clone(),
+            state.settings.snapshot(),
             state.workspace_name.clone(),
+            change.effects,
         )
     };
-    crate::app::startup::sync_run_at_startup(
-        settings_snapshot.run_at_startup,
-        workspace_name.as_deref(),
-    );
-    crate::app::global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
+    if effects.startup_changed {
+        crate::app::startup::sync_run_at_startup(
+            settings_snapshot.run_at_startup,
+            workspace_name.as_deref(),
+        );
+    }
+    if effects.hotkey_changed {
+        crate::app::global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
+    }
 }
 
 pub(crate) fn refresh_ui(state: &Rc<RefCell<AppState>>, weak: &slint::Weak<MainWindow>) {
     if let Some(win) = weak.upgrade() {
         recompute_and_update_ui(state, &win);
-        crate::app::theme_ui::advance_theme_animation(state, &win);
+        crate::app::presentation::advance_theme_animation(state, &win);
     }
     crate::app::secondary_windows::refresh_open_settings_window(state);
 }

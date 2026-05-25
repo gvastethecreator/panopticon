@@ -25,7 +25,7 @@ pub(crate) fn build_thumbnails(state: &mut AppState, _win: &MainWindow) -> Vec<T
         }
     } else {
         for managed_window in &mut state.window_collection.windows {
-            managed_window.cached_icon = None;
+            managed_window.preview.cached_icon = None;
         }
     }
 
@@ -69,7 +69,11 @@ pub(crate) fn build_thumbnail_data(
         accent_color: accent,
         show_footer,
         is_minimized,
-        icon: managed_window.cached_icon.clone().unwrap_or_default(),
+        icon: managed_window
+            .preview
+            .cached_icon
+            .clone()
+            .unwrap_or_default(),
         show_icon: show_icons,
         pinned_slot,
     }

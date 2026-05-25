@@ -5,25 +5,16 @@ use panopticon::ui_option_ops::current_workspace_label;
 use slint::{ComponentHandle, SharedString};
 use windows::Win32::Foundation::POINT;
 
-use crate::app::dock::{
-    apply_dock_mode, apply_topmost_mode, apply_window_appearance, keep_dialog_above_owner,
-    reposition_appbar, restore_floating_style, unregister_appbar,
-};
-use crate::app::global_hotkey;
-use crate::app::model_sync::recompute_and_update_ui;
-use crate::app::native_runtime::apply_configured_main_window_size;
+use crate::app::action_execution::{apply_settings_runtime_update, finalize_settings_change};
+use crate::app::dock::{apply_window_appearance, keep_dialog_above_owner};
 use crate::app::native_runtime::get_hwnd;
-use crate::app::settings::apply_effects::SettingsApplyEffects;
-use crate::app::startup;
 use crate::app::ui_translations::populate_tr_global;
-use crate::app::window_sync::refresh_windows;
 use crate::{AppState, MainWindow, SettingsWindow};
 
 use super::{
     apply_runtime_settings_window_changes, apply_secondary_window_placement,
-    populate_settings_window_runtime_fields, refresh_open_about_window,
-    refresh_open_tag_dialog_window, refresh_secondary_window_stacking, refresh_tray_locale,
-    secondary_window_placement, sync_settings_window_from_state,
+    populate_settings_window_runtime_fields, secondary_window_placement,
+    sync_settings_window_from_state,
 };
 use crate::app::settings::callbacks as settings_callbacks;
 use crate::app::workspace::known_workspaces_label;
@@ -139,7 +130,7 @@ pub(crate) fn apply_settings_window_to_state(
             return;
         };
         let mut state_guard = state.borrow_mut();
-        let previous_settings = state_guard.settings.clone();
+        let previous_settings = state_guard.settings.snapshot();
 
         let mut next_settings = previous_settings.clone();
         crate::app::settings::ui::apply_settings_window_changes(
@@ -147,65 +138,17 @@ pub(crate) fn apply_settings_window_to_state(
             &mut next_settings,
         );
         apply_runtime_settings_window_changes(settings_window, &mut next_settings);
-        next_settings = next_settings.normalized();
-
-        if next_settings == previous_settings {
+        let Some(change) = state_guard.settings.replace_persisted(&next_settings) else {
             return;
-        }
-        let effects = SettingsApplyEffects::plan(&previous_settings, &next_settings);
-
-        state_guard.settings = next_settings;
-        state_guard.window_collection.current_layout = state_guard.settings.effective_layout();
-        let _ = state_guard
-            .settings
-            .save(state_guard.workspace_name.as_deref());
-        let hwnd = state_guard.shell.hwnd;
-        let always_on_top = state_guard.settings.always_on_top;
-        let new_dock_edge = state_guard.settings.dock_edge;
-        let new_language = state_guard.settings.language;
-        let settings_clone = state_guard.settings.clone();
-        let workspace_name = state_guard.workspace_name.clone();
-
-        if effects.dock_changed {
-            if state_guard.shell.is_appbar {
-                unregister_appbar(hwnd);
-                state_guard.shell.is_appbar = false;
-            }
-            if new_dock_edge.is_some() {
-                apply_dock_mode(&mut state_guard);
-            } else {
-                restore_floating_style(hwnd);
-            }
-        } else if state_guard.shell.is_appbar {
-            reposition_appbar(&mut state_guard);
-        }
+        };
+        let effects = change.effects;
+        let runtime_update = finalize_settings_change(&mut state_guard, effects);
 
         drop(state_guard);
-        if effects.startup_changed {
-            startup::sync_run_at_startup(settings_clone.run_at_startup, workspace_name.as_deref());
-        }
-        if effects.hotkey_changed {
-            global_hotkey::sync_activate_hotkey(hwnd, &settings_clone);
-        }
-        if effects.refresh_windows {
-            let _ = refresh_windows(state);
-        }
-        if effects.locale_changed {
-            let _ = panopticon::i18n::set_locale(new_language);
-            if let Some(main_window) = main_weak.upgrade() {
-                populate_tr_global(&main_window);
-            }
-            refresh_open_about_window(state);
-            refresh_open_tag_dialog_window(state);
-            refresh_tray_locale(state);
-        }
-        if effects.window_appearance {
-            apply_window_appearance(hwnd, &settings_clone);
-        }
-        apply_topmost_mode(hwnd, always_on_top);
+        apply_settings_runtime_update(state, main_weak, &runtime_update);
         settings_window.set_known_profiles_label(SharedString::from(known_workspaces_label()));
         settings_window.set_current_profile_label(SharedString::from(current_workspace_label(
-            workspace_name.as_deref(),
+            runtime_update.workspace_name.as_deref(),
         )));
         if effects.refresh_windows {
             let refreshed = state.borrow();
@@ -213,13 +156,6 @@ pub(crate) fn apply_settings_window_to_state(
             populate_settings_window_runtime_fields(settings_window, &refreshed);
             settings_window.set_suspend_live_apply(false);
         }
-        if effects.recompute_ui {
-            if let Some(main_window) = main_weak.upgrade() {
-                let _ = apply_configured_main_window_size(&main_window, &settings_clone);
-                recompute_and_update_ui(state, &main_window);
-            }
-        }
-        refresh_secondary_window_stacking(state);
     });
 }
 

@@ -25,8 +25,10 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         IsWindowVisible(host_hwnd).as_bool()
     };
 
-    let discovered =
-        prepare_discovered_windows(enumerate_windows(), host_hwnd, &mut state.settings);
+    let mut discovered = Vec::new();
+    let _ = state.settings.update_persisted(|settings| {
+        discovered = prepare_discovered_windows(enumerate_windows(), host_hwnd, settings);
+    });
 
     let outcome = reconcile_managed_windows(&mut state.window_collection.windows, discovered);
     for app_id in &outcome.icon_invalidations {

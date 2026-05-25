@@ -5,16 +5,12 @@ use panopticon::settings::AppSettings;
 use panopticon::ui_option_ops::parse_option_value;
 use slint::SharedString;
 
-use crate::app::dock::{apply_topmost_mode, apply_window_appearance};
-use crate::app::global_hotkey;
-use crate::app::model_sync::recompute_and_update_ui;
-use crate::app::native_runtime::apply_configured_main_window_size;
+use crate::app::action_execution::replace_settings_snapshot;
 use crate::app::runtime_support::{refresh_ui, request_update_check, update_settings};
-use crate::app::startup;
 use crate::app::window_sync::refresh_windows;
 use crate::{AppState, MainWindow, SettingsWindow};
 
-use crate::app::secondary_windows::{open_about_window, sync_settings_window_from_state};
+use crate::app::secondary_windows::open_about_window;
 use crate::app::settings::helpers::stop_shortcut_recording;
 use crate::app::settings::{selected_model_value, shortcut_recording_label};
 
@@ -51,38 +47,8 @@ fn register_reset_to_defaults_callback(
         let state = state.clone();
         let main_weak = main_weak.clone();
         move || {
-            let (hwnd, settings_snapshot, workspace_name) = {
-                let mut state = state.borrow_mut();
-                let workspace = state.workspace_name.clone();
-                state.settings = AppSettings::default();
-                state.settings = state.settings.normalized();
-                state.window_collection.current_layout = state.settings.effective_layout();
-                let _ = state.settings.save(workspace.as_deref());
-                (state.shell.hwnd, state.settings.clone(), workspace)
-            };
-            startup::sync_run_at_startup(
-                settings_snapshot.run_at_startup,
-                workspace_name.as_deref(),
-            );
-            global_hotkey::sync_activate_hotkey(hwnd, &settings_snapshot);
-            crate::SETTINGS_WIN.with(|handle| {
-                let guard = handle.borrow();
-                if let Some(settings_window) = guard.as_ref() {
-                    let state_ref = state.borrow();
-                    sync_settings_window_from_state(settings_window, &state_ref);
-                }
-            });
-            let state_ref = state.borrow();
-            apply_window_appearance(state_ref.shell.hwnd, &state_ref.settings);
-            apply_topmost_mode(state_ref.shell.hwnd, state_ref.settings.always_on_top);
-            drop(state_ref);
-            let _ = refresh_windows(&state);
-            if let Some(main_window) = main_weak.upgrade() {
-                let state_ref = state.borrow();
-                let _ = apply_configured_main_window_size(&main_window, &state_ref.settings);
-                drop(state_ref);
-                recompute_and_update_ui(&state, &main_window);
-            }
+            let defaults = AppSettings::default();
+            let _ = replace_settings_snapshot(&state, &main_weak, &defaults);
         }
     });
 }

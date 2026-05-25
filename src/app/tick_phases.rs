@@ -213,7 +213,7 @@ pub(crate) fn advance_theme_animation(
     active: bool,
 ) {
     if active {
-        super::theme_ui::advance_theme_animation(state, win);
+        super::presentation::advance_theme_animation(state, win);
     }
 }
 

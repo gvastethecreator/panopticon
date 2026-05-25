@@ -9,7 +9,6 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Instant;
 
-use panopticon::settings::AppSettings;
 use panopticon::theme as theme_catalog;
 use panopticon::thumbnail::Thumbnail;
 use panopticon::window_enum::WindowInfo;
@@ -39,19 +38,15 @@ pub(crate) struct AppState {
     pub(crate) shell: crate::app::shell_state::ShellState,
     pub(crate) window_collection: crate::app::window_collection::WindowCollection,
     pub(crate) theme: crate::app::theme_state::ThemeState,
-    pub(crate) settings: AppSettings,
+    pub(crate) settings: crate::app::settings_state::SettingsState,
     pub(crate) workspace_name: Option<String>,
     pub(crate) app_version: String,
     pub(crate) update_status: UpdateStatus,
 }
 
-/// A window tracked by Panopticon, including its DWM thumbnail handle.
-pub(crate) struct ManagedWindow {
-    pub(crate) info: WindowInfo,
+/// Preview/thumbnails lifecycle state for a tracked window.
+pub(crate) struct ManagedWindowPreview {
     pub(crate) thumbnail: Option<Thumbnail>,
-    pub(crate) target_rect: RECT,
-    pub(crate) display_rect: RECT,
-    pub(crate) animation_from_rect: RECT,
     pub(crate) source_size: SIZE,
     /// Last time the DWM thumbnail was actually updated (for interval mode).
     pub(crate) last_thumb_update: Option<Instant>,
@@ -61,6 +56,15 @@ pub(crate) struct ManagedWindow {
     pub(crate) last_thumb_visible: bool,
     /// Cached Slint image of the window's application icon.
     pub(crate) cached_icon: Option<slint::Image>,
+}
+
+/// A window tracked by Panopticon, including its DWM thumbnail handle.
+pub(crate) struct ManagedWindow {
+    pub(crate) info: WindowInfo,
+    pub(crate) target_rect: RECT,
+    pub(crate) display_rect: RECT,
+    pub(crate) animation_from_rect: RECT,
+    pub(crate) preview: ManagedWindowPreview,
 }
 
 #[derive(Debug, Clone)]
