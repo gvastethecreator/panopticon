@@ -2608,9 +2608,11 @@ mod tests {
 
     #[test]
     fn shortcut_conflicts_detect_duplicate_dashboard_bindings() {
-        let mut shortcuts = ShortcutBindings::default();
-        shortcuts.layout_grid = "H".to_owned();
-        shortcuts.toggle_toolbar = "H".to_owned();
+        let shortcuts = ShortcutBindings {
+            layout_grid: "H".to_owned(),
+            toggle_toolbar: "H".to_owned(),
+            ..ShortcutBindings::default()
+        };
 
         let conflicts = shortcuts.dashboard_conflicts();
 
@@ -2626,9 +2628,11 @@ mod tests {
 
     #[test]
     fn shortcut_conflict_banner_returns_summary_and_detail() {
-        let mut shortcuts = ShortcutBindings::default();
-        shortcuts.layout_grid = "R".to_owned();
-        shortcuts.refresh_now = "R".to_owned();
+        let shortcuts = ShortcutBindings {
+            layout_grid: "R".to_owned(),
+            refresh_now: "R".to_owned(),
+            ..ShortcutBindings::default()
+        };
 
         let banner = shortcuts.conflict_banner();
 
@@ -2683,8 +2687,10 @@ mod tests {
 
     #[test]
     fn conflict_banner_includes_reserved_global_hotkey_warnings() {
-        let mut shortcuts = ShortcutBindings::default();
-        shortcuts.global_activate = Some("Alt+Tab".to_owned());
+        let shortcuts = ShortcutBindings {
+            global_activate: Some("Alt+Tab".to_owned()),
+            ..ShortcutBindings::default()
+        };
 
         let banner = shortcuts.conflict_banner().expect("banner should exist");
         assert!(banner.0.contains("shortcut"));
