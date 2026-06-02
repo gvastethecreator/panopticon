@@ -9,9 +9,12 @@
 *.swo
 *~
 
-# ── Local AI agent skills (not for public repo) ──────────────
+# ── Local-only working areas (not for public repo) ──────────
 .agents/
-docs/
+.opencode/
+# Private planning documents and abandoned scaffolds inside docs/.
+docs/panopticon_improvement_prd/
+docs/book/
 
 # ── OS files ─────────────────────────────────────────────────
 Thumbs.db
