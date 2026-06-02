@@ -43,3 +43,10 @@ test_output.txt
 /temp/
 smoke_stdout.txt
 smoke_stderr.txt
+
+# ── Maintainer-only development scripts ─────────────────────
+# download_icons.ps1 and gui_smoke_settings.ps1 were internal
+# one-off scripts; the icon URLs are already realised in
+# assets/ui-icons/ and the GUI smoke test is host-specific.
+/download_icons.ps1
+/gui_smoke_settings.ps1
