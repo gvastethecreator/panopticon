@@ -33,31 +33,38 @@ pub(crate) fn clamp_offsets(
 mod tests {
     use super::*;
 
+    fn assert_float_eq(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < f32::EPSILON,
+            "expected {expected}, got {actual}"
+        );
+    }
+
     #[test]
     fn horizontal_clamps_to_negative_range() {
         let (x, y) = clamp_offsets(ScrollDirection::Horizontal, 500, 200, 100, -50.0, 10.0);
-        assert_eq!(x, -50.0);
-        assert_eq!(y, 0.0);
+        assert_float_eq(x, -50.0);
+        assert_float_eq(y, 0.0);
     }
 
     #[test]
     fn horizontal_clamps_beyond_max() {
         let (x, y) = clamp_offsets(ScrollDirection::Horizontal, 500, 200, 100, -400.0, 0.0);
-        assert_eq!(x, -300.0);
-        assert_eq!(y, 0.0);
+        assert_float_eq(x, -300.0);
+        assert_float_eq(y, 0.0);
     }
 
     #[test]
     fn vertical_clamps_beyond_max() {
         let (x, y) = clamp_offsets(ScrollDirection::Vertical, 800, 400, 200, 0.0, -700.0);
-        assert_eq!(x, 0.0);
-        assert_eq!(y, -600.0);
+        assert_float_eq(x, 0.0);
+        assert_float_eq(y, -600.0);
     }
 
     #[test]
     fn none_always_zero() {
         let (x, y) = clamp_offsets(ScrollDirection::None, 1000, 100, 100, -50.0, -50.0);
-        assert_eq!(x, 0.0);
-        assert_eq!(y, 0.0);
+        assert_float_eq(x, 0.0);
+        assert_float_eq(y, 0.0);
     }
 }

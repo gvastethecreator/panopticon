@@ -153,7 +153,7 @@ mod tests {
 
     fn msg(msg: u32, wparam: usize, lparam: isize) -> NativeMessage {
         NativeMessage {
-            hwnd: HWND(1usize as *mut c_void),
+            hwnd: HWND(std::ptr::dangling_mut::<c_void>()),
             msg,
             wparam: WPARAM(wparam),
             lparam: LPARAM(lparam),
