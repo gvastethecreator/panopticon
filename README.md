@@ -179,6 +179,7 @@ Panopticon is currently:
 ## Credits
 
 - UI iconography includes assets from [HugeIcons](https://hugeicons.com/).
+- The bundled **Miranda Sans** font family is distributed under the [SIL Open Font License 1.1](assets/fonts/LICENSE-OFL.txt); see [`assets/fonts/README.md`](assets/fonts/README.md).
 
 ## License
 
