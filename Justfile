@@ -13,9 +13,9 @@ release:
 check:
     cargo check
 
-# 🧹 Lint with Clippy (pedantic, deny warnings)
+# 🧹 Lint with Clippy (pedantic, deny warnings, all targets)
 lint:
-    cargo clippy -- -D warnings -W clippy::pedantic
+    cargo clippy --all-targets -- -D warnings -W clippy::pedantic
 
 # 🎨 Format all source files
 fmt:

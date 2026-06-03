@@ -142,7 +142,7 @@ The most useful checks during day-to-day work are:
 ```bash
 cargo check
 cargo test
-cargo clippy -- -D warnings -W clippy::pedantic
+cargo clippy --all-targets -- -D warnings -W clippy::pedantic
 cargo fmt -- --check
 ```
 
