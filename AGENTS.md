@@ -21,6 +21,6 @@ Single-context repo — one `CONTEXT.md` + `docs/adr/` at the repo root. See `do
 - **Language:** Rust (edition 2021)
 - **UI framework:** Slint 1.15.1
 - **Platform:** Windows 10/11 only (Win32, DWM, Shell APIs)
-- **Build:** `cargo check`, `cargo test`, `cargo clippy -- -D warnings -W clippy::pedantic`, `cargo fmt -- --check`
+- **Build:** `cargo check`, `cargo test`, `cargo clippy --all-targets -- -D warnings -W clippy::pedantic`, `cargo fmt -- --check`
 - **Architecture docs:** `docs/ARCHITECTURE.md`, `docs/IMPLEMENTATION.md`, `docs/PRD.md`
 - **Unsafe policy:** Keep blocks minimal, always add `SAFETY` comments, encapsulate handles in wrappers

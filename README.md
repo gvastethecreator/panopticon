@@ -9,7 +9,6 @@
 [![Rust](https://img.shields.io/badge/Rust-2021-%23CE422B?logo=rust)](https://www.rust-lang.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4?logo=windows)](https://learn.microsoft.com/windows/)
 
-![Panopticon dashboard screenshot](docs/assets/app-showcase.png)
 
 Panopticon is a local desktop utility built in Rust for Windows 10/11. It discovers real top-level windows, renders their live previews via **Desktop Window Manager (DWM)**, and lets you manage them in a single Slint-based control room.
 
@@ -161,7 +160,7 @@ Most day-to-day checks are:
 ```bash
 cargo check
 cargo test
-cargo clippy -- -D warnings -W clippy::pedantic
+cargo clippy --all-targets -- -D warnings -W clippy::pedantic
 cargo fmt -- --check
 ```
 
