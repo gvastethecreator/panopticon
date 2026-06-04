@@ -1,87 +1,41 @@
 # Panopticon
+> <img src="assets/floppy-small.webp" align="right"/>
+![Rust](https://shieldcn.dev/badge/Rust-000000.svg?logo=rust&logoColor=fff&variant=branded&size=xs) ![Runs on Windows](https://shieldcn.dev/badge/Runs%20on-Windows%2011-0078D4.svg?logo=windows&logoColor=fff&size=xs) ![GitHub CI](https://shieldcn.dev/github/ci/gvastethecreator/panopticon.svg?variant=secondary&size=xs) [![License](https://www.shieldcn.dev/github/license/gvastethecreator/panopticon.svg?variant=secondary&size=xs)](LICENSE)
 
-![Panopticon icon](docs/assets/panopticon.webp)
+*Desktop utility for viewing, organising, and activating your open windows through live thumbnails on Windows 10/11.*
 
-**A native Windows dashboard for viewing, organising, and activating your open windows through live DWM thumbnails.**
+It discovers real top-level windows, renders their live previews, and lets you manage them in a single control room.
 
-[![CI](https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml/badge.svg)](https://github.com/gvastethecreator/panopticon/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
-[![Rust](https://img.shields.io/badge/Rust-2021-%23CE422B?logo=rust)](https://www.rust-lang.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4?logo=windows)](https://learn.microsoft.com/windows/)
+👁️ see many windows at once without constantly alt-tabbing.
+
+👁️ switch between several layout strategies depending on the task.
+
+👁️ keep a persistent visual workspace with filters, grouping, and tags.
+
+👁️ hide the app in the tray and bring it back instantly when needed.
+
+👁️ fully local, no cloud or external services.
+
+👁️ **7 layout modes**: `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, and `Column`.
+
+👁️ **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
+
+👁️ **Grouping and filters** by app, monitor, title, class, and tag.
+
+👁️ **Tray utility + appbar/dock mode** for always-available workflows.
+
+👁️ **Campbell-first themes, core colour overrides, backdrop opacity, background images with fit modes + opacity, animations, customizable shortcuts, workspaces, and persistence** through local TOML files.
+
+👁️ **Bilingual UI** with English and Spanish support.
 
 
-Panopticon is a local desktop utility built in Rust for Windows 10/11. It discovers real top-level windows, renders their live previews via **Desktop Window Manager (DWM)**, and lets you manage them in a single Slint-based control room.
-
-If you want the full guide instead of the quick landing page, jump to **[`docs/README.md`](docs/README.md)**.
-
+If you want the full guide jump to **[`docs/README.md`](docs/README.md)**.
 ## Download
 
-- **Latest release (portable ZIP):** [github.com/gvastethecreator/panopticon/releases/latest](https://github.com/gvastethecreator/panopticon/releases/latest)
+- **Latest release:** [github.com/gvastethecreator/panopticon/releases/latest](https://github.com/gvastethecreator/panopticon/releases/latest)
 - **Build from source:** see [Quick start](#quick-start)
 
-If you are trying Panopticon for the first time, the release ZIP is the fastest path.
 
-## Why use it?
-
-Panopticon is useful when you want to:
-
-- see many windows at once without constantly alt-tabbing;
-- keep a persistent visual workspace with filters, grouping, and tags;
-- switch between several layout strategies depending on the task;
-- hide the app in the tray and bring it back instantly when needed;
-- stay fully local, with no backend, cloud sync, or external services.
-
-## What you get
-
-- **Live DWM thumbnails** instead of static screenshots.
-- **7 layout modes**: `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, and `Column`.
-- **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
-- **Grouping and filters** by app, monitor, title, class, and tag.
-- **Tray utility + appbar/dock mode** for always-available workflows.
-- **Campbell-first themes, core colour overrides, backdrop opacity, background images with fit modes + opacity, animations, customizable shortcuts, workspaces, and persistence** through local TOML files.
-- **Bilingual UI** with English and Spanish support.
-
-## Quick start
-
-### Requirements
-
-| Requirement | Value |
-| --- | --- |
-| Operating system | Windows 10 / 11 (64-bit) |
-| Rust toolchain | Recent stable |
-| DWM | Enabled |
-| Platform support | Windows only |
-
-### Option A — Run from source (developers)
-
-```bash
-git clone https://github.com/gvastethecreator/panopticon.git
-cd panopticon
-cargo run --release
-```
-
-The executable is generated at `target/release/panopticon.exe`.
-
-To run a named workspace:
-
-```bash
-cargo run --release -- --workspace work
-```
-
-Workspace names are used as TOML filenames on Windows, so avoid reserved characters such as `<>:"/\\|?*` and control characters.
-
-Panopticon also understands:
-
-- `cargo run --release -- --workspace=work`
-- `cargo run --release -- --help`
-- `cargo run --release -- --version`
-
-### Option B — Run from release ZIP (quickest for users)
-
-1. Download the latest release from [Releases](https://github.com/gvastethecreator/panopticon/releases/latest).
-2. Extract the ZIP to any folder.
-3. Run `Panopticon.exe`.
-4. (Optional) Create a desktop shortcut or add it to startup.
 
 ## First minute with Panopticon
 
@@ -94,7 +48,6 @@ Panopticon also understands:
 
 ### Handy shortcuts
 
-These are the **default** bindings. You can rebind the dashboard/global shortcuts from `Settings -> Keyboard Shortcuts`; `F1` remains a built-in shortcut for the About window.
 
 | Input | Action |
 | --- | --- |
@@ -115,71 +68,15 @@ These are the **default** bindings. You can rebind the dashboard/global shortcut
 | `Alt` | Toggle status bar |
 | `Esc` | Exit |
 
-## Where things are stored
+---
+- For deep technical details, check the [docs](docs/README.md) folder.
+- For feature requests and suggestions, create an issue or submit a PR.
+- If you like this project, consider giving it a star or became a sponsor.
+---
 
-Configuration is stored locally in:
-
-```text
-%APPDATA%\Panopticon\settings.toml
-%APPDATA%\Panopticon\workspaces\<workspace>.toml
-```
-
-If `%APPDATA%` is unavailable, Panopticon falls back to `%TEMP%\Panopticon\...`.
-
-Logs are written to:
-
-```text
-%TEMP%\panopticon\logs\panopticon.log.YYYY-MM-DD
-```
-
-## Documentation
-
-The root README is intentionally short. The fuller handbook now lives in **[`docs/README.md`](docs/README.md)**.
-
-Useful entry points:
-
-- [`docs/README.md`](docs/README.md) — complete documentation hub and reading guide.
-- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — install, launch, first-run flow, common issues.
-- [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — settings, workspaces, and TOML schema.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture, runtime layers, and diagrams.
-- [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) — deeper implementation details by module.
-- [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) — repository map and code ownership.
-- [`docs/PRD.md`](docs/PRD.md) — product goals, scope, and constraints.
-
-Project/community references:
-
-- [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- [`SECURITY.md`](SECURITY.md)
-- [`SUPPORT.md`](SUPPORT.md)
-- [`CHANGELOG.md`](CHANGELOG.md)
-
-## Development
-
-Most day-to-day checks are:
-
-```bash
-cargo check
-cargo test
-cargo clippy --all-targets -- -D warnings -W clippy::pedantic
-cargo fmt -- --check
-```
-
-VS Code workspace tasks are also available for these commands.
-
-## Scope and status
-
-Panopticon is currently:
-
-- a **local-first Windows utility**;
-- built with **Rust + Slint + Win32/DWM**;
-- focused on **desktop window observation and activation**;
-- not intended for Linux, macOS, web, or remote multi-user usage.
-
-## Credits
-
-- UI iconography includes assets from [HugeIcons](https://hugeicons.com/).
-- The bundled **Miranda Sans** font family is distributed under the [SIL Open Font License 1.1](assets/fonts/LICENSE-OFL.txt); see [`assets/fonts/README.md`](assets/fonts/README.md).
-
-## License
-
-MIT. See [`LICENSE`](LICENSE).
+<h4 align="right">Support the further development of this tool 🤍</h4>
+<p align="right">
+  <a href="https://github.com/sponsors/gvastethecreator/"><img src="https://shieldcn.dev/badge/%E2%9D%A4-sponsor%20this%20project-red.svg?animate=pulse" alt="Sponsor this project" /></a>
+  <a href="https://x.com/gvastebb"><img src="https://shieldcn.dev/x/mention/gvastebb.svg?variant=branded" alt="Follow on X" /></a>
+  
+</p>
