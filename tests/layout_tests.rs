@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use panopticon::layout::{
     apply_separator_drag, compute_layout, compute_layout_custom, AspectHint, LayoutCustomization,
-    LayoutType,
+    LayoutType, ScrollDirection,
 };
 use windows::Win32::Foundation::RECT;
 
@@ -215,6 +215,102 @@ fn column_layout_fits_single_window() {
     assert!(rects[0].bottom <= a.bottom);
 }
 
+// ── Docked Row / Column wrap tests ───────────────────────────
+
+#[test]
+fn docked_row_wraps_into_multiple_rows_and_scrolls_vertically() {
+    // 1920x120 top dock: 10 landscape windows should wrap to multiple rows.
+    let a = area(1920, 120);
+    let aspects = uniform_aspects(10);
+    let result = compute_layout_custom(LayoutType::Row, a, 10, &aspects, true, None);
+
+    assert_eq!(result.rects.len(), 10);
+    assert!(result.rows > 1, "docked Row should produce multiple rows");
+    assert!(
+        result.cols * result.rows >= 10,
+        "grid should cover all windows"
+    );
+
+    // Every rect should fit horizontally within the dock strip.
+    for (i, r) in result.rects.iter().enumerate() {
+        assert!(
+            r.left >= a.left && r.right <= a.right,
+            "rect {i} ({r:?}) overflows horizontally"
+        );
+    }
+
+    // Content extends downward for vertical scrolling.
+    let max_bottom = result.rects.iter().map(|r| r.bottom).max().unwrap();
+    assert!(
+        max_bottom > a.bottom,
+        "docked Row should overflow vertically"
+    );
+
+    // Only horizontal separators between rows.
+    assert!(
+        result.separators.iter().all(|s| s.horizontal),
+        "docked Row should only emit horizontal separators"
+    );
+    assert_eq!(result.separators.len(), result.rows - 1);
+}
+
+#[test]
+fn docked_column_wraps_into_multiple_columns_and_scrolls_horizontally() {
+    // 180x600 side dock: 10 landscape windows do not fit vertically, so they
+    // wrap to multiple columns and scroll horizontally.
+    let a = area(180, 600);
+    let aspects = uniform_aspects(10);
+    let result = compute_layout_custom(LayoutType::Column, a, 10, &aspects, true, None);
+
+    assert_eq!(result.rects.len(), 10);
+    assert!(
+        result.cols > 1,
+        "docked Column should produce multiple columns"
+    );
+    assert!(
+        result.cols * result.rows >= 10,
+        "grid should cover all windows"
+    );
+
+    // Every rect should fit vertically within the dock strip.
+    for (i, r) in result.rects.iter().enumerate() {
+        assert!(
+            r.top >= a.top && r.bottom <= a.bottom,
+            "rect {i} ({r:?}) overflows vertically"
+        );
+    }
+
+    // Content extends sideways for horizontal scrolling.
+    let max_right = result.rects.iter().map(|r| r.right).max().unwrap();
+    assert!(
+        max_right > a.right,
+        "docked Column should overflow horizontally"
+    );
+
+    // Only vertical separators between columns.
+    assert!(
+        result.separators.iter().all(|s| !s.horizontal),
+        "docked Column should only emit vertical separators"
+    );
+    assert_eq!(result.separators.len(), result.cols - 1);
+}
+
+#[test]
+fn docked_row_scroll_direction_is_vertical() {
+    assert_eq!(
+        LayoutType::Row.scroll_direction_for(true),
+        ScrollDirection::Vertical
+    );
+}
+
+#[test]
+fn docked_column_scroll_direction_is_horizontal() {
+    assert_eq!(
+        LayoutType::Column.scroll_direction_for(true),
+        ScrollDirection::Horizontal
+    );
+}
+
 // ── Mixed aspect ratios ──────────────────────────────────────
 
 #[test]
@@ -256,6 +352,7 @@ fn grid_custom_ratios_resize_cells_and_emit_separators() {
         area(1_000, 600),
         4,
         &uniform_aspects(4),
+        false,
         Some(&custom),
     );
 
@@ -290,6 +387,7 @@ fn invalid_custom_ratios_fall_back_to_default_distribution() {
         area(1_000, 600),
         4,
         &uniform_aspects(4),
+        false,
         Some(&invalid),
     );
 
@@ -318,6 +416,7 @@ fn grid_incomplete_last_row_clips_separator_extents() {
         area(1_000, 600),
         3,
         &uniform_aspects(3),
+        false,
         None,
     );
     assert_eq!(result.rects.len(), 3);
@@ -357,6 +456,7 @@ fn grid_full_grid_keeps_full_separator_extents() {
         area(1_000, 600),
         4,
         &uniform_aspects(4),
+        false,
         None,
     );
     assert_eq!(result.separators.len(), 2);

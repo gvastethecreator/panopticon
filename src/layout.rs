@@ -82,13 +82,24 @@ impl LayoutType {
 
     /// Axis along which this layout may produce content that overflows the
     /// visible area and therefore supports scrolling.
+    ///
+    /// For the non-docked case, see [`scroll_direction`](Self::scroll_direction).
     #[must_use]
-    pub fn scroll_direction(self) -> ScrollDirection {
+    pub fn scroll_direction_for(self, docked: bool) -> ScrollDirection {
         match self {
+            Self::Row if docked => ScrollDirection::Vertical,
+            Self::Column if docked => ScrollDirection::Horizontal,
             Self::Row => ScrollDirection::Horizontal,
             Self::Column => ScrollDirection::Vertical,
             _ => ScrollDirection::None,
         }
+    }
+
+    /// Backward-compatible alias for [`scroll_direction_for`](Self::scroll_direction_for)
+    /// with `docked = false`.
+    #[must_use]
+    pub fn scroll_direction(self) -> ScrollDirection {
+        self.scroll_direction_for(false)
     }
 }
 
@@ -227,6 +238,10 @@ pub struct LayoutResult {
     pub rects: Vec<RECT>,
     /// Draggable separators the UI can render as resize handles.
     pub separators: Vec<Separator>,
+    /// Number of columns in the computed layout (`1` for single-column strips).
+    pub cols: usize,
+    /// Number of rows in the computed layout (`1` for single-row strips).
+    pub rows: usize,
 }
 
 /// Padding (in pixels) applied inside each cell.
@@ -234,8 +249,7 @@ const PADDING: i32 = 6;
 
 /// Compute destination [`RECT`]s for `count` windows inside `area`.
 ///
-/// Each layout mode distributes the rectangles differently; see
-/// [`LayoutType`] for descriptions.
+/// Equivalent to [`compute_layout_custom`] with `docked = false`.
 #[must_use]
 pub fn compute_layout(
     layout: LayoutType,
@@ -243,10 +257,14 @@ pub fn compute_layout(
     count: usize,
     aspects: &[AspectHint],
 ) -> Vec<RECT> {
-    compute_layout_custom(layout, area, count, aspects, None).rects
+    compute_layout_custom(layout, area, count, aspects, false, None).rects
 }
 
 /// Compute destination rectangles **and** draggable separators.
+///
+/// When `docked` is `true`, [`LayoutType::Row`] and [`LayoutType::Column`]
+/// wrap their content across multiple rows or columns so that every window
+/// remains inside the dock strip, scrolling in the cross-axis direction.
 ///
 /// When `custom` is `Some`, the stored ratios override the default
 /// algorithm proportions where applicable.
@@ -256,12 +274,15 @@ pub fn compute_layout_custom(
     area: RECT,
     count: usize,
     aspects: &[AspectHint],
+    docked: bool,
     custom: Option<&LayoutCustomization>,
 ) -> LayoutResult {
     if count == 0 {
         return LayoutResult {
             rects: Vec::new(),
             separators: Vec::new(),
+            cols: 0,
+            rows: 0,
         };
     }
     match layout {
@@ -273,10 +294,14 @@ pub fn compute_layout_custom(
             LayoutResult {
                 rects,
                 separators: Vec::new(),
+                cols: count.max(1),
+                rows: 1,
             }
         }
         LayoutType::Columns => columns_layout_custom(area, count, aspects, custom),
+        LayoutType::Row if docked => docked_row_layout_custom(area, count, aspects, custom),
         LayoutType::Row => single_row_layout_custom(area, count, aspects, custom),
+        LayoutType::Column if docked => docked_column_layout_custom(area, count, aspects, custom),
         LayoutType::Column => single_column_layout_custom(area, count, aspects, custom),
     }
 }
@@ -368,7 +393,12 @@ fn grid_layout_custom(
         });
     }
 
-    LayoutResult { rects, separators }
+    LayoutResult {
+        rects,
+        separators,
+        cols,
+        rows,
+    }
 }
 
 // ───────────────────────── Mosaic ─────────────────────────
@@ -439,7 +469,12 @@ fn mosaic_layout_custom(
         });
     }
 
-    LayoutResult { rects, separators }
+    LayoutResult {
+        rects,
+        separators,
+        cols,
+        rows: rows_count,
+    }
 }
 
 // ───────────────────────── Bento ─────────────────────────
@@ -454,6 +489,8 @@ fn bento_layout_custom(
         return LayoutResult {
             rects: vec![padded_rect(area.left, area.top, area.right, area.bottom)],
             separators: Vec::new(),
+            cols: 1,
+            rows: 1,
         };
     }
 
@@ -515,7 +552,12 @@ fn bento_layout_custom(
         });
     }
 
-    LayoutResult { rects, separators }
+    LayoutResult {
+        rects,
+        separators,
+        cols: 2,
+        rows: side_count.max(1),
+    }
 }
 
 // ───────────────────────── Fibonacci ─────────────────────────
@@ -663,7 +705,12 @@ fn columns_layout_custom(
         });
     }
 
-    LayoutResult { rects, separators }
+    LayoutResult {
+        rects,
+        separators,
+        cols: num_cols,
+        rows: count,
+    }
 }
 
 // ───────────────────────── Row ─────────────────────────
@@ -736,7 +783,12 @@ fn single_row_layout_custom(
         });
     }
 
-    LayoutResult { rects, separators }
+    LayoutResult {
+        rects,
+        separators,
+        cols: count,
+        rows: 1,
+    }
 }
 
 // ───────────────────────── Column (vertical strip) ─────────────────────────
@@ -806,7 +858,194 @@ fn single_column_layout_custom(
         });
     }
 
-    LayoutResult { rects, separators }
+    LayoutResult {
+        rects,
+        separators,
+        cols: 1,
+        rows: count,
+    }
+}
+
+// ───────────────────────── Docked Row / Column wraps ─────────────────────────
+
+/// Docked horizontal strip: wrap windows across multiple rows.
+///
+/// Windows are laid out left-to-right, top-to-bottom.  Each row is scaled
+/// individually to fill the available width while preserving the aspect
+/// ratios of the windows in that row.  The layout grows downward and the
+/// caller is expected to provide vertical scrolling.
+fn docked_row_layout_custom(
+    area: RECT,
+    count: usize,
+    aspects: &[AspectHint],
+    custom: Option<&LayoutCustomization>,
+) -> LayoutResult {
+    let area_width = f64::from(area.right - area.left);
+    let area_height = f64::from(area.bottom - area.top);
+
+    // Natural widths if every window occupied a full-height row.
+    let natural_widths: Vec<f64> = (0..count)
+        .map(|i| {
+            let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+            area_height * ratio
+        })
+        .collect();
+
+    let total_natural: f64 = natural_widths.iter().sum();
+    let avg_width = total_natural / count as f64;
+    let cols = if avg_width > 0.0 {
+        (area_width / avg_width).round() as usize
+    } else {
+        1
+    }
+    .clamp(1, count);
+    let rows = count.div_ceil(cols);
+
+    // Row heights: ratios control the share of the total content height.
+    let row_heights = scaled_segments(
+        area_height * rows as f64,
+        rows,
+        matching_ratios(custom.map(|c| c.row_ratios.as_slice()), rows),
+    );
+    let row_y = cumulative_positions(&row_heights);
+
+    let mut rects = Vec::with_capacity(count);
+    for row in 0..rows {
+        let start = row * cols;
+        let end = ((row + 1) * cols).min(count);
+        let row_count = end - start;
+        if row_count == 0 {
+            continue;
+        }
+
+        let row_natural: Vec<f64> = natural_widths[start..end].to_vec();
+        let row_total: f64 = row_natural.iter().sum();
+        let scale = if row_total > 0.0 {
+            area_width / row_total
+        } else {
+            1.0
+        };
+        let row_widths: Vec<f64> = row_natural.iter().map(|w| w * scale).collect();
+        let col_x = cumulative_positions(&row_widths);
+
+        for (idx, _i) in (start..end).enumerate() {
+            rects.push(padded_rect(
+                area.left + col_x[idx] as i32,
+                area.top + row_y[row] as i32,
+                area.left + col_x[idx + 1] as i32,
+                area.top + row_y[row + 1] as i32,
+            ));
+        }
+    }
+
+    // Horizontal separators between rows (users can resize row heights).
+    let mut separators = Vec::with_capacity(rows.saturating_sub(1));
+    for r in 0..rows.saturating_sub(1) {
+        separators.push(Separator {
+            position: area.top + row_y[r + 1] as i32,
+            horizontal: true,
+            ratio_index: r,
+            extent_start: area.left,
+            extent_end: area.right,
+        });
+    }
+
+    LayoutResult {
+        rects,
+        separators,
+        cols,
+        rows,
+    }
+}
+
+/// Docked vertical strip: wrap windows across multiple columns.
+///
+/// Windows are laid out top-to-bottom, left-to-right.  Each column is scaled
+/// individually to fill the available height while preserving the aspect
+/// ratios of the windows in that column.  The layout grows sideways and the
+/// caller is expected to provide horizontal scrolling.
+fn docked_column_layout_custom(
+    area: RECT,
+    count: usize,
+    aspects: &[AspectHint],
+    custom: Option<&LayoutCustomization>,
+) -> LayoutResult {
+    let area_width = f64::from(area.right - area.left);
+    let area_height = f64::from(area.bottom - area.top);
+
+    // Natural heights if every window occupied a full-width column.
+    let natural_heights: Vec<f64> = (0..count)
+        .map(|i| {
+            let ratio = aspects.get(i).map_or(1.5, |a| a.ratio().max(0.3));
+            area_width / ratio
+        })
+        .collect();
+
+    let total_natural: f64 = natural_heights.iter().sum();
+    let avg_height = total_natural / count as f64;
+    let rows = if avg_height > 0.0 {
+        (area_height / avg_height).round() as usize
+    } else {
+        1
+    }
+    .clamp(1, count);
+    let cols = count.div_ceil(rows);
+
+    // Column widths: ratios control the share of the total content width.
+    let col_widths = scaled_segments(
+        area_width * cols as f64,
+        cols,
+        matching_ratios(custom.map(|c| c.col_ratios.as_slice()), cols),
+    );
+    let col_x = cumulative_positions(&col_widths);
+
+    let mut rects = Vec::with_capacity(count);
+    for col in 0..cols {
+        let start = col * rows;
+        let end = ((col + 1) * rows).min(count);
+        let col_count = end - start;
+        if col_count == 0 {
+            continue;
+        }
+
+        let col_natural: Vec<f64> = natural_heights[start..end].to_vec();
+        let col_total: f64 = col_natural.iter().sum();
+        let scale = if col_total > 0.0 {
+            area_height / col_total
+        } else {
+            1.0
+        };
+        let col_heights: Vec<f64> = col_natural.iter().map(|h| h * scale).collect();
+        let row_y = cumulative_positions(&col_heights);
+
+        for (idx, _i) in (start..end).enumerate() {
+            rects.push(padded_rect(
+                area.left + col_x[col] as i32,
+                area.top + row_y[idx] as i32,
+                area.left + col_x[col + 1] as i32,
+                area.top + row_y[idx + 1] as i32,
+            ));
+        }
+    }
+
+    // Vertical separators between columns (users can resize column widths).
+    let mut separators = Vec::with_capacity(cols.saturating_sub(1));
+    for c in 0..cols.saturating_sub(1) {
+        separators.push(Separator {
+            position: area.left + col_x[c + 1] as i32,
+            horizontal: false,
+            ratio_index: c,
+            extent_start: area.top,
+            extent_end: area.bottom,
+        });
+    }
+
+    LayoutResult {
+        rects,
+        separators,
+        cols,
+        rows,
+    }
 }
 
 // ───────────────────────── Helpers ─────────────────────────

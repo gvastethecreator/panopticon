@@ -17,6 +17,9 @@ pub(crate) struct WindowCollection {
     pub(crate) drag_separator: Option<DragState>,
     pub(crate) content_extent: i32,
     pub(crate) active_hwnd: Option<HWND>,
+    /// Grid dimensions used when a docked `Row`/`Column` layout wraps its
+    /// content.  `None` for all other layout modes.
+    pub(crate) docked_wrap_dims: Option<(usize, usize)>,
 }
 
 impl WindowCollection {
@@ -28,6 +31,7 @@ impl WindowCollection {
             drag_separator: None,
             content_extent: 0,
             active_hwnd: None,
+            docked_wrap_dims: None,
         }
     }
 }
