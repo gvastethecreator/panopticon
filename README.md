@@ -6,31 +6,22 @@
 
 It discovers real top-level windows, renders their live previews, and lets you manage them in a single control room.
 
-👁️ see many windows at once without constantly alt-tabbing.
+- 👁️ see many windows at once without constantly alt-tabbing.
+- 👁️ switch between several layout strategies depending on the task.
+- 👁️ keep a persistent visual workspace with filters, grouping, and tags.
+- 👁️ hide the app in the tray and bring it back instantly when needed.
+- 👁️ fully local, no cloud or external services.
+- 👁️ **7 layout modes**: `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, and `Column`.
+- 👁️ **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
+- 👁️ **Grouping and filters** by app, monitor, title, class, and tag.
+- 👁️ **Tray utility + appbar/dock mode** for always-available workflows.
+- 👁️ **Campbell-first themes, core colour overrides, backdrop opacity, background images with fit modes + opacity, animations, customizable shortcuts, workspaces, and persistence** through local TOML files.
+- 👁️ **Bilingual UI** with English and Spanish support.
 
-👁️ switch between several layout strategies depending on the task.
+---
+> If you want the full guide jump to **[`docs/README.md`](docs/README.md)**.
 
-👁️ keep a persistent visual workspace with filters, grouping, and tags.
-
-👁️ hide the app in the tray and bring it back instantly when needed.
-
-👁️ fully local, no cloud or external services.
-
-👁️ **7 layout modes**: `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, and `Column`.
-
-👁️ **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
-
-👁️ **Grouping and filters** by app, monitor, title, class, and tag.
-
-👁️ **Tray utility + appbar/dock mode** for always-available workflows.
-
-👁️ **Campbell-first themes, core colour overrides, backdrop opacity, background images with fit modes + opacity, animations, customizable shortcuts, workspaces, and persistence** through local TOML files.
-
-👁️ **Bilingual UI** with English and Spanish support.
-
-
-If you want the full guide jump to **[`docs/README.md`](docs/README.md)**.
-## Download
+## 💾 Download
 
 - **Latest release:** [github.com/gvastethecreator/panopticon/releases/latest](https://github.com/gvastethecreator/panopticon/releases/latest)
 - **Build from source:** see [Quick start](#quick-start)
@@ -78,5 +69,4 @@ If you want the full guide jump to **[`docs/README.md`](docs/README.md)**.
 <p align="right">
   <a href="https://github.com/sponsors/gvastethecreator/"><img src="https://shieldcn.dev/badge/%E2%9D%A4-sponsor%20this%20project-red.svg?animate=pulse" alt="Sponsor this project" /></a>
   <a href="https://x.com/gvastebb"><img src="https://shieldcn.dev/x/mention/gvastebb.svg?variant=branded" alt="Follow on X" /></a>
-  
 </p>

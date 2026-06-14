@@ -14,13 +14,15 @@ use crate::ManagedWindow;
 /// Compute layout rectangles and separators for a window collection.
 ///
 /// This is a thin, pure wrapper around [`compute_layout_custom`] that
-/// extracts aspect hints from the current window set.
+/// extracts aspect hints from the current window set and forwards the
+/// current dock state.
 pub(crate) fn compute_layout_rects(
     layout: LayoutType,
     content_area: RECT,
     windows: &[ManagedWindow],
+    docked: bool,
     custom: Option<&LayoutCustomization>,
-) -> (Vec<RECT>, Vec<Separator>) {
+) -> (Vec<RECT>, Vec<Separator>, usize, usize) {
     let aspects: Vec<AspectHint> = windows
         .iter()
         .map(|w| AspectHint {
@@ -28,8 +30,15 @@ pub(crate) fn compute_layout_rects(
             height: f64::from(w.preview.source_size.cy),
         })
         .collect();
-    let result = compute_layout_custom(layout, content_area, windows.len(), &aspects, custom);
-    (result.rects, result.separators)
+    let result = compute_layout_custom(
+        layout,
+        content_area,
+        windows.len(),
+        &aspects,
+        docked,
+        custom,
+    );
+    (result.rects, result.separators, result.cols, result.rows)
 }
 
 /// Apply computed layout rectangles to the window collection.

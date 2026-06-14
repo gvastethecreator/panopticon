@@ -5,12 +5,13 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use panopticon::constants::TOOLBAR_HEIGHT;
-use panopticon::layout::ScrollDirection;
+use panopticon::layout::{LayoutCustomization, LayoutType, ScrollDirection};
 use slint::ComponentHandle;
 use slint::Model;
 use windows::Win32::Foundation::RECT;
 use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
 
+use crate::app::window_collection::WindowCollection;
 use crate::{AppState, MainWindow};
 
 thread_local! {
@@ -70,6 +71,39 @@ impl Drop for ModelSyncGuard {
     }
 }
 
+/// Compute the layout for the current window collection and update the
+/// scroll direction / content extent accordingly.
+fn compute_layout_and_scroll(
+    window_collection: &mut WindowCollection,
+    layout: LayoutType,
+    custom: Option<&LayoutCustomization>,
+    docked: bool,
+    content_area: RECT,
+) -> (Vec<RECT>, ScrollDirection) {
+    let (rects, separators, cols, rows) = super::layout_pipeline::compute_layout_rects(
+        layout,
+        content_area,
+        &window_collection.windows,
+        docked,
+        custom,
+    );
+    tracing::trace!(
+        window_count = window_collection.windows.len(),
+        "recompute checkpoint: layout computed"
+    );
+    window_collection.separators = separators;
+    window_collection.docked_wrap_dims = if docked { Some((cols, rows)) } else { None };
+
+    let scroll_dir = layout.scroll_direction_for(docked);
+    window_collection.content_extent = match scroll_dir {
+        ScrollDirection::Horizontal => rects.iter().map(|rect| rect.right).max().unwrap_or(0),
+        ScrollDirection::Vertical => rects.iter().map(|rect| rect.bottom).max().unwrap_or(0),
+        ScrollDirection::None => 0,
+    };
+
+    (rects, scroll_dir)
+}
+
 pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &MainWindow) {
     let Some(_guard) = RecomputeGuard::enter() else {
         tracing::debug!("skipping nested recompute_and_update_ui invocation");
@@ -106,28 +140,16 @@ pub(crate) fn recompute_and_update_ui(app_state: &Rc<RefCell<AppState>>, win: &M
         bottom: (logical_h - toolbar_h).max(1),
     };
 
-    let custom = state
-        .settings
-        .layout_custom(state.window_collection.current_layout)
-        .cloned();
-    let (rects, separators) = super::layout_pipeline::compute_layout_rects(
-        state.window_collection.current_layout,
-        content_area,
-        &state.window_collection.windows,
+    let layout = state.window_collection.current_layout;
+    let custom = state.settings.layout_custom(layout).cloned();
+    let docked = state.settings.dock_edge.is_some();
+    let (rects, scroll_dir) = compute_layout_and_scroll(
+        &mut state.window_collection,
+        layout,
         custom.as_ref(),
+        docked,
+        content_area,
     );
-    tracing::trace!(
-        window_count = state.window_collection.windows.len(),
-        "recompute checkpoint: layout computed"
-    );
-    state.window_collection.separators = separators;
-
-    let scroll_dir = state.window_collection.current_layout.scroll_direction();
-    state.window_collection.content_extent = match scroll_dir {
-        ScrollDirection::Horizontal => rects.iter().map(|rect| rect.right).max().unwrap_or(0),
-        ScrollDirection::Vertical => rects.iter().map(|rect| rect.bottom).max().unwrap_or(0),
-        ScrollDirection::None => 0,
-    };
 
     let can_animate = state.settings.animate_transitions
         && !state.shell.hwnd.0.is_null()

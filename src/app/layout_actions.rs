@@ -93,15 +93,20 @@ pub(crate) fn handle_resize_drag_start(
     let logical_h =
         phys.map_or(720, |size| (size.height as f32 / scale).round() as i32) - toolbar_h;
 
+    let docked = state.settings.dock_edge.is_some();
+    let scroll_dir = state
+        .window_collection
+        .current_layout
+        .scroll_direction_for(docked);
     let axis_extent = if separator.horizontal {
-        match state.window_collection.current_layout.scroll_direction() {
+        match scroll_dir {
             ScrollDirection::Vertical => {
                 f64::from(state.window_collection.content_extent.max(logical_h))
             }
             _ => f64::from(logical_h),
         }
     } else {
-        match state.window_collection.current_layout.scroll_direction() {
+        match scroll_dir {
             ScrollDirection::Horizontal => {
                 f64::from(state.window_collection.content_extent.max(logical_w))
             }
@@ -152,10 +157,12 @@ pub(crate) fn handle_resize_drag_move(
     let mut state_ref = state.borrow_mut();
     let layout = state_ref.window_collection.current_layout;
     let window_count = state_ref.window_collection.windows.len();
+    let docked = state_ref.settings.dock_edge.is_some();
+    let wrap_dims = state_ref.window_collection.docked_wrap_dims;
 
     let min_frac = 0.03;
     let _ = state_ref.settings.update_persisted(|settings| {
-        ensure_custom_ratios(settings, layout, window_count);
+        ensure_custom_ratios(settings, layout, window_count, docked, wrap_dims);
 
         if let Some(custom) = settings.layout_customizations.get_mut(layout.storage_key()) {
             let ratios = if horizontal {
@@ -165,6 +172,10 @@ pub(crate) fn handle_resize_drag_move(
             };
             if ratio_index + 1 < ratios.len() {
                 match layout {
+                    // Docked wrap modes use per-adjacent resizing like Grid.
+                    LayoutType::Row | LayoutType::Column if docked => {
+                        apply_separator_drag(ratios, ratio_index, delta_frac, min_frac);
+                    }
                     LayoutType::Columns | LayoutType::Row | LayoutType::Column => {
                         apply_separator_drag_grouped(ratios, ratio_index, delta_frac, min_frac);
                     }
@@ -204,6 +215,8 @@ fn ensure_custom_ratios(
     settings: &mut panopticon::settings::AppSettings,
     layout: LayoutType,
     count: usize,
+    docked: bool,
+    wrap_dims: Option<(usize, usize)>,
 ) {
     if count == 0 {
         return;
@@ -247,9 +260,23 @@ fn ensure_custom_ratios(
                 entry.col_ratios = default_ratios(num_cols);
             }
         }
+        LayoutType::Row if docked => {
+            // Docked Row wraps into rows; only row heights are resizable.
+            let rows = wrap_dims.map_or(1, |(_, r)| r);
+            if entry.row_ratios.len() != rows {
+                entry.row_ratios = default_ratios(rows);
+            }
+        }
         LayoutType::Row => {
             if entry.col_ratios.len() != count {
                 entry.col_ratios = default_ratios(count);
+            }
+        }
+        LayoutType::Column if docked => {
+            // Docked Column wraps into columns; only column widths are resizable.
+            let cols = wrap_dims.map_or(1, |(c, _)| c);
+            if entry.col_ratios.len() != cols {
+                entry.col_ratios = default_ratios(cols);
             }
         }
         LayoutType::Column => {
