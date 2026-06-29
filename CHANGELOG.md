@@ -4,11 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## [0.1.22] - 2026-06-29
+
+First downloadable GitHub release built from the current public repository state.
+
 ### Changed
 
 - Updated the Rust dependency baseline to Slint 1.17.0 and refreshed the Cargo lockfile.
 - Added a pinned Rust 1.96.0 toolchain with clippy/rustfmt components for reproducible local and CI validation.
 - Aligned `Justfile`, CI, and contributor docs around locked builds, full-target tests, release builds, rustdoc, and dependency audit.
+- Added release artifacts through the GitHub release workflow: portable Windows ZIP and Inno Setup installer.
 
 ### Fixed
 

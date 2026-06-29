@@ -2,7 +2,7 @@
 
 ## Project: Panopticon
 
-**Documented product version:** 0.1.0
+**Documented product version:** 0.1.22
 **Document status:** updated to reflect the current implementation  
 **Target platform:** Windows 10 / Windows 11 (64-bit)  
 **Actual stack:** Rust + Slint + Win32/DWM  
