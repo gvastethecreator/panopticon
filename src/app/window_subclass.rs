@@ -203,15 +203,11 @@ fn handle_tray_subclass(hwnd: HWND, mouse_msg: u32, lparam: LPARAM) {
 
 fn handle_close_requested() {
     let should_hide = crate::UI_STATE.with(|slot| {
-        slot.borrow()
-            .as_ref()
-            .and_then(|state| {
-                state
-                    .try_borrow()
-                    .ok()
-                    .map(|guard| guard.settings.close_to_tray)
-            })
-            .unwrap_or(false)
+        slot.borrow().as_ref().is_some_and(|state| {
+            state
+                .try_borrow()
+                .is_ok_and(|guard| guard.settings.close_to_tray)
+        })
     });
     if should_hide {
         queue_action(PendingAction::HideToTray);
@@ -222,15 +218,11 @@ fn handle_close_requested() {
 
 fn handle_minimize_requested() {
     let should_hide = crate::UI_STATE.with(|slot| {
-        slot.borrow()
-            .as_ref()
-            .and_then(|state| {
-                state
-                    .try_borrow()
-                    .ok()
-                    .map(|guard| guard.settings.minimize_to_tray)
-            })
-            .unwrap_or(false)
+        slot.borrow().as_ref().is_some_and(|state| {
+            state
+                .try_borrow()
+                .is_ok_and(|guard| guard.settings.minimize_to_tray)
+        })
     });
     if should_hide {
         queue_action(PendingAction::HideToTray);

@@ -1,6 +1,6 @@
 # Panopticon Documentation
 
-![Panopticon icon](assets/icon.webp)
+![Panopticon preview](assets/panopticon.webp)
 
 This folder contains the **full documentation hub** for Panopticon.
 
@@ -75,7 +75,7 @@ When Panopticon starts, it typically:
 
 - Windows 10 or Windows 11 (64-bit)
 - DWM enabled
-- Stable Rust toolchain
+- Rust toolchain from the pinned `../rust-toolchain.toml` file
 - A normal interactive desktop session with windows open
 
 ### Build and run
@@ -164,13 +164,15 @@ Use this table when you know the question you want answered.
 The most relevant local checks are:
 
 ```bash
-cargo check
-cargo test
-cargo clippy --all-targets -- -D warnings -W clippy::pedantic
+cargo check --locked
+cargo test --all-targets --locked
+cargo clippy --all-targets --locked -- -D warnings -W clippy::pedantic
 cargo fmt -- --check
+cargo build --release --locked
+cargo doc --no-deps --locked
 ```
 
-The workspace also includes VS Code tasks for the same commands.
+The root `Justfile` wraps the same commands, including `just ci` for the complete local gate.
 
 Current automated coverage is strongest around:
 

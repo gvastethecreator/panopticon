@@ -31,19 +31,19 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Cargo check
-        run: cargo check
+        run: cargo check --locked
 
       - name: Format check
         run: cargo fmt -- --check
 
       - name: Clippy (all targets)
-        run: cargo clippy --all-targets -- -D warnings -W clippy::pedantic
+        run: cargo clippy --all-targets --locked -- -D warnings -W clippy::pedantic
 
       - name: Run tests
-        run: cargo test --all-targets
+        run: cargo test --all-targets --locked
 
       - name: Build release
-        run: cargo build --release
+        run: cargo build --release --locked
 
   docs-and-audit:
     # Windows-only: the codebase uses `windows` crate APIs unconditionally;
@@ -61,7 +61,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build docs
-        run: cargo doc --no-deps
+        run: cargo doc --no-deps --locked
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@v2
