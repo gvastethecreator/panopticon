@@ -15,7 +15,8 @@
 
 ## Platform and Stack
 - Panopticon is a **Windows-only desktop utility** built around `Slint`, `windows-rs`, DWM thumbnails, native tray menus, and local TOML persistence.
-- The current direct stack is `slint 1.15.1`, `windows 0.62.2`, `rfd 0.17.2`, and `toml 1.1.2`.
+- The current direct stack is `slint 1.17.0`, `windows 0.62.2`, `rfd 0.17.2`, and `toml 1.1.2`.
+- Rust is pinned by `rust-toolchain.toml`; use the pinned toolchain for local checks.
 - Keep the UI build flow aligned with `build.rs` + `slint_build::compile("ui/main.slint")`.
 
 ## Implementation Rules
@@ -23,7 +24,7 @@
 - Prefer pure/testable logic in modules such as `src/layout.rs`, `src/settings.rs`, and `src/theme.rs`; keep OS integration in `src/app/*`, `src/window_enum.rs`, and `src/thumbnail.rs`.
 - When updating Win32 calls, remember that `windows 0.62.x` uses `Option<HWND>` / `Option<WPARAM>` / `Option<LPARAM>` in several APIs and places `BOOL` in `windows::core` for callback signatures such as `EnumWindows`.
 - Prefer the existing native tray and popup-menu flow in `src/app/tray.rs` and `src/app/window_menu.rs` instead of recreating those menus in Slint.
-- Keep using the static Miranda Sans TTF files from `assets/fonts/`; do not reintroduce the variable-font assets until the Slint dependency is upgraded to a release that fixes the current rendering/alignment issues.
+- Keep using the static Miranda Sans TTF files from `assets/fonts/`; do not reintroduce variable-font assets without a focused rendering check on Windows.
 
 ## Documentation Expectations
 - When changing persisted settings, refresh `docs/CONFIGURATION.md` and any user-facing shortcut descriptions in `README.md` or `docs/GETTING_STARTED.md`.

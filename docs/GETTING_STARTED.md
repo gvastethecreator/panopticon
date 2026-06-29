@@ -6,7 +6,7 @@ This guide covers how to compile, run, and understand the initial flow of Panopt
 
 - Windows 10 or Windows 11 (64-bit)
 - DWM enabled
-- Stable Rust toolchain
+- Rust toolchain from the pinned `rust-toolchain.toml` file
 - A real desktop with user windows open so Panopticon has something to display
 
 ## Cloning and running
@@ -141,12 +141,14 @@ The most useful checks during day-to-day work are:
 
 ```bash
 cargo check
-cargo test
-cargo clippy --all-targets -- -D warnings -W clippy::pedantic
+cargo test --all-targets --locked
+cargo clippy --all-targets --locked -- -D warnings -W clippy::pedantic
 cargo fmt -- --check
+cargo build --release --locked
+cargo doc --no-deps --locked
 ```
 
-VS Code tasks already exist for these commands in the workspace.
+Use `just ci` to run the full local gate when `just` and `cargo-audit` are installed.
 
 ## Common issues
 

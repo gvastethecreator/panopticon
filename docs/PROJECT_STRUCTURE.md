@@ -10,14 +10,13 @@ panopticon/
 +-- assets/
 +-- docs/
 +-- installer/
-+-- scripts/
 +-- src/
 +-- tests/
 +-- ui/
 +-- build.rs
 +-- Cargo.toml
 +-- README.md
-+-- PRD.md
++-- rust-toolchain.toml
 +-- Justfile
 +-- ...other root metadata files
 ```
@@ -30,10 +29,11 @@ Folders such as `target/`, `.opencode/`, `.agents/`, `.vscode/`, `logs/`, `temp/
 | --- | --- |
 | `Cargo.toml` | crate manifest, dependencies, profiles, and lints |
 | `Cargo.lock` | locked dependency graph (committed) |
+| `rust-toolchain.toml` | pinned Rust toolchain and required components |
 | `build.rs` | compiles `ui/main.slint`, embeds the Windows icon, raises the main-thread stack |
 | `README.md` | public-facing landing page |
-| `PRD.md` | product definition |
-| `Justfile` | thin wrappers over common `cargo` commands |
+| `docs/PRD.md` | product definition |
+| `Justfile` | wrappers over local build, lint, test, doc, audit, and CI-equivalent commands |
 | `CHANGELOG.md` | visible change history |
 | `CONTRIBUTING.md` | contribution guide |
 | `SECURITY.md` | security policy |
@@ -175,6 +175,8 @@ Technical and product documentation for the project.
 | Path | Focus |
 | --- | --- |
 | `docs/README.md` | documentation hub and reading guide |
+| `docs/project-readiness.md` | latest maintenance/readiness baseline and validation record |
+| `docs/technical-debt.md` | active technical-debt register and deferred follow-ups |
 | `docs/GETTING_STARTED.md` | install, launch, first-run flow, common issues |
 | `docs/CONFIGURATION.md` | settings, workspaces, and TOML schema |
 | `docs/ARCHITECTURE.md` | architecture, runtime layers, and diagrams |
@@ -189,9 +191,9 @@ Technical and product documentation for the project.
 
 The folders `docs/book/` and `docs/panopticon_improvement_prd/` are local-only planning material and are excluded by `.gitignore`.
 
-### `scripts/`
+### Maintainer scripts
 
-The `scripts/` directory is reserved for maintainer-facing helper scripts. At present it is empty; the release flow is driven by `.github/workflows/release.yml` on tag push, and version bumps are made directly in `Cargo.toml` + `docs/PRD.md` + `CHANGELOG.md`.
+There is no tracked `scripts/` directory at the moment. The release flow is driven by `.github/workflows/release.yml` on tag push, and version bumps are made directly in `Cargo.toml` + `docs/PRD.md` + `CHANGELOG.md`.
 
 ### `installer/`
 
@@ -234,8 +236,7 @@ The project can be understood in five groups:
 - `docs/`
 - `assets/`
 - `installer/`
-- `scripts/`
-- root files like `Cargo.toml`, `README.md`, `PRD.md`, `AGENTS.md`, `CONTEXT.md`
+- root files like `Cargo.toml`, `README.md`, `AGENTS.md`, `CONTEXT.md`, and `rust-toolchain.toml`
 
 ### No: generated, transient, or local-only
 

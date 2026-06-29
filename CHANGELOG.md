@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Updated the Rust dependency baseline to Slint 1.17.0 and refreshed the Cargo lockfile.
+- Added a pinned Rust 1.96.0 toolchain with clippy/rustfmt components for reproducible local and CI validation.
+- Aligned `Justfile`, CI, and contributor docs around locked builds, full-target tests, release builds, rustdoc, and dependency audit.
+
+### Fixed
+
+- Reconciled stale documentation references to Slint 1.15.1, a missing docs preview asset, and untracked VS Code task wrappers.
+
 ## [0.1.0] - 2026-06-02
 
 The "definitive public launch" milestone. This release re-aligns the on-disk version number with the `0.1.0` tag for public consumption; the codebase is functionally identical to the preceding `0.1.21` private iteration, with a small set of polish and hygiene changes layered on top.

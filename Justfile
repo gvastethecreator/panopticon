@@ -3,19 +3,19 @@
 
 # 🔨 Build (debug)
 build:
-    cargo build
+    cargo build --locked
 
 # 🚀 Build (release, optimised)
 release:
-    cargo build --release
+    cargo build --release --locked
 
 # ✅ Type-check without building
 check:
-    cargo check
+    cargo check --locked
 
 # 🧹 Lint with Clippy (pedantic, deny warnings, all targets)
 lint:
-    cargo clippy --all-targets -- -D warnings -W clippy::pedantic
+    cargo clippy --all-targets --locked -- -D warnings -W clippy::pedantic
 
 # 🎨 Format all source files
 fmt:
@@ -27,7 +27,7 @@ fmt-check:
 
 # 🧪 Run all tests
 test:
-    cargo test
+    cargo test --all-targets --locked
 
 # 📊 Generate coverage report (requires cargo-tarpaulin)
 coverage:
@@ -35,7 +35,13 @@ coverage:
 
 # 📖 Build and open rustdoc documentation
 doc:
-    cargo doc --no-deps --open
+    cargo doc --no-deps --locked
+
+doc-open:
+    cargo doc --no-deps --locked --open
+
+audit:
+    cargo audit
 
 # 🏃 Run (debug)
 run:
@@ -49,5 +55,5 @@ run-release:
 clean:
     cargo clean
 
-# 🔄 Full CI pipeline: format check → lint → test
-ci: fmt-check lint test
+# 🔄 Full CI pipeline
+ci: check fmt-check lint test release doc audit

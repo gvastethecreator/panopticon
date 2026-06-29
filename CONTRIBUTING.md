@@ -25,9 +25,14 @@ Before opening a PR, run:
 
 ```bash
 cargo fmt -- --check
-cargo clippy --all-targets -- -D warnings -W clippy::pedantic
-cargo test --all-targets
+cargo check --locked
+cargo clippy --all-targets --locked -- -D warnings -W clippy::pedantic
+cargo test --all-targets --locked
+cargo build --release --locked
+cargo doc --no-deps --locked
 ```
+
+The repository pins Rust in `rust-toolchain.toml`; use that toolchain for local checks.
 
 ### `unsafe`
 

@@ -208,8 +208,7 @@ pub(crate) fn docked_mode_active() -> bool {
     crate::UI_STATE.with(|state| {
         state.borrow().as_ref().is_some_and(|rc| {
             rc.try_borrow()
-                .map(|state| state.settings.dock_edge.is_some())
-                .unwrap_or(false)
+                .is_ok_and(|state| state.settings.dock_edge.is_some())
         })
     })
 }
