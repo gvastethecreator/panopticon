@@ -1,10 +1,10 @@
 use anyhow::{anyhow, Result};
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateIconFromResourceEx, DestroyIcon, DrawIconEx, GetClassLongPtrW, LoadIconW, SendMessageW,
-    DI_NORMAL, GCLP_HICON, GCLP_HICONSM, HICON, ICON_BIG, ICON_SMALL, ICON_SMALL2, IDI_APPLICATION,
-    IMAGE_FLAGS, WM_GETICON, WM_SETICON,
+    CreateIconFromResourceEx, DestroyIcon, GetClassLongPtrW, LoadIconW, SendMessageW, GCLP_HICON,
+    GCLP_HICONSM, HICON, ICON_BIG, ICON_SMALL, ICON_SMALL2, IDI_APPLICATION, IMAGE_FLAGS,
+    WM_GETICON, WM_SETICON,
 };
 
 use crate::app::menu_utils::encode_wide;
@@ -116,26 +116,6 @@ pub fn apply_window_icons(hwnd: HWND, icons: &AppIcons) {
                 Some(WPARAM(ICON_SMALL as usize)),
                 Some(LPARAM(icons.small.0 as isize)),
             );
-        }
-    }
-}
-
-/// Draw a window icon inside `rect`, centered and scaled.
-#[allow(dead_code)]
-pub fn draw_window_icon(
-    hdc: windows::Win32::Graphics::Gdi::HDC,
-    hwnd: HWND,
-    rect: RECT,
-    size: i32,
-) {
-    if let Some(icon) = resolve_window_icon_sized(hwnd, size >= 32) {
-        let x = rect.left + ((rect.right - rect.left - size) / 2);
-        let y = rect.top + ((rect.bottom - rect.top - size) / 2);
-
-        // SAFETY: `hdc` is valid for the current paint pass; `icon` is a live
-        // window-owned icon handle borrowed from the source window / class.
-        unsafe {
-            let _ = DrawIconEx(hdc, x, y, icon, size, size, 0, None, DI_NORMAL);
         }
     }
 }

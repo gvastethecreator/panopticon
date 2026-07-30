@@ -12,21 +12,21 @@ build = "build.rs"
 # ── Dependencies ──────────────────────────────────────────────
 
 [dependencies]
-slint = { version = "1.17.0", features = ["raw-window-handle-06", "backend-winit", "renderer-skia"] }
+slint = { version = "1.17.1", features = ["raw-window-handle-06", "backend-winit", "renderer-skia"] }
 raw-window-handle = "0.6.2"
-thiserror = "2.0.18"
-anyhow = "1.0.103"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
+thiserror = "2.0.19"
+anyhow = "1.0.104"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 
-toml = "1.1.2"
+toml = "1.1.4"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2.5"
 rfd = "0.17.2"
 
 [build-dependencies]
-slint-build = "1.17.0"
+slint-build = "1.17.1"
 winres = "0.1.12"
 
 [dependencies.windows]
@@ -54,9 +54,6 @@ lto = true
 strip = true
 
 # ── Lints ─────────────────────────────────────────────────────
-
-[lints.rust]
-dead_code = "allow"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }

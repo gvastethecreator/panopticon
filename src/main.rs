@@ -38,7 +38,15 @@ use windows::Win32::UI::HiDpi::{
 };
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-slint::include_modules!();
+// Slint emits resource statics for conditional UI branches that Rust cannot
+// prove reachable. Keep this narrow to generated code; project code stays
+// subject to the normal dead-code lint.
+#[allow(dead_code)]
+mod slint_generated {
+    include!(env!("SLINT_INCLUDE_GENERATED"));
+}
+
+use slint_generated::*;
 
 // ───────────────────────── Constants ─────────────────────────
 

@@ -83,13 +83,13 @@ When Panopticon starts, it typically:
 ```bash
 git clone https://github.com/gvastethecreator/panopticon.git
 cd panopticon
-cargo run --release
+cargo run --release --locked
 ```
 
 To run a named workspace:
 
 ```bash
-cargo run --release -- --workspace work
+cargo run --release --locked -- --workspace work
 ```
 
 The workspace file is read from `%APPDATA%\Panopticon\workspaces\work.toml`.
@@ -172,7 +172,7 @@ cargo build --release --locked
 cargo doc --no-deps --locked
 ```
 
-The root `Justfile` wraps the same commands, including `just ci` for the complete local gate.
+The root `Justfile` wraps the same commands, including `just ci` for the complete local gate. VS Code users can run the equivalent sequence from [`../.vscode/tasks.json`](../.vscode/tasks.json) with `♻️ ci`.
 
 Current automated coverage is strongest around:
 

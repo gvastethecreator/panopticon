@@ -163,22 +163,6 @@ fn readd_tray_icon() {
     });
 }
 
-fn handle_show_window(wparam: WPARAM) {
-    if wparam.0 != 0 {
-        queue_action(PendingAction::Refresh);
-    } else {
-        crate::UI_STATE.with(|slot| {
-            if let Some(state) = slot.borrow().as_ref() {
-                if let Ok(mut guard) = state.try_borrow_mut() {
-                    for managed_window in &mut guard.window_collection.windows {
-                        release_thumbnail(managed_window);
-                    }
-                }
-            }
-        });
-    }
-}
-
 fn handle_tray_subclass(hwnd: HWND, mouse_msg: u32, lparam: LPARAM) {
     let activation_point = current_cursor_screen_point();
 

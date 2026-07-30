@@ -26,6 +26,14 @@ It discovers real top-level windows, renders their live previews, and lets you m
 - **Latest release:** [github.com/gvastethecreator/panopticon/releases/latest](https://github.com/gvastethecreator/panopticon/releases/latest)
 - **Build from source:** see [Quick start](#quick-start)
 
+## Quick start
+
+```bash
+cargo run --locked
+```
+
+For an optimised build use `cargo run --release --locked`. VS Code users can run `♻️ ci` from [`.vscode/tasks.json`](.vscode/tasks.json) for the full check sequence.
+
 
 
 ## First minute with Panopticon
@@ -62,7 +70,7 @@ It discovers real top-level windows, renders their live previews, and lets you m
 ---
 - For deep technical details, check the [docs](docs/README.md) folder.
 - For feature requests and suggestions, create an issue or submit a PR.
-- If you like this project, consider giving it a star or became a sponsor.
+- If you like this project, consider giving it a star or becoming a sponsor.
 ---
 
 <h4 align="right">Support the further development of this tool 🤍</h4>
