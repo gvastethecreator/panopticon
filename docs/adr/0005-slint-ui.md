@@ -10,7 +10,7 @@ The UI layer needs to display a dynamic grid of window thumbnails with toolbars,
 
 ## Decision
 
-Use Slint 1.17.0 as the declarative UI framework, with the `raw-window-handle-06`, `backend-winit`, and `renderer-skia` features.
+Use Slint 1.17.1 as the declarative UI framework, with the `raw-window-handle-06`, `backend-winit`, and `renderer-skia` features.
 
 ## Consequences
 

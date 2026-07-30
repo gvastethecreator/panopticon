@@ -1,10 +1,19 @@
 # ── Build artefacts ───────────────────────────────────────────
 /target/
 **/*.rs.bk
+/dist/
+/installer/output/
+/installer/*.exe
+/installer/*.msi
+/panopticon-*-x86_64-pc-windows-msvc/
+/panopticon-*-x86_64-pc-windows-msvc.zip
+/panopticon-*-setup.exe
+*.pdb
 
 # ── IDE / editor ─────────────────────────────────────────────
 .idea/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 *.swp
 *.swo
 *~
@@ -12,6 +21,7 @@
 # ── Local-only working areas (not for public repo) ──────────
 .agents/
 .opencode/
+.local/
 # Private planning documents and abandoned scaffolds inside docs/.
 docs/panopticon_improvement_prd/
 docs/book/
@@ -23,8 +33,11 @@ desktop.ini
 
 # ── Environment / secrets ────────────────────────────────────
 .env
-.env.local
+.env.*
+!.env.example
 *.pem
+*.p12
+*.pfx
 
 # ── Coverage reports ─────────────────────────────────────────
 tarpaulin-report.html
@@ -38,6 +51,7 @@ test_output.txt
 
 # ── Backup files from refactoring ────────────────────────────
 *.bak
+*.orig
 
 # ── Temporary / smoke-test outputs ──────────────────────────
 /temp/

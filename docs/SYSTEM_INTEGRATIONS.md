@@ -103,7 +103,7 @@ Panopticon can optionally register itself in the current user's startup sequence
 | `thiserror` | typed crate errors |
 | `anyhow` | convenient application-level errors |
 
-With the current `slint 1.17.0` setup, the project intentionally uses the generated/static Miranda Sans TTF files tracked by `build.rs` instead of the original variable fonts. This keeps text rendering predictable across the Windows/Skia stack.
+With the current `slint 1.17.1` setup, the project intentionally uses the generated/static Miranda Sans TTF files tracked by `build.rs` instead of the original variable fonts. This keeps text rendering predictable across the Windows/Skia stack.
 
 ## File system integration
 

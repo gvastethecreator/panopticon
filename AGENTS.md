@@ -19,7 +19,7 @@ Single-context repo — one `CONTEXT.md` + `docs/adr/` at the repo root. See `do
 ## Quick reference
 
 - **Language:** Rust (edition 2021)
-- **UI framework:** Slint 1.17.0
+- **UI framework:** Slint 1.17.1
 - **Platform:** Windows 10/11 only (Win32, DWM, Shell APIs)
 - **Toolchain:** Rust 1.96.0 pinned in `rust-toolchain.toml`; dependency MSRV is 1.92
 - **Build:** `cargo check --locked`, `cargo test --all-targets --locked`, `cargo clippy --all-targets --locked -- -D warnings -W clippy::pedantic`, `cargo fmt -- --check`, `cargo build --release --locked`

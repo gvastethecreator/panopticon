@@ -40,16 +40,17 @@ doc:
 doc-open:
     cargo doc --no-deps --locked --open
 
+# Requires: cargo install cargo-audit --locked
 audit:
     cargo audit
 
 # 🏃 Run (debug)
 run:
-    cargo run
+    cargo run --locked
 
 # 🏃 Run (release)
 run-release:
-    cargo run --release
+    cargo run --release --locked
 
 # 🧼 Remove build artefacts
 clean:

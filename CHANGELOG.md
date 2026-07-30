@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Updated direct dependencies to latest compatible releases: Slint 1.17.1, `toml` 1.1.4, `serde` 1.0.229, `serde_json` 1.0.151, `thiserror` 2.0.19, and `anyhow` 1.0.104; refreshed compatible transitive dependencies in `Cargo.lock`.
+- Replaced stale VS Code tasks with a short, locked Cargo task set and corrected `.gitignore` so `tasks.json` is tracked while local editor state stays ignored.
+- Refreshed maintenance docs and removed an unused Win32 icon-drawing helper.
+
 ## [0.1.22] - 2026-06-29
 
 First downloadable GitHub release built from the current public repository state.

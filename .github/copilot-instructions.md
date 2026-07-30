@@ -15,7 +15,7 @@
 
 ## Platform and Stack
 - Panopticon is a **Windows-only desktop utility** built around `Slint`, `windows-rs`, DWM thumbnails, native tray menus, and local TOML persistence.
-- The current direct stack is `slint 1.17.0`, `windows 0.62.2`, `rfd 0.17.2`, and `toml 1.1.2`.
+- The current direct stack is `slint 1.17.1`, `windows 0.62.2`, `rfd 0.17.2`, and `toml 1.1.4`.
 - Rust is pinned by `rust-toolchain.toml`; use the pinned toolchain for local checks.
 - Keep the UI build flow aligned with `build.rs` + `slint_build::compile("ui/main.slint")`.
 

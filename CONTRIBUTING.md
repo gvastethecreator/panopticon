@@ -13,8 +13,8 @@ Thanks for taking the time to contribute to Panopticon.
 ```bash
 git clone https://github.com/gvastethecreator/panopticon.git
 cd panopticon
-cargo check
-cargo test
+cargo check --locked
+cargo test --all-targets --locked
 ```
 
 ## Project rules
@@ -32,7 +32,7 @@ cargo build --release --locked
 cargo doc --no-deps --locked
 ```
 
-The repository pins Rust in `rust-toolchain.toml`; use that toolchain for local checks.
+The repository pins Rust in `rust-toolchain.toml`; use that toolchain for local checks. VS Code users can run the same workflow from `.vscode/tasks.json`, especially `♻️ ci`.
 
 ### `unsafe`
 

@@ -1,0 +1,120 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "▶️ dev",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["run", "--locked"],
+            "problemMatcher": ["$rustc"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "🔍 check",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["check", "--locked"],
+            "problemMatcher": ["$rustc"],
+            "group": "build"
+        },
+        {
+            "label": "🛠️ build",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["build", "--locked"],
+            "problemMatcher": ["$rustc"],
+            "group": "build"
+        },
+        {
+            "label": "🚀 rel",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["build", "--release", "--locked"],
+            "problemMatcher": ["$rustc"],
+            "group": "build"
+        },
+        {
+            "label": "🧪 test",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["test", "--all-targets", "--locked"],
+            "problemMatcher": ["$rustc"],
+            "group": "test"
+        },
+        {
+            "label": "🧹 lint",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "clippy",
+                "--all-targets",
+                "--locked",
+                "--",
+                "-D",
+                "warnings",
+                "-W",
+                "clippy::pedantic"
+            ],
+            "problemMatcher": ["$rustc"],
+            "group": "test"
+        },
+        {
+            "label": "🎨 fmt",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["fmt"],
+            "group": "build"
+        },
+        {
+            "label": "✅ fmt-check",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["fmt", "--", "--check"],
+            "group": "build"
+        },
+        {
+            "label": "📚 docs",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["doc", "--no-deps", "--locked"],
+            "problemMatcher": ["$rustc"],
+            "group": "build"
+        },
+        {
+            "label": "🔐 audit",
+            "detail": "Requires cargo-audit: cargo install cargo-audit --locked",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["audit"],
+            "problemMatcher": ["$rustc"],
+            "group": "test"
+        },
+        {
+            "label": "🧼 clean",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["clean"],
+            "group": "build"
+        },
+        {
+            "label": "♻️ ci",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "✅ fmt-check",
+                "🔍 check",
+                "🧹 lint",
+                "🧪 test",
+                "🚀 rel",
+                "📚 docs",
+                "🔐 audit"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        }
+    ]
+}

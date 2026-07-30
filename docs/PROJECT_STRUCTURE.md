@@ -18,10 +18,11 @@ panopticon/
 +-- README.md
 +-- rust-toolchain.toml
 +-- Justfile
++-- .vscode/tasks.json
 +-- ...other root metadata files
 ```
 
-Folders such as `target/`, `.opencode/`, `.agents/`, `.vscode/`, `logs/`, `temp/`, `docs/book/`, and `docs/panopticon_improvement_prd/` are not part of the public source tree; they are ignored by `.gitignore` (or are local-only working areas) and are not described below.
+Folders such as `target/`, `.opencode/`, `.agents/`, `logs/`, `temp/`, `docs/book/`, and `docs/panopticon_improvement_prd/` are not part of the public source tree; they are ignored by `.gitignore` (or are local-only working areas) and are not described below. `.vscode/tasks.json` is tracked because it contains project commands; other VS Code files remain local-only.
 
 ## Important root files
 
@@ -34,6 +35,7 @@ Folders such as `target/`, `.opencode/`, `.agents/`, `.vscode/`, `logs/`, `temp/
 | `README.md` | public-facing landing page |
 | `docs/PRD.md` | product definition |
 | `Justfile` | wrappers over local build, lint, test, doc, audit, and CI-equivalent commands |
+| `.vscode/tasks.json` | common Cargo tasks for development and CI |
 | `CHANGELOG.md` | visible change history |
 | `CONTRIBUTING.md` | contribution guide |
 | `SECURITY.md` | security policy |
@@ -241,7 +243,7 @@ The project can be understood in five groups:
 ### No: generated, transient, or local-only
 
 - `target/` — Cargo build outputs.
-- `.vscode/`, `.idea/`, `.opencode/`, `.agents/`, `.local/` — local IDE or agent state.
+- `.vscode/` except `.vscode/tasks.json`, `.idea/`, `.opencode/`, `.agents/`, `.local/` — local IDE or agent state.
 - `docs/book/`, `docs/panopticon_improvement_prd/` — private planning material (ignored).
 - Root `*.log` files, `temp/`, `smoke_stdout.txt`, `smoke_stderr.txt` — ignored runtime/test artefacts.
 

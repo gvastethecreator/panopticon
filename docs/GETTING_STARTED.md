@@ -16,19 +16,19 @@ This guide covers how to compile, run, and understand the initial flow of Panopt
 ```bash
 git clone https://github.com/gvastethecreator/panopticon.git
 cd panopticon
-cargo run
+cargo run --locked
 ```
 
 ### Release mode
 
 ```bash
-cargo run --release
+cargo run --release --locked
 ```
 
 ### Running with a specific workspace
 
 ```bash
-cargo run --release -- --workspace work
+cargo run --release --locked -- --workspace work
 ```
 
 This loads the configuration from `%APPDATA%\Panopticon\workspaces\work.toml`.
@@ -140,7 +140,7 @@ assets/themes.json
 The most useful checks during day-to-day work are:
 
 ```bash
-cargo check
+cargo check --locked
 cargo test --all-targets --locked
 cargo clippy --all-targets --locked -- -D warnings -W clippy::pedantic
 cargo fmt -- --check
