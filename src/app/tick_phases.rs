@@ -7,7 +7,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use slint::{ComponentHandle, Timer, TimerMode};
 
@@ -20,10 +20,10 @@ use panopticon::settings::RefreshPerformanceMode;
 
 const DEFAULT_REFRESH_TIMER_INTERVAL_MS: u32 = 2_000;
 const MIN_REFRESH_TIMER_INTERVAL_MS: u32 = 50;
-const DWM_IDLE_SYNC_EVERY_TICKS: u8 = 4;
-const DWM_IDLE_SYNC_EVERY_TICKS_REALTIME: u8 = 1;
-const DWM_IDLE_SYNC_EVERY_TICKS_BATTERY_SAVER: u8 = 8;
-const DWM_IDLE_SYNC_EVERY_TICKS_MANUAL_SLOW: u8 = 12;
+const DWM_IDLE_SYNC_INTERVAL_MS: u64 = 250;
+const DWM_IDLE_SYNC_INTERVAL_MS_REALTIME: u64 = 64;
+const DWM_IDLE_SYNC_INTERVAL_MS_BATTERY_SAVER: u64 = 500;
+const DWM_IDLE_SYNC_INTERVAL_MS_MANUAL_MAX: u64 = 2_000;
 
 // ───────────────────────── TickEffects ─────────────────────────
 
@@ -183,15 +183,16 @@ pub(crate) fn compute_activity_flags(state: &Rc<RefCell<AppState>>) -> (bool, bo
 /// Phase 8 — decide whether to sync DWM this tick.
 pub(crate) fn decide_dwm_sync(
     effects: TickEffects,
-    dwm_idle_ticks: &Cell<u8>,
+    last_dwm_sync: &Cell<Option<Instant>>,
     state: &Rc<RefCell<AppState>>,
 ) -> bool {
+    let now = Instant::now();
     if effects.needs_immediate_dwm_sync() {
-        dwm_idle_ticks.set(0);
+        last_dwm_sync.set(Some(now));
         true
     } else {
-        let cadence = current_dwm_idle_sync_every_ticks(state);
-        schedule_idle_dwm_sync(dwm_idle_ticks, cadence)
+        let interval = current_dwm_idle_sync_interval(state);
+        schedule_idle_dwm_sync(last_dwm_sync, now, interval)
     }
 }
 
@@ -283,43 +284,41 @@ fn handle_pending_action(state: &Rc<RefCell<AppState>>, win: &MainWindow, action
     }
 }
 
-pub(crate) fn schedule_idle_dwm_sync(dwm_idle_ticks: &Cell<u8>, sync_every_ticks: u8) -> bool {
-    let sync_every_ticks = sync_every_ticks.max(1);
-    let next = dwm_idle_ticks.get().saturating_add(1);
-    if next >= sync_every_ticks {
-        dwm_idle_ticks.set(0);
+pub(crate) fn schedule_idle_dwm_sync(
+    last_sync: &Cell<Option<Instant>>,
+    now: Instant,
+    interval: Duration,
+) -> bool {
+    if last_sync
+        .get()
+        .is_none_or(|previous| now.duration_since(previous) >= interval)
+    {
+        last_sync.set(Some(now));
         true
     } else {
-        dwm_idle_ticks.set(next);
         false
     }
 }
 
-fn current_dwm_idle_sync_every_ticks(state: &Rc<RefCell<AppState>>) -> u8 {
-    state
-        .try_borrow()
-        .map_or(DWM_IDLE_SYNC_EVERY_TICKS, |state_ref| {
-            match state_ref.settings.refresh_performance_mode {
-                RefreshPerformanceMode::Realtime => DWM_IDLE_SYNC_EVERY_TICKS_REALTIME,
-                RefreshPerformanceMode::Balanced => DWM_IDLE_SYNC_EVERY_TICKS,
-                RefreshPerformanceMode::BatterySaver => DWM_IDLE_SYNC_EVERY_TICKS_BATTERY_SAVER,
-                RefreshPerformanceMode::Manual => {
-                    manual_dwm_idle_sync_every_ticks(state_ref.settings.refresh_interval_ms)
-                }
+fn current_dwm_idle_sync_interval(state: &Rc<RefCell<AppState>>) -> Duration {
+    state.try_borrow().map_or(
+        Duration::from_millis(DWM_IDLE_SYNC_INTERVAL_MS),
+        |state_ref| match state_ref.settings.refresh_performance_mode {
+            RefreshPerformanceMode::Realtime => {
+                Duration::from_millis(DWM_IDLE_SYNC_INTERVAL_MS_REALTIME)
             }
-        })
-}
-
-pub(crate) const fn manual_dwm_idle_sync_every_ticks(refresh_interval_ms: u32) -> u8 {
-    if refresh_interval_ms <= 1_000 {
-        2
-    } else if refresh_interval_ms <= 2_000 {
-        DWM_IDLE_SYNC_EVERY_TICKS
-    } else if refresh_interval_ms <= 5_000 {
-        DWM_IDLE_SYNC_EVERY_TICKS_BATTERY_SAVER
-    } else {
-        DWM_IDLE_SYNC_EVERY_TICKS_MANUAL_SLOW
-    }
+            RefreshPerformanceMode::Balanced => Duration::from_millis(DWM_IDLE_SYNC_INTERVAL_MS),
+            RefreshPerformanceMode::BatterySaver => {
+                Duration::from_millis(DWM_IDLE_SYNC_INTERVAL_MS_BATTERY_SAVER)
+            }
+            RefreshPerformanceMode::Manual => {
+                Duration::from_millis(u64::from(state_ref.settings.refresh_interval_ms).clamp(
+                    DWM_IDLE_SYNC_INTERVAL_MS,
+                    DWM_IDLE_SYNC_INTERVAL_MS_MANUAL_MAX,
+                ))
+            }
+        },
+    )
 }
 
 pub(crate) fn effective_refresh_interval_ms(state: &Rc<RefCell<AppState>>) -> u32 {
@@ -340,21 +339,24 @@ mod tests {
     use std::rc::Rc;
 
     #[test]
-    fn manual_dwm_idle_cadence_tracks_refresh_interval_buckets() {
-        assert_eq!(manual_dwm_idle_sync_every_ticks(1_000), 2);
-        assert_eq!(manual_dwm_idle_sync_every_ticks(2_000), 4);
-        assert_eq!(manual_dwm_idle_sync_every_ticks(5_000), 8);
-        assert_eq!(manual_dwm_idle_sync_every_ticks(10_000), 12);
-    }
+    fn idle_scheduler_uses_elapsed_time_instead_of_tick_count() {
+        let last_sync = Rc::new(Cell::new(None));
+        let started = Instant::now();
 
-    #[test]
-    fn idle_scheduler_triggers_on_configured_tick_cadence() {
-        let ticks = Rc::new(Cell::new(0u8));
-
-        assert!(!schedule_idle_dwm_sync(&ticks, 4));
-        assert!(!schedule_idle_dwm_sync(&ticks, 4));
-        assert!(!schedule_idle_dwm_sync(&ticks, 4));
-        assert!(schedule_idle_dwm_sync(&ticks, 4));
-        assert_eq!(ticks.get(), 0);
+        assert!(schedule_idle_dwm_sync(
+            &last_sync,
+            started,
+            Duration::from_millis(250)
+        ));
+        assert!(!schedule_idle_dwm_sync(
+            &last_sync,
+            started + Duration::from_millis(249),
+            Duration::from_millis(250)
+        ));
+        assert!(schedule_idle_dwm_sync(
+            &last_sync,
+            started + Duration::from_millis(250),
+            Duration::from_millis(250)
+        ));
     }
 }
