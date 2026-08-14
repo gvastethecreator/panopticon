@@ -85,6 +85,14 @@ impl SettingsState {
         self.replace_persisted(&next)
     }
 
+    /// Refresh runtime-discovered labels without cloning or normalizing the full snapshot.
+    ///
+    /// Labels do not affect runtime behavior; they are persisted alongside the next real
+    /// settings change and therefore do not require a `SettingsChange` transaction.
+    pub(crate) fn refresh_app_label(&mut self, app_id: &str, display_name: &str) {
+        self.persisted.refresh_app_label(app_id, display_name);
+    }
+
     pub(crate) fn save(&self, workspace_name: Option<&str>) -> panopticon::error::Result<()> {
         self.persisted.save(workspace_name)
     }

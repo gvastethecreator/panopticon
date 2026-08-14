@@ -177,6 +177,7 @@ mod tests {
         let mut windows = vec![
             WindowInfo {
                 hwnd: HWND(std::ptr::dangling_mut::<c_void>()),
+                process_id: 1,
                 title: "Alpha".to_owned(),
                 app_id: "app:a".to_owned(),
                 process_name: "A".to_owned(),
@@ -186,6 +187,7 @@ mod tests {
             },
             WindowInfo {
                 hwnd: HWND(2usize as *mut c_void),
+                process_id: 2,
                 title: "Bravo".to_owned(),
                 app_id: "app:b".to_owned(),
                 process_name: "B".to_owned(),
@@ -195,6 +197,7 @@ mod tests {
             },
             WindowInfo {
                 hwnd: HWND(3usize as *mut c_void),
+                process_id: 3,
                 title: "Charlie".to_owned(),
                 app_id: "app:c".to_owned(),
                 process_name: "C".to_owned(),

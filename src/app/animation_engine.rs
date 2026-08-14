@@ -80,6 +80,7 @@ mod tests {
         ManagedWindow {
             info: WindowInfo {
                 hwnd: HWND(std::ptr::null_mut::<c_void>()),
+                process_id: 0,
                 title: String::new(),
                 app_id: String::new(),
                 process_name: String::new(),

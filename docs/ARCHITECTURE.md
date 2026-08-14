@@ -8,8 +8,9 @@ Panopticon is a native Windows application built around four main pieces:
 2. **DWM thumbnails** to render live previews without copying bitmaps.
 3. **Pure layout engine** to compute geometry and persistable resize separators.
 4. **Slint UI** to present the dashboard, settings, and dialogs.
+5. **WinHTTP update check** to query published GitHub releases on demand and at the configured startup cadence.
 
-The project does not use a backend, network, database, or external services. The entire architecture is local and relies on operating-system APIs.
+The application has no backend, accounts, telemetry, or database. Its runtime is local except for a bounded outbound HTTPS request to GitHub's Releases API when update checks run.
 
 ## Layer view
 
@@ -35,6 +36,8 @@ flowchart TD
     TR --> SH[Shell / AppBar / Menus]
     S --> FS[File system\nAPPDATA / TEMP]
     CB --> LOG[logging.rs\ntracing]
+    CB --> UP[app/updates.rs\nWinHTTP release check]
+    UP --> GH[GitHub Releases API\noptional outbound HTTPS]
 ```
 
 ## Startup flow

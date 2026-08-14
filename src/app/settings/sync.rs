@@ -4,8 +4,6 @@
 //! populate and synchronise the settings window without owning any
 //! domain logic itself.
 
-use panopticon::window_enum::{enumerate_windows, WindowInfo};
-
 use crate::app::settings::ui::populate_settings_window;
 use crate::app::theme_ui::apply_settings_window_theme_snapshot;
 use crate::app::ui_translations::populate_tr_global;
@@ -17,15 +15,12 @@ use crate::app::settings::view_model::RuntimeUiOptions;
 /// Collect the runtime-derived options (monitors, tags, apps, hidden apps)
 /// that feed the settings-window dropdowns and lists.
 pub(crate) fn collect_runtime_ui_options(state: &AppState) -> RuntimeUiOptions {
-    let windows: Vec<WindowInfo> = enumerate_windows()
-        .into_iter()
-        .filter(|window| window.hwnd != state.shell.hwnd)
-        .collect();
+    let windows = state.window_collection.catalog.windows();
 
     RuntimeUiOptions {
-        monitors: panopticon::window_ops::collect_available_monitors(&windows),
+        monitors: panopticon::window_ops::collect_available_monitors(windows),
         tags: state.settings.known_tags(),
-        apps: panopticon::window_ops::collect_available_apps(&windows),
+        apps: panopticon::window_ops::collect_available_apps(windows),
         hidden_apps: state.settings.hidden_app_entries(),
     }
 }

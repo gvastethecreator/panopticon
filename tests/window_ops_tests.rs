@@ -20,6 +20,7 @@ fn window(
 ) -> WindowInfo {
     WindowInfo {
         hwnd: HWND(id as *mut c_void),
+        process_id: u32::try_from(id).expect("fixture id fits in u32"),
         title: title.to_owned(),
         app_id: app_id.to_owned(),
         process_name: process_name.to_owned(),
