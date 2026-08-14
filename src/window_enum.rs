@@ -4,6 +4,8 @@
 //! top-level application windows while filtering out tool windows,
 //! system chrome, and other non-interactive surfaces.
 
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::path::Path;
 
@@ -26,6 +28,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
 pub struct WindowInfo {
     /// Native window handle.
     pub hwnd: HWND,
+    /// Owning process identifier captured during enumeration.
+    pub process_id: u32,
     /// UTF-16 decoded window title.
     pub title: String,
     /// Best-effort application identifier used for persistent rules.
@@ -38,6 +42,19 @@ pub struct WindowInfo {
     pub class_name: String,
     /// Best-effort monitor name (for example `DISPLAY1`).
     pub monitor_name: String,
+}
+
+#[derive(Debug, Clone)]
+struct CachedWindowMetadata {
+    class_name: String,
+    process_name: String,
+    process_path: Option<String>,
+}
+
+thread_local! {
+    /// Stable metadata keyed by HWND and PID. The PID protects against HWND reuse.
+    static WINDOW_METADATA_CACHE: RefCell<HashMap<(isize, u32), CachedWindowMetadata>> =
+        RefCell::new(HashMap::new());
 }
 
 impl WindowInfo {
@@ -74,6 +91,16 @@ pub fn enumerate_windows() -> Vec<WindowInfo> {
         );
     }
 
+    let live_keys: HashSet<(isize, u32)> = results
+        .iter()
+        .map(|window| (window.hwnd.0 as isize, window.process_id))
+        .collect();
+    WINDOW_METADATA_CACHE.with(|cache| {
+        cache
+            .borrow_mut()
+            .retain(|key, _metadata| live_keys.contains(key));
+    });
+
     results
 }
 
@@ -89,6 +116,11 @@ unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
 
     // Must be visible.
     if !IsWindowVisible(hwnd).as_bool() {
+        return TRUE;
+    }
+
+    let process_id = get_process_id(hwnd);
+    if process_id == 0 || process_id == std::process::id() {
         return TRUE;
     }
 
@@ -134,47 +166,102 @@ unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
         String::from_utf16_lossy(&buf[..copied as usize])
     };
 
-    // Filter out known system windows.
-    if is_system_window(&title) {
+    let metadata = cached_window_metadata(hwnd, process_id);
+    if !is_eligible_window(
+        process_id,
+        std::process::id(),
+        &title,
+        &metadata.class_name,
+        &metadata.process_name,
+    ) {
         return TRUE;
     }
-
-    let class_name = get_class_name(hwnd);
-    let process_path = get_process_image_path(hwnd);
-    let process_name = process_path
-        .as_deref()
-        .and_then(|path| {
-            Path::new(path)
-                .file_stem()
-                .or_else(|| Path::new(path).file_name())
-        })
-        .map_or_else(String::new, |segment| {
-            segment.to_string_lossy().into_owned()
-        });
     let monitor_name = get_monitor_name(hwnd);
 
     results.push(WindowInfo {
         hwnd,
+        process_id,
         title: title.clone(),
-        app_id: build_app_id(process_path.as_deref(), &class_name, &title),
-        process_name,
-        process_path,
-        class_name,
+        app_id: build_app_id(
+            metadata.process_path.as_deref(),
+            &metadata.class_name,
+            &title,
+        ),
+        process_name: metadata.process_name,
+        process_path: metadata.process_path,
+        class_name: metadata.class_name,
         monitor_name,
     });
 
     TRUE
 }
 
-/// Returns `true` for window titles that belong to known system surfaces.
-fn is_system_window(title: &str) -> bool {
-    const BLOCKED: &[&str] = &[
+/// Decide whether a discovered top-level window belongs in the user-facing catalog.
+///
+/// The decision uses stable process/class identity where available. Titles remain a
+/// fallback only for legacy shell surfaces that do not expose a useful process name.
+#[must_use]
+pub fn is_eligible_window(
+    process_id: u32,
+    current_process_id: u32,
+    title: &str,
+    _class_name: &str,
+    process_name: &str,
+) -> bool {
+    const BLOCKED_TITLES: &[&str] = &[
         "Program Manager",
         "Windows Input Experience",
         "MSCTFIME UI",
         "Default IME",
     ];
-    BLOCKED.contains(&title)
+    const BLOCKED_PROCESSES: &[&str] = &["TextInputHost"];
+
+    process_id != 0
+        && process_id != current_process_id
+        && !BLOCKED_TITLES.contains(&title)
+        && !BLOCKED_PROCESSES
+            .iter()
+            .any(|blocked| process_name.eq_ignore_ascii_case(blocked))
+}
+
+fn get_process_id(hwnd: HWND) -> u32 {
+    let mut process_id = 0;
+    // SAFETY: `process_id` is writable and the query does not mutate the source window.
+    unsafe {
+        let _ = GetWindowThreadProcessId(hwnd, Some(&raw mut process_id));
+    }
+    process_id
+}
+
+fn cached_window_metadata(hwnd: HWND, process_id: u32) -> CachedWindowMetadata {
+    let key = (hwnd.0 as isize, process_id);
+    WINDOW_METADATA_CACHE.with(|cache| {
+        if let Some(cached) = cache.borrow().get(&key) {
+            if cached.process_path.is_some() && !cached.class_name.is_empty() {
+                return cached.clone();
+            }
+        }
+
+        let class_name = get_class_name(hwnd);
+        let process_path = get_process_image_path(process_id);
+        let process_name = process_path
+            .as_deref()
+            .and_then(|path| {
+                Path::new(path)
+                    .file_stem()
+                    .or_else(|| Path::new(path).file_name())
+            })
+            .map_or_else(String::new, |segment| {
+                segment.to_string_lossy().into_owned()
+            });
+        let metadata = CachedWindowMetadata {
+            class_name,
+            process_name,
+            process_path,
+        };
+        cache.borrow_mut().insert(key, metadata.clone());
+        metadata
+    })
 }
 
 fn get_class_name(hwnd: HWND) -> String {
@@ -188,12 +275,7 @@ fn get_class_name(hwnd: HWND) -> String {
     }
 }
 
-fn get_process_image_path(hwnd: HWND) -> Option<String> {
-    let mut process_id = 0;
-    // SAFETY: valid HWND, process ID output is writable.
-    unsafe {
-        let _ = GetWindowThreadProcessId(hwnd, Some(std::ptr::from_mut(&mut process_id)));
-    }
+fn get_process_image_path(process_id: u32) -> Option<String> {
     if process_id == 0 {
         return None;
     }
@@ -260,5 +342,39 @@ fn get_monitor_name(hwnd: HWND) -> String {
         "Current monitor".to_owned()
     } else {
         trimmed.trim_start_matches(r"\\.\").to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_eligible_window;
+
+    #[test]
+    fn eligibility_rejects_current_process_and_localized_text_input_host() {
+        assert!(!is_eligible_window(
+            42,
+            42,
+            "Panopticon — Settings",
+            "",
+            "panopticon"
+        ));
+        assert!(!is_eligible_window(
+            77,
+            42,
+            "Experiencia de entrada de Windows",
+            "Windows.UI.Core.CoreWindow",
+            "TextInputHost",
+        ));
+    }
+
+    #[test]
+    fn eligibility_preserves_regular_application_windows() {
+        assert!(is_eligible_window(
+            77,
+            42,
+            "Project — Editor",
+            "Chrome_WidgetWin_1",
+            "Code",
+        ));
     }
 }

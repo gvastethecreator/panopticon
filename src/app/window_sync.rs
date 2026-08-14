@@ -4,9 +4,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use panopticon::settings::AppSettings;
-use panopticon::window_enum::{enumerate_windows, WindowInfo};
+use panopticon::window_enum::WindowInfo;
 use panopticon::window_ops::{apply_pinned_positions, sort_windows_for_grouping};
-use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
 
 use super::dwm::hydrate_reconciled_thumbnails;
@@ -25,10 +24,21 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
         IsWindowVisible(host_hwnd).as_bool()
     };
 
-    let mut discovered = Vec::new();
-    let _ = state.settings.update_persisted(|settings| {
-        discovered = prepare_discovered_windows(enumerate_windows(), host_hwnd, settings);
-    });
+    state.window_collection.catalog.refresh();
+    let labels: Vec<(String, String)> = state
+        .window_collection
+        .catalog
+        .windows()
+        .iter()
+        .map(|window| (window.app_id.clone(), window.app_label().to_owned()))
+        .collect();
+    for (app_id, label) in labels {
+        state.settings.refresh_app_label(&app_id, &label);
+    }
+    let discovered = prepare_discovered_windows(
+        state.window_collection.catalog.windows(),
+        state.settings.persisted(),
+    );
 
     let outcome = reconcile_managed_windows(&mut state.window_collection.windows, discovered);
     for app_id in &outcome.icon_invalidations {
@@ -45,25 +55,15 @@ pub(crate) fn refresh_windows(state: &Rc<RefCell<AppState>>) -> bool {
 }
 
 fn prepare_discovered_windows(
-    discovered_all: Vec<WindowInfo>,
-    host_hwnd: HWND,
-    settings: &mut AppSettings,
+    discovered_all: &[WindowInfo],
+    settings: &AppSettings,
 ) -> Vec<WindowInfo> {
-    let discovered_all: Vec<WindowInfo> = discovered_all
-        .into_iter()
-        .filter(|window| window.hwnd != host_hwnd)
-        .collect();
-
-    for window in &discovered_all {
-        settings.refresh_app_label(&window.app_id, window.app_label());
-    }
-
     let monitor_filter = settings.active_monitor_filter.clone();
     let tag_filter = settings.active_tag_filter.clone();
     let app_filter = settings.active_app_filter.clone();
 
     let mut discovered: Vec<WindowInfo> = discovered_all
-        .into_iter()
+        .iter()
         .filter(|window| {
             monitor_filter
                 .as_deref()
@@ -80,6 +80,7 @@ fn prepare_discovered_windows(
                 .is_none_or(|app_id| window.app_id == app_id)
         })
         .filter(|window| !settings.is_hidden(&window.app_id))
+        .cloned()
         .collect();
 
     sort_windows_for_grouping(&mut discovered, settings);
@@ -92,6 +93,7 @@ mod tests {
     use super::super::managed_window_reconcile::{new_managed_window, reconcile_managed_windows};
     use super::*;
     use std::ffi::c_void;
+    use windows::Win32::Foundation::HWND;
 
     fn window_info(
         hwnd_value: usize,
@@ -104,6 +106,7 @@ mod tests {
     ) -> WindowInfo {
         WindowInfo {
             hwnd: HWND(hwnd_value as *mut c_void),
+            process_id: hwnd_value as u32,
             title: title.to_owned(),
             app_id: app_id.to_owned(),
             process_name: process_name.to_owned(),
@@ -197,8 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn prepare_discovered_windows_filters_host_hidden_monitor_tag_and_app() {
-        let host = HWND(99usize as *mut c_void);
+    fn prepare_discovered_windows_filters_hidden_monitor_tag_and_app() {
         let alpha = window_info(
             1,
             "Alpha",
@@ -217,15 +219,6 @@ mod tests {
             "BetaClass",
             "DISPLAY2",
         );
-        let host_window = window_info(
-            99,
-            "Panopticon",
-            "app:panopticon",
-            "Panopticon",
-            Some("C:/Panopticon.exe"),
-            "PanopticonClass",
-            "DISPLAY1",
-        );
         let mut settings = AppSettings::default();
         let _ = settings.toggle_hidden("app:beta", "Beta");
         let _ = settings.toggle_app_tag("app:alpha", "Alpha", "focus");
@@ -233,8 +226,8 @@ mod tests {
         settings.set_tag_filter(Some("focus"));
         settings.set_app_filter(Some("app:alpha"));
 
-        let discovered =
-            prepare_discovered_windows(vec![host_window, beta, alpha], host, &mut settings);
+        let candidates = vec![beta, alpha];
+        let discovered = prepare_discovered_windows(&candidates, &settings);
 
         assert_eq!(discovered.len(), 1);
         assert_eq!(discovered[0].app_id, "app:alpha");

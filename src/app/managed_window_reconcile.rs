@@ -135,6 +135,7 @@ mod tests {
     ) -> WindowInfo {
         WindowInfo {
             hwnd: HWND(hwnd_value as *mut c_void),
+            process_id: hwnd_value as u32,
             title: title.to_owned(),
             app_id: app_id.to_owned(),
             process_name: process_name.to_owned(),

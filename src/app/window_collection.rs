@@ -11,6 +11,7 @@ use crate::{DragState, ManagedWindow};
 
 /// The subset of [`AppState`] that deals with the window collection.
 pub(crate) struct WindowCollection {
+    pub(crate) catalog: crate::app::window_catalog::WindowCatalogSnapshot,
     pub(crate) windows: Vec<ManagedWindow>,
     pub(crate) current_layout: LayoutType,
     pub(crate) separators: Vec<Separator>,
@@ -25,6 +26,7 @@ pub(crate) struct WindowCollection {
 impl WindowCollection {
     pub(crate) fn new(initial_layout: LayoutType) -> Self {
         Self {
+            catalog: crate::app::window_catalog::WindowCatalogSnapshot::default(),
             windows: Vec::new(),
             current_layout: initial_layout,
             separators: Vec::new(),

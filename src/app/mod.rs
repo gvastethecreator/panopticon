@@ -41,6 +41,7 @@ pub mod ui_callbacks;
 pub mod ui_translations;
 pub mod updates;
 pub mod viewport_manager;
+pub mod window_catalog;
 pub mod window_collection;
 pub mod window_menu;
 pub mod window_subclass;

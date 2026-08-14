@@ -3,7 +3,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use panopticon::window_enum::{enumerate_windows, WindowInfo};
 use panopticon::window_ops::{collect_available_apps, collect_available_monitors};
 use panopticon::workspace::WorkspaceStore;
 use slint::ComponentHandle;
@@ -23,15 +22,18 @@ use super::window_sync::refresh_windows;
 use crate::{AppState, MainWindow};
 
 pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
-    let available_windows: Vec<WindowInfo> = enumerate_windows()
-        .into_iter()
-        .filter(|window| window.hwnd != state.shell.hwnd)
+    state.window_collection.catalog.refresh();
+    let labels: Vec<(String, String)> = state
+        .window_collection
+        .catalog
+        .windows()
+        .iter()
+        .map(|window| (window.app_id.clone(), window.app_label().to_owned()))
         .collect();
-    let _ = state.settings.update_persisted(|settings| {
-        for window in &available_windows {
-            settings.refresh_app_label(&window.app_id, window.app_label());
-        }
-    });
+    for (app_id, label) in labels {
+        state.settings.refresh_app_label(&app_id, &label);
+    }
+    let available_windows = state.window_collection.catalog.windows();
 
     TrayMenuState {
         window_visible: unsafe {
@@ -46,11 +48,11 @@ pub(crate) fn build_tray_menu_state(state: &mut AppState) -> TrayMenuState {
         hide_on_select: state.settings.hide_on_select,
         always_on_top: state.settings.always_on_top,
         active_monitor_filter: state.settings.active_monitor_filter.clone(),
-        available_monitors: collect_available_monitors(&available_windows),
+        available_monitors: collect_available_monitors(available_windows),
         active_tag_filter: state.settings.active_tag_filter.clone(),
         available_tags: state.settings.known_tags(),
         active_app_filter: state.settings.active_app_filter.clone(),
-        available_apps: collect_available_apps(&available_windows),
+        available_apps: collect_available_apps(available_windows),
         hidden_apps: state.settings.hidden_app_entries(),
         dock_edge: state.settings.dock_edge,
         is_docked: state.shell.is_appbar || state.settings.dock_edge.is_some(),

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-14T04:31:31Z",
-  "generated_from_commit": "62d2ebe9f5f377bbb2934e8cd92c080a54122257",
+  "generated_at": "2026-08-14T21:33:06Z",
+  "generated_from_commit": "954b7ba172faaa9a414acc9a4feb714acc30d02b",
   "scope": [
     "."
   ],
@@ -125,7 +125,7 @@
     {
       "id": "runtime-loop",
       "path": "src/app/runtime_loop.rs",
-      "role": "Owns initialization, refresh, UI, and scrollbar timers for the desktop runtime.",
+      "role": "Owns initialization, adaptive UI scheduling, refresh, and scrollbar timers for the desktop runtime.",
       "type": "service",
       "boundary": "Application",
       "entrypoints": [
@@ -133,7 +133,7 @@
       ],
       "tests": [],
       "constraints": [
-        "The 16 ms UI timer delegates work to explicit phases and services."
+        "The self-rescheduling UI timer selects active, idle-visible, or hidden cadence and delegates work to explicit phases."
       ],
       "evidence": {
         "status": "verified",
@@ -238,9 +238,32 @@
       }
     },
     {
+      "id": "window-catalog",
+      "path": "src/app/window_catalog.rs",
+      "role": "Owns the canonical eligible-window snapshot reused by runtime, settings, tray, and command surfaces.",
+      "type": "service",
+      "boundary": "Application",
+      "entrypoints": [
+        "src/app/window_catalog.rs:pub(crate) struct WindowCatalogSnapshot"
+      ],
+      "tests": [],
+      "constraints": [
+        "All consumers read one generation instead of enumerating Win32 independently."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/window_catalog.rs",
+            "symbol": "pub(crate) struct WindowCatalogSnapshot"
+          }
+        ]
+      }
+    },
+    {
       "id": "window-enumeration",
       "path": "src/window_enum.rs",
-      "role": "Enumerates top-level Win32 windows and creates raw WindowInfo records.",
+      "role": "Enumerates top-level Win32 windows, caches process metadata, and enforces canonical eligibility.",
       "type": "service",
       "boundary": "Native Integration",
       "entrypoints": [
@@ -248,7 +271,7 @@
       ],
       "tests": [],
       "constraints": [
-        "This service returns raw discovery data before managed-state reconciliation."
+        "The current process and known system input hosts are excluded before application consumers see the snapshot."
       ],
       "evidence": {
         "status": "verified",
@@ -263,7 +286,7 @@
     {
       "id": "window-sync",
       "path": "src/app/window_sync.rs",
-      "role": "Filters discovered windows and reconciles them into the managed collection.",
+      "role": "Refreshes the canonical catalog, applies user filters, and reconciles it into the managed collection.",
       "type": "service",
       "boundary": "Application",
       "entrypoints": [
@@ -271,7 +294,7 @@
       ],
       "tests": [],
       "constraints": [
-        "The host window is excluded before managed-window reconciliation."
+        "Native eligibility is owned by enumeration; this service owns only settings-backed filters and reconciliation."
       ],
       "evidence": {
         "status": "verified",
@@ -310,6 +333,20 @@
   "edges": [
     {
       "from": "dwm-sync",
+      "to": "app-state",
+      "type": "writes",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/dwm.rs",
+            "symbol": "state.try_borrow_mut()"
+          }
+        ]
+      }
+    },
+    {
+      "from": "dwm-sync",
       "to": "thumbnail-raii",
       "type": "calls",
       "evidence": {
@@ -332,6 +369,20 @@
           {
             "path": "src/app/layout_pipeline.rs",
             "symbol": "compute_layout_custom("
+          }
+        ]
+      }
+    },
+    {
+      "from": "model-sync",
+      "to": "app-state",
+      "type": "writes",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/model_sync.rs",
+            "symbol": "app_state.borrow_mut()"
           }
         ]
       }
@@ -449,6 +500,20 @@
       }
     },
     {
+      "from": "window-catalog",
+      "to": "window-enumeration",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/window_catalog.rs",
+            "symbol": "self.windows = enumerate_windows()"
+          }
+        ]
+      }
+    },
+    {
       "from": "window-enumeration",
       "to": "windows-api",
       "type": "calls",
@@ -478,14 +543,14 @@
     },
     {
       "from": "window-sync",
-      "to": "window-enumeration",
+      "to": "window-catalog",
       "type": "calls",
       "evidence": {
         "status": "verified",
         "locations": [
           {
             "path": "src/app/window_sync.rs",
-            "symbol": "enumerate_windows()"
+            "symbol": "state.window_collection.catalog.refresh()"
           }
         ]
       }
@@ -497,6 +562,7 @@
       "steps": [
         "runtime-loop",
         "window-sync",
+        "window-catalog",
         "window-enumeration",
         "windows-api"
       ],
