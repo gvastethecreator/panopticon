@@ -12,7 +12,7 @@ build = "build.rs"
 # ── Dependencies ──────────────────────────────────────────────
 
 [dependencies]
-slint = { version = "1.17.1", features = ["raw-window-handle-06", "backend-winit", "renderer-skia"] }
+slint = { version = "1.17.1", default-features = false, features = ["accessibility", "compat-1-2", "raw-window-handle-06", "backend-winit", "renderer-skia"] }
 raw-window-handle = "0.6.2"
 thiserror = "2.0.20"
 anyhow = "1.0.104"

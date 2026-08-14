@@ -1,6 +1,7 @@
 //! Background update checker for GitHub releases.
 
 use std::sync::{
+    atomic::{AtomicU64, Ordering},
     mpsc::{self, TryRecvError},
     Mutex, OnceLock,
 };
@@ -9,13 +10,16 @@ use serde::Deserialize;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Networking::WinHttp::{
     WinHttpCloseHandle, WinHttpConnect, WinHttpOpen, WinHttpOpenRequest, WinHttpQueryDataAvailable,
-    WinHttpReadData, WinHttpReceiveResponse, WinHttpSendRequest, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-    WINHTTP_FLAG_SECURE, WINHTTP_OPEN_REQUEST_FLAGS,
+    WinHttpQueryHeaders, WinHttpReadData, WinHttpReceiveResponse, WinHttpSendRequest,
+    WinHttpSetTimeouts, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_FLAG_SECURE,
+    WINHTTP_OPEN_REQUEST_FLAGS, WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_QUERY_STATUS_CODE,
 };
 
 const LATEST_RELEASE_ENDPOINT: &str =
     "https://api.github.com/repos/gvastethecreator/panopticon/releases/latest";
 const RELEASES_ENDPOINT: &str = "https://api.github.com/repos/gvastethecreator/panopticon/releases";
+const HTTP_TIMEOUT_MS: i32 = 10_000;
+const MAX_RESPONSE_BODY_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum UpdateCheckOutcome {
@@ -47,6 +51,11 @@ fn receiver_slot() -> &'static Mutex<Option<mpsc::Receiver<UpdateCheckOutcome>>>
     UPDATE_CHECK_RECEIVER.get_or_init(|| Mutex::new(None))
 }
 
+fn update_generation() -> &'static AtomicU64 {
+    static GENERATION: AtomicU64 = AtomicU64::new(0);
+    &GENERATION
+}
+
 pub(crate) fn request_latest_release_check(current_version: &str) -> bool {
     let Ok(mut guard) = receiver_slot().lock() else {
         tracing::warn!("unable to lock update-check state");
@@ -60,13 +69,21 @@ pub(crate) fn request_latest_release_check(current_version: &str) -> bool {
     let (sender, receiver) = mpsc::channel();
     *guard = Some(receiver);
     drop(guard);
+    let generation = update_generation().fetch_add(1, Ordering::AcqRel) + 1;
 
     let current_version = current_version.to_owned();
     std::thread::spawn(move || {
-        let _ = sender.send(check_latest_release(&current_version));
+        let _ = sender.send(check_latest_release(&current_version, generation));
     });
 
     true
+}
+
+pub(crate) fn cancel_latest_release_check() {
+    update_generation().fetch_add(1, Ordering::AcqRel);
+    if let Ok(mut guard) = receiver_slot().lock() {
+        *guard = None;
+    }
 }
 
 pub(crate) fn poll_latest_release_check() -> Option<UpdateCheckOutcome> {
@@ -93,9 +110,9 @@ pub(crate) fn poll_latest_release_check() -> Option<UpdateCheckOutcome> {
     }
 }
 
-fn check_latest_release(current_version: &str) -> UpdateCheckOutcome {
+fn check_latest_release(current_version: &str, generation: u64) -> UpdateCheckOutcome {
     let user_agent = format!("Panopticon/{current_version}");
-    let payload = match fetch_latest_release_payload(&user_agent) {
+    let payload = match fetch_latest_release_payload(&user_agent, generation) {
         Ok(payload) => payload,
         Err(error) => {
             return UpdateCheckOutcome::Failed { reason: error };
@@ -113,20 +130,34 @@ fn check_latest_release(current_version: &str) -> UpdateCheckOutcome {
     }
 }
 
-fn fetch_latest_release_payload(user_agent: &str) -> Result<GitHubReleasePayload, String> {
+fn fetch_latest_release_payload(
+    user_agent: &str,
+    generation: u64,
+) -> Result<GitHubReleasePayload, String> {
     let body = http_get(LATEST_RELEASE_ENDPOINT, user_agent)?;
+    ensure_update_check_current(generation)?;
     let payload: GitHubReleasePayload =
         serde_json::from_str(&body).map_err(|error| error.to_string())?;
     validate_published_release(payload)
         .map_err(|error| format!("{error}; fallback to release list"))
         .or_else(|latest_error| {
+            ensure_update_check_current(generation)?;
             let list_body = http_get(RELEASES_ENDPOINT, user_agent)?;
+            ensure_update_check_current(generation)?;
             let releases: Vec<GitHubReleasePayload> =
                 serde_json::from_str(&list_body).map_err(|error| error.to_string())?;
             select_latest_published_release(releases).ok_or_else(|| {
                 format!("{latest_error}; fallback list returned no published releases")
             })
         })
+}
+
+fn ensure_update_check_current(generation: u64) -> Result<(), String> {
+    if update_generation().load(Ordering::Acquire) == generation {
+        Ok(())
+    } else {
+        Err("update check cancelled".to_owned())
+    }
 }
 
 /// Convert a Rust string to a null-terminated wide-string buffer.
@@ -172,6 +203,14 @@ fn http_get(url: &str, user_agent: &str) -> Result<String, String> {
             return Err("WinHttpOpen failed".to_owned());
         }
         let _session_guard = HttpHandle(session);
+        WinHttpSetTimeouts(
+            session,
+            HTTP_TIMEOUT_MS,
+            HTTP_TIMEOUT_MS,
+            HTTP_TIMEOUT_MS,
+            HTTP_TIMEOUT_MS,
+        )
+        .map_err(|error| format!("WinHttpSetTimeouts failed: {error}"))?;
 
         // 2. Connect to the server.
         let port = if is_https { 443 } else { 80 };
@@ -218,6 +257,8 @@ fn http_get(url: &str, user_agent: &str) -> Result<String, String> {
         WinHttpReceiveResponse(request, std::ptr::null_mut())
             .map_err(|error| format!("WinHttpReceiveResponse failed: {error}"))?;
 
+        validate_http_status(query_http_status(request)?)?;
+
         // 6. Read the response body.
         let mut body = Vec::new();
         loop {
@@ -227,20 +268,67 @@ fn http_get(url: &str, user_agent: &str) -> Result<String, String> {
             if available == 0 {
                 break;
             }
-            let mut chunk = vec![0u8; available as usize];
+            let available = usize::try_from(available)
+                .map_err(|error| format!("invalid response chunk length: {error}"))?;
+            checked_body_length(body.len(), available)?;
+            let mut chunk = vec![0u8; available];
             let mut read: u32 = 0;
             WinHttpReadData(
                 request,
                 chunk.as_mut_ptr().cast::<std::ffi::c_void>(),
-                available,
+                u32::try_from(available)
+                    .map_err(|error| format!("response chunk too large: {error}"))?,
                 &raw mut read,
             )
             .map_err(|error| format!("WinHttpReadData failed: {error}"))?;
-            chunk.truncate(read as usize);
+            let read = usize::try_from(read)
+                .map_err(|error| format!("invalid response read length: {error}"))?;
+            checked_body_length(body.len(), read)?;
+            chunk.truncate(read);
             body.extend_from_slice(&chunk);
         }
 
         String::from_utf8(body).map_err(|error| format!("invalid UTF-8 in response: {error}"))
+    }
+}
+
+unsafe fn query_http_status(request: *mut std::ffi::c_void) -> Result<u32, String> {
+    let mut status_code = 0_u32;
+    let mut status_code_size = std::mem::size_of::<u32>() as u32;
+    // SAFETY: request is a live WinHTTP request handle, and both output pointers
+    // refer to writable stack values with their exact sizes.
+    unsafe {
+        WinHttpQueryHeaders(
+            request,
+            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            PCWSTR::null(),
+            Some((&raw mut status_code).cast::<std::ffi::c_void>()),
+            &raw mut status_code_size,
+            std::ptr::null_mut(),
+        )
+    }
+    .map_err(|error| format!("WinHttpQueryHeaders(status) failed: {error}"))?;
+    Ok(status_code)
+}
+
+fn validate_http_status(status_code: u32) -> Result<(), String> {
+    if status_code == 200 {
+        Ok(())
+    } else {
+        Err(format!("update endpoint returned HTTP {status_code}"))
+    }
+}
+
+fn checked_body_length(current: usize, incoming: usize) -> Result<usize, String> {
+    let total = current
+        .checked_add(incoming)
+        .ok_or_else(|| "update response body length overflowed".to_owned())?;
+    if total > MAX_RESPONSE_BODY_BYTES {
+        Err(format!(
+            "update response exceeded {MAX_RESPONSE_BODY_BYTES} bytes"
+        ))
+    } else {
+        Ok(total)
     }
 }
 
@@ -312,9 +400,11 @@ fn parse_semver_triplet(version: &str) -> Option<(u64, u64, u64)> {
 #[cfg(test)]
 mod tests {
     use super::{
-        is_newer_version, parse_semver_triplet, select_latest_published_release,
-        GitHubReleasePayload,
+        checked_body_length, ensure_update_check_current, is_newer_version, parse_semver_triplet,
+        select_latest_published_release, validate_http_status, GitHubReleasePayload,
+        MAX_RESPONSE_BODY_BYTES,
     };
+    use std::sync::atomic::Ordering;
 
     #[test]
     fn parse_semver_triplet_accepts_common_git_tags() {
@@ -355,5 +445,24 @@ mod tests {
         .expect("published release");
 
         assert_eq!(selected.tag_name, "v0.1.22");
+    }
+
+    #[test]
+    fn response_validation_requires_success_and_caps_body_size() {
+        assert_eq!(validate_http_status(200), Ok(()));
+        assert!(validate_http_status(404).is_err());
+        assert_eq!(
+            checked_body_length(MAX_RESPONSE_BODY_BYTES - 1, 1),
+            Ok(MAX_RESPONSE_BODY_BYTES)
+        );
+        assert!(checked_body_length(MAX_RESPONSE_BODY_BYTES, 1).is_err());
+    }
+
+    #[test]
+    fn update_generation_invalidates_cancelled_work() {
+        let generation = super::update_generation().fetch_add(1, Ordering::AcqRel) + 1;
+        assert_eq!(ensure_update_check_current(generation), Ok(()));
+        super::update_generation().fetch_add(1, Ordering::AcqRel);
+        assert!(ensure_update_check_current(generation).is_err());
     }
 }
