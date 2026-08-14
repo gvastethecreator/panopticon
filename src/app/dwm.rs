@@ -121,6 +121,46 @@ pub(crate) fn hydrate_reconciled_thumbnails(
 
 // ───────────────────────── DWM thumbnail sync ─────────────────────────
 
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "these four independent Win32 facts are the input to a pure sync decision"
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DwmSourceState {
+    minimized: bool,
+    valid: bool,
+    visible: bool,
+    cloaked: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DwmWindowSyncPlan {
+    release_thumbnail: bool,
+    refresh_bitmap: bool,
+}
+
+fn plan_window_sync(
+    source: DwmSourceState,
+    refresh_mode: panopticon::settings::ThumbnailRefreshMode,
+    has_thumbnail: bool,
+    interval_elapsed: bool,
+) -> DwmWindowSyncPlan {
+    let release_thumbnail =
+        !source.valid || (!source.visible && !source.minimized) || source.cloaked;
+    let refresh_bitmap = !release_thumbnail
+        && !source.minimized
+        && match refresh_mode {
+            panopticon::settings::ThumbnailRefreshMode::Frozen => !has_thumbnail,
+            panopticon::settings::ThumbnailRefreshMode::Interval => interval_elapsed,
+            panopticon::settings::ThumbnailRefreshMode::Realtime => false,
+        };
+
+    DwmWindowSyncPlan {
+        release_thumbnail,
+        refresh_bitmap,
+    }
+}
+
 /// Synchronise all DWM thumbnail positions, visibility, and refresh timing.
 #[expect(
     clippy::too_many_lines,
@@ -195,7 +235,22 @@ pub(crate) fn update_dwm_thumbnails(
         let is_source_valid = unsafe { IsWindow(Some(mw.info.hwnd)).as_bool() };
         let is_source_visible = unsafe { IsWindowVisible(mw.info.hwnd).as_bool() };
         let is_cloaked = is_window_cloaked(mw.info.hwnd);
-        if !is_source_valid || (!is_source_visible && !is_minimized) || is_cloaked {
+        let interval_elapsed = mw
+            .preview
+            .last_thumb_update
+            .is_none_or(|time| now.duration_since(time).as_millis() >= u128::from(interval_ms));
+        let plan = plan_window_sync(
+            DwmSourceState {
+                minimized: is_minimized,
+                valid: is_source_valid,
+                visible: is_source_visible,
+                cloaked: is_cloaked,
+            },
+            refresh_mode,
+            mw.preview.thumbnail.is_some(),
+            interval_elapsed,
+        );
+        if plan.release_thumbnail {
             release_thumbnail(mw);
             continue;
         }
@@ -209,17 +264,7 @@ pub(crate) fn update_dwm_thumbnails(
                 0
             };
 
-        let should_refresh_bitmap = !is_minimized
-            && match refresh_mode {
-                panopticon::settings::ThumbnailRefreshMode::Frozen => {
-                    mw.preview.thumbnail.is_none()
-                }
-                panopticon::settings::ThumbnailRefreshMode::Interval => mw
-                    .preview
-                    .last_thumb_update
-                    .is_none_or(|t| now.duration_since(t).as_millis() >= u128::from(interval_ms)),
-                panopticon::settings::ThumbnailRefreshMode::Realtime => false,
-            };
+        let should_refresh_bitmap = plan.refresh_bitmap;
 
         let registered_thumbnail = ensure_thumbnail(dest_hwnd, mw);
         if let Some(thumb) = mw.preview.thumbnail.as_ref() {
@@ -383,6 +428,7 @@ pub(crate) fn compute_dwm_rect(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use panopticon::settings::ThumbnailRefreshMode;
     use windows::Win32::Foundation::RECT;
 
     #[test]
@@ -422,5 +468,54 @@ mod tests {
 
         assert!(!visible);
         assert_eq!(rect, HIDDEN_THUMBNAIL_RECT);
+    }
+
+    #[test]
+    fn sync_plan_releases_invalid_hidden_or_cloaked_sources() {
+        for source in [
+            DwmSourceState {
+                valid: false,
+                visible: true,
+                minimized: false,
+                cloaked: false,
+            },
+            DwmSourceState {
+                valid: true,
+                visible: false,
+                minimized: false,
+                cloaked: false,
+            },
+            DwmSourceState {
+                valid: true,
+                visible: true,
+                minimized: false,
+                cloaked: true,
+            },
+        ] {
+            assert!(
+                plan_window_sync(source, ThumbnailRefreshMode::Realtime, true, false)
+                    .release_thumbnail
+            );
+        }
+    }
+
+    #[test]
+    fn sync_plan_preserves_refresh_mode_contracts() {
+        let visible = DwmSourceState {
+            valid: true,
+            visible: true,
+            minimized: false,
+            cloaked: false,
+        };
+
+        assert!(
+            plan_window_sync(visible, ThumbnailRefreshMode::Frozen, false, false).refresh_bitmap
+        );
+        assert!(
+            plan_window_sync(visible, ThumbnailRefreshMode::Interval, true, true).refresh_bitmap
+        );
+        assert!(
+            !plan_window_sync(visible, ThumbnailRefreshMode::Realtime, true, true).refresh_bitmap
+        );
     }
 }

@@ -2,14 +2,18 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use slint::{CloseRequestResponse, ComponentHandle, Timer, TimerMode};
 
+use super::tick_phases::TickEffects;
 use crate::{AppState, MainWindow};
 
 const MIN_REFRESH_TIMER_INTERVAL_MS: u32 = 50;
 const PERF_REPORT_EVERY_TICKS: u16 = 60;
+const ACTIVE_UI_TICK_INTERVAL_MS: u64 = 16;
+const IDLE_UI_TICK_INTERVAL_MS: u64 = 32;
+const HIDDEN_UI_TICK_INTERVAL_MS: u64 = 64;
 
 #[derive(Clone)]
 pub(crate) struct UiPerfCounters {
@@ -18,6 +22,7 @@ pub(crate) struct UiPerfCounters {
     recompute_resize: Rc<Cell<u16>>,
     recompute_refresh: Rc<Cell<u16>>,
     dwm_syncs: Rc<Cell<u16>>,
+    report_started_at: Rc<Cell<Instant>>,
 }
 
 impl UiPerfCounters {
@@ -28,6 +33,7 @@ impl UiPerfCounters {
             recompute_resize: Rc::new(Cell::new(0u16)),
             recompute_refresh: Rc::new(Cell::new(0u16)),
             dwm_syncs: Rc::new(Cell::new(0u16)),
+            report_started_at: Rc::new(Cell::new(Instant::now())),
         }
     }
 }
@@ -39,7 +45,7 @@ pub(crate) struct UiTickState {
     pub(crate) floating_size_sync_timer: Rc<Timer>,
     pub(crate) last_refresh_interval_ms: Rc<Cell<u32>>,
     pub(crate) refresh_recompute_pending: Rc<Cell<bool>>,
-    pub(crate) dwm_idle_ticks: Rc<Cell<u8>>,
+    pub(crate) last_dwm_sync: Rc<Cell<Option<Instant>>>,
     pub(crate) last_viewport: Rc<Cell<Option<(f32, f32)>>>,
     perf_counters: UiPerfCounters,
 }
@@ -56,7 +62,7 @@ impl UiTickState {
             floating_size_sync_timer: Rc::new(Timer::default()),
             last_refresh_interval_ms: Rc::new(Cell::new(initial_refresh_interval_ms)),
             refresh_recompute_pending: refresh_recompute_pending.clone(),
-            dwm_idle_ticks: Rc::new(Cell::new(0u8)),
+            last_dwm_sync: Rc::new(Cell::new(None)),
             last_viewport: Rc::new(Cell::new(None::<(f32, f32)>)),
             perf_counters: UiPerfCounters::new(),
         }
@@ -84,7 +90,7 @@ impl UiTickSignals {
 /// Keeps the recurring Slint timers alive for the lifetime of `run_app`.
 pub(crate) struct RuntimeLoop {
     _init: Timer,
-    _ui: Timer,
+    _ui: Rc<Timer>,
     _refresh: Rc<Timer>,
     _scrollbar: Timer,
 }
@@ -151,42 +157,66 @@ fn start_ui_timer(
     refresh_timer: &Rc<Timer>,
     refresh_recompute_pending: &Rc<Cell<bool>>,
     initial_refresh_interval_ms: u32,
-) -> Timer {
+) -> Rc<Timer> {
     let tick_state = UiTickState::new(
         refresh_timer,
         refresh_recompute_pending,
         initial_refresh_interval_ms,
     );
 
-    let ui_timer = Timer::default();
-    ui_timer.start(TimerMode::Repeated, Duration::from_millis(16), {
+    let ui_timer = Rc::new(Timer::default());
+    schedule_ui_tick(
+        &ui_timer,
+        state,
+        &main_window.as_weak(),
+        &tick_state,
+        Duration::ZERO,
+    );
+    ui_timer
+}
+
+fn schedule_ui_tick(
+    timer: &Rc<Timer>,
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    tick_state: &UiTickState,
+    delay: Duration,
+) {
+    timer.start(TimerMode::SingleShot, delay, {
+        let timer = timer.clone();
         let state = state.clone();
-        let weak = main_window.as_weak();
+        let weak = weak.clone();
         let tick_state = tick_state.clone();
         move || {
-            run_ui_tick(&state, &weak, &tick_state);
+            let next_interval_ms = run_ui_tick(&state, &weak, &tick_state);
+            schedule_ui_tick(
+                &timer,
+                &state,
+                &weak,
+                &tick_state,
+                Duration::from_millis(next_interval_ms),
+            );
         }
     });
-    ui_timer
 }
 
 fn run_ui_tick(
     state: &Rc<RefCell<AppState>>,
     weak: &slint::Weak<MainWindow>,
     tick_state: &UiTickState,
-) {
+) -> u64 {
     use super::tick_phases::{
         advance_theme_animation, advance_window_animation, compute_activity_flags, decide_dwm_sync,
         detect_resize, detect_viewport_change, drain_actions, poll_update_check, reconcile_refresh,
-        sync_dwm, try_native_init, TickEffects,
+        sync_dwm, try_native_init,
     };
 
     let Some(win) = weak.upgrade() else {
-        return;
+        return HIDDEN_UI_TICK_INTERVAL_MS;
     };
 
     if try_native_init(state, weak, &win, &tick_state.native_init_retry_timer) {
-        return;
+        return ACTIVE_UI_TICK_INTERVAL_MS;
     }
 
     maybe_reconfigure_refresh_timer(state, tick_state);
@@ -195,7 +225,7 @@ fn run_ui_tick(
     let had_actions = drain_actions(state, &win);
 
     if !host_window_is_visible(state) {
-        return;
+        return HIDDEN_UI_TICK_INTERVAL_MS;
     }
 
     let recomputed_from_resize = detect_resize(state, &win, &tick_state.floating_size_sync_timer);
@@ -217,7 +247,7 @@ fn run_ui_tick(
         is_animating_or_dirty,
     };
 
-    let should_sync_dwm = decide_dwm_sync(effects, &tick_state.dwm_idle_ticks, state);
+    let should_sync_dwm = decide_dwm_sync(effects, &tick_state.last_dwm_sync, state);
 
     advance_window_animation(state, &win, window_animation_active);
     advance_theme_animation(state, &win, theme_animation_active);
@@ -239,6 +269,21 @@ fn run_ui_tick(
         }
 
         record_perf_tick(&tick_state.perf_counters, tick_signals);
+    }
+
+    next_ui_tick_interval_ms(effects)
+}
+
+const fn next_ui_tick_interval_ms(effects: TickEffects) -> u64 {
+    if effects.had_actions
+        || effects.recomputed_from_resize
+        || effects.recomputed_from_refresh
+        || effects.viewport_changed
+        || effects.is_animating_or_dirty
+    {
+        ACTIVE_UI_TICK_INTERVAL_MS
+    } else {
+        IDLE_UI_TICK_INTERVAL_MS
     }
 }
 
@@ -333,6 +378,7 @@ fn record_perf_tick(perf: &UiPerfCounters, signals: UiTickSignals) {
 
     tracing::trace!(
         ticks,
+        elapsed_ms = perf.report_started_at.get().elapsed().as_millis(),
         action_batches = perf.action_batches.get(),
         recompute_resize = perf.recompute_resize.get(),
         recompute_refresh = perf.recompute_refresh.get(),
@@ -345,6 +391,7 @@ fn record_perf_tick(perf: &UiPerfCounters, signals: UiTickSignals) {
     perf.recompute_resize.set(0);
     perf.recompute_refresh.set(0);
     perf.dwm_syncs.set(0);
+    perf.report_started_at.set(Instant::now());
 }
 
 fn host_window_is_visible(state: &Rc<RefCell<AppState>>) -> bool {
@@ -356,4 +403,33 @@ fn host_window_is_visible(state: &Rc<RefCell<AppState>>) -> bool {
                 IsWindowVisible(state_ref.shell.hwnd).as_bool()
             }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        next_ui_tick_interval_ms, TickEffects, ACTIVE_UI_TICK_INTERVAL_MS, IDLE_UI_TICK_INTERVAL_MS,
+    };
+
+    #[test]
+    fn ui_tick_interval_is_fast_only_while_work_is_active() {
+        assert_eq!(
+            next_ui_tick_interval_ms(TickEffects::default()),
+            IDLE_UI_TICK_INTERVAL_MS
+        );
+        assert_eq!(
+            next_ui_tick_interval_ms(TickEffects {
+                had_actions: true,
+                ..TickEffects::default()
+            }),
+            ACTIVE_UI_TICK_INTERVAL_MS
+        );
+        assert_eq!(
+            next_ui_tick_interval_ms(TickEffects {
+                is_animating_or_dirty: true,
+                ..TickEffects::default()
+            }),
+            ACTIVE_UI_TICK_INTERVAL_MS
+        );
+    }
 }
