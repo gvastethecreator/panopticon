@@ -6,7 +6,7 @@
 **Document status:** updated to reflect the current implementation  
 **Target platform:** Windows 10 / Windows 11 (64-bit)  
 **Actual stack:** Rust + Slint + Win32/DWM  
-**Product nature:** local desktop utility; no backend or remote services
+**Product nature:** local desktop utility; no backend, accounts, or telemetry; optional outbound GitHub release update check
 
 ---
 
@@ -63,6 +63,7 @@ Panopticon solves this with a persistent, configurable view of the desktop state
 2. Concentrate layout computation in pure, testable logic.
 3. Isolate Win32/FFI interop in scoped, commented `unsafe` blocks.
 4. Allow customisation without depending on external infrastructure.
+5. Keep the optional GitHub release check bounded by explicit timeouts, HTTP status validation, and a response-size limit.
 
 ### 4.3. Current non-goals
 

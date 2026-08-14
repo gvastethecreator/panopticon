@@ -22,10 +22,14 @@ usa pnpm 11.20.0, `pnpm-lock.yaml` y `@opencode-ai/plugin` 1.18.16.
 | `windows` | 0.62.2 | Win32/DWM/Shell | latest compatible |
 | `winres` | 0.1.12 | recursos PE Windows | latest compatible |
 
-La actualización inicial del 11 de agosto refrescó 107 paquetes compatibles. La revisión del 14 de
-agosto añadió 25 actualizaciones compatibles, principalmente ICU 2.3, `font-types` 0.12.3,
-`num-integer` 0.1.47 y crates auxiliares de Unicode. La API de la aplicación no cambió. El binario y
-los 158 tests se compilan con el lock nuevo.
+La actualización inicial del 11 de agosto refrescó 107 paquetes compatibles. Una revisión previa del
+14 de agosto añadió 25 actualizaciones; este lote agregó cuatro updates transitivos adicionales:
+`cc` 1.4.3, `find-msvc-tools` 0.1.11, `libredox` 0.1.20 y `pkg-config` 0.3.34. La API persistida no
+cambió y los 170 tests compilan con el lock resultante.
+
+Slint queda con `default-features = false` y activa de forma explícita `accessibility`, `compat-1-2`,
+`raw-window-handle-06`, `backend-winit` y `renderer-skia`. Esto retira Femtovg, software renderer,
+backend default y system tray de Slint; Panopticon conserva Skia y su integración tray Win32 propia.
 
 ## Changelogs revisados
 

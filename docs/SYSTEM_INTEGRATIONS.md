@@ -181,11 +181,12 @@ Panopticon uses `unsafe` out of necessity, not as a general style. The integrati
 
 It is worth stating explicitly because it helps understand the project's nature:
 
-- no HTTP client;
 - no cloud services;
 - no network IPC;
 - no SQL/NoSQL database;
 - no remote telemetry;
 - no authentication or user accounts.
+
+The one outbound integration is the update checker in `src/app/updates.rs`. It uses Windows WinHTTP to read published release metadata from the GitHub Releases API. Requests use 10-second resolve/connect/send/receive timeouts, require HTTP 200, and reject response bodies larger than 1 MiB. No settings, window titles, or usage data are uploaded.
 
 Panopticon is, in essence, a local utility rich in Windows integration and fairly austere in dependencies outside that world.

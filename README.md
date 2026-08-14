@@ -10,7 +10,7 @@ It discovers real top-level windows, renders their live previews, and lets you m
 - 👁️ switch between several layout strategies depending on the task.
 - 👁️ keep a persistent visual workspace with filters, grouping, and tags.
 - 👁️ hide the app in the tray and bring it back instantly when needed.
-- 👁️ fully local, no cloud or external services.
+- 👁️ local-first, with no accounts or telemetry; only the bounded GitHub release update check uses the network.
 - 👁️ **7 layout modes**: `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, and `Column`.
 - 👁️ **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
 - 👁️ **Grouping and filters** by app, monitor, title, class, and tag.
