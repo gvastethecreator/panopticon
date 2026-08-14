@@ -22,6 +22,7 @@
 .agents/
 .opencode/
 .local/
+/.scratch/
 # Private planning documents and abandoned scaffolds inside docs/.
 docs/panopticon_improvement_prd/
 docs/book/
@@ -48,6 +49,9 @@ lcov.info
 *.log
 *.tmp
 test_output.txt
+
+# ── Code-map staging (published maps remain tracked) ─────────
+/docs/codemap/.staging*/
 
 # ── Backup files from refactoring ────────────────────────────
 *.bak

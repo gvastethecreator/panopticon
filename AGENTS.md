@@ -4,17 +4,17 @@ This file contains project-specific guidance for AI agents working on the Panopt
 
 ## Agent skills
 
-### Backlog
+### Issue tracker
 
-Issues and PRDs live as GitHub issues in `gvastethecreator/panopticon`. See `docs/agents/backlog.md`.
+GitHub Issues and the linked GitHub Project hold live state. `.scratch/` holds synchronized local mirrors. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Five canonical roles mapped to identical label strings. See `docs/agents/triage-labels.md`.
+Five canonical triage roles use identical GitHub label names. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context repo — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Panopticon uses one root `CONTEXT.md` and root `docs/adr/`. See `docs/agents/domain.md`.
 
 ## Quick reference
 

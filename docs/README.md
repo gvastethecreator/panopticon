@@ -157,6 +157,8 @@ Use this table when you know the question you want answered.
 | [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | where files live, what each folder owns, and which paths are editable |
 | [`SYSTEM_INTEGRATIONS.md`](SYSTEM_INTEGRATIONS.md) | Win32/DWM/Shell/GDI usage, dependencies, and operational constraints |
 | [`UX_DESIGN.md`](UX_DESIGN.md) | user-facing surfaces, interactions, layout mental model, and visual language |
+| [`DEPENDENCIES.md`](DEPENDENCIES.md) | current Cargo versions, changelogs, update value, and locked maintenance commands |
+| [`QUALITY_AUDIT.md`](QUALITY_AUDIT.md) | current static gates, native-runtime limits, and readiness verdict |
 | [`PRD.md`](PRD.md) | product goals, scope, users, constraints, acceptance criteria, future opportunities |
 
 ## Development essentials

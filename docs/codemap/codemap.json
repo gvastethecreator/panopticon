@@ -1,0 +1,536 @@
+{
+  "generated_at": "2026-08-14T04:31:31Z",
+  "generated_from_commit": "62d2ebe9f5f377bbb2934e8cd92c080a54122257",
+  "scope": [
+    "."
+  ],
+  "nodes": [
+    {
+      "id": "app-state",
+      "path": "src/state.rs",
+      "role": "Owns the central runtime state shared by the application services.",
+      "type": "module",
+      "boundary": "Application",
+      "entrypoints": [
+        "src/state.rs:pub(crate) struct AppState"
+      ],
+      "tests": [],
+      "constraints": [
+        "UI and native callbacks share this state through Rc<RefCell<AppState>>."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/state.rs",
+            "symbol": "pub(crate) struct AppState"
+          }
+        ]
+      }
+    },
+    {
+      "id": "dwm-sync",
+      "path": "src/app/dwm.rs",
+      "role": "Creates, hydrates, updates, and releases DWM thumbnails for managed windows.",
+      "type": "service",
+      "boundary": "Native Integration",
+      "entrypoints": [
+        "src/app/dwm.rs:pub(crate) fn update_dwm_thumbnails"
+      ],
+      "tests": [],
+      "constraints": [
+        "DWM access remains behind the Thumbnail wrapper and guarded sync functions."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/dwm.rs",
+            "symbol": "pub(crate) fn update_dwm_thumbnails"
+          }
+        ]
+      }
+    },
+    {
+      "id": "layout-engine",
+      "path": "src/layout.rs",
+      "role": "Computes deterministic rectangles and separators for all supported layouts.",
+      "type": "module",
+      "boundary": "Domain",
+      "entrypoints": [
+        "src/layout.rs:pub fn compute_layout_custom"
+      ],
+      "tests": [
+        "tests/layout_tests.rs"
+      ],
+      "constraints": [
+        "The engine stays independent from Slint and DWM."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/layout.rs",
+            "symbol": "pub fn compute_layout_custom"
+          }
+        ]
+      }
+    },
+    {
+      "id": "layout-pipeline",
+      "path": "src/app/layout_pipeline.rs",
+      "role": "Adapts managed windows to the pure layout engine and applies target rectangles.",
+      "type": "service",
+      "boundary": "Application",
+      "entrypoints": [
+        "src/app/layout_pipeline.rs:pub(crate) fn compute_layout_rects"
+      ],
+      "tests": [],
+      "constraints": [
+        "This adapter contains no Slint or DWM operations."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/layout_pipeline.rs",
+            "symbol": "pub(crate) fn compute_layout_rects"
+          }
+        ]
+      }
+    },
+    {
+      "id": "model-sync",
+      "path": "src/app/model_sync.rs",
+      "role": "Coordinates layout recomputation, presentation state, and the Slint model projection.",
+      "type": "service",
+      "boundary": "Application",
+      "entrypoints": [
+        "src/app/model_sync.rs:pub(crate) fn recompute_and_update_ui"
+      ],
+      "tests": [],
+      "constraints": [
+        "Reentrancy guards prevent nested layout and model synchronization."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/model_sync.rs",
+            "symbol": "pub(crate) fn recompute_and_update_ui"
+          }
+        ]
+      }
+    },
+    {
+      "id": "runtime-loop",
+      "path": "src/app/runtime_loop.rs",
+      "role": "Owns initialization, refresh, UI, and scrollbar timers for the desktop runtime.",
+      "type": "service",
+      "boundary": "Application",
+      "entrypoints": [
+        "src/app/runtime_loop.rs:pub(crate) fn start"
+      ],
+      "tests": [],
+      "constraints": [
+        "The 16 ms UI timer delegates work to explicit phases and services."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/runtime_loop.rs",
+            "symbol": "pub(crate) fn start"
+          }
+        ]
+      }
+    },
+    {
+      "id": "slint-ui",
+      "path": "ui/main.slint",
+      "role": "Defines the main window and its observable thumbnail and resize-handle models.",
+      "type": "interface",
+      "boundary": "Presentation",
+      "entrypoints": [
+        "ui/main.slint:export component MainWindow"
+      ],
+      "tests": [],
+      "constraints": [
+        "Native window behavior remains in Rust rather than declarative UI code."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "ui/main.slint",
+            "symbol": "export component MainWindow"
+          }
+        ]
+      }
+    },
+    {
+      "id": "thumbnail-model",
+      "path": "src/app/thumbnail_model_builder.rs",
+      "role": "Builds thumbnail and separator rows and writes them to the Slint models.",
+      "type": "interface",
+      "boundary": "Presentation",
+      "entrypoints": [
+        "src/app/thumbnail_model_builder.rs:pub(crate) fn sync_model_to_slint"
+      ],
+      "tests": [],
+      "constraints": [
+        "Row updates use the fast path when model sizes do not change."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/thumbnail_model_builder.rs",
+            "symbol": "pub(crate) fn sync_model_to_slint"
+          }
+        ]
+      }
+    },
+    {
+      "id": "thumbnail-raii",
+      "path": "src/thumbnail.rs",
+      "role": "Wraps one DWM thumbnail handle and unregisters it on drop.",
+      "type": "service",
+      "boundary": "Native Integration",
+      "entrypoints": [
+        "src/thumbnail.rs:pub struct Thumbnail"
+      ],
+      "tests": [],
+      "constraints": [
+        "Every unsafe DWM call has a local SAFETY explanation."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/thumbnail.rs",
+            "symbol": "pub struct Thumbnail"
+          }
+        ]
+      }
+    },
+    {
+      "id": "tick-phases",
+      "path": "src/app/tick_phases.rs",
+      "role": "Splits each UI tick into ordered actions, animation, refresh, and DWM phases.",
+      "type": "service",
+      "boundary": "Application",
+      "entrypoints": [
+        "src/app/tick_phases.rs:pub(crate) fn sync_dwm"
+      ],
+      "tests": [],
+      "constraints": [
+        "Each phase exposes a small interface to the runtime loop."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/tick_phases.rs",
+            "symbol": "pub(crate) fn sync_dwm"
+          }
+        ]
+      }
+    },
+    {
+      "id": "window-enumeration",
+      "path": "src/window_enum.rs",
+      "role": "Enumerates top-level Win32 windows and creates raw WindowInfo records.",
+      "type": "service",
+      "boundary": "Native Integration",
+      "entrypoints": [
+        "src/window_enum.rs:pub fn enumerate_windows"
+      ],
+      "tests": [],
+      "constraints": [
+        "This service returns raw discovery data before managed-state reconciliation."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/window_enum.rs",
+            "symbol": "pub fn enumerate_windows"
+          }
+        ]
+      }
+    },
+    {
+      "id": "window-sync",
+      "path": "src/app/window_sync.rs",
+      "role": "Filters discovered windows and reconciles them into the managed collection.",
+      "type": "service",
+      "boundary": "Application",
+      "entrypoints": [
+        "src/app/window_sync.rs:pub(crate) fn refresh_windows"
+      ],
+      "tests": [],
+      "constraints": [
+        "The host window is excluded before managed-window reconciliation."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/window_sync.rs",
+            "symbol": "pub(crate) fn refresh_windows"
+          }
+        ]
+      }
+    },
+    {
+      "id": "windows-api",
+      "path": "Cargo.toml",
+      "role": "Provides the Win32, DWM, Shell, GDI, registry, and input APIs used by Panopticon.",
+      "type": "external",
+      "boundary": "External",
+      "entrypoints": [
+        "Cargo.toml:[dependencies.windows]"
+      ],
+      "tests": [],
+      "constraints": [
+        "Panopticon supports Windows 10 and Windows 11 only."
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "Cargo.toml",
+            "symbol": "[dependencies.windows]"
+          }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "dwm-sync",
+      "to": "thumbnail-raii",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/dwm.rs",
+            "symbol": "Thumbnail::register(owner, mw.info.hwnd)"
+          }
+        ]
+      }
+    },
+    {
+      "from": "layout-pipeline",
+      "to": "layout-engine",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/layout_pipeline.rs",
+            "symbol": "compute_layout_custom("
+          }
+        ]
+      }
+    },
+    {
+      "from": "model-sync",
+      "to": "layout-pipeline",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/model_sync.rs",
+            "symbol": "super::layout_pipeline::compute_layout_rects("
+          }
+        ]
+      }
+    },
+    {
+      "from": "model-sync",
+      "to": "thumbnail-model",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/model_sync.rs",
+            "symbol": "super::thumbnail_model_builder::sync_model_to_slint"
+          }
+        ]
+      }
+    },
+    {
+      "from": "runtime-loop",
+      "to": "model-sync",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/runtime_loop.rs",
+            "symbol": "super::model_sync::recompute_and_update_ui(state, &win)"
+          }
+        ]
+      }
+    },
+    {
+      "from": "runtime-loop",
+      "to": "tick-phases",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/runtime_loop.rs",
+            "symbol": "sync_dwm(state, &win, should_sync_dwm)"
+          }
+        ]
+      }
+    },
+    {
+      "from": "runtime-loop",
+      "to": "window-sync",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/runtime_loop.rs",
+            "symbol": "refresh_windows(&state)"
+          }
+        ]
+      }
+    },
+    {
+      "from": "thumbnail-model",
+      "to": "slint-ui",
+      "type": "writes",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/thumbnail_model_builder.rs",
+            "symbol": "win.set_thumbnails"
+          }
+        ]
+      }
+    },
+    {
+      "from": "thumbnail-raii",
+      "to": "windows-api",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/thumbnail.rs",
+            "symbol": "DwmUpdateThumbnailProperties"
+          }
+        ]
+      }
+    },
+    {
+      "from": "tick-phases",
+      "to": "dwm-sync",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/tick_phases.rs",
+            "symbol": "super::dwm::update_dwm_thumbnails(state, win)"
+          }
+        ]
+      }
+    },
+    {
+      "from": "window-enumeration",
+      "to": "windows-api",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/window_enum.rs",
+            "symbol": "EnumWindows"
+          }
+        ]
+      }
+    },
+    {
+      "from": "window-sync",
+      "to": "app-state",
+      "type": "writes",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/window_sync.rs",
+            "symbol": "state.borrow_mut()"
+          }
+        ]
+      }
+    },
+    {
+      "from": "window-sync",
+      "to": "window-enumeration",
+      "type": "calls",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/window_sync.rs",
+            "symbol": "enumerate_windows()"
+          }
+        ]
+      }
+    }
+  ],
+  "flows": [
+    {
+      "trigger": "The periodic refresh timer fires",
+      "steps": [
+        "runtime-loop",
+        "window-sync",
+        "window-enumeration",
+        "windows-api"
+      ],
+      "outcome": "Panopticon discovers current top-level windows before managed-state reconciliation."
+    },
+    {
+      "trigger": "A resize or window refresh requires a new layout",
+      "steps": [
+        "runtime-loop",
+        "model-sync",
+        "layout-pipeline",
+        "layout-engine"
+      ],
+      "outcome": "The pure layout engine returns rectangles and separators for the current windows."
+    },
+    {
+      "trigger": "The application projects managed windows to the UI",
+      "steps": [
+        "model-sync",
+        "thumbnail-model",
+        "slint-ui"
+      ],
+      "outcome": "The Slint thumbnail and resize-handle models contain the current presentation rows."
+    },
+    {
+      "trigger": "A UI tick requires native thumbnail synchronization",
+      "steps": [
+        "runtime-loop",
+        "tick-phases",
+        "dwm-sync",
+        "thumbnail-raii",
+        "windows-api"
+      ],
+      "outcome": "DWM receives the current destination rectangles and visibility for live thumbnails."
+    }
+  ]
+}

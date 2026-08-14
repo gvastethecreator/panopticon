@@ -6,7 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Updated direct dependencies to latest compatible releases: Slint 1.17.1, `toml` 1.1.4, `serde` 1.0.229, `serde_json` 1.0.151, `thiserror` 2.0.19, and `anyhow` 1.0.104; refreshed compatible transitive dependencies in `Cargo.lock`.
+- Updated direct dependencies to latest compatible releases: Slint 1.17.1, `toml` 1.1.4, `serde` 1.0.229, `serde_json` 1.0.151, `thiserror` 2.0.20, and `anyhow` 1.0.104; refreshed the compatible dependency graph through 2026-08-14.
+- Added `docs/DEPENDENCIES.md` with official changelog links, update value, and a locked Cargo
+  maintenance contract; added `docs/QUALITY_AUDIT.md` with explicit native-runtime boundaries.
+- Migrated the private `.opencode` plugin workspace from npm lockfiles to pnpm 11.20.0 and updated
+  `@opencode-ai/plugin` from 1.14.30 to 1.18.16; the folder remains intentionally ignored.
+- Local quality gates pass: 158 tests, clippy pedantic, release build, rustdoc, and `cargo audit`
+  with zero vulnerabilities; four transitive unmaintained-crate warnings remain documented as debt.
 - Replaced stale VS Code tasks with a short, locked Cargo task set and corrected `.gitignore` so `tasks.json` is tracked while local editor state stays ignored.
 - Refreshed maintenance docs and removed an unused Win32 icon-drawing helper.
 
