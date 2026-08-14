@@ -178,6 +178,8 @@ Technical and product documentation for the project.
 | --- | --- |
 | `docs/README.md` | documentation hub and reading guide |
 | `docs/project-readiness.md` | latest maintenance/readiness baseline and validation record |
+| `docs/DEPENDENCIES.md` | direct versions, changelog review, update value, and Cargo maintenance contract |
+| `docs/QUALITY_AUDIT.md` | static quality gates and explicit native-runtime boundaries |
 | `docs/technical-debt.md` | active technical-debt register and deferred follow-ups |
 | `docs/GETTING_STARTED.md` | install, launch, first-run flow, common issues |
 | `docs/CONFIGURATION.md` | settings, workspaces, and TOML schema |
@@ -188,7 +190,7 @@ Technical and product documentation for the project.
 | `docs/UX_DESIGN.md` | user-facing surfaces, interactions, and visual language |
 | `docs/PRD.md` | product goals, scope, users, constraints, acceptance criteria |
 | `docs/adr/` | architectural decision records (ADRs) |
-| `docs/agents/` | agent-skill configuration (backlog, domain, triage labels) |
+| `docs/agents/` | agent contracts for the Issue tracker, domain documents, and triage fields |
 | `docs/assets/` | graphic resources used by the documentation |
 
 The folders `docs/book/` and `docs/panopticon_improvement_prd/` are local-only planning material and are excluded by `.gitignore`.
@@ -243,7 +245,7 @@ The project can be understood in five groups:
 ### No: generated, transient, or local-only
 
 - `target/` — Cargo build outputs.
-- `.vscode/` except `.vscode/tasks.json`, `.idea/`, `.opencode/`, `.agents/`, `.local/` — local IDE or agent state.
+- `.vscode/` except `.vscode/tasks.json`, `.idea/`, `.opencode/`, `.agents/`, `.local/`, `.scratch/` — local IDE or agent state.
 - `docs/book/`, `docs/panopticon_improvement_prd/` — private planning material (ignored).
 - Root `*.log` files, `temp/`, `smoke_stdout.txt`, `smoke_stderr.txt` — ignored runtime/test artefacts.
 

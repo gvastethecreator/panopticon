@@ -1,6 +1,6 @@
 # Project Readiness
 
-Last updated: 2026-07-30
+Last updated: 2026-08-14
 
 ## Baseline
 
@@ -12,7 +12,9 @@ Last updated: 2026-07-30
 
 ## Maintenance status
 
-- Direct dependencies now use their latest compatible releases; `Cargo.lock` was refreshed with 25 compatible package updates.
+- Direct dependencies now use their latest compatible releases. `Cargo.lock` includes 25 compatible
+  package updates added after the 2026-08-11 maintenance pass. See
+  [`DEPENDENCIES.md`](DEPENDENCIES.md) for changelogs and rationale.
 - Dead-code suppression is limited to Slint-generated resource code. Two unused Win32 helpers were removed from project source.
 - `.gitignore` now preserves the tracked VS Code task file while ignoring local editor state, release artifacts, installer output, and common certificate/backup files.
 - `.vscode/tasks.json` provides short tasks for development, checks, build, release, tests, lint, formatting, docs, audit, cleanup, and the full CI sequence.
@@ -30,7 +32,7 @@ Commands ran from repository root on Windows with the pinned toolchain.
 | `cargo test --all-targets --locked` | Passed | 158 tests passed. |
 | `cargo build --release --locked` | Passed | Optimised Windows binary built successfully. |
 | `cargo doc --no-deps --locked` | Passed | Generated `target/doc/panopticon/index.html`. |
-| `cargo audit` | Not run locally | `cargo-audit` is not installed on this host; CI installs and runs it. |
+| `cargo audit` | Passed | 0 vulnerabilidades; 4 avisos `unmaintained` permitidos en dependencias transitivas de Slint. |
 
 ## Remaining runtime validation
 

@@ -34,6 +34,10 @@ cargo run --locked
 
 For an optimised build use `cargo run --release --locked`. VS Code users can run `♻️ ci` from [`.vscode/tasks.json`](.vscode/tasks.json) for the full check sequence.
 
+Dependency policy and reviewed changelogs live in [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md).
+The current readiness and native-runtime limits are tracked in [`docs/project-readiness.md`](docs/project-readiness.md)
+and [`docs/QUALITY_AUDIT.md`](docs/QUALITY_AUDIT.md).
+
 
 
 ## First minute with Panopticon

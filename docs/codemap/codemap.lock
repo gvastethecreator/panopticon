@@ -1,0 +1,86 @@
+{
+  "current_commit": "62d2ebe9f5f377bbb2934e8cd92c080a54122257",
+  "working_tree_dirty": true,
+  "generated_at": "2026-08-14T04:31:31Z",
+  "scanned_scope": [
+    "."
+  ],
+  "excluded_directories": [
+    ".cache",
+    ".git",
+    ".hg",
+    ".next",
+    ".nuxt",
+    ".svn",
+    ".turbo",
+    ".venv",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "docs/codemap",
+    "generated",
+    "node_modules",
+    "out",
+    "target",
+    "vendor",
+    "venv"
+  ],
+  "fingerprint_algorithm": "sha256-path-content-v1",
+  "modules": [
+    {
+      "id": ".",
+      "path": ".",
+      "file_count": 16,
+      "fingerprint": "b93d65d058264dceacf19e303499ce71c9032fed523e4ab120d2a158c5c8da01"
+    },
+    {
+      "id": ".github",
+      "path": ".github",
+      "file_count": 11,
+      "fingerprint": "131d172471c841a3f06ece515153dfd3315328d910c64202767c87d1ca0e86a5"
+    },
+    {
+      "id": ".vscode",
+      "path": ".vscode",
+      "file_count": 1,
+      "fingerprint": "eb2510005a4061017005f81d2622daaac446099966aca5f655bdaad35b7c06e3"
+    },
+    {
+      "id": "assets",
+      "path": "assets",
+      "file_count": 72,
+      "fingerprint": "98ee6559699f880f4bdb51be699b49745888628259bdb2b6a6d6625c80d6aeaf"
+    },
+    {
+      "id": "docs",
+      "path": "docs",
+      "file_count": 22,
+      "fingerprint": "6847e52d1c594caddcfc972ee497b57ade6a3125d6c2db4e4aec9438f865ad5e"
+    },
+    {
+      "id": "installer",
+      "path": "installer",
+      "file_count": 1,
+      "fingerprint": "074bbc52f042f64cf838a37c040cdd8c81a7a254fa787cedc334580e06f8530f"
+    },
+    {
+      "id": "src",
+      "path": "src",
+      "file_count": 83,
+      "fingerprint": "899a5e2d561c075c99851b8b0be66aa831dcf252edc03dcb88b734c76a35a71f"
+    },
+    {
+      "id": "tests",
+      "path": "tests",
+      "file_count": 4,
+      "fingerprint": "b2a2f1dc4fd91f5e7487ffb8b2403accb5476db4e17286243b7e01578469ea1c"
+    },
+    {
+      "id": "ui",
+      "path": "ui",
+      "file_count": 12,
+      "fingerprint": "68c327cd1381003011518d2f5e86717934ae09fe67e6f41464ee41c36d428793"
+    }
+  ]
+}

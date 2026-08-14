@@ -21,6 +21,14 @@
             "group": "build"
         },
         {
+            "label": "📦 deps",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["update", "--dry-run"],
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
             "label": "🛠️ build",
             "type": "shell",
             "command": "cargo",
@@ -85,7 +93,7 @@
         },
         {
             "label": "🔐 audit",
-            "detail": "Requires cargo-audit: cargo install cargo-audit --locked",
+            "detail": "Audita Cargo.lock; mantiene warnings unmaintained transitivos visibles",
             "type": "shell",
             "command": "cargo",
             "args": ["audit"],
