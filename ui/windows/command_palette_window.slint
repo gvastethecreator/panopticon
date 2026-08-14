@@ -8,7 +8,7 @@ import {
 import { ScrollView } from "std-widgets.slint";
 
 export component CommandPaletteWindow inherits Window {
-    title: "Panopticon — Command Palette";
+    title: Tr.command-palette-window-title;
     icon: @image-url("../../assets/icon.svg");
     background: Theme.bg;
     preferred-width: 620px;
@@ -17,7 +17,7 @@ export component CommandPaletteWindow inherits Window {
     default-font-size: 14px;
 
     in-out property <string> command-search: "";
-    in property <[string]> command-options: ["No commands available"];
+    in property <[string]> command-options: [Tr.command-palette-no-available];
     in-out property <int> command-index: 0;
 
     callback apply-filter();
@@ -29,6 +29,15 @@ export component CommandPaletteWindow inherits Window {
         root.apply-filter();
     }
 
+    changed command-index => {
+        let item-y = command-scroll.viewport-y + root.command-index * 44px;
+        if item-y < 0px {
+            command-scroll.viewport-y += 0px - item-y;
+        } else if item-y + 38px > command-scroll.visible-height {
+            command-scroll.viewport-y -= item-y + 38px - command-scroll.visible-height;
+        }
+    }
+
     VerticalLayout {
         spacing: 10px;
         padding: 14px;
@@ -36,27 +45,30 @@ export component CommandPaletteWindow inherits Window {
         SectionCard {
             SectionHeader {
                 icon: @image-url("../../assets/ui-icons/option-menu.svg");
-                title: "Command Palette";
-                helper: "Busca y ejecuta comandos de layout, configuración y sistema.";
+                title: Tr.command-palette-title;
+                helper: Tr.command-palette-helper;
             }
 
             CustomLineEdit {
                 height: 36px;
                 text <=> root.command-search;
-                placeholder: "Type a command...";
+                placeholder: Tr.command-palette-search-placeholder;
+                accessible-label-text: Tr.command-palette-search-placeholder;
             }
         }
 
         SectionCard {
             SectionHeader {
                 icon: @image-url("../../assets/ui-icons/option-settings.svg");
-                title: "Commands";
-                helper: "Enter ejecuta el comando seleccionado. Esc cierra la paleta.";
+                title: Tr.command-palette-commands-title;
+                helper: Tr.command-palette-commands-helper;
             }
 
-            ScrollView {
+            command-scroll := ScrollView {
                 height: 320px;
                 viewport-width: self.width;
+                accessible-role: list;
+                accessible-label: Tr.command-palette-commands-title;
 
                 VerticalLayout {
                     width: parent.width;
@@ -68,6 +80,12 @@ export component CommandPaletteWindow inherits Window {
                         border-width: 1px;
                         border-color: root.command-index == index ? Theme.accent.with-alpha(60%) : Theme.border.with-alpha(42%);
                         background: root.command-index == index ? Theme.accent-soft.with-alpha(28%) : row-touch.has-hover ? Theme.surface.with-alpha(52%) : Theme.surface.with-alpha(28%);
+                        accessible-role: list-item;
+                        accessible-label: command;
+                        accessible-action-default => {
+                            root.command-index = index;
+                            root.run-selected();
+                        }
 
                         Text {
                             x: 10px;
@@ -98,7 +116,7 @@ export component CommandPaletteWindow inherits Window {
 
                 CustomButton {
                     height: 34px;
-                    text: "Run";
+                    text: Tr.command-palette-run;
                     clicked => {
                         root.run-selected();
                     }
@@ -118,6 +136,22 @@ export component CommandPaletteWindow inherits Window {
     forward-focus: key-handler;
     key-handler := FocusScope {
         key-pressed(event) => {
+            if event.text == Key.DownArrow {
+                root.command-index = min(root.command-options.length - 1, root.command-index + 1);
+                return accept;
+            }
+            if event.text == Key.UpArrow {
+                root.command-index = max(0, root.command-index - 1);
+                return accept;
+            }
+            if event.text == Key.Home {
+                root.command-index = 0;
+                return accept;
+            }
+            if event.text == Key.End {
+                root.command-index = max(0, root.command-options.length - 1);
+                return accept;
+            }
             if root.key-pressed(event.text, event.modifiers.shift) {
                 return accept;
             }

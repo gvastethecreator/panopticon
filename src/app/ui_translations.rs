@@ -9,6 +9,7 @@ where
 {
     let tr = window.global::<crate::Tr>();
     populate_common_tr(&tr);
+    populate_command_palette_tr(&tr);
     crate::app::settings::translations::populate_settings_tr(&tr);
     populate_tag_tr(&tr);
 }
@@ -90,6 +91,40 @@ fn populate_common_tr(tr: &crate::Tr<'_>) {
     set_tr!(tr, set_about_description_body, "about.description_body");
     set_tr!(tr, set_about_credits_title, "about.credits_title");
     set_tr!(tr, set_about_credits_body, "about.credits_body");
+}
+
+fn populate_command_palette_tr(tr: &crate::Tr<'_>) {
+    use panopticon::i18n;
+
+    macro_rules! set_tr {
+        ($setter:ident, $key:literal) => {
+            tr.$setter(SharedString::from(i18n::t($key)));
+        };
+    }
+
+    set_tr!(
+        set_command_palette_window_title,
+        "window.command_palette_title"
+    );
+    set_tr!(set_command_palette_title, "command_palette.title");
+    set_tr!(set_command_palette_helper, "command_palette.helper");
+    set_tr!(
+        set_command_palette_search_placeholder,
+        "command_palette.search_placeholder"
+    );
+    set_tr!(
+        set_command_palette_commands_title,
+        "command_palette.commands_title"
+    );
+    set_tr!(
+        set_command_palette_commands_helper,
+        "command_palette.commands_helper"
+    );
+    set_tr!(set_command_palette_run, "command_palette.run");
+    set_tr!(
+        set_command_palette_no_available,
+        "command_palette.no_available"
+    );
 }
 
 fn populate_tag_tr(tr: &crate::Tr<'_>) {

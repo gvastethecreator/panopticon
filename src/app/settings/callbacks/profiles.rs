@@ -68,9 +68,9 @@ fn register_save_profile_callback(settings_window: &SettingsWindow, state: &Rc<R
                     Ok(()) => {
                         settings_window
                             .set_known_profiles_label(SharedString::from(known_workspaces_label()));
-                        let feedback = format!(
-                            "Workspace {} saved successfully.",
-                            current_workspace_label(requested_workspace.as_deref())
+                        let feedback = panopticon::i18n::t_fmt(
+                            "settings.workspace.feedback.saved",
+                            &current_workspace_label(requested_workspace.as_deref()),
                         );
                         set_workspace_feedback(settings_window, &feedback, false);
                         let state_guard = state.borrow();
@@ -84,7 +84,7 @@ fn register_save_profile_callback(settings_window: &SettingsWindow, state: &Rc<R
                         );
                         set_workspace_feedback(
                             settings_window,
-                            "Failed to save workspace snapshot. Check logs for details.",
+                            panopticon::i18n::t("settings.workspace.feedback.save_failed"),
                             true,
                         );
                     }
@@ -142,15 +142,15 @@ fn register_open_profile_instance_callback(
                 let launched = launch_additional_instance(requested.as_deref());
                 settings_window.set_known_profiles_label(SharedString::from(known_workspaces_label()));
                 if launched {
-                    let feedback = format!(
-                        "Opened a new instance for {}.",
-                        current_workspace_label(requested.as_deref())
+                    let feedback = panopticon::i18n::t_fmt(
+                        "settings.workspace.feedback.opened",
+                        &current_workspace_label(requested.as_deref()),
                     );
                     set_workspace_feedback(settings_window, &feedback, false);
                 } else {
                     set_workspace_feedback(
                         settings_window,
-                        "Could not open a new instance for this workspace.",
+                        panopticon::i18n::t("settings.workspace.feedback.open_failed"),
                         true,
                     );
                 }
@@ -205,7 +205,9 @@ fn register_duplicate_selected_profile_callback(
                         tracing::warn!("duplicate requires a non-default target workspace name");
                         set_workspace_feedback(
                             settings_window,
-                            "Duplicate requires a non-default workspace name.",
+                            panopticon::i18n::t(
+                                "settings.workspace.feedback.duplicate_requires_name",
+                            ),
                             true,
                         );
                         return;
@@ -223,7 +225,7 @@ fn register_duplicate_selected_profile_callback(
                     tracing::error!(%error, source = ?source_workspace, target = %target_workspace, "failed to duplicate workspace");
                     set_workspace_feedback(
                         settings_window,
-                        "Failed to duplicate workspace. Check logs for details.",
+                        panopticon::i18n::t("settings.workspace.feedback.duplicate_failed"),
                         true,
                     );
                     return;
@@ -247,9 +249,9 @@ fn register_duplicate_selected_profile_callback(
                 select_workspace_in_settings_window(settings_window, Some(&target_workspace));
                 let state_guard = state.borrow();
                 sync_workspace_editor_from_selection(settings_window, fallback_workspace, &state_guard);
-                let feedback = format!(
-                    "Workspace duplicated into {}.",
-                    current_workspace_label(Some(&target_workspace))
+                let feedback = panopticon::i18n::t_fmt(
+                    "settings.workspace.feedback.duplicated",
+                    &current_workspace_label(Some(&target_workspace)),
                 );
                 set_workspace_feedback(settings_window, &feedback, false);
             });
@@ -272,7 +274,11 @@ fn register_rename_selected_profile_callback(
 
                 let Some(source_workspace) = selected_workspace_from_settings_window(settings_window) else {
                     tracing::warn!("default workspace cannot be renamed");
-                    set_workspace_feedback(settings_window, "Default workspace cannot be renamed.", true);
+                    set_workspace_feedback(
+                        settings_window,
+                        panopticon::i18n::t("settings.workspace.feedback.default_rename"),
+                        true,
+                    );
                     return;
                 };
 
@@ -282,7 +288,7 @@ fn register_rename_selected_profile_callback(
                         tracing::warn!("rename requires a non-default target workspace name");
                         set_workspace_feedback(
                             settings_window,
-                            "Rename requires a non-default workspace name.",
+                            panopticon::i18n::t("settings.workspace.feedback.rename_requires_name"),
                             true,
                         );
                         return;
@@ -297,16 +303,25 @@ fn register_rename_selected_profile_callback(
                 if source_workspace == target_workspace {
                     set_workspace_feedback(
                         settings_window,
-                        "Source and target workspace names are identical.",
+                        panopticon::i18n::t("settings.workspace.feedback.same_name"),
                         true,
                     );
                     return;
                 }
 
-                let confirmation_message =
-                    format!("Rename workspace '{source_workspace}' to '{target_workspace}' ?");
-                if !confirm_workspace_action("Rename workspace", &confirmation_message) {
-                    set_workspace_feedback(settings_window, "Rename cancelled.", false);
+                let confirmation_message = panopticon::i18n::t_fmt(
+                    "settings.workspace.feedback.rename_confirm",
+                    &format!("'{source_workspace}' → '{target_workspace}'"),
+                );
+                if !confirm_workspace_action(
+                    panopticon::i18n::t("settings.workspace.feedback.rename_title"),
+                    &confirmation_message,
+                ) {
+                    set_workspace_feedback(
+                        settings_window,
+                        panopticon::i18n::t("settings.workspace.feedback.rename_cancelled"),
+                        false,
+                    );
                     return;
                 }
 
@@ -315,7 +330,7 @@ fn register_rename_selected_profile_callback(
                     tracing::error!(%error, source = %source_workspace, target = %target_workspace, "failed to rename workspace");
                     set_workspace_feedback(
                         settings_window,
-                        "Failed to rename workspace. Check logs for details.",
+                        panopticon::i18n::t("settings.workspace.feedback.rename_failed"),
                         true,
                     );
                     return;
@@ -348,9 +363,9 @@ fn register_rename_selected_profile_callback(
                 select_workspace_in_settings_window(settings_window, Some(&target_workspace));
                 let state_guard = state.borrow();
                 sync_workspace_editor_from_selection(settings_window, fallback_workspace, &state_guard);
-                let feedback = format!(
-                    "Workspace renamed to {}.",
-                    current_workspace_label(Some(&target_workspace))
+                let feedback = panopticon::i18n::t_fmt(
+                    "settings.workspace.feedback.renamed",
+                    &current_workspace_label(Some(&target_workspace)),
                 );
                 set_workspace_feedback(settings_window, &feedback, false);
             });
@@ -375,14 +390,27 @@ fn register_delete_selected_profile_callback(
 
                 let Some(selected_workspace) = selected_workspace_from_settings_window(settings_window) else {
                     tracing::warn!("default workspace cannot be deleted");
-                    set_workspace_feedback(settings_window, "Default workspace cannot be deleted.", true);
+                    set_workspace_feedback(
+                        settings_window,
+                        panopticon::i18n::t("settings.workspace.feedback.default_delete"),
+                        true,
+                    );
                     return;
                 };
 
-                let confirmation_message =
-                    format!("Delete workspace '{selected_workspace}' ? This action cannot be undone.");
-                if !confirm_workspace_action("Delete workspace", &confirmation_message) {
-                    set_workspace_feedback(settings_window, "Delete cancelled.", false);
+                let confirmation_message = panopticon::i18n::t_fmt(
+                    "settings.workspace.feedback.delete_confirm",
+                    &selected_workspace,
+                );
+                if !confirm_workspace_action(
+                    panopticon::i18n::t("settings.workspace.feedback.delete_title"),
+                    &confirmation_message,
+                ) {
+                    set_workspace_feedback(
+                        settings_window,
+                        panopticon::i18n::t("settings.workspace.feedback.delete_cancelled"),
+                        false,
+                    );
                     return;
                 }
 
@@ -390,7 +418,7 @@ fn register_delete_selected_profile_callback(
                     tracing::error!(%error, workspace = %selected_workspace, "failed to delete workspace");
                     set_workspace_feedback(
                         settings_window,
-                        "Failed to delete workspace. Check logs for details.",
+                        panopticon::i18n::t("settings.workspace.feedback.delete_failed"),
                         true,
                     );
                     return;
@@ -414,7 +442,10 @@ fn register_delete_selected_profile_callback(
                 select_workspace_in_settings_window(settings_window, fallback_workspace.as_deref());
                 let state_guard = state.borrow();
                 sync_workspace_editor_from_selection(settings_window, fallback_workspace, &state_guard);
-                let feedback = format!("Workspace '{selected_workspace}' deleted.");
+                let feedback = panopticon::i18n::t_fmt(
+                    "settings.workspace.feedback.deleted",
+                    &selected_workspace,
+                );
                 set_workspace_feedback(settings_window, &feedback, false);
             });
         }
@@ -446,15 +477,15 @@ fn register_load_selected_profile_callback(
                     };
 
                     if loaded {
-                        let feedback = format!(
-                            "Loaded {} in this instance.",
-                            current_workspace_label(requested.as_deref())
+                        let feedback = panopticon::i18n::t_fmt(
+                            "settings.workspace.feedback.loaded",
+                            &current_workspace_label(requested.as_deref()),
                         );
                         set_workspace_feedback(settings_window, &feedback, false);
                     } else {
                         set_workspace_feedback(
                             settings_window,
-                            "Failed to load selected workspace.",
+                            panopticon::i18n::t("settings.workspace.feedback.load_failed"),
                             true,
                         );
                     }

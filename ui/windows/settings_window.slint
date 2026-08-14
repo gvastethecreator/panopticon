@@ -31,8 +31,12 @@ import {
     height: 34px;
     border-radius: 4px;
     border-width: 2px;
-    border-color: root.active ? Theme.accent.with-alpha(52%) : transparent;
+    border-color: focus-scope.has-focus ? Theme.accent : root.active ? Theme.accent.with-alpha(52%) : transparent;
     background: root.active ? Theme.accent-soft.with-alpha(44%) : touch.has-hover ? Theme.surface.with-alpha(52%) : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    forward-focus: focus-scope;
 
     HorizontalLayout {
         padding-left: 12px;
@@ -69,6 +73,18 @@ import {
     touch := TouchArea {
         clicked => {
             root.clicked();
+        }
+    }
+
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                root.clicked();
+                return accept;
+            }
+            reject
         }
     }
 }
@@ -190,6 +206,7 @@ import {
         CustomCheckBox {
             checked <=> root.checked;
             enabled: root.enabled;
+            accessible-label-text: root.title;
         }
 
         VerticalLayout {
@@ -214,13 +231,14 @@ import {
     }
 }
 
-    component SelectSettingCard inherits Rectangle {
+component SelectSettingCard inherits Rectangle {
     in property <image> icon;
     in property <string> title;
     in property <string> description;
     in property <[string]> options: [];
     in-out property <int> selected-index: 0;
     in property <bool> enabled: true;
+    in property <length> combo-width: 140px;
 
     min-height: 30px;
     border-radius: 0px;
@@ -236,11 +254,12 @@ import {
         spacing: 8px;
 
         CustomComboBox {
-            width: 140px;
+            width: root.combo-width;
             height: 26px;
             options: root.options;
             selected-index <=> root.selected-index;
             enabled: root.enabled;
+            accessible-label-text: root.title;
         }
     }
 }
@@ -290,6 +309,7 @@ import {
                 options: root.options;
                 selected-index <=> root.selected-index;
                 enabled: root.enabled;
+                accessible-label-text: root.title;
             }
         }
     }
@@ -347,6 +367,7 @@ component TextFieldSettingCard inherits Rectangle {
             height: 32px;
             placeholder: root.placeholder;
             enabled: root.enabled;
+            accessible-label-text: root.title;
             accepted(_) => {
                 root.committed();
             }
@@ -366,10 +387,11 @@ component KeyFieldSettingCard inherits Rectangle {
     in property <bool> enabled: true;
     in property <bool> recording-enabled: false;
     in property <bool> recording-active: false;
+    in property <string> record-label: Tr.settings-shortcut-record;
     callback committed();
     callback record-requested();
 
-    min-height: 30px;
+    min-height: 56px;
     border-radius: 0px;
     border-width: 2px;
     background: transparent;
@@ -377,16 +399,18 @@ component KeyFieldSettingCard inherits Rectangle {
     HorizontalLayout {
         padding-left: 0px;
         padding-right: 0px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-        spacing: 4px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        spacing: 0px;
 
         HorizontalLayout {
-            spacing: 10px;
+            horizontal-stretch: 1;
+            spacing: 12px;
+            alignment: center;
 
             Image {
-                width: 28px;
-                height: 28px;
+                width: 22px;
+                height: 22px;
                 source: root.icon;
                 image-fit: contain;
                 colorize: Theme.label;
@@ -395,11 +419,11 @@ component KeyFieldSettingCard inherits Rectangle {
             VerticalLayout {
                 spacing: 3px;
                 vertical-stretch: 1;
+                horizontal-stretch: 1;
 
                 Text {
                     text: root.title;
                     color: Theme.text;
-                    min-width: 100px;
                     font-size: 14px;
                     font-weight: 500;
                     wrap: word-wrap;
@@ -409,10 +433,11 @@ component KeyFieldSettingCard inherits Rectangle {
 
             edit := CustomLineEdit {
                 text <=> root.value;
+                width: 88px;
                 height: 28px;
-                min-width: 30px;
                 placeholder: root.placeholder;
                 enabled: root.enabled && !root.recording-active;
+                accessible-label-text: root.title;
                 accepted(_) => {
                     root.committed();
                 }
@@ -422,12 +447,16 @@ component KeyFieldSettingCard inherits Rectangle {
             }
 
             if root.recording-enabled: Rectangle {
-                width: 60px;
+                width: 104px;
                 height: 28px;
                 border-radius: 6px;
                 border-width: 1px;
                 border-color: root.recording-active ? Theme.accent.with-alpha(86%) : Theme.border.with-alpha(60%);
                 background: key-record-touch.has-hover ? Theme.surface.with-alpha(80%) : Theme.surface.with-alpha(56%);
+                accessible-role: button;
+                accessible-label: root.record-label + ": " + root.title;
+                accessible-action-default => { root.record-requested(); }
+                forward-focus: record-focus;
 
                 HorizontalLayout {
                     padding-left: 7px;
@@ -444,12 +473,13 @@ component KeyFieldSettingCard inherits Rectangle {
 
                     Text {
                         horizontal-stretch: 1;
-                        text: root.recording-active ? "REC" : "Rec";
+                        text: root.recording-active ? "REC" : root.record-label;
                         color: root.recording-active ? Theme.accent : Theme.text;
                         font-size: 10px;
                         font-weight: 700;
                         horizontal-alignment: center;
                         vertical-alignment: center;
+                        overflow: elide;
                     }
                 }
 
@@ -457,6 +487,18 @@ component KeyFieldSettingCard inherits Rectangle {
                     mouse-cursor: pointer;
                     clicked => {
                         root.record-requested();
+                    }
+                }
+
+                record-focus := FocusScope {
+                    x: 0px;
+                    width: 0px;
+                    key-pressed(event) => {
+                        if event.text == " " || event.text == "\n" {
+                            root.record-requested();
+                            return accept;
+                        }
+                        reject
                     }
                 }
             }
@@ -609,6 +651,12 @@ component KeyFieldSettingCard inherits Rectangle {
     border-width: selected ? 2px : 1px;
     border-color: root.selected ? root.theme.accent : touch.has-hover ? Theme.border.with-alpha(82%) : Theme.border.with-alpha(58%);
     background: root.selected ? Theme.accent-soft.with-alpha(18%) : touch.has-hover ? Theme.surface.with-alpha(38%) : Theme.card_bg.with-alpha(90%);
+    accessible-role: radio-button;
+    accessible-checkable: true;
+    accessible-checked: root.selected;
+    accessible-label: root.theme.label;
+    accessible-action-default => { root.picked(root.theme.index); }
+    forward-focus: theme-focus;
 
     mini-preview := ThemePreviewMiniCanvas {
         x: 12px;
@@ -696,6 +744,18 @@ component KeyFieldSettingCard inherits Rectangle {
             root.picked(root.theme.index);
         }
     }
+
+    theme-focus := FocusScope {
+        x: 0px;
+        width: 0px;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                root.picked(root.theme.index);
+                return accept;
+            }
+            reject
+        }
+    }
 }
 
     component FooterButton inherits Rectangle {
@@ -707,8 +767,12 @@ component KeyFieldSettingCard inherits Rectangle {
     min-width: 122px;
     border-radius: 4px;
     border-width: accent ? 0px : 2px;
-    border-color: Theme.border.with-alpha(64%);
+    border-color: footer-focus.has-focus ? Theme.accent : Theme.border.with-alpha(64%);
     background: accent ? (touch.has-hover ? Theme.accent.darker(8%) : Theme.accent) : (touch.has-hover ? Theme.surface : transparent);
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-action-default => { root.clicked(); }
+    forward-focus: footer-focus;
 
     Text {
         width: 100%;
@@ -724,6 +788,19 @@ component KeyFieldSettingCard inherits Rectangle {
     touch := TouchArea {
         clicked => {
             root.clicked();
+        }
+    }
+
+
+    footer-focus := FocusScope {
+        x: 0px;
+        width: 0px;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                root.clicked();
+                return accept;
+            }
+            reject
         }
     }
 }
@@ -798,6 +875,9 @@ component KeyFieldSettingCard inherits Rectangle {
     in property <string> app-version-text: "";
     in property <string> update-status-text: "";
     in property <bool> update-check-running: false;
+    in property <string> persistence-status-message: "";
+    in property <string> persistence-status-title: "";
+    in property <bool> persistence-status-error: false;
     in property <[string]> available-profile-options: [Tr.default-profile-label];
     in-out property <int> available-profile-index: 0;
     in property <string> selected-profile-name: "default";
@@ -897,6 +977,9 @@ component KeyFieldSettingCard inherits Rectangle {
     callback shortcut-stop-recording();
     callback refresh-now();
     callback check-updates-now();
+    callback cancel-update-check();
+    callback retry-persistence();
+    callback open-log-folder();
     callback restore-hidden-selected();
     callback restore-hidden-all();
     callback app-rules-select-app();
@@ -1045,6 +1128,39 @@ component KeyFieldSettingCard inherits Rectangle {
 
     VerticalLayout {
         spacing: 0px;
+
+        if root.persistence-status-message != "": Rectangle {
+            height: 62px;
+            background: Theme.bg;
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 5px;
+                padding-bottom: 5px;
+                spacing: 8px;
+
+                InlineWarning {
+                    horizontal-stretch: 1;
+                    subtle: !root.persistence-status-error;
+                    icon: @image-url("../../assets/ui-icons/option-settings.svg");
+                    title: root.persistence-status-title;
+                    text: root.persistence-status-message;
+                }
+
+                CustomButton {
+                    width: 112px;
+                    text: Tr.settings-persistence-retry;
+                    clicked => { root.retry-persistence(); }
+                }
+
+                CustomButton {
+                    width: 96px;
+                    text: Tr.settings-persistence-open-logs;
+                    clicked => { root.open-log-folder(); }
+                }
+            }
+        }
 
         Rectangle {
             height: 45px;
@@ -1283,8 +1399,8 @@ component KeyFieldSettingCard inherits Rectangle {
 
                             ToggleSettingCard {
                                 icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                title: "Center secondary windows";
-                                description: "Open Settings, About, Command Palette and tag dialogs centered on the monitor.";
+                                title: Tr.settings-option-center-secondary-title;
+                                description: Tr.settings-option-center-secondary-description;
                                 checked <=> root.center-secondary-windows-setting;
                             }
 
@@ -1615,7 +1731,12 @@ component KeyFieldSettingCard inherits Rectangle {
                         }
 
                         HorizontalLayout {
+                            spacing: 10px;
+                            alignment: start;
+
                             SelectSettingCard {
+                                width: 200px;
+                                combo-width: 200px;
                                 icon: @image-url("../../assets/ui-icons/option-monitor.svg");
                                 title: Tr.settings-option-monitor-filter-title;
                                 description: Tr.settings-option-monitor-filter-description;
@@ -1624,6 +1745,8 @@ component KeyFieldSettingCard inherits Rectangle {
                             }
 
                             SelectSettingCard {
+                                width: 200px;
+                                combo-width: 200px;
                                 icon: @image-url("../../assets/ui-icons/option-tag.svg");
                                 title: Tr.settings-option-tag-filter-title;
                                 description: Tr.settings-option-tag-filter-description;
@@ -1632,6 +1755,8 @@ component KeyFieldSettingCard inherits Rectangle {
                             }
 
                             SelectSettingCard {
+                                width: 200px;
+                                combo-width: 200px;
                                 icon: @image-url("../../assets/ui-icons/option-app-icon.svg");
                                 title: Tr.settings-option-app-filter-title;
                                 description: Tr.settings-option-app-filter-description;
@@ -1640,6 +1765,8 @@ component KeyFieldSettingCard inherits Rectangle {
                             }
 
                             SelectSettingCard {
+                                width: 200px;
+                                combo-width: 200px;
                                 icon: @image-url("../../assets/ui-icons/option-group.svg");
                                 title: Tr.settings-option-group-windows-title;
                                 description: Tr.settings-option-group-windows-description;
@@ -1649,6 +1776,8 @@ component KeyFieldSettingCard inherits Rectangle {
                         }
 
                         SectionCard {
+                            vertical-stretch: 0;
+                            height: root.can-restore-hidden ? 200px : 112px;
                             SectionHeader {
                                 icon: @image-url("../../assets/ui-icons/option-hide-select.svg");
                                 title: Tr.settings-section-hidden-apps-title;
@@ -1662,14 +1791,14 @@ component KeyFieldSettingCard inherits Rectangle {
                                 wrap: word-wrap;
                             }
 
-                            CustomComboBox {
+                            if root.can-restore-hidden: CustomComboBox {
                                 height: 40px;
                                 options: root.hidden-app-options;
                                 selected-index <=> root.hidden-app-index;
                                 enabled: root.can-restore-hidden;
                             }
 
-                            HorizontalLayout {
+                            if root.can-restore-hidden: HorizontalLayout {
                                 spacing: 10px;
                                 CustomButton {
                                     height: 30px;
@@ -1692,6 +1821,8 @@ component KeyFieldSettingCard inherits Rectangle {
                         }
 
                         SectionCard {
+                            vertical-stretch: 0;
+                            height: root.app-rules-has-selection ? 1160px : 250px;
                             SectionHeader {
                                 icon: @image-url("../../assets/ui-icons/option-settings.svg");
                                 title: Tr.settings-section-app-rules-title;
@@ -1795,8 +1926,8 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                 SettingRow {
                                     icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                    title: "Pinned slot";
-                                    description: "0 = unpinned. Positive values reserve a preferred slot.";
+                                    title: Tr.settings-app-rules-pinned-slot-title;
+                                    description: Tr.settings-app-rules-pinned-slot-description;
 
                                     CustomSpinBox {
                                         width: 130px;
@@ -1814,7 +1945,7 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                 if root.app-rules-pin-conflict-summary != "": InlineWarning {
                                     icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                                    title: "Pinned slot conflict";
+                                    title: Tr.settings-app-rules-pinned-slot-conflict-title;
                                     text: root.app-rules-pin-conflict-summary;
                                 }
 
@@ -2311,8 +2442,8 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                 SettingRow {
                                     icon: @image-url("../../assets/ui-icons/section-theme.svg");
-                                    title: "Theme catalog";
-                                    description: "Select any installed theme. Preview cards show a bounded subset.";
+                                    title: Tr.settings-theme-catalog-title;
+                                    description: Tr.settings-theme-catalog-description;
 
                                     CustomComboBox {
                                         width: 260px;
@@ -2434,23 +2565,23 @@ component KeyFieldSettingCard inherits Rectangle {
                                 title: Tr.settings-option-profile-name-title;
                                 description: Tr.settings-option-profile-name-description;
                                 value <=> root.profile-name;
-                                placeholder: "workspace-a";
+                                placeholder: Tr.settings-workspace-name-placeholder;
                             }
 
                             TextFieldSettingCard {
                                 icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                title: "Display name";
-                                description: "Friendly name shown in workspace lists.";
+                                title: Tr.settings-workspace-display-name-title;
+                                description: Tr.settings-workspace-display-name-description;
                                 value <=> root.profile-display-name;
-                                placeholder: "Work · Deep focus";
+                                placeholder: Tr.settings-workspace-display-name-placeholder;
                             }
 
                             TextFieldSettingCard {
                                 icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                title: "Description";
-                                description: "Optional note to remember what this workspace is for.";
+                                title: Tr.settings-workspace-description-title;
+                                description: Tr.settings-workspace-description-description;
                                 value <=> root.profile-description;
-                                placeholder: "Pinned apps + filters for design review sessions";
+                                placeholder: Tr.settings-workspace-description-placeholder;
                             }
 
                             HorizontalLayout {
@@ -2465,7 +2596,7 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                 CustomButton {
                                     height: 40px;
-                                    text: "Duplicate";
+                                    text: Tr.settings-workspace-action-duplicate;
                                     clicked => {
                                         root.duplicate-selected-profile();
                                     }
@@ -2473,7 +2604,7 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                 CustomButton {
                                     height: 40px;
-                                    text: "Rename";
+                                    text: Tr.settings-workspace-action-rename;
                                     enabled: !root.selected-profile-is-default;
                                     clicked => {
                                         root.rename-selected-profile();
@@ -2482,7 +2613,7 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                 CustomButton {
                                     height: 40px;
-                                    text: "Delete";
+                                    text: Tr.settings-workspace-action-delete;
                                     enabled: !root.selected-profile-is-default;
                                     clicked => {
                                         root.delete-selected-profile();
@@ -2493,7 +2624,7 @@ component KeyFieldSettingCard inherits Rectangle {
                             if root.workspace-feedback-message != "": InlineWarning {
                                 subtle: !root.workspace-feedback-error;
                                 icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
-                                title: root.workspace-feedback-error ? "Workspace action failed" : "Workspace action completed";
+                                title: root.workspace-feedback-error ? Tr.settings-workspace-action-failed : Tr.settings-workspace-action-completed;
                                 text: root.workspace-feedback-message;
                             }
                         }
@@ -2549,11 +2680,11 @@ component KeyFieldSettingCard inherits Rectangle {
                                                 }
 
                                                 if profile == root.current-profile-label: StatusPill {
-                                                    text: "ACTIVE";
+                                                    text: Tr.settings-workspace-active;
                                                 }
 
                                                 if profile == "default": StatusPill {
-                                                    text: "DEFAULT";
+                                                    text: Tr.settings-workspace-default;
                                                     subtle: true;
                                                 }
                                             }
@@ -2588,7 +2719,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                     spacing: 8px;
 
                                     Text {
-                                        text: "Selected workspace metadata";
+                                        text: Tr.settings-workspace-metadata-title;
                                         color: Theme.accent;
                                         font-size: 12px;
                                         font-weight: 700;
@@ -2596,50 +2727,50 @@ component KeyFieldSettingCard inherits Rectangle {
 
                                     SettingRow {
                                         icon: @image-url("../../assets/ui-icons/option-profiles-list.svg");
-                                        title: "Workspace";
+                                        title: Tr.settings-workspace-name-label;
                                         description: root.selected-profile-name;
 
                                         if root.selected-profile-is-default: StatusPill {
-                                            text: "DEFAULT";
+                                            text: Tr.settings-workspace-default;
                                             subtle: true;
                                         }
                                     }
 
                                     SettingRow {
                                         icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                        title: "Display name";
+                                        title: Tr.settings-workspace-display-name-title;
                                         description: root.profile-display-name == "" ? "—" : root.profile-display-name;
                                     }
 
                                     SettingRow {
                                         icon: @image-url("../../assets/ui-icons/option-profile-edit.svg");
-                                        title: "Description";
+                                        title: Tr.settings-workspace-description-title;
                                         description: root.profile-description == "" ? "—" : root.profile-description;
                                     }
 
                                     SettingRow {
                                         icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                                        title: "Last updated";
-                                        description: root.selected-profile-updated-at == "" ? "Not saved yet" : root.selected-profile-updated-at;
+                                        title: Tr.settings-workspace-updated-label;
+                                        description: root.selected-profile-updated-at == "" ? Tr.settings-workspace-not-saved : root.selected-profile-updated-at;
                                     }
 
                                     SettingRow {
                                         icon: @image-url("../../assets/ui-icons/option-refresh.svg");
-                                        title: "Created";
-                                        description: root.selected-profile-created-at == "" ? "Unknown" : root.selected-profile-created-at;
+                                        title: Tr.settings-workspace-created-label;
+                                        description: root.selected-profile-created-at == "" ? Tr.settings-workspace-unknown : root.selected-profile-created-at;
                                     }
 
                                     SettingRow {
                                         icon: @image-url("../../assets/ui-icons/option-settings.svg");
-                                        title: "Runtime status";
-                                        description: root.selected-profile-status-summary == "" ? "No runtime diagnostics yet" : root.selected-profile-status-summary;
+                                        title: Tr.settings-workspace-runtime-status-label;
+                                        description: root.selected-profile-status-summary == "" ? Tr.settings-workspace-no-runtime : root.selected-profile-status-summary;
 
                                         if root.selected-profile-running: StatusPill {
-                                            text: "RUNNING";
+                                            text: Tr.settings-workspace-running;
                                         }
 
                                         if root.selected-profile-modified: StatusPill {
-                                            text: "MODIFIED";
+                                            text: Tr.settings-workspace-modified;
                                         }
 
                                         if root.selected-profile-missing-apps > 0: StatusPill {
@@ -2677,15 +2808,13 @@ component KeyFieldSettingCard inherits Rectangle {
                         spacing: 10px;
                         alignment: space-between;
 
-                        CustomLineEdit {
+                        Rectangle {
                             horizontal-stretch: 1;
-                            height: 34px;
-                            placeholder: "Search shortcuts...";
-                            enabled: true;
+                            background: transparent;
                         }
 
                         Rectangle {
-                            width: 240px;
+                            width: 360px;
                             height: 34px;
                             border-radius: 4px;
                             border-width: 2px;
@@ -2703,7 +2832,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                 }
 
                                 Text {
-                                    text: "Use Alt as quick status bar toggle";
+                                    text: Tr.settings-shortcut-alt-toolbar-compact;
                                     color: Theme.text;
                                     font-size: 11px;
                                     vertical-alignment: center;
@@ -2715,7 +2844,7 @@ component KeyFieldSettingCard inherits Rectangle {
                         CustomButton {
                             width: 138px;
                             height: 34px;
-                            text: root.shortcut-recording-mode ? "Stop recording" : "Record shortcut";
+                            text: root.shortcut-recording-mode ? Tr.settings-shortcut-stop-recording : Tr.settings-shortcut-record;
                             clicked => {
                                 if root.shortcut-recording-mode {
                                     root.shortcut-stop-recording();
@@ -2729,7 +2858,7 @@ component KeyFieldSettingCard inherits Rectangle {
                     if root.shortcut-recording-hint != "": InlineWarning {
                         subtle: !root.shortcut-recording-mode;
                         icon: @image-url("../../assets/ui-icons/section-keyboard.svg");
-                        title: root.shortcut-recording-mode ? "Recording shortcut" : "Shortcut recording";
+                        title: root.shortcut-recording-mode ? Tr.settings-shortcut-recording-title : Tr.settings-shortcut-recording-idle-title;
                         text: root.shortcut-recording-hint;
                     }
 
@@ -2761,7 +2890,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                     spacing: 10px;
 
                                     Text {
-                                        text: "GLOBAL SHORTCUTS";
+                                        text: Tr.settings-shortcut-global-section;
                                         color: Theme.accent;
                                         font-size: 11px;
                                         font-weight: 700;
@@ -2807,8 +2936,8 @@ component KeyFieldSettingCard inherits Rectangle {
                                         }
 
                                         KeyFieldSettingCard {
-                                            col: 2;
-                                            row: 0;
+                                            col: 0;
+                                            row: 1;
                                             icon: @image-url("../../assets/ui-icons/option-window-info.svg");
                                             title: Tr.settings-shortcut-toggle-window-info-title;
                                             description: "";
@@ -2838,14 +2967,14 @@ component KeyFieldSettingCard inherits Rectangle {
                                     spacing: 12px;
 
                                     Text {
-                                        text: "LAYOUT SELECTION";
+                                        text: Tr.settings-shortcut-layout-selection-section;
                                         color: Theme.accent;
                                         font-size: 11px;
                                         font-weight: 700;
                                     }
 
                                     Text {
-                                        text: "Quickly switch between layouts.";
+                                        text: Tr.settings-shortcut-layout-selection-helper;
                                         color: Theme.muted;
                                         font-size: 10px;
                                     }
@@ -2867,7 +2996,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                                 spacing: 6px;
 
                                                 Text {
-                                                    text: "Grid";
+                                                    text: Tr.layout-grid-label;
                                                     color: Theme.text;
                                                     font-size: 12px;
                                                     font-weight: 700;
@@ -2901,7 +3030,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                                 spacing: 6px;
 
                                                 Text {
-                                                    text: "Mosaic";
+                                                    text: Tr.layout-mosaic-label;
                                                     color: Theme.text;
                                                     font-size: 12px;
                                                     font-weight: 700;
@@ -2935,7 +3064,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                                 spacing: 6px;
 
                                                 Text {
-                                                    text: "Bento";
+                                                    text: Tr.layout-bento-label;
                                                     color: Theme.text;
                                                     font-size: 12px;
                                                     font-weight: 700;
@@ -2969,7 +3098,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                                 spacing: 6px;
 
                                                 Text {
-                                                    text: "Fibonacci";
+                                                    text: Tr.layout-fibonacci-label;
                                                     color: Theme.text;
                                                     font-size: 12px;
                                                     font-weight: 700;
@@ -3003,7 +3132,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                                 spacing: 6px;
 
                                                 Text {
-                                                    text: "Columns";
+                                                    text: Tr.layout-columns-label;
                                                     color: Theme.text;
                                                     font-size: 12px;
                                                     font-weight: 700;
@@ -3037,7 +3166,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                                 spacing: 6px;
 
                                                 Text {
-                                                    text: "Rows";
+                                                    text: Tr.layout-row-label;
                                                     color: Theme.text;
                                                     font-size: 12px;
                                                     font-weight: 700;
@@ -3071,14 +3200,14 @@ component KeyFieldSettingCard inherits Rectangle {
                                     spacing: 10px;
 
                                     Text {
-                                        text: "LAYOUT CONTROLS";
+                                        text: Tr.settings-shortcut-layout-controls-section;
                                         color: Theme.accent;
                                         font-size: 11px;
                                         font-weight: 700;
                                     }
 
                                     Text {
-                                        text: "Additional layout actions and adjustments.";
+                                        text: Tr.settings-shortcut-layout-controls-helper;
                                         color: Theme.muted;
                                         font-size: 10px;
                                     }
@@ -3123,10 +3252,10 @@ component KeyFieldSettingCard inherits Rectangle {
                                         }
 
                                         KeyFieldSettingCard {
-                                            col: 2;
-                                            row: 0;
+                                            col: 0;
+                                            row: 1;
                                             icon: @image-url("../../assets/ui-icons/option-cycle.svg");
-                                            title: "Cycle layout";
+                                            title: Tr.settings-shortcut-cycle-layout-title;
                                             description: "";
                                             value <=> root.shortcut-cycle-layout;
                                             placeholder: "Tab";
@@ -3154,14 +3283,14 @@ component KeyFieldSettingCard inherits Rectangle {
                                     spacing: 12px;
 
                                     Text {
-                                        text: "DASHBOARD ACTIONS";
+                                        text: Tr.settings-shortcut-dashboard-actions-section;
                                         color: Theme.accent;
                                         font-size: 11px;
                                         font-weight: 700;
                                     }
 
                                     Text {
-                                        text: "Control the dashboard experience.";
+                                        text: Tr.settings-shortcut-dashboard-actions-helper;
                                         color: Theme.muted;
                                         font-size: 10px;
                                     }
@@ -3172,7 +3301,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                     }
 
                                     Text {
-                                        text: "UI TOGGLES";
+                                        text: Tr.settings-shortcut-ui-toggles-section;
                                         color: Theme.accent.with-alpha(72%);
                                         font-size: 10px;
                                         font-weight: 600;
@@ -3218,8 +3347,8 @@ component KeyFieldSettingCard inherits Rectangle {
                                         }
 
                                         KeyFieldSettingCard {
-                                            col: 2;
-                                            row: 0;
+                                            col: 0;
+                                            row: 1;
                                             icon: @image-url("../../assets/ui-icons/option-window-info.svg");
                                             title: Tr.settings-shortcut-toggle-window-info-title;
                                             description: "";
@@ -3242,7 +3371,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                     }
 
                                     Text {
-                                        text: "NAVIGATION";
+                                        text: Tr.settings-shortcut-navigation-section;
                                         color: Theme.accent.with-alpha(72%);
                                         font-size: 10px;
                                         font-weight: 600;
@@ -3288,8 +3417,8 @@ component KeyFieldSettingCard inherits Rectangle {
                                         }
 
                                         KeyFieldSettingCard {
-                                            col: 2;
-                                            row: 0;
+                                            col: 0;
+                                            row: 1;
                                             icon: @image-url("../../assets/ui-icons/option-menu.svg");
                                             title: Tr.settings-shortcut-open-command-palette-title;
                                             description: "";
@@ -3312,7 +3441,7 @@ component KeyFieldSettingCard inherits Rectangle {
                                     }
 
                                     Text {
-                                        text: "SYSTEM";
+                                        text: Tr.settings-shortcut-system-section;
                                         color: Theme.accent.with-alpha(72%);
                                         font-size: 10px;
                                         font-weight: 600;
@@ -3358,8 +3487,8 @@ component KeyFieldSettingCard inherits Rectangle {
                                         }
 
                                         KeyFieldSettingCard {
-                                            col: 2;
-                                            row: 0;
+                                            col: 0;
+                                            row: 1;
                                             icon: @image-url("../../assets/ui-icons/option-always-on-top.svg");
                                             title: Tr.settings-shortcut-toggle-always-on-top-title;
                                             description: "";
@@ -3437,8 +3566,8 @@ component KeyFieldSettingCard inherits Rectangle {
                     SectionCard {
                         SectionHeader {
                             icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                            title: "Layout presets";
-                            helper: "Save/apply/delete named ratio snapshots for the current layout.";
+                            title: Tr.settings-layout-presets-title;
+                            helper: Tr.settings-layout-presets-helper;
                         }
 
                         HorizontalLayout {
@@ -3448,12 +3577,14 @@ component KeyFieldSettingCard inherits Rectangle {
                                 horizontal-stretch: 1;
                                 height: 34px;
                                 text <=> root.layout-preset-name;
-                                placeholder: "Focus grid";
+                                placeholder: Tr.settings-layout-preset-name-placeholder;
+                                accessible-label-text: Tr.settings-layout-presets-title;
                             }
 
                             CustomButton {
+                                width: 160px;
                                 height: 34px;
-                                text: "Save current";
+                                text: Tr.settings-layout-preset-save-current;
                                 clicked => {
                                     root.save-layout-preset();
                                 }
@@ -3462,8 +3593,8 @@ component KeyFieldSettingCard inherits Rectangle {
 
                         SettingRow {
                             icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                            title: "Saved presets";
-                            description: "Apply one preset to restore its layout ratios.";
+                            title: Tr.settings-layout-preset-saved-title;
+                            description: Tr.settings-layout-preset-saved-description;
 
                             CustomComboBox {
                                 width: 240px;
@@ -3478,7 +3609,7 @@ component KeyFieldSettingCard inherits Rectangle {
 
                             CustomButton {
                                 height: 34px;
-                                text: "Apply preset";
+                                text: Tr.settings-layout-preset-apply;
                                 clicked => {
                                     root.apply-layout-preset();
                                 }
@@ -3486,7 +3617,7 @@ component KeyFieldSettingCard inherits Rectangle {
 
                             CustomButton {
                                 height: 34px;
-                                text: "Delete preset";
+                                text: Tr.settings-layout-preset-delete;
                                 clicked => {
                                     root.delete-layout-preset();
                                 }
@@ -3496,7 +3627,7 @@ component KeyFieldSettingCard inherits Rectangle {
                         InlineWarning {
                             subtle: true;
                             icon: @image-url("../../assets/ui-icons/option-layout.svg");
-                            title: "Preset status";
+                            title: Tr.settings-layout-preset-status;
                             text: root.layout-preset-summary;
                         }
                     }
@@ -3522,10 +3653,13 @@ component KeyFieldSettingCard inherits Rectangle {
 
                             CustomButton {
                                 height: 40px;
-                                text: Tr.action-check-updates;
-                                enabled: !root.update-check-running;
+                                text: root.update-check-running ? Tr.settings-update-cancel : Tr.action-check-updates;
                                 clicked => {
-                                    root.check-updates-now();
+                                    if root.update-check-running {
+                                        root.cancel-update-check();
+                                    } else {
+                                        root.check-updates-now();
+                                    }
                                 }
                             }
 

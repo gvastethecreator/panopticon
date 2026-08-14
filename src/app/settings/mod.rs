@@ -59,22 +59,22 @@ pub fn selected_model_value(model: &ModelRc<SharedString>, index: i32) -> Option
 
 /// Human-readable label for a shortcut recording target.
 pub fn shortcut_recording_label(target: &str) -> &'static str {
-    match target {
-        "layout_column" => "Layout column",
-        "reset_layout" => "Reset layout",
-        "cycle_layout" => "Cycle layout",
-        "toggle_toolbar" => "Toggle toolbar",
-        "toggle_animations" => "Toggle animations",
-        "toggle_window_info" => "Toggle window info",
-        "open_settings" => "Open settings",
-        "open_menu" => "Open menu",
-        "open_command_palette" => "Open command palette",
-        "refresh_now" => "Refresh now",
-        "exit_app" => "Exit app",
-        "toggle_always_on_top" => "Always on top",
-        "global_activate" => "Global activate",
-        _ => "Shortcut",
-    }
+    panopticon::i18n::t(match target {
+        "layout_column" => "settings.shortcut.target.layout_column",
+        "reset_layout" => "settings.shortcut.target.reset_layout",
+        "cycle_layout" => "settings.shortcut.target.cycle_layout",
+        "toggle_toolbar" => "settings.shortcut.target.toggle_toolbar",
+        "toggle_animations" => "settings.shortcut.target.toggle_animations",
+        "toggle_window_info" => "settings.shortcut.target.toggle_window_info",
+        "open_settings" => "settings.shortcut.target.open_settings",
+        "open_menu" => "settings.shortcut.target.open_menu",
+        "open_command_palette" => "settings.shortcut.target.open_command_palette",
+        "refresh_now" => "settings.shortcut.target.refresh_now",
+        "exit_app" => "settings.shortcut.target.exit_app",
+        "toggle_always_on_top" => "settings.shortcut.target.toggle_always_on_top",
+        "global_activate" => "settings.shortcut.target.global_activate",
+        _ => "settings.shortcut.target.fallback",
+    })
 }
 
 /// Normalise a raw key-press string into a canonical shortcut name.

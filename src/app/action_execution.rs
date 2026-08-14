@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use panopticon::settings::AppSettings;
 
-use crate::{AppState, MainWindow};
+use crate::{AppState, MainWindow, PersistenceStatus};
 
 use super::dock::{
     apply_dock_mode, apply_topmost_mode, apply_window_appearance, reposition_appbar,
@@ -36,13 +36,18 @@ pub(crate) struct SettingsRuntimeUpdate {
     pub(crate) workspace_name: Option<String>,
 }
 
-fn persist_settings_snapshot(state: &AppState) {
+pub(crate) fn persist_settings_snapshot(state: &mut AppState) -> bool {
     if let Err(error) = state.settings.save(state.workspace_name.as_deref()) {
+        state.persistence_status = PersistenceStatus::Failed;
         tracing::warn!(
             %error,
             workspace = ?state.workspace_name,
             "failed to persist settings change"
         );
+        false
+    } else {
+        state.persistence_status = PersistenceStatus::Clean;
+        true
     }
 }
 
@@ -52,7 +57,7 @@ pub(crate) fn finalize_settings_change(
     effects: SettingsApplyEffects,
 ) -> SettingsRuntimeUpdate {
     state.window_collection.current_layout = state.settings.runtime().effective_layout;
-    persist_settings_snapshot(state);
+    let _ = persist_settings_snapshot(state);
 
     SettingsRuntimeUpdate {
         effects,

@@ -44,15 +44,38 @@ pub(crate) fn apply_secondary_window_placement(
 }
 
 pub(crate) fn confirm_workspace_action(title: &str, description: &str) -> bool {
-    matches!(
-        rfd::MessageDialog::new()
-            .set_level(rfd::MessageLevel::Warning)
-            .set_title(title)
-            .set_description(description)
-            .set_buttons(rfd::MessageButtons::YesNo)
-            .show(),
-        rfd::MessageDialogResult::Yes
-    )
+    use windows::core::PCWSTR;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        MessageBoxW, IDYES, MB_DEFBUTTON2, MB_ICONWARNING, MB_YESNO,
+    };
+
+    let title_wide: Vec<u16> = title.encode_utf16().chain(Some(0)).collect();
+    let description_wide: Vec<u16> = description.encode_utf16().chain(Some(0)).collect();
+
+    // SAFETY: both strings are live, null-terminated UTF-16 buffers for the
+    // duration of the modal call. A null owner is valid for this app-level dialog.
+    unsafe {
+        MessageBoxW(
+            None,
+            PCWSTR(description_wide.as_ptr()),
+            PCWSTR(title_wide.as_ptr()),
+            MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2,
+        ) == IDYES
+    }
+}
+
+pub(crate) fn show_action_result(title: &str, description: &str, success: bool) {
+    let level = if success {
+        rfd::MessageLevel::Info
+    } else {
+        rfd::MessageLevel::Error
+    };
+    rfd::MessageDialog::new()
+        .set_level(level)
+        .set_title(title)
+        .set_description(description)
+        .set_buttons(rfd::MessageButtons::Ok)
+        .show();
 }
 
 pub(crate) use self::settings_window::{

@@ -48,7 +48,7 @@ fn register_save_layout_preset_callback(
                 if preset_name.is_empty() {
                     set_layout_preset_summary(
                         settings_window,
-                        "Enter a preset name before saving.",
+                        panopticon::i18n::t("settings.layout_presets.feedback.enter_name"),
                     );
                     return;
                 }
@@ -68,7 +68,7 @@ fn register_save_layout_preset_callback(
                                     state_guard.settings.save(state_guard.workspace_name.as_deref())
                                 {
                                     tracing::error!(%error, preset = %preset_name, "failed to persist layout preset save");
-                                    Err("Saved in memory, but failed to persist preset to disk.".to_owned())
+                                    Err(panopticon::i18n::t("settings.layout_presets.feedback.save_persist_failed").to_owned())
                                 } else {
                                     Ok(())
                                 }
@@ -87,7 +87,10 @@ fn register_save_layout_preset_callback(
                         settings_window.set_layout_preset_name(SharedString::from(preset_name.clone()));
                         set_layout_preset_summary(
                             settings_window,
-                            &format!("Saved layout preset '{preset_name}'."),
+                            &panopticon::i18n::t_fmt(
+                                "settings.layout_presets.feedback.saved",
+                                &preset_name,
+                            ),
                         );
                     }
                     Err(reason) => {
@@ -115,7 +118,10 @@ fn register_apply_layout_preset_callback(
                 };
 
                 let Some(preset_name) = selected_layout_preset_name(settings_window) else {
-                    set_layout_preset_summary(settings_window, "Select a preset to apply.");
+                    set_layout_preset_summary(
+                        settings_window,
+                        panopticon::i18n::t("settings.layout_presets.feedback.select_apply"),
+                    );
                     return;
                 };
 
@@ -145,20 +151,27 @@ fn register_apply_layout_preset_callback(
                     None => {
                         set_layout_preset_summary(
                             settings_window,
-                            "Could not apply layout preset. It may have been renamed or deleted.",
+                            panopticon::i18n::t(
+                                "settings.layout_presets.feedback.apply_missing",
+                            ),
                         );
                     }
                     Some(false) => {
                         set_layout_preset_summary(
                             settings_window,
-                            "Applied in memory, but failed to persist layout preset changes.",
+                            panopticon::i18n::t(
+                                "settings.layout_presets.feedback.apply_persist_failed",
+                            ),
                         );
                     }
                     Some(true) => {
                         settings_window.set_layout_preset_name(SharedString::from(preset_name.clone()));
                         set_layout_preset_summary(
                             settings_window,
-                            &format!("Applied layout preset '{preset_name}'."),
+                            &panopticon::i18n::t_fmt(
+                                "settings.layout_presets.feedback.applied",
+                                &preset_name,
+                            ),
                         );
                         let _ = refresh_windows(&state);
                         refresh_ui(&state, &main_weak);
@@ -183,7 +196,10 @@ fn register_delete_layout_preset_callback(
                 };
 
                 let Some(preset_name) = selected_layout_preset_name(settings_window) else {
-                    set_layout_preset_summary(settings_window, "Select a preset to delete.");
+                    set_layout_preset_summary(
+                        settings_window,
+                        panopticon::i18n::t("settings.layout_presets.feedback.select_delete"),
+                    );
                     return;
                 };
 
@@ -209,12 +225,15 @@ fn register_delete_layout_preset_callback(
                     sync_layout_preset_controls(settings_window, &state_guard.settings);
                     set_layout_preset_summary(
                         settings_window,
-                        &format!("Deleted layout preset '{preset_name}'."),
+                        &panopticon::i18n::t_fmt(
+                            "settings.layout_presets.feedback.deleted",
+                            &preset_name,
+                        ),
                     );
                 } else {
                     set_layout_preset_summary(
                         settings_window,
-                        "Could not delete layout preset. It may have already been removed.",
+                        panopticon::i18n::t("settings.layout_presets.feedback.delete_missing"),
                     );
                 }
             });
@@ -356,13 +375,16 @@ fn register_key_pressed_callback(
                 }
 
                 if key_text == "\u{001B}" {
-                    stop_shortcut_recording(settings_window, "Shortcut recording cancelled.");
+                    stop_shortcut_recording(
+                        settings_window,
+                        panopticon::i18n::t("settings.shortcut.feedback.cancelled"),
+                    );
                     return true;
                 }
 
                 let Some(binding) = normalize_recorded_shortcut(key_text.as_str()) else {
                     settings_window.set_shortcut_recording_hint(SharedString::from(
-                        "Unsupported key for shortcut recording. Try letters, digits, Tab, Enter, Space, or Esc.",
+                        panopticon::i18n::t("settings.shortcut.feedback.unsupported"),
                     ));
                     return true;
                 };
@@ -371,7 +393,7 @@ fn register_key_pressed_callback(
                 if target.trim().is_empty() {
                     stop_shortcut_recording(
                         settings_window,
-                        "No shortcut target selected. Click a Rec button first.",
+                        panopticon::i18n::t("settings.shortcut.feedback.no_target"),
                     );
                     return true;
                 }
@@ -379,7 +401,7 @@ fn register_key_pressed_callback(
                 if !apply_recorded_shortcut_binding(settings_window, &target, &binding) {
                     stop_shortcut_recording(
                         settings_window,
-                        "Unknown shortcut target. Please choose a field and try again.",
+                        panopticon::i18n::t("settings.shortcut.feedback.unknown_target"),
                     );
                     return true;
                 }
@@ -387,10 +409,9 @@ fn register_key_pressed_callback(
                 settings_window.invoke_apply();
                 stop_shortcut_recording(
                     settings_window,
-                    &format!(
-                        "Recorded '{}' for '{}'.",
-                        binding,
-                        shortcut_recording_label(&target)
+                    &panopticon::i18n::t_fmt(
+                        "settings.shortcut.feedback.recorded",
+                        &format!("{binding} — {}", shortcut_recording_label(&target)),
                     ),
                 );
                 true
