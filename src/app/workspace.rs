@@ -133,9 +133,35 @@ pub(crate) fn available_workspace_summaries(
 }
 
 fn format_workspace_timestamp(value: Option<u64>) -> String {
-    value
-        .map(|timestamp| format!("unix-ms:{timestamp}"))
-        .unwrap_or_default()
+    let Some(timestamp) = value else {
+        return String::new();
+    };
+    let seconds = timestamp / 1_000;
+    let Ok(days) = i64::try_from(seconds / 86_400) else {
+        return String::new();
+    };
+    let seconds_today = seconds % 86_400;
+    let hour = seconds_today / 3_600;
+    let minute = (seconds_today % 3_600) / 60;
+    let (year, month, day) = civil_date_from_unix_days(days);
+    format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02} UTC")
+}
+
+fn civil_date_from_unix_days(days: i64) -> (i64, i64, i64) {
+    let shifted_days = days + 719_468;
+    let era = shifted_days.div_euclid(146_097);
+    let day_of_era = shifted_days - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let mut year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = month_prime + if month_prime < 10 { 3 } else { -9 };
+    if month <= 2 {
+        year += 1;
+    }
+    (year, month, day)
 }
 
 pub(crate) fn parse_workspace_target_input(value: &str) -> Result<Option<String>, String> {
@@ -262,13 +288,11 @@ pub(crate) fn sync_workspace_editor_from_selection(
 pub(crate) fn known_workspaces_label() -> String {
     use panopticon::i18n;
     match WorkspaceStore::from_appdata().list_with_default() {
-        Ok(workspaces) if workspaces.is_empty() => {
-            i18n::t("settings.no_saved_workspaces").to_owned()
-        }
-        Ok(workspaces) => i18n::t_fmt("settings.saved_workspaces_fmt", &workspaces.join(", ")),
+        Ok(workspaces) if workspaces.is_empty() => i18n::t("settings.no_saved_profiles").to_owned(),
+        Ok(workspaces) => i18n::t_fmt("settings.saved_profiles_fmt", &workspaces.join(", ")),
         Err(error) => {
             tracing::warn!(%error, "failed to list saved workspaces");
-            i18n::t("settings.no_saved_workspaces").to_owned()
+            i18n::t("settings.no_saved_profiles").to_owned()
         }
     }
 }
@@ -400,5 +424,20 @@ pub(crate) fn launch_additional_instance(workspace_name: Option<&str>) -> bool {
             tracing::error!(%error, workspace = ?workspace_name, "failed to launch extra instance");
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_workspace_timestamp;
+
+    #[test]
+    fn formats_workspace_timestamps_as_readable_utc_dates() {
+        assert_eq!(format_workspace_timestamp(Some(0)), "1970-01-01 00:00 UTC");
+        assert_eq!(
+            format_workspace_timestamp(Some(1_709_251_140_000)),
+            "2024-02-29 23:59 UTC"
+        );
+        assert_eq!(format_workspace_timestamp(None), "");
     }
 }

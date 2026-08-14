@@ -263,18 +263,28 @@ fn rebuild_filtered_commands(
     *filtered.borrow_mut() = matches.iter().map(|entry| entry.id.clone()).collect();
 
     let labels = if matches.is_empty() {
-        vec![SharedString::from("No commands found")]
+        vec![SharedString::from(panopticon::i18n::t(
+            "command_palette.no_results",
+        ))]
     } else {
         matches
             .iter()
-            .map(|entry| {
-                SharedString::from(format!("[{}] {}", entry.category.label(), entry.title))
-            })
+            .map(|entry| SharedString::from(command_display_label(entry)))
             .collect()
     };
 
     window.set_command_options(ModelRc::new(VecModel::from(labels)));
     window.set_command_index(0);
+}
+
+fn command_display_label(entry: &CommandEntry) -> String {
+    let category = entry.category.label();
+    let repeated_prefix = format!("{category}: ");
+    let title = entry
+        .title
+        .strip_prefix(&repeated_prefix)
+        .unwrap_or(&entry.title);
+    format!("[{category}] {title}")
 }
 
 fn execute_command(

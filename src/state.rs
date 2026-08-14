@@ -42,6 +42,7 @@ pub(crate) struct AppState {
     pub(crate) workspace_name: Option<String>,
     pub(crate) app_version: String,
     pub(crate) update_status: UpdateStatus,
+    pub(crate) persistence_status: PersistenceStatus,
 }
 
 /// Preview/thumbnails lifecycle state for a tracked window.
@@ -117,6 +118,13 @@ pub(crate) enum UpdateStatus {
         latest_version: String,
         release_url: String,
     },
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum PersistenceStatus {
+    #[default]
+    Clean,
     Failed,
 }
 

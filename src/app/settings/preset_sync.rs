@@ -40,6 +40,17 @@ pub(crate) fn populate_dimension_and_theme_options(window: &SettingsWindow, stat
         &state.update_status,
     )));
     window.set_update_check_running(matches!(state.update_status, crate::UpdateStatus::Checking));
+    let persistence_feedback = persistence_feedback(state.persistence_status);
+    let persistence_failed = persistence_feedback.is_some();
+    window.set_persistence_status_error(persistence_failed);
+    let (title, message) = persistence_feedback.map_or(("", ""), |(title_key, message_key)| {
+        (
+            panopticon::i18n::t(title_key),
+            panopticon::i18n::t(message_key),
+        )
+    });
+    window.set_persistence_status_title(SharedString::from(title));
+    window.set_persistence_status_message(SharedString::from(message));
     window.set_fixed_width_value(
         state
             .settings
@@ -81,6 +92,16 @@ pub(crate) fn populate_dimension_and_theme_options(window: &SettingsWindow, stat
         state.settings.workspace.description.clone(),
     ));
     window.set_known_profiles_label(SharedString::from(known_workspaces_label()));
+}
+
+fn persistence_feedback(status: crate::PersistenceStatus) -> Option<(&'static str, &'static str)> {
+    match status {
+        crate::PersistenceStatus::Clean => None,
+        crate::PersistenceStatus::Failed => Some((
+            "settings.persistence_status.failed_title",
+            "settings.persistence_status.failed",
+        )),
+    }
 }
 
 /// Populate workspace profile options and related metadata fields.
@@ -193,5 +214,23 @@ fn localized_update_status_text(status: &crate::UpdateStatus) -> String {
         crate::UpdateStatus::Failed => {
             panopticon::i18n::t("settings.update_status.failed").to_owned()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::persistence_feedback;
+    use crate::PersistenceStatus;
+
+    #[test]
+    fn persistence_failure_exposes_recovery_feedback() {
+        assert_eq!(persistence_feedback(PersistenceStatus::Clean), None);
+        assert_eq!(
+            persistence_feedback(PersistenceStatus::Failed),
+            Some((
+                "settings.persistence_status.failed_title",
+                "settings.persistence_status.failed"
+            ))
+        );
     }
 }

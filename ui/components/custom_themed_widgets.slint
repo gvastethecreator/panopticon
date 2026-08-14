@@ -7,6 +7,7 @@ import { Theme } from "../common.slint";
 export component CustomCheckBox inherits Rectangle {
     in-out property <bool> checked: false;
     in property <bool> enabled: true;
+    in property <string> accessible-label-text: "";
 
     width: 22px;
     height: 22px;
@@ -14,6 +15,17 @@ export component CustomCheckBox inherits Rectangle {
     border-width: 2px;
     border-color: root.enabled ? (root.checked ? Theme.accent : Theme.border.with-alpha(76%)) : Theme.border.with-alpha(40%);
     background: root.enabled ? (root.checked ? Theme.accent-soft.with-alpha(56%) : Theme.surface.with-alpha(64%)) : Theme.surface.with-alpha(36%);
+    accessible-role: checkbox;
+    accessible-checkable: true;
+    accessible-enabled: root.enabled;
+    accessible-checked <=> root.checked;
+    accessible-label: root.accessible-label-text;
+    accessible-action-default => {
+        if root.enabled {
+            root.checked = !root.checked;
+        }
+    }
+    forward-focus: focus-scope;
 
     Image {
         x: 4px;
@@ -32,12 +44,26 @@ export component CustomCheckBox inherits Rectangle {
             root.checked = !root.checked;
         }
     }
+
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                touch.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
 }
 
 /// Custom RadioButton using Theme colors - circular selector for mutually exclusive options
 export component CustomRadioButton inherits Rectangle {
     in-out property <bool> checked: false;
     in property <bool> enabled: true;
+    in property <string> accessible-label-text: "";
     callback toggled();
 
     width: 20px;
@@ -46,6 +72,18 @@ export component CustomRadioButton inherits Rectangle {
     border-width: 2px;
     border-color: root.enabled ? (root.checked ? Theme.accent : Theme.border.with-alpha(76%)) : Theme.border.with-alpha(40%);
     background: root.enabled ? (root.checked ? Theme.accent-soft.with-alpha(48%) : Theme.surface.with-alpha(64%)) : Theme.surface.with-alpha(36%);
+    accessible-role: radio-button;
+    accessible-checkable: true;
+    accessible-enabled: root.enabled;
+    accessible-checked <=> root.checked;
+    accessible-label: root.accessible-label-text;
+    accessible-action-default => {
+        if root.enabled && !root.checked {
+            root.checked = true;
+            root.toggled();
+        }
+    }
+    forward-focus: focus-scope;
 
     Rectangle {
         x: 6px;
@@ -66,6 +104,19 @@ export component CustomRadioButton inherits Rectangle {
             }
         }
     }
+
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                touch.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
 }
 
 /// Custom ComboBox using Theme colors - not a wrapper, fully custom
@@ -73,6 +124,7 @@ export component CustomComboBox inherits Rectangle {
     in property <[string]> options: [];
     in-out property <int> selected-index: 0;
     in property <bool> enabled: true;
+    in property <string> accessible-label-text: "";
     in property <length> field-height: 32px;
     in property <length> max-popup-height: 220px;
     in property <length> row-height: 30px;
@@ -90,6 +142,16 @@ export component CustomComboBox inherits Rectangle {
     clip: false;
     z: root.open ? 2000 : 0;
     height: root.open ? root.field-height + root.popup-height + 4px : root.field-height;
+    accessible-role: combobox;
+    accessible-enabled: root.enabled;
+    accessible-label: root.accessible-label-text;
+    accessible-value: root.selected-text;
+    accessible-action-expand => {
+        if root.enabled && root.options.length > 0 {
+            root.open = true;
+        }
+    }
+    forward-focus: focus-scope;
 
     Rectangle {
         width: parent.width;
@@ -188,6 +250,37 @@ export component CustomComboBox inherits Rectangle {
             }
         }
     }
+
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                if root.options.length > 0 {
+                    root.open = !root.open;
+                }
+                return accept;
+            }
+            if event.text == Key.DownArrow && root.options.length > 0 {
+                let next = min(root.options.length - 1, root.safe-index + 1);
+                root.selected-index = next;
+                root.selected(next, root.options[next]);
+                return accept;
+            }
+            if event.text == Key.UpArrow && root.options.length > 0 {
+                let next = max(0, root.safe-index - 1);
+                root.selected-index = next;
+                root.selected(next, root.options[next]);
+                return accept;
+            }
+            if event.text == Key.Escape {
+                root.open = false;
+                return accept;
+            }
+            reject
+        }
+    }
 }
 
 /// Custom SpinBox using Theme colors - not a wrapper, fully custom
@@ -197,6 +290,7 @@ export component CustomSpinBox inherits Rectangle {
     in property <int> maximum: 100;
     in property <int> step: 1;
     in property <bool> enabled: true;
+    in property <string> accessible-label-text: "";
 
     height: 32px;
 
@@ -204,6 +298,29 @@ export component CustomSpinBox inherits Rectangle {
     border-width: 2px;
     border-color: root.enabled ? Theme.border.with-alpha(72%) : Theme.border.with-alpha(40%);
     background: root.enabled ? Theme.surface.with-alpha(84%) : Theme.surface.with-alpha(42%);
+    accessible-role: spinbox;
+    accessible-enabled: root.enabled;
+    accessible-label: root.accessible-label-text;
+    accessible-value: root.value;
+    accessible-value-minimum: root.minimum;
+    accessible-value-maximum: root.maximum;
+    accessible-value-step: root.step;
+    accessible-action-set-value(v) => {
+        if root.enabled && v.is-float() {
+            root.value = max(root.minimum, min(root.maximum, round(v.to-float())));
+        }
+    }
+    accessible-action-increment => {
+        if root.enabled {
+            root.value = min(root.maximum, root.value + root.step);
+        }
+    }
+    accessible-action-decrement => {
+        if root.enabled {
+            root.value = max(root.minimum, root.value - root.step);
+        }
+    }
+    forward-focus: focus-scope;
 
     changed minimum => {
         if root.value < root.minimum {
@@ -289,6 +406,31 @@ export component CustomSpinBox inherits Rectangle {
             }
         }
     }
+
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == Key.UpArrow || event.text == Key.RightArrow {
+                root.value = min(root.maximum, root.value + root.step);
+                return accept;
+            }
+            if event.text == Key.DownArrow || event.text == Key.LeftArrow {
+                root.value = max(root.minimum, root.value - root.step);
+                return accept;
+            }
+            if event.text == Key.Home {
+                root.value = root.minimum;
+                return accept;
+            }
+            if event.text == Key.End {
+                root.value = root.maximum;
+                return accept;
+            }
+            reject
+        }
+    }
 }
 
 /// Custom Slider using Theme colors - keeps visual consistency with custom inputs
@@ -296,11 +438,36 @@ export component CustomSlider inherits Rectangle {
     in-out property <int> value: 0;
     in property <int> minimum: 0;
     in property <int> maximum: 100;
+    in property <int> step: 1;
     in property <bool> enabled: true;
+    in property <string> accessible-label-text: "";
 
     min-width: 120px;
     height: 24px;
     background: transparent;
+    accessible-role: slider;
+    accessible-enabled: root.enabled;
+    accessible-label: root.accessible-label-text;
+    accessible-value: root.value;
+    accessible-value-minimum: root.minimum;
+    accessible-value-maximum: root.maximum;
+    accessible-value-step: root.step;
+    accessible-action-set-value(v) => {
+        if root.enabled && v.is-float() {
+            root.value = max(root.minimum, min(root.maximum, round(v.to-float())));
+        }
+    }
+    accessible-action-increment => {
+        if root.enabled {
+            root.value = min(root.maximum, root.value + root.step);
+        }
+    }
+    accessible-action-decrement => {
+        if root.enabled {
+            root.value = max(root.minimum, root.value - root.step);
+        }
+    }
+    forward-focus: focus-scope;
 
     property <bool> has-range: root.maximum > root.minimum;
     property <int> safe-range: root.has-range ? root.maximum - root.minimum : 1;
@@ -372,6 +539,32 @@ export component CustomSlider inherits Rectangle {
             }
         }
     }
+
+
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == Key.RightArrow || event.text == Key.UpArrow {
+                root.value = min(root.maximum, root.value + root.step);
+                return accept;
+            }
+            if event.text == Key.LeftArrow || event.text == Key.DownArrow {
+                root.value = max(root.minimum, root.value - root.step);
+                return accept;
+            }
+            if event.text == Key.Home {
+                root.value = root.minimum;
+                return accept;
+            }
+            if event.text == Key.End {
+                root.value = root.maximum;
+                return accept;
+            }
+            reject
+        }
+    }
 }
 
 /// Custom LineEdit using Theme colors - not a wrapper, fully custom
@@ -379,6 +572,7 @@ export component CustomLineEdit inherits Rectangle {
     in-out property <string> text: "";
     in property <string> placeholder: "";
     in property <bool> enabled: true;
+    in property <string> accessible-label-text: "";
     callback accepted(string);
     callback focus-lost();
 
@@ -386,6 +580,7 @@ export component CustomLineEdit inherits Rectangle {
     border-width: 2px;
     border-color: root.enabled ? (edit.has-focus ? Theme.accent.with-alpha(78%) : Theme.border.with-alpha(72%)) : Theme.border.with-alpha(40%);
     background: root.enabled ? Theme.surface.with-alpha(84%) : Theme.surface.with-alpha(42%);
+    forward-focus: edit;
 
     edit := TextInput {
         x: 8px;
@@ -395,6 +590,10 @@ export component CustomLineEdit inherits Rectangle {
         text <=> root.text;
         color: root.enabled ? Theme.text : Theme.muted;
         enabled: root.enabled;
+        accessible-role: text-input;
+        accessible-enabled: root.enabled;
+        accessible-label: root.accessible-label-text;
+        accessible-value <=> root.text;
 
         accepted => {
             root.accepted(root.text);
@@ -431,6 +630,15 @@ export component CustomButton inherits Rectangle {
     border-width: accent ? 0px : 2px;
     border-color: root.enabled ? Theme.border.with-alpha(68%) : Theme.border.with-alpha(36%);
     background: root.enabled ? (accent ? (touch.has-hover ? Theme.accent.darker(8%) : Theme.accent) : (touch.has-hover ? Theme.surface : Theme.surface.with-alpha(72%))) : Theme.surface.with-alpha(38%);
+    accessible-role: button;
+    accessible-enabled: root.enabled;
+    accessible-label: root.text;
+    accessible-action-default => {
+        if root.enabled {
+            root.clicked();
+        }
+    }
+    forward-focus: focus-scope;
 
     Text {
         width: 100%;
@@ -447,6 +655,20 @@ export component CustomButton inherits Rectangle {
         enabled: root.enabled;
         clicked => {
             root.clicked();
+        }
+    }
+
+
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                root.clicked();
+                return accept;
+            }
+            reject
         }
     }
 }
@@ -471,6 +693,7 @@ export component SectionCard inherits Rectangle {
         padding-top: root.inner-padding;
         padding-bottom: root.inner-padding;
         spacing: root.inner-spacing;
+        alignment: start;
 
         @children
     }

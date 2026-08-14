@@ -172,6 +172,7 @@ fn run_app(workspace: Option<String>) {
         workspace_name: workspace,
         app_version: format!("v{}", env!("CARGO_PKG_VERSION")),
         update_status: UpdateStatus::Idle,
+        persistence_status: PersistenceStatus::Clean,
     }));
 
     // Show the window so the native HWND exists on next event-loop iteration.

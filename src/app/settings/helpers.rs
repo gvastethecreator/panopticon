@@ -45,9 +45,9 @@ pub(crate) fn sync_layout_preset_controls(window: &SettingsWindow, settings: &Ap
 
     if window.get_layout_preset_summary().trim().is_empty() {
         let summary = if has_presets {
-            "Select a preset to apply or delete, or save current ratios as a new snapshot."
+            panopticon::i18n::t("settings.layout_presets.feedback.select_or_save")
         } else {
-            "No layout presets saved yet. Save current layout ratios to create one."
+            panopticon::i18n::t("settings.layout_presets.feedback.empty")
         };
         window.set_layout_preset_summary(SharedString::from(summary));
     }

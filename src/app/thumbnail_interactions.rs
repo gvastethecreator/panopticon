@@ -282,8 +282,7 @@ pub(crate) fn handle_window_menu_action(
             schedule_deferred_refresh(state, weak);
         }
         WindowMenuAction::KillProcess => {
-            kill_target_process(info.hwnd);
-            schedule_deferred_refresh(state, weak);
+            handle_kill_process_action(state, weak, info);
         }
     }
 
@@ -293,6 +292,45 @@ pub(crate) fn handle_window_menu_action(
 
     if needs_ui_refresh {
         refresh_ui(state, weak);
+    }
+}
+
+fn handle_kill_process_action(
+    state: &Rc<RefCell<AppState>>,
+    weak: &slint::Weak<MainWindow>,
+    info: &WindowInfo,
+) {
+    let description = panopticon::i18n::t_fmt("dialog.kill_process.description", info.app_label());
+    if !super::secondary_windows::confirm_workspace_action(
+        panopticon::i18n::t("dialog.kill_process.title"),
+        &description,
+    ) {
+        return;
+    }
+
+    let result = kill_target_process(info.hwnd);
+    if let Err(error) = &result {
+        tracing::warn!(%error, app_id = %info.app_id, "kill process action failed");
+    }
+    let success = result.is_ok();
+    let (title_key, message_key) = if success {
+        (
+            "dialog.kill_process.success_title",
+            "dialog.kill_process.success",
+        )
+    } else {
+        (
+            "dialog.kill_process.failed_title",
+            "dialog.kill_process.failed",
+        )
+    };
+    super::secondary_windows::show_action_result(
+        panopticon::i18n::t(title_key),
+        panopticon::i18n::t(message_key),
+        success,
+    );
+    if success {
+        schedule_deferred_refresh(state, weak);
     }
 }
 
@@ -336,7 +374,23 @@ fn close_target_window(hwnd: HWND) {
     }
 }
 
-fn kill_target_process(hwnd: HWND) {
+#[derive(Debug, thiserror::Error)]
+enum KillProcessError {
+    #[error("the target window is no longer available")]
+    StaleTarget,
+    #[error("refusing to terminate the Panopticon process")]
+    ProtectedTarget,
+    #[error("could not open the target process: {0}")]
+    OpenProcess(windows::core::Error),
+    #[error("TerminateProcess failed: {0}")]
+    TerminateProcess(windows::core::Error),
+    #[error("timed out waiting for the target process to exit")]
+    WaitTimeout,
+    #[error("unexpected process wait status: {0}")]
+    UnexpectedWaitStatus(u32),
+}
+
+fn kill_target_process(hwnd: HWND) -> Result<(), KillProcessError> {
     use windows::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0, WAIT_TIMEOUT};
     use windows::Win32::System::Threading::{
         OpenProcess, TerminateProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -344,46 +398,48 @@ fn kill_target_process(hwnd: HWND) {
     };
 
     if hwnd.0.is_null() {
-        return;
+        return Err(KillProcessError::StaleTarget);
     }
     let mut pid: u32 = 0;
     // SAFETY: hwnd is validated non-null; GetWindowThreadProcessId is a read-only
     // query that writes the PID into the stack-allocated variable.
     unsafe {
-        windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&raw mut pid));
+        let thread_id = windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+            hwnd,
+            Some(&raw mut pid),
+        );
+        if thread_id == 0 {
+            return Err(KillProcessError::StaleTarget);
+        }
     }
     if pid == 0 {
-        return;
+        return Err(KillProcessError::StaleTarget);
+    }
+    if pid == std::process::id() {
+        return Err(KillProcessError::ProtectedTarget);
     }
     // SAFETY: OpenProcess is called with limited rights (TERMINATE + QUERY) on a
     // PID obtained from a known window handle. The handle is closed after use.
     unsafe {
-        match OpenProcess(
+        let process = OpenProcess(
             PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
             false,
             pid,
-        ) {
-            Ok(process) => {
-                if let Err(error) = TerminateProcess(process, 1) {
-                    tracing::warn!(%error, pid, "TerminateProcess failed");
-                } else {
-                    match WaitForSingleObject(process, 1_000) {
-                        WAIT_OBJECT_0 => {
-                            tracing::info!(pid, "terminated process after thumbnail kill request");
-                        }
-                        WAIT_TIMEOUT => {
-                            tracing::warn!(pid, "timed out waiting for terminated process");
-                        }
-                        status => tracing::warn!(
-                            pid,
-                            wait_status = status.0,
-                            "unexpected wait status after process termination"
-                        ),
-                    }
+        )
+        .map_err(KillProcessError::OpenProcess)?;
+
+        let result = match TerminateProcess(process, 1) {
+            Err(error) => Err(KillProcessError::TerminateProcess(error)),
+            Ok(()) => match WaitForSingleObject(process, 1_000) {
+                WAIT_OBJECT_0 => {
+                    tracing::info!(pid, "terminated process after thumbnail kill request");
+                    Ok(())
                 }
-                let _ = CloseHandle(process);
-            }
-            Err(error) => tracing::warn!(%error, pid, "OpenProcess failed for termination"),
-        }
+                WAIT_TIMEOUT => Err(KillProcessError::WaitTimeout),
+                status => Err(KillProcessError::UnexpectedWaitStatus(status.0)),
+            },
+        };
+        let _ = CloseHandle(process);
+        result
     }
 }

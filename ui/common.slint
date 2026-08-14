@@ -16,6 +16,7 @@ export global Tr {
     in property <string> settings-window-title: "Panopticon — Settings";
     in property <string> tag-window-title: "Panopticon — Create tag";
     in property <string> about-window-title: "Panopticon — About";
+    in property <string> command-palette-window-title: "Panopticon — Command Palette";
 
     // ThumbnailCard
     in property <string> minimized: "minimized";
@@ -117,6 +118,15 @@ export global Tr {
     in property <string> action-auto-apply: "Changes apply automatically.";
     in property <string> action-about: "About";
     in property <string> action-load-profile: "Load workspace";
+
+    // Command palette
+    in property <string> command-palette-title: "Command Palette";
+    in property <string> command-palette-helper: "Search and run layout, settings, and system commands.";
+    in property <string> command-palette-search-placeholder: "Type a command…";
+    in property <string> command-palette-commands-title: "Commands";
+    in property <string> command-palette-commands-helper: "Use ↑/↓ to select, Enter to run, and Esc to close.";
+    in property <string> command-palette-run: "Run";
+    in property <string> command-palette-no-available: "No commands available";
 
     // About window
     in property <string> about-title: "About Panopticon";
@@ -378,6 +388,67 @@ export global Tr {
     in property <string> settings-shortcut-exit-app-description: "Close Panopticon from the keyboard.";
     in property <string> settings-shortcut-alt-toolbar-title: "Use Alt as a quick status bar toggle";
     in property <string> settings-shortcut-alt-toolbar-description: "Keep the legacy Windows shortcut to hide or show the status bar with a single Alt press.";
+
+    // Remaining settings copy shared by all locales
+    in property <string> settings-option-center-secondary-title: "Center secondary windows";
+    in property <string> settings-option-center-secondary-description: "Open Settings, About, Command Palette and tag dialogs centered on the monitor.";
+    in property <string> settings-app-rules-pinned-slot-title: "Pinned slot";
+    in property <string> settings-app-rules-pinned-slot-description: "0 = unpinned. Positive values reserve a preferred slot.";
+    in property <string> settings-app-rules-pinned-slot-conflict-title: "Pinned slot conflict";
+    in property <string> settings-theme-catalog-title: "Theme catalog";
+    in property <string> settings-theme-catalog-description: "Select any installed theme. Preview cards show a bounded subset.";
+    in property <string> settings-workspace-display-name-title: "Display name";
+    in property <string> settings-workspace-display-name-description: "Friendly name shown in workspace lists.";
+    in property <string> settings-workspace-description-title: "Description";
+    in property <string> settings-workspace-description-description: "Optional note to remember what this workspace is for.";
+    in property <string> settings-workspace-name-placeholder: "workspace-a";
+    in property <string> settings-workspace-display-name-placeholder: "Work · Deep focus";
+    in property <string> settings-workspace-description-placeholder: "Pinned apps + filters for design review sessions";
+    in property <string> settings-workspace-action-duplicate: "Duplicate";
+    in property <string> settings-workspace-action-rename: "Rename";
+    in property <string> settings-workspace-action-delete: "Delete";
+    in property <string> settings-workspace-action-failed: "Workspace action failed";
+    in property <string> settings-workspace-action-completed: "Workspace action completed";
+    in property <string> settings-workspace-active: "ACTIVE";
+    in property <string> settings-workspace-default: "DEFAULT";
+    in property <string> settings-workspace-metadata-title: "Selected workspace metadata";
+    in property <string> settings-workspace-name-label: "Workspace";
+    in property <string> settings-workspace-updated-label: "Last updated";
+    in property <string> settings-workspace-created-label: "Created";
+    in property <string> settings-workspace-runtime-status-label: "Runtime status";
+    in property <string> settings-workspace-not-saved: "Not saved yet";
+    in property <string> settings-workspace-unknown: "Unknown";
+    in property <string> settings-workspace-no-runtime: "No runtime diagnostics yet";
+    in property <string> settings-workspace-running: "RUNNING";
+    in property <string> settings-workspace-modified: "MODIFIED";
+    in property <string> settings-shortcut-search-placeholder: "Search shortcuts…";
+    in property <string> settings-shortcut-alt-toolbar-compact: "Use Alt as quick status bar toggle";
+    in property <string> settings-shortcut-record: "Record shortcut";
+    in property <string> settings-shortcut-stop-recording: "Stop recording";
+    in property <string> settings-shortcut-recording-title: "Recording shortcut";
+    in property <string> settings-shortcut-recording-idle-title: "Shortcut recording";
+    in property <string> settings-shortcut-global-section: "GLOBAL SHORTCUTS";
+    in property <string> settings-shortcut-layout-selection-section: "LAYOUT SELECTION";
+    in property <string> settings-shortcut-layout-selection-helper: "Quickly switch between layouts.";
+    in property <string> settings-shortcut-layout-controls-section: "LAYOUT CONTROLS";
+    in property <string> settings-shortcut-layout-controls-helper: "Additional layout actions and adjustments.";
+    in property <string> settings-shortcut-dashboard-actions-section: "DASHBOARD ACTIONS";
+    in property <string> settings-shortcut-dashboard-actions-helper: "Control the dashboard experience.";
+    in property <string> settings-shortcut-ui-toggles-section: "UI TOGGLES";
+    in property <string> settings-shortcut-navigation-section: "NAVIGATION";
+    in property <string> settings-shortcut-system-section: "SYSTEM";
+    in property <string> settings-layout-presets-title: "Layout presets";
+    in property <string> settings-layout-presets-helper: "Save, apply, or delete named ratio snapshots for the current layout.";
+    in property <string> settings-layout-preset-name-placeholder: "Focus grid";
+    in property <string> settings-layout-preset-save-current: "Save current";
+    in property <string> settings-layout-preset-saved-title: "Saved presets";
+    in property <string> settings-layout-preset-saved-description: "Apply one preset to restore its layout ratios.";
+    in property <string> settings-layout-preset-apply: "Apply preset";
+    in property <string> settings-layout-preset-delete: "Delete preset";
+    in property <string> settings-layout-preset-status: "Preset status";
+    in property <string> settings-persistence-retry: "Retry save";
+    in property <string> settings-persistence-open-logs: "Open logs";
+    in property <string> settings-update-cancel: "Cancel update check";
 
     // Advanced page
     in property <string> settings-page-advanced-title: "Advanced Options";

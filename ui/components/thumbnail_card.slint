@@ -30,6 +30,10 @@ export component ThumbnailCard inherits Rectangle {
     border-color: is-active ? root.accent-color : (is-hovered ? root.accent-color : Theme.border);
     border-radius: 2px;
     clip: true;
+    accessible-role: button;
+    accessible-label: root.header-text;
+    accessible-action-default => { root.clicked(); }
+    forward-focus: focus-scope;
 
     animate border-width, border-color, background {
         duration: 100ms;
@@ -240,6 +244,22 @@ export component ThumbnailCard inherits Rectangle {
         }
     }
 
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px;
+        key-pressed(event) => {
+            if event.text == " " || event.text == "\n" {
+                root.clicked();
+                return accept;
+            }
+            if event.text == Key.Menu {
+                root.right-clicked(0, 0);
+                return accept;
+            }
+            reject
+        }
+    }
+
     Rectangle {
         x: parent.width - self.width - 8px;
         y: 3px + max((root.info-strip-height - self.height) / 2, 0px);
@@ -250,6 +270,14 @@ export component ThumbnailCard inherits Rectangle {
         border-width: 2px;
         border-color: Theme.border.with-alpha(0.42);
         opacity: root.show-close-button ? 1.0 : 0.0;
+        accessible-role: button;
+        accessible-enabled: root.show-close-button;
+        accessible-label: Tr.action-close + " " + root.header-text;
+        accessible-action-default => {
+            if root.show-close-button {
+                root.close-requested();
+            }
+        }
 
         animate opacity, background {
             duration: 100ms;

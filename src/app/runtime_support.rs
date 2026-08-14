@@ -109,13 +109,11 @@ pub(crate) fn sync_floating_window_size_with_resize(
         TimerMode::SingleShot,
         Duration::from_millis(FLOATING_SIZE_SYNC_DEBOUNCE_MS),
         move || {
-            let guard = state_for_save.borrow_mut();
+            let mut guard = state_for_save.borrow_mut();
             if guard.settings.dock_edge.is_some() {
                 return;
             }
-            if let Err(error) = guard.settings.save(guard.workspace_name.as_deref()) {
-                tracing::warn!(%error, "failed to persist floating window size after resize");
-            }
+            let _ = crate::app::action_execution::persist_settings_snapshot(&mut guard);
             drop(guard);
             crate::app::secondary_windows::refresh_open_settings_window(&state_for_save);
         },
@@ -131,13 +129,7 @@ pub(crate) fn update_settings(
         let Some(change) = state.settings.update_persisted(mutate) else {
             return;
         };
-        if let Err(error) = state.settings.save(state.workspace_name.as_deref()) {
-            tracing::warn!(
-                %error,
-                workspace = ?state.workspace_name,
-                "failed to persist settings change"
-            );
-        }
+        let _ = crate::app::action_execution::persist_settings_snapshot(&mut state);
         (
             state.shell.hwnd,
             state.settings.snapshot(),
