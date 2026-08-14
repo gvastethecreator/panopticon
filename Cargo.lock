@@ -3358,7 +3358,7 @@ dependencies = [
 
 [[package]]
 name = "panopticon"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "anyhow",
  "raw-window-handle",

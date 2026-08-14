@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## [0.1.23] - 2026-08-14
+
 ### Changed
 
 - Updated direct dependencies to latest compatible releases: Slint 1.17.1, `toml` 1.1.4, `serde` 1.0.229, `serde_json` 1.0.151, `thiserror` 2.0.20, and `anyhow` 1.0.104; refreshed the compatible dependency graph through 2026-08-14.
@@ -11,10 +13,27 @@ All notable changes to this project will be documented in this file.
   maintenance contract; added `docs/QUALITY_AUDIT.md` with explicit native-runtime boundaries.
 - Migrated the private `.opencode` plugin workspace from npm lockfiles to pnpm 11.20.0 and updated
   `@opencode-ai/plugin` from 1.14.30 to 1.18.16; the folder remains intentionally ignored.
-- Local quality gates pass: 158 tests, clippy pedantic, release build, rustdoc, and `cargo audit`
+- Local quality gates pass: 170 tests, clippy pedantic, release build, rustdoc, and `cargo audit`
   with zero vulnerabilities; four transitive unmaintained-crate warnings remain documented as debt.
 - Replaced stale VS Code tasks with a short, locked Cargo task set and corrected `.gitignore` so `tasks.json` is tracked while local editor state stays ignored.
 - Refreshed maintenance docs and removed an unused Win32 icon-drawing helper.
+- Centralized eligible-window discovery in one process-aware catalog shared by the dashboard,
+  settings, tray, and command palette; regenerated and validated the code map.
+- Reduced idle work with adaptive 16/32/64 ms UI scheduling and elapsed-time DWM cadence; release
+  runtime evidence measured about 76% fewer idle DWM synchronizations.
+- Added accessible semantics and keyboard navigation to custom controls, thumbnails, settings, and
+  command-palette results; completed the critical English and Spanish UI copy.
+- Aligned filters, shortcuts, presets, empty states, workspace timestamps, spacing, and distribution
+  across Settings and the command palette.
+- Hardened GitHub update checks with timeouts, HTTP status validation, a 1 MiB response limit, and
+  cancellation; added exact 30-day retention for Panopticon-owned daily logs.
+
+### Fixed
+
+- Excluded Panopticon's own windows and localized `TextInputHost` surfaces from all discovery paths.
+- Avoided full settings clones and disk writes while refreshing runtime application labels.
+- Added visible persistence recovery and explicit, safe-default confirmations with typed results for
+  reset and process-termination actions.
 
 ## [0.1.22] - 2026-06-29
 
