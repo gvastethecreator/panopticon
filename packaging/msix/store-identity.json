@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "product": "Panopticon",
+  "reservationStatus": "pending",
+  "packageIdentity": {
+    "name": null,
+    "publisher": null,
+    "publisherDisplayName": null,
+    "packageFamilyName": null,
+    "packageSid": null
+  },
+  "store": {
+    "productId": null,
+    "deepLink": null,
+    "webStoreUrl": null
+  },
+  "developmentIdentity": {
+    "name": "GVASTETHECREATOR.Panopticon.Dev",
+    "publisher": "CN=PanopticonDev",
+    "publisherDisplayName": "GVASTETHECREATOR"
+  },
+  "notes": [
+    "Reserve Panopticon in Partner Center before producing a submission package.",
+    "Use scripts/Set-StoreIdentity.ps1 to apply exact values without trailing or non-breaking whitespace.",
+    "PFN and Package SID are derived verification values and must never be inserted into AppxManifest.xml."
+  ]
+}

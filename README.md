@@ -10,7 +10,7 @@ It discovers real top-level windows, renders their live previews, and lets you m
 - 👁️ switch between several layout strategies depending on the task.
 - 👁️ keep a persistent visual workspace with filters, grouping, and tags.
 - 👁️ hide the app in the tray and bring it back instantly when needed.
-- 👁️ local-first, with no accounts or telemetry; only the bounded GitHub release update check uses the network.
+- 👁️ local-first, with no accounts or telemetry; direct builds use a bounded GitHub release update check, while Store builds rely on Microsoft Store updates.
 - 👁️ **7 layout modes**: `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, and `Column`.
 - 👁️ **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
 - 👁️ **Grouping and filters** by app, monitor, title, class, and tag.
@@ -38,7 +38,13 @@ Dependency policy and reviewed changelogs live in [`docs/DEPENDENCIES.md`](docs/
 The current readiness and native-runtime limits are tracked in [`docs/project-readiness.md`](docs/project-readiness.md)
 and [`docs/QUALITY_AUDIT.md`](docs/QUALITY_AUDIT.md).
 
+## Microsoft Store preparation
 
+The Store channel has a separate MSIX identity, package builder, update policy, certification notes, listing copy, privacy policy, and release-evidence workflow. See [`docs/store/README.md`](docs/store/README.md).
+
+The Store package is deliberately blocked until Panopticon is reserved in Partner Center and the exact identity is applied. The direct ZIP/Inno release remains a separate channel and requires publisher-owned Authenticode signing for trusted public distribution.
+
+See [`PRIVACY.md`](PRIVACY.md) for the bilingual policy covering window metadata, DWM previews, local storage, logs, and channel-specific network behavior.
 
 ## First minute with Panopticon
 
@@ -50,7 +56,6 @@ and [`docs/QUALITY_AUDIT.md`](docs/QUALITY_AUDIT.md).
 6. Use the tray icon to hide/show the dashboard without closing it.
 
 ### Handy shortcuts
-
 
 | Input | Action |
 | --- | --- |
@@ -73,6 +78,7 @@ and [`docs/QUALITY_AUDIT.md`](docs/QUALITY_AUDIT.md).
 
 ---
 - For deep technical details, check the [docs](docs/README.md) folder.
+- For Microsoft Store publication, use the [Store runbook](docs/store/README.md).
 - For feature requests and suggestions, create an issue or submit a PR.
 - If you like this project, consider giving it a star or becoming a sponsor.
 ---
