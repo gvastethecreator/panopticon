@@ -1,0 +1,101 @@
+name: Store readiness
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/store-readiness.yml'
+      - 'PRIVACY.md'
+      - 'docs/store/**'
+      - 'packaging/msix/**'
+      - 'scripts/Build-StoreAssets.ps1'
+      - 'scripts/Build-StoreMsix.ps1'
+      - 'scripts/Set-StoreIdentity.ps1'
+      - 'scripts/Test-StoreReadiness.ps1'
+      - 'src/app/distribution.rs'
+      - 'src/app/mod.rs'
+      - 'src/app/runtime_support.rs'
+      - 'build.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/store-readiness.yml'
+      - 'PRIVACY.md'
+      - 'docs/store/**'
+      - 'packaging/msix/**'
+      - 'scripts/Build-StoreAssets.ps1'
+      - 'scripts/Build-StoreMsix.ps1'
+      - 'scripts/Set-StoreIdentity.ps1'
+      - 'scripts/Test-StoreReadiness.ps1'
+      - 'src/app/distribution.rs'
+      - 'src/app/mod.rs'
+      - 'src/app/runtime_support.rs'
+      - 'build.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: panopticon-store-readiness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Store structure
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate Store readiness
+        shell: pwsh
+        run: .\scripts\Test-StoreReadiness.ps1 -EvidencePath artifacts\store-readiness.json
+
+      - name: Upload readiness evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Panopticon-store-readiness
+          path: artifacts/store-readiness.json
+          if-no-files-found: error
+
+  build-store-msix:
+    name: Build x64 Store MSIX candidate
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: windows-latest
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Build Store MSIX candidate
+        shell: pwsh
+        run: .\scripts\Build-StoreMsix.ps1
+
+      - name: Upload Store review bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Panopticon-store-x64-${{ github.sha }}
+          path: artifacts/store/x64/*
+          if-no-files-found: error
+          retention-days: 14

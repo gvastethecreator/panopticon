@@ -7,6 +7,7 @@ pub mod animation_engine;
 pub mod cache;
 pub mod cli;
 pub mod command_palette;
+pub mod distribution;
 pub mod dock;
 pub mod dwm;
 pub mod global_hotkey;

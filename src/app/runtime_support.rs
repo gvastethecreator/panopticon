@@ -20,6 +20,21 @@ thread_local! {
 }
 
 pub(crate) fn request_update_check(state: &Rc<RefCell<AppState>>, user_initiated: bool) -> bool {
+    if crate::app::distribution::updates_managed_by_store() {
+        let current_version = format!("v{}", env!("CARGO_PKG_VERSION"));
+        state.borrow_mut().update_status = UpdateStatus::UpToDate {
+            latest_version: current_version,
+        };
+        crate::app::secondary_windows::refresh_open_settings_window(state);
+        crate::app::secondary_windows::refresh_open_about_window(state);
+        tracing::info!(
+            channel = crate::app::distribution::channel(),
+            user_initiated,
+            "package updates are managed by Microsoft Store; skipped GitHub release check"
+        );
+        return true;
+    }
+
     {
         let mut guard = state.borrow_mut();
         if matches!(guard.update_status, UpdateStatus::Checking) {

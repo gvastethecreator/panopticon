@@ -6,6 +6,12 @@ fn main() {
     #[cfg(target_os = "windows")]
     println!("cargo:rustc-link-arg=/STACK:8388608");
 
+    // `option_env!` in the binary controls whether package updates are handled
+    // by Microsoft Store or by the direct GitHub release channel. Make this
+    // input explicit so switching channels always invalidates Cargo's build
+    // fingerprint and cannot reuse the wrong executable.
+    println!("cargo:rerun-if-env-changed=PANOPTICON_DISTRIBUTION_CHANNEL");
+
     println!("cargo:rerun-if-changed=ui/main.slint");
     println!("cargo:rerun-if-changed=assets/icon.ico");
     println!("cargo:rerun-if-changed=assets/ui-icons");
