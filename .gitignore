@@ -1,5 +1,6 @@
 # ── Build artefacts ───────────────────────────────────────────
 /target/
+/artifacts/
 **/*.rs.bk
 /dist/
 /installer/output/
