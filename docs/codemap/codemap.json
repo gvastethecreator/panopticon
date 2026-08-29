@@ -1,330 +1,830 @@
 {
-  "generated_at": "2026-08-14T21:33:06Z",
-  "generated_from_commit": "954b7ba172faaa9a414acc9a4feb714acc30d02b",
+  "generated_at": "2026-08-29T02:54:13Z",
+  "generated_from_commit": "228fdfe8cba63aed14c8fe00b65f20c8c98c2dcb",
   "scope": [
     "."
   ],
   "nodes": [
     {
-      "id": "app-state",
-      "path": "src/state.rs",
-      "role": "Owns the central runtime state shared by the application services.",
-      "type": "module",
-      "boundary": "Application",
+      "id": "external-dependencies",
+      "path": "src/app/action_execution.rs",
+      "type": "external",
+      "boundary": "External",
       "entrypoints": [
-        "src/state.rs:pub(crate) struct AppState"
+        "src/app/action_execution.rs:panopticon"
       ],
       "tests": [],
-      "constraints": [
-        "UI and native callbacks share this state through Rc<RefCell<AppState>>."
+      "callers": [
+        {
+          "id": "other-modules",
+          "type": "imports"
+        },
+        {
+          "id": "src",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-command-palette",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-dock",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-dwm",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-model-sync",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-native-runtime",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-presentation",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-secondary-windows-dialogs",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-secondary-windows-settings-window",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-callbacks-app-rules",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-callbacks-runtime",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-preset-sync",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-ui",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-thumbnail-interactions",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-tray-actions",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-workspace",
+          "type": "imports"
+        }
       ],
+      "callees": [],
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/state.rs",
-            "symbol": "pub(crate) struct AppState"
+            "path": "src/app/action_execution.rs",
+            "symbol": "panopticon"
           }
         ]
       }
     },
     {
-      "id": "dwm-sync",
-      "path": "src/app/dwm.rs",
-      "role": "Creates, hydrates, updates, and releases DWM thumbnails for managed windows.",
-      "type": "service",
-      "boundary": "Native Integration",
+      "id": "other-modules",
+      "path": "src/app/cli.rs",
+      "type": "module",
+      "boundary": "Other Modules",
       "entrypoints": [
-        "src/app/dwm.rs:pub(crate) fn update_dwm_thumbnails"
+        "src/app/cli.rs:parse_startup_args_from"
       ],
       "tests": [],
-      "constraints": [
-        "DWM access remains behind the Thumbnail wrapper and guarded sync functions."
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-command-palette",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-callbacks-app-rules",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-callbacks-runtime",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/cli.rs",
+            "symbol": "parse_startup_args_from"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src",
+      "path": "src",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/lib.rs://! # Panopticon"
+      ],
+      "tests": [],
+      "callers": [],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/lib.rs",
+            "symbol": "//! # Panopticon"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app",
+      "path": "src/app",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/mod.rs://! Binary-only application helpers."
+      ],
+      "tests": [],
+      "callers": [
+        {
+          "id": "other-modules",
+          "type": "imports"
+        },
+        {
+          "id": "src",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-command-palette",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-model-sync",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-secondary-windows-dialogs",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-secondary-windows-settings-window",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-callbacks-app-rules",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-callbacks-runtime",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-preset-sync",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-tray-actions",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-workspace",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "other-modules",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-command-palette",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-dock",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-dwm",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-model-sync",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-native-runtime",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-presentation",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-thumbnail-interactions",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-tray-actions",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-workspace",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "//! Binary-only application helpers."
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-command-palette",
+      "path": "src/app/command_palette",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/command_palette/mod.rs:rebuild_filtered_commands"
+      ],
+      "tests": [],
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "other-modules",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/command_palette/mod.rs",
+            "symbol": "rebuild_filtered_commands"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-dock",
+      "path": "src/app/dock.rs",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/dock.rs:fn"
+      ],
+      "tests": [],
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/dock.rs",
+            "symbol": "fn"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-dwm",
+      "path": "src/app/dwm.rs",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/dwm.rs:enter"
+      ],
+      "tests": [],
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        }
       ],
       "evidence": {
         "status": "verified",
         "locations": [
           {
             "path": "src/app/dwm.rs",
-            "symbol": "pub(crate) fn update_dwm_thumbnails"
+            "symbol": "enter"
           }
         ]
       }
     },
     {
-      "id": "layout-engine",
-      "path": "src/layout.rs",
-      "role": "Computes deterministic rectangles and separators for all supported layouts.",
-      "type": "module",
-      "boundary": "Domain",
-      "entrypoints": [
-        "src/layout.rs:pub fn compute_layout_custom"
-      ],
-      "tests": [
-        "tests/layout_tests.rs"
-      ],
-      "constraints": [
-        "The engine stays independent from Slint and DWM."
-      ],
-      "evidence": {
-        "status": "verified",
-        "locations": [
-          {
-            "path": "src/layout.rs",
-            "symbol": "pub fn compute_layout_custom"
-          }
-        ]
-      }
-    },
-    {
-      "id": "layout-pipeline",
-      "path": "src/app/layout_pipeline.rs",
-      "role": "Adapts managed windows to the pure layout engine and applies target rectangles.",
-      "type": "service",
-      "boundary": "Application",
-      "entrypoints": [
-        "src/app/layout_pipeline.rs:pub(crate) fn compute_layout_rects"
-      ],
-      "tests": [],
-      "constraints": [
-        "This adapter contains no Slint or DWM operations."
-      ],
-      "evidence": {
-        "status": "verified",
-        "locations": [
-          {
-            "path": "src/app/layout_pipeline.rs",
-            "symbol": "pub(crate) fn compute_layout_rects"
-          }
-        ]
-      }
-    },
-    {
-      "id": "model-sync",
+      "id": "src-app-model-sync",
       "path": "src/app/model_sync.rs",
-      "role": "Coordinates layout recomputation, presentation state, and the Slint model projection.",
-      "type": "service",
-      "boundary": "Application",
+      "type": "module",
+      "boundary": "Src",
       "entrypoints": [
-        "src/app/model_sync.rs:pub(crate) fn recompute_and_update_ui"
+        "src/app/model_sync.rs:enter"
       ],
       "tests": [],
-      "constraints": [
-        "Reentrancy guards prevent nested layout and model synchronization."
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
       ],
       "evidence": {
         "status": "verified",
         "locations": [
           {
             "path": "src/app/model_sync.rs",
-            "symbol": "pub(crate) fn recompute_and_update_ui"
+            "symbol": "enter"
           }
         ]
       }
     },
     {
-      "id": "runtime-loop",
-      "path": "src/app/runtime_loop.rs",
-      "role": "Owns initialization, adaptive UI scheduling, refresh, and scrollbar timers for the desktop runtime.",
+      "id": "src-app-native-runtime",
+      "path": "src/app/native_runtime.rs",
       "type": "service",
-      "boundary": "Application",
+      "boundary": "Src",
       "entrypoints": [
-        "src/app/runtime_loop.rs:pub(crate) fn start"
+        "src/app/native_runtime.rs:configured_floating_window_size"
       ],
       "tests": [],
-      "constraints": [
-        "The self-rescheduling UI timer selects active, idle-visible, or hidden cadence and delegates work to explicit phases."
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        }
       ],
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/runtime_loop.rs",
-            "symbol": "pub(crate) fn start"
+            "path": "src/app/native_runtime.rs",
+            "symbol": "configured_floating_window_size"
           }
         ]
       }
     },
     {
-      "id": "slint-ui",
-      "path": "ui/main.slint",
-      "role": "Defines the main window and its observable thumbnail and resize-handle models.",
+      "id": "src-app-presentation",
+      "path": "src/app/presentation.rs",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/presentation.rs:derive_empty_state_context"
+      ],
+      "tests": [],
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/presentation.rs",
+            "symbol": "derive_empty_state_context"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-secondary-windows-dialogs",
+      "path": "src/app/secondary_windows/dialogs.rs",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/secondary_windows/dialogs.rs:sync_about_window_from_state"
+      ],
+      "tests": [],
+      "callers": [],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/secondary_windows/dialogs.rs",
+            "symbol": "sync_about_window_from_state"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-secondary-windows-settings-window",
+      "path": "src/app/secondary_windows/settings_window.rs",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/secondary_windows/settings_window.rs:enter"
+      ],
+      "tests": [],
+      "callers": [],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/secondary_windows/settings_window.rs",
+            "symbol": "enter"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-settings",
+      "path": "src/app/settings",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/settings/mod.rs:parse_rgb_hex"
+      ],
+      "tests": [],
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "other-modules",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-preset-sync",
+          "type": "imports"
+        },
+        {
+          "id": "src-app-settings-ui",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/mod.rs",
+            "symbol": "parse_rgb_hex"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-settings-callbacks-app-rules",
+      "path": "src/app/settings/callbacks/app_rules.rs",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/settings/callbacks/app_rules.rs:register_app_rules_select_app_callback"
+      ],
+      "tests": [],
+      "callers": [
+        {
+          "id": "other-modules",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/callbacks/app_rules.rs",
+            "symbol": "register_app_rules_select_app_callback"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-settings-callbacks-runtime",
+      "path": "src/app/settings/callbacks/runtime.rs",
+      "type": "service",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/settings/callbacks/runtime.rs:register_open_about_callback"
+      ],
+      "tests": [],
+      "callers": [
+        {
+          "id": "other-modules",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/callbacks/runtime.rs",
+            "symbol": "register_open_about_callback"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-settings-preset-sync",
+      "path": "src/app/settings/preset_sync.rs",
+      "type": "module",
+      "boundary": "Src",
+      "entrypoints": [
+        "src/app/settings/preset_sync.rs:persistence_feedback"
+      ],
+      "tests": [],
+      "callers": [
+        {
+          "id": "src-app-settings",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/preset_sync.rs",
+            "symbol": "persistence_feedback"
+          }
+        ]
+      }
+    },
+    {
+      "id": "src-app-settings-ui",
+      "path": "src/app/settings/ui.rs",
       "type": "interface",
-      "boundary": "Presentation",
+      "boundary": "Src",
       "entrypoints": [
-        "ui/main.slint:export component MainWindow"
+        "src/app/settings/ui.rs:MAX_THEME_PREVIEW_CARDS"
       ],
       "tests": [],
-      "constraints": [
-        "Native window behavior remains in Rust rather than declarative UI code."
+      "callers": [
+        {
+          "id": "src-app-settings",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        }
       ],
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "ui/main.slint",
-            "symbol": "export component MainWindow"
+            "path": "src/app/settings/ui.rs",
+            "symbol": "MAX_THEME_PREVIEW_CARDS"
           }
         ]
       }
     },
     {
-      "id": "thumbnail-model",
-      "path": "src/app/thumbnail_model_builder.rs",
-      "role": "Builds thumbnail and separator rows and writes them to the Slint models.",
-      "type": "interface",
-      "boundary": "Presentation",
+      "id": "src-app-thumbnail-interactions",
+      "path": "src/app/thumbnail_interactions.rs",
+      "type": "module",
+      "boundary": "Src",
       "entrypoints": [
-        "src/app/thumbnail_model_builder.rs:pub(crate) fn sync_model_to_slint"
+        "src/app/thumbnail_interactions.rs:KillProcessError"
       ],
       "tests": [],
-      "constraints": [
-        "Row updates use the fast path when model sizes do not change."
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        }
       ],
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/thumbnail_model_builder.rs",
-            "symbol": "pub(crate) fn sync_model_to_slint"
+            "path": "src/app/thumbnail_interactions.rs",
+            "symbol": "KillProcessError"
           }
         ]
       }
     },
     {
-      "id": "thumbnail-raii",
-      "path": "src/thumbnail.rs",
-      "role": "Wraps one DWM thumbnail handle and unregisters it on drop.",
-      "type": "service",
-      "boundary": "Native Integration",
+      "id": "src-app-tray-actions",
+      "path": "src/app/tray_actions.rs",
+      "type": "module",
+      "boundary": "Src",
       "entrypoints": [
-        "src/thumbnail.rs:pub struct Thumbnail"
+        "src/app/tray_actions.rs:app_action_for_tray_action"
       ],
       "tests": [],
-      "constraints": [
-        "Every unsafe DWM call has a local SAFETY explanation."
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
       ],
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/thumbnail.rs",
-            "symbol": "pub struct Thumbnail"
+            "path": "src/app/tray_actions.rs",
+            "symbol": "app_action_for_tray_action"
           }
         ]
       }
     },
     {
-      "id": "tick-phases",
-      "path": "src/app/tick_phases.rs",
-      "role": "Splits each UI tick into ordered actions, animation, refresh, and DWM phases.",
-      "type": "service",
-      "boundary": "Application",
+      "id": "src-app-workspace",
+      "path": "src/app/workspace.rs",
+      "type": "module",
+      "boundary": "Src",
       "entrypoints": [
-        "src/app/tick_phases.rs:pub(crate) fn sync_dwm"
+        "src/app/workspace.rs:workspace_status_summary"
       ],
       "tests": [],
-      "constraints": [
-        "Each phase exposes a small interface to the runtime loop."
+      "callers": [
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
+      ],
+      "callees": [
+        {
+          "id": "external-dependencies",
+          "type": "imports"
+        },
+        {
+          "id": "src-app",
+          "type": "imports"
+        }
       ],
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/tick_phases.rs",
-            "symbol": "pub(crate) fn sync_dwm"
-          }
-        ]
-      }
-    },
-    {
-      "id": "window-catalog",
-      "path": "src/app/window_catalog.rs",
-      "role": "Owns the canonical eligible-window snapshot reused by runtime, settings, tray, and command surfaces.",
-      "type": "service",
-      "boundary": "Application",
-      "entrypoints": [
-        "src/app/window_catalog.rs:pub(crate) struct WindowCatalogSnapshot"
-      ],
-      "tests": [],
-      "constraints": [
-        "All consumers read one generation instead of enumerating Win32 independently."
-      ],
-      "evidence": {
-        "status": "verified",
-        "locations": [
-          {
-            "path": "src/app/window_catalog.rs",
-            "symbol": "pub(crate) struct WindowCatalogSnapshot"
-          }
-        ]
-      }
-    },
-    {
-      "id": "window-enumeration",
-      "path": "src/window_enum.rs",
-      "role": "Enumerates top-level Win32 windows, caches process metadata, and enforces canonical eligibility.",
-      "type": "service",
-      "boundary": "Native Integration",
-      "entrypoints": [
-        "src/window_enum.rs:pub fn enumerate_windows"
-      ],
-      "tests": [],
-      "constraints": [
-        "The current process and known system input hosts are excluded before application consumers see the snapshot."
-      ],
-      "evidence": {
-        "status": "verified",
-        "locations": [
-          {
-            "path": "src/window_enum.rs",
-            "symbol": "pub fn enumerate_windows"
-          }
-        ]
-      }
-    },
-    {
-      "id": "window-sync",
-      "path": "src/app/window_sync.rs",
-      "role": "Refreshes the canonical catalog, applies user filters, and reconciles it into the managed collection.",
-      "type": "service",
-      "boundary": "Application",
-      "entrypoints": [
-        "src/app/window_sync.rs:pub(crate) fn refresh_windows"
-      ],
-      "tests": [],
-      "constraints": [
-        "Native eligibility is owned by enumeration; this service owns only settings-backed filters and reconciliation."
-      ],
-      "evidence": {
-        "status": "verified",
-        "locations": [
-          {
-            "path": "src/app/window_sync.rs",
-            "symbol": "pub(crate) fn refresh_windows"
-          }
-        ]
-      }
-    },
-    {
-      "id": "windows-api",
-      "path": "Cargo.toml",
-      "role": "Provides the Win32, DWM, Shell, GDI, registry, and input APIs used by Panopticon.",
-      "type": "external",
-      "boundary": "External",
-      "entrypoints": [
-        "Cargo.toml:[dependencies.windows]"
-      ],
-      "tests": [],
-      "constraints": [
-        "Panopticon supports Windows 10 and Windows 11 only."
-      ],
-      "evidence": {
-        "status": "verified",
-        "locations": [
-          {
-            "path": "Cargo.toml",
-            "symbol": "[dependencies.windows]"
+            "path": "src/app/workspace.rs",
+            "symbol": "workspace_status_summary"
           }
         ]
       }
@@ -332,271 +832,777 @@
   ],
   "edges": [
     {
-      "from": "dwm-sync",
-      "to": "app-state",
-      "type": "writes",
+      "from": "other-modules",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/action_execution.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/action_handlers.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/actions.rs",
+            "symbol": "panopticon"
+          }
+        ]
+      }
+    },
+    {
+      "from": "other-modules",
+      "to": "src-app",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/icon.rs",
+            "symbol": "app"
+          },
+          {
+            "path": "src/app/keyboard_actions.rs",
+            "symbol": "app"
+          },
+          {
+            "path": "src/app/secondary_windows/placement.rs",
+            "symbol": "app"
+          }
+        ]
+      }
+    },
+    {
+      "from": "other-modules",
+      "to": "src-app-settings-callbacks-app-rules",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/callbacks/mod.rs",
+            "symbol": "app_rules"
+          }
+        ]
+      }
+    },
+    {
+      "from": "other-modules",
+      "to": "src-app-settings-callbacks-runtime",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/callbacks/mod.rs",
+            "symbol": "runtime"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/error.rs",
+            "symbol": "thiserror"
+          },
+          {
+            "path": "src/i18n.rs",
+            "symbol": "serde"
+          },
+          {
+            "path": "src/layout.rs",
+            "symbol": "serde"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src",
+      "to": "src-app",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/main.rs",
+            "symbol": "app"
+          },
+          {
+            "path": "src/state.rs",
+            "symbol": "app"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "other-modules",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "action_execution"
+          },
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "action_handlers"
+          },
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "actions"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-command-palette",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "command_palette"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-dock",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "dock"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-dwm",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "dwm"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-model-sync",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "model_sync"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-native-runtime",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "native_runtime"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-presentation",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "presentation"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-settings",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "settings"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-thumbnail-interactions",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "thumbnail_interactions"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-tray-actions",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "tray_actions"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app",
+      "to": "src-app-workspace",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/mod.rs",
+            "symbol": "workspace"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-command-palette",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/command_palette/mod.rs",
+            "symbol": "slint"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-command-palette",
+      "to": "other-modules",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/command_palette/mod.rs",
+            "symbol": "catalog"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-command-palette",
+      "to": "src-app",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/command_palette/mod.rs",
+            "symbol": "app"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-dock",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/dock.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/dock.rs",
+            "symbol": "windows"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-dwm",
+      "to": "external-dependencies",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
             "path": "src/app/dwm.rs",
-            "symbol": "state.try_borrow_mut()"
-          }
-        ]
-      }
-    },
-    {
-      "from": "dwm-sync",
-      "to": "thumbnail-raii",
-      "type": "calls",
-      "evidence": {
-        "status": "verified",
-        "locations": [
+            "symbol": "slint"
+          },
           {
             "path": "src/app/dwm.rs",
-            "symbol": "Thumbnail::register(owner, mw.info.hwnd)"
-          }
-        ]
-      }
-    },
-    {
-      "from": "layout-pipeline",
-      "to": "layout-engine",
-      "type": "calls",
-      "evidence": {
-        "status": "verified",
-        "locations": [
+            "symbol": "windows"
+          },
           {
-            "path": "src/app/layout_pipeline.rs",
-            "symbol": "compute_layout_custom("
+            "path": "src/app/dwm.rs",
+            "symbol": "panopticon"
           }
         ]
       }
     },
     {
-      "from": "model-sync",
-      "to": "app-state",
-      "type": "writes",
+      "from": "src-app-model-sync",
+      "to": "external-dependencies",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
             "path": "src/app/model_sync.rs",
-            "symbol": "app_state.borrow_mut()"
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/model_sync.rs",
+            "symbol": "slint"
+          },
+          {
+            "path": "src/app/model_sync.rs",
+            "symbol": "windows"
           }
         ]
       }
     },
     {
-      "from": "model-sync",
-      "to": "layout-pipeline",
-      "type": "calls",
+      "from": "src-app-model-sync",
+      "to": "src-app",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
             "path": "src/app/model_sync.rs",
-            "symbol": "super::layout_pipeline::compute_layout_rects("
+            "symbol": "app"
           }
         ]
       }
     },
     {
-      "from": "model-sync",
-      "to": "thumbnail-model",
-      "type": "calls",
+      "from": "src-app-native-runtime",
+      "to": "external-dependencies",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/model_sync.rs",
-            "symbol": "super::thumbnail_model_builder::sync_model_to_slint"
+            "path": "src/app/native_runtime.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/native_runtime.rs",
+            "symbol": "raw_window_handle"
+          },
+          {
+            "path": "src/app/native_runtime.rs",
+            "symbol": "slint"
           }
         ]
       }
     },
     {
-      "from": "runtime-loop",
-      "to": "model-sync",
-      "type": "calls",
+      "from": "src-app-presentation",
+      "to": "external-dependencies",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/runtime_loop.rs",
-            "symbol": "super::model_sync::recompute_and_update_ui(state, &win)"
+            "path": "src/app/presentation.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/presentation.rs",
+            "symbol": "slint"
           }
         ]
       }
     },
     {
-      "from": "runtime-loop",
-      "to": "tick-phases",
-      "type": "calls",
+      "from": "src-app-secondary-windows-dialogs",
+      "to": "external-dependencies",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/runtime_loop.rs",
-            "symbol": "sync_dwm(state, &win, should_sync_dwm)"
+            "path": "src/app/secondary_windows/dialogs.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/secondary_windows/dialogs.rs",
+            "symbol": "slint"
+          },
+          {
+            "path": "src/app/secondary_windows/dialogs.rs",
+            "symbol": "windows"
           }
         ]
       }
     },
     {
-      "from": "runtime-loop",
-      "to": "window-sync",
-      "type": "calls",
+      "from": "src-app-secondary-windows-dialogs",
+      "to": "src-app",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/runtime_loop.rs",
-            "symbol": "refresh_windows(&state)"
+            "path": "src/app/secondary_windows/dialogs.rs",
+            "symbol": "app"
           }
         ]
       }
     },
     {
-      "from": "thumbnail-model",
-      "to": "slint-ui",
-      "type": "writes",
+      "from": "src-app-secondary-windows-settings-window",
+      "to": "external-dependencies",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/thumbnail_model_builder.rs",
-            "symbol": "win.set_thumbnails"
+            "path": "src/app/secondary_windows/settings_window.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/secondary_windows/settings_window.rs",
+            "symbol": "slint"
+          },
+          {
+            "path": "src/app/secondary_windows/settings_window.rs",
+            "symbol": "windows"
           }
         ]
       }
     },
     {
-      "from": "thumbnail-raii",
-      "to": "windows-api",
-      "type": "calls",
+      "from": "src-app-secondary-windows-settings-window",
+      "to": "src-app",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/thumbnail.rs",
-            "symbol": "DwmUpdateThumbnailProperties"
+            "path": "src/app/secondary_windows/settings_window.rs",
+            "symbol": "app"
           }
         ]
       }
     },
     {
-      "from": "tick-phases",
-      "to": "dwm-sync",
-      "type": "calls",
+      "from": "src-app-settings",
+      "to": "external-dependencies",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/tick_phases.rs",
-            "symbol": "super::dwm::update_dwm_thumbnails(state, win)"
+            "path": "src/app/settings/mod.rs",
+            "symbol": "slint"
           }
         ]
       }
     },
     {
-      "from": "window-catalog",
-      "to": "window-enumeration",
-      "type": "calls",
+      "from": "src-app-settings",
+      "to": "other-modules",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/window_catalog.rs",
-            "symbol": "self.windows = enumerate_windows()"
+            "path": "src/app/settings/mod.rs",
+            "symbol": "app_rules_sync"
+          },
+          {
+            "path": "src/app/settings/mod.rs",
+            "symbol": "apply_effects"
+          },
+          {
+            "path": "src/app/settings/mod.rs",
+            "symbol": "callbacks"
           }
         ]
       }
     },
     {
-      "from": "window-enumeration",
-      "to": "windows-api",
-      "type": "calls",
+      "from": "src-app-settings",
+      "to": "src-app-settings-preset-sync",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/window_enum.rs",
-            "symbol": "EnumWindows"
+            "path": "src/app/settings/mod.rs",
+            "symbol": "preset_sync"
           }
         ]
       }
     },
     {
-      "from": "window-sync",
-      "to": "app-state",
-      "type": "writes",
+      "from": "src-app-settings",
+      "to": "src-app-settings-ui",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/window_sync.rs",
-            "symbol": "state.borrow_mut()"
+            "path": "src/app/settings/mod.rs",
+            "symbol": "ui"
           }
         ]
       }
     },
     {
-      "from": "window-sync",
-      "to": "window-catalog",
-      "type": "calls",
+      "from": "src-app-settings-callbacks-app-rules",
+      "to": "external-dependencies",
+      "type": "imports",
       "evidence": {
         "status": "verified",
         "locations": [
           {
-            "path": "src/app/window_sync.rs",
-            "symbol": "state.window_collection.catalog.refresh()"
+            "path": "src/app/settings/callbacks/app_rules.rs",
+            "symbol": "panopticon"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-settings-callbacks-app-rules",
+      "to": "src-app",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/callbacks/app_rules.rs",
+            "symbol": "app"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-settings-callbacks-runtime",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/callbacks/runtime.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/settings/callbacks/runtime.rs",
+            "symbol": "slint"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-settings-callbacks-runtime",
+      "to": "src-app",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/callbacks/runtime.rs",
+            "symbol": "app"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-settings-preset-sync",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/preset_sync.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/settings/preset_sync.rs",
+            "symbol": "slint"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-settings-preset-sync",
+      "to": "src-app",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/preset_sync.rs",
+            "symbol": "app"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-settings-ui",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/settings/ui.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/settings/ui.rs",
+            "symbol": "slint"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-thumbnail-interactions",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/thumbnail_interactions.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/thumbnail_interactions.rs",
+            "symbol": "slint"
+          },
+          {
+            "path": "src/app/thumbnail_interactions.rs",
+            "symbol": "windows"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-tray-actions",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/tray_actions.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/tray_actions.rs",
+            "symbol": "slint"
+          },
+          {
+            "path": "src/app/tray_actions.rs",
+            "symbol": "windows"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-tray-actions",
+      "to": "src-app",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/tray_actions.rs",
+            "symbol": "app"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-workspace",
+      "to": "external-dependencies",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/workspace.rs",
+            "symbol": "panopticon"
+          },
+          {
+            "path": "src/app/workspace.rs",
+            "symbol": "slint"
+          },
+          {
+            "path": "src/app/workspace.rs",
+            "symbol": "windows"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-app-workspace",
+      "to": "src-app",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/app/workspace.rs",
+            "symbol": "app"
           }
         ]
       }
     }
   ],
-  "flows": [
-    {
-      "trigger": "The periodic refresh timer fires",
-      "steps": [
-        "runtime-loop",
-        "window-sync",
-        "window-catalog",
-        "window-enumeration",
-        "windows-api"
-      ],
-      "outcome": "Panopticon discovers current top-level windows before managed-state reconciliation."
-    },
-    {
-      "trigger": "A resize or window refresh requires a new layout",
-      "steps": [
-        "runtime-loop",
-        "model-sync",
-        "layout-pipeline",
-        "layout-engine"
-      ],
-      "outcome": "The pure layout engine returns rectangles and separators for the current windows."
-    },
-    {
-      "trigger": "The application projects managed windows to the UI",
-      "steps": [
-        "model-sync",
-        "thumbnail-model",
-        "slint-ui"
-      ],
-      "outcome": "The Slint thumbnail and resize-handle models contain the current presentation rows."
-    },
-    {
-      "trigger": "A UI tick requires native thumbnail synchronization",
-      "steps": [
-        "runtime-loop",
-        "tick-phases",
-        "dwm-sync",
-        "thumbnail-raii",
-        "windows-api"
-      ],
-      "outcome": "DWM receives the current destination rectangles and visibility for live thumbnails."
-    }
-  ]
+  "flows": []
 }

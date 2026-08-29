@@ -5,7 +5,7 @@
 build:
     cargo build --locked
 
-# 🚀 Build (release, optimised)
+# 🚀 Build (release, optimized)
 release:
     cargo build --release --locked
 
@@ -52,7 +52,7 @@ run:
 run-release:
     cargo run --release --locked
 
-# 🧼 Remove build artefacts
+# 🧼 Remove build artifacts
 clean:
     cargo clean
 

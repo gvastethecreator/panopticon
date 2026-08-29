@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide covers how to compile, run, and understand the initial flow of Panopticon without having to read through the entire source code first.
+Compile, run, and complete a first session of Panopticon.
 
 ## Requirements
 
@@ -41,7 +41,7 @@ You can also use `--workspace=work`, inspect the CLI with `--help`, or print the
 
 In a normal session, Panopticon does the following:
 
-1. initialises logging in `%TEMP%\panopticon\logs\`;
+1. initializes logging in `%TEMP%\panopticon\logs\`;
 2. activates per-monitor DPI awareness;
 3. loads settings and the active workspace from TOML;
 4. creates the main Slint window;
@@ -58,7 +58,7 @@ If `start_in_tray = true`, the application finishes startup hidden in the tray.
 On a correct first start:
 
 - a main window with a bottom status bar;
-- dark cards with a colour stripe at the top;
+- dark cards with a color stripe at the top;
 - live thumbnails inside each card;
 - an icon in the system tray;
 - visible and hidden window counts in the status bar.
@@ -72,7 +72,7 @@ If there are no candidate windows, the UI shows an empty state.
 3. Right-click a thumbnail to open the per-window menu.
 4. Hide an application from the layout, then restore it from the tray.
 5. Create a tag from an application.
-6. Open `Settings` with `O` and review language, filters, theme, background options, shortcuts, and workspaces; click the sidebar mascot to open About and check update status.
+6. Open `Settings` with `O` and review filters, theme, background options, shortcuts, and workspaces. Click the sidebar mascot to open About and check update status.
 7. Try `T` to toggle between themes.
 8. Press `F1` while the dashboard is focused to open the About window.
 9. If using `Row` or `Column`, scroll with the wheel or middle-button drag.

@@ -2,22 +2,20 @@
 
 ![Panopticon preview](assets/panopticon.webp)
 
-This folder contains the **full documentation hub** for Panopticon.
-
-The root [`README.md`](../README.md) is now the short, public-friendly landing page. This document is the more complete guide for users and contributors who want context, structure, and pointers to the right files without guessing where to start.
+This folder is the documentation hub. The root [`README.md`](../README.md) is the short public landing page. Use the map below to open the right file.
 
 ## What Panopticon is
 
-Panopticon is a native Windows application that shows your open windows as **live DWM thumbnails** inside a single dashboard. It is designed as a local productivity utility: a control room where you can scan, group, filter, activate, and customise open applications without relying on screenshots, cloud services, or a background server.
+Panopticon is a native Windows application that shows your open windows as **live DWM thumbnails** inside a single dashboard. It is designed as a local productivity utility: a control room where you can scan, group, filter, activate, and customize open applications without relying on screenshots, cloud services, or a background server.
 
 At a glance, Panopticon provides:
 
 - live previews powered by the Windows compositor;
 - multiple mathematical layouts for arranging windows;
 - per-application rules for visibility, color, tags, and refresh strategy;
-- tray-first behaviour and optional appbar/dock mode;
+- tray-first behavior and optional appbar/dock mode;
 - persistent settings and named workspaces;
-- a Slint UI with English and Spanish support.
+- an English-only Slint UI across the dashboard, settings, tray, dialogs, and command palette.
 
 ## Choose your path
 
@@ -48,7 +46,7 @@ Read [`PRD.md`](PRD.md).
 
 When Panopticon starts, it typically:
 
-1. initialises logging;
+1. initializes logging;
 2. loads the active configuration/workspace;
 3. creates the main Slint window;
 4. acquires the native `HWND` and applies window appearance;
@@ -65,7 +63,7 @@ When Panopticon starts, it typically:
 | Live previews | Uses `DwmRegisterThumbnail` / `DwmUpdateThumbnailProperties` |
 | Layouts | Supports `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, `Column` |
 | Interaction | Activate windows, open native menus, drag separators, use tray actions |
-| Persistence | Saves global settings, per-app rules, tag styles, and layout customisations |
+| Persistence | Saves global settings, per-app rules, tag styles, and layout customizations |
 | Theming | Loads themes from `assets/themes.json` and supports animated transitions |
 | Docking | Can operate as an appbar on a screen edge |
 
@@ -150,10 +148,10 @@ Use this table when you know the question you want answered.
 
 | Document | Read it when you need... |
 | --- | --- |
-| [`GETTING_STARTED.md`](GETTING_STARTED.md) | installation steps, first-run behaviour, shortcuts, and common issues |
-| [`CONFIGURATION.md`](CONFIGURATION.md) | all config keys, workspace behaviour, tags, and layout persistence |
+| [`GETTING_STARTED.md`](GETTING_STARTED.md) | installation steps, first-run behavior, shortcuts, and common issues |
+| [`CONFIGURATION.md`](CONFIGURATION.md) | all config keys, workspace behavior, tags, and layout persistence |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | a system view of runtime layers, startup flow, and key design decisions |
-| [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | code-level behaviour of modules, state, timers, DWM syncing, tray, and dock |
+| [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | code-level behavior of modules, state, timers, DWM syncing, tray, and dock |
 | [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | where files live, what each folder owns, and which paths are editable |
 | [`SYSTEM_INTEGRATIONS.md`](SYSTEM_INTEGRATIONS.md) | Win32/DWM/Shell/GDI usage, dependencies, and operational constraints |
 | [`UX_DESIGN.md`](UX_DESIGN.md) | user-facing surfaces, interactions, layout mental model, and visual language |
@@ -174,16 +172,16 @@ cargo build --release --locked
 cargo doc --no-deps --locked
 ```
 
-The root `Justfile` wraps the same commands, including `just ci` for the complete local gate. VS Code users can run the equivalent sequence from [`../.vscode/tasks.json`](../.vscode/tasks.json) with `♻️ ci`.
+The root `Justfile` wraps the same commands, including `just ci` for the complete local gate. VS Code users can run the equivalent sequence from [`../.vscode/tasks.json`](../.vscode/tasks.json) with `♻️ CI`.
 
 Current automated coverage is strongest around:
 
-- layout behaviour;
-- settings normalisation;
+- layout behavior;
+- settings normalization;
 - theme logic;
 - i18n helpers.
 
-Native integrations such as tray behaviour, DWM registration, Win32 menus, and window enumeration are more dependent on manual/runtime validation.
+Native integrations such as tray behavior, DWM registration, Win32 menus, and window enumeration are more dependent on manual/runtime validation.
 
 ## Known boundaries
 
@@ -195,7 +193,7 @@ Panopticon currently assumes:
 - **no Linux/macOS support**;
 - **no remote backend or multi-user collaboration model**.
 
-Dock/appbar mode is also a special runtime mode, so some behaviours intentionally differ from floating-window mode.
+Dock/appbar mode is also a special runtime mode, so some behaviors intentionally differ from floating-window mode.
 
 ## Related project files
 
@@ -205,4 +203,4 @@ Dock/appbar mode is also a special runtime mode, so some behaviours intentionall
 - [`../CHANGELOG.md`](../CHANGELOG.md)
 - [`../LICENSE`](../LICENSE)
 
-If you only wanted the short overview, head back to [`../README.md`](../README.md). If you want to keep digging, the documents above are your map instead of a maze.
+For the short overview, go back to [`../README.md`](../README.md).

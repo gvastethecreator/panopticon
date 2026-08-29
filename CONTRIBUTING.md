@@ -32,7 +32,7 @@ cargo build --release --locked
 cargo doc --no-deps --locked
 ```
 
-The repository pins Rust in `rust-toolchain.toml`; use that toolchain for local checks. VS Code users can run the same workflow from `.vscode/tasks.json`, especially `♻️ ci`.
+The repository pins Rust in `rust-toolchain.toml`; use that toolchain for local checks. VS Code users can run the same workflow from `.vscode/tasks.json`, especially `♻️ CI`.
 
 ### `unsafe`
 
@@ -43,7 +43,7 @@ Every `unsafe` block must document its invariant with a `// SAFETY:` comment.
 If you change a user-visible feature:
 
 - update `README.md`,
-- document the new or changed behaviour,
+- document the new or changed behavior,
 - add tests if the change touches pure logic or persistence.
 
 ### PR style

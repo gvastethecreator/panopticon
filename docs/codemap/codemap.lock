@@ -1,19 +1,22 @@
 {
-  "source_commit": "954b7ba172faaa9a414acc9a4feb714acc30d02b",
+  "source_commit": "228fdfe8cba63aed14c8fe00b65f20c8c98c2dcb",
   "working_tree_dirty": true,
-  "generated_at": "2026-08-14T21:33:06Z",
+  "generated_at": "2026-08-29T02:54:13Z",
   "scanned_scope": [
     "."
   ],
   "excluded_directories": [
+    ".agents",
     ".cache",
     ".git",
     ".hg",
     ".next",
     ".nuxt",
+    ".obsidian",
     ".svn",
     ".turbo",
     ".venv",
+    ".vscode",
     "__pycache__",
     "build",
     "coverage",
@@ -26,61 +29,55 @@
     "vendor",
     "venv"
   ],
-  "fingerprint_algorithm": "sha256-path-content-v1",
+  "fingerprint_algorithm": "sha256-path-content-v2",
   "modules": [
     {
       "id": ".",
       "path": ".",
       "file_count": 16,
-      "fingerprint": "e06fba533841f609e8ef3ea46c86c677e6e5876f8a6bab1d57529cd0002b1349"
+      "fingerprint": "cc4f7ceebce254112ba2334c142dc3c75baa81a262d11890791372da031beb9a"
     },
     {
       "id": ".github",
       "path": ".github",
       "file_count": 11,
-      "fingerprint": "131d172471c841a3f06ece515153dfd3315328d910c64202767c87d1ca0e86a5"
-    },
-    {
-      "id": ".vscode",
-      "path": ".vscode",
-      "file_count": 1,
-      "fingerprint": "eb2510005a4061017005f81d2622daaac446099966aca5f655bdaad35b7c06e3"
+      "fingerprint": "d79c97835f094a85b6a0ee2fff13dbd942474569888410e866a2ddbeddc4c5e3"
     },
     {
       "id": "assets",
       "path": "assets",
       "file_count": 72,
-      "fingerprint": "98ee6559699f880f4bdb51be699b49745888628259bdb2b6a6d6625c80d6aeaf"
+      "fingerprint": "b44fb1b77d4f13b565ab9e9d97671a332158b2b03216d7da07844ffcec7543cd"
     },
     {
       "id": "docs",
       "path": "docs",
-      "file_count": 24,
-      "fingerprint": "7d13266dd9624450795d1db6000193b801b5ae166ae356756a99347a81c16788"
+      "file_count": 27,
+      "fingerprint": "bd0374e423ec3a22443c1a5d96aaeeb7d25647f02e6d1d4ba6a132d315e07223"
     },
     {
       "id": "installer",
       "path": "installer",
       "file_count": 1,
-      "fingerprint": "074bbc52f042f64cf838a37c040cdd8c81a7a254fa787cedc334580e06f8530f"
+      "fingerprint": "403acc36ddb5422680164cfb387b6119451d250d7bf14c0f36e64b16b8cdca0b"
     },
     {
       "id": "src",
       "path": "src",
-      "file_count": 83,
-      "fingerprint": "9211a8fb1f3b163162cb5f307d1eabb37ee1be2ecd3b460205bd2cea0a24eacc"
+      "file_count": 84,
+      "fingerprint": "bc4e2199533121fd95af2c548cf264c718cb3f2d14b14667c3959c895523d4e2"
     },
     {
       "id": "tests",
       "path": "tests",
       "file_count": 4,
-      "fingerprint": "d048507e5fcb7111f6dd0ee3d676e273b8fe6a91cbc6416231f27ceebde1dc00"
+      "fingerprint": "f59a4d67d42f8c3f5d6f59bd56320ad194ae89a063f23c15b8de62c3df20eb44"
     },
     {
       "id": "ui",
       "path": "ui",
       "file_count": 12,
-      "fingerprint": "416d7c6f9fcadbec87829add0eb50884c76f257fa235bc4a3ffdb1ce6ddd961c"
+      "fingerprint": "6f4894b7156de32cdc09e24f9a0db0e9fe691dec78341b72190d3a856c02176b"
     }
   ]
 }

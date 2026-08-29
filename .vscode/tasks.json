@@ -2,58 +2,25 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "▶️ dev",
+            "label": "▶️ Dev",
             "type": "shell",
             "command": "cargo",
             "args": ["run", "--locked"],
-            "problemMatcher": ["$rustc"],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
+            "problemMatcher": ["$rustc"]
         },
         {
-            "label": "🔍 check",
-            "type": "shell",
-            "command": "cargo",
-            "args": ["check", "--locked"],
-            "problemMatcher": ["$rustc"],
-            "group": "build"
-        },
-        {
-            "label": "📦 deps",
-            "type": "shell",
-            "command": "cargo",
-            "args": ["update", "--dry-run"],
-            "problemMatcher": [],
-            "group": "build"
-        },
-        {
-            "label": "🛠️ build",
-            "type": "shell",
-            "command": "cargo",
-            "args": ["build", "--locked"],
-            "problemMatcher": ["$rustc"],
-            "group": "build"
-        },
-        {
-            "label": "🚀 rel",
-            "type": "shell",
-            "command": "cargo",
-            "args": ["build", "--release", "--locked"],
-            "problemMatcher": ["$rustc"],
-            "group": "build"
-        },
-        {
-            "label": "🧪 test",
+            "label": "🧪 Test",
             "type": "shell",
             "command": "cargo",
             "args": ["test", "--all-targets", "--locked"],
             "problemMatcher": ["$rustc"],
-            "group": "test"
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
         },
         {
-            "label": "🧹 lint",
+            "label": "🧹 Lint",
             "type": "shell",
             "command": "cargo",
             "args": [
@@ -70,21 +37,48 @@
             "group": "test"
         },
         {
-            "label": "🎨 fmt",
+            "label": "🎨 Format",
             "type": "shell",
             "command": "cargo",
             "args": ["fmt"],
             "group": "build"
         },
         {
-            "label": "✅ fmt-check",
+            "label": "✅ Format check",
             "type": "shell",
             "command": "cargo",
             "args": ["fmt", "--", "--check"],
             "group": "build"
         },
         {
-            "label": "📚 docs",
+            "label": "🔍 Check",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["check", "--locked"],
+            "problemMatcher": ["$rustc"],
+            "group": "build"
+        },
+        {
+            "label": "🛠️ Build",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["build", "--locked"],
+            "problemMatcher": ["$rustc"],
+            "group": "build"
+        },
+        {
+            "label": "🚀 Release",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["build", "--release", "--locked"],
+            "problemMatcher": ["$rustc"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "📚 Docs",
             "type": "shell",
             "command": "cargo",
             "args": ["doc", "--no-deps", "--locked"],
@@ -92,8 +86,8 @@
             "group": "build"
         },
         {
-            "label": "🔐 audit",
-            "detail": "Audita Cargo.lock; mantiene warnings unmaintained transitivos visibles",
+            "label": "🔐 Audit",
+            "detail": "Audit Cargo.lock. Keep unmaintained transitive warnings visible.",
             "type": "shell",
             "command": "cargo",
             "args": ["audit"],
@@ -101,23 +95,31 @@
             "group": "test"
         },
         {
-            "label": "🧼 clean",
+            "label": "📦 Deps",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["update", "--dry-run"],
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "🧼 Clean",
             "type": "shell",
             "command": "cargo",
             "args": ["clean"],
             "group": "build"
         },
         {
-            "label": "♻️ ci",
+            "label": "♻️ CI",
             "dependsOrder": "sequence",
             "dependsOn": [
-                "✅ fmt-check",
-                "🔍 check",
-                "🧹 lint",
-                "🧪 test",
-                "🚀 rel",
-                "📚 docs",
-                "🔐 audit"
+                "✅ Format check",
+                "🔍 Check",
+                "🧹 Lint",
+                "🧪 Test",
+                "🚀 Release",
+                "📚 Docs",
+                "🔐 Audit"
             ],
             "presentation": {
                 "reveal": "always",

@@ -14,7 +14,7 @@ This project follows a simple policy: respectful, technical, and constructive co
 - personal attacks,
 - harassment,
 - discrimination,
-- repeated hostile behaviour.
+- repeated hostile behavior.
 
 ## Enforcement
 

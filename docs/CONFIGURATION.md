@@ -1,6 +1,6 @@
 # Configuration
 
-Panopticon stores its preferences in local TOML files. There is no database or remote synchronisation: the persisted configuration belongs to the local project/user on Windows.
+Panopticon stores its preferences in local TOML files. There is no database or remote synchronization. The persisted configuration belongs to the local Windows user.
 
 ## Configuration locations
 
@@ -132,11 +132,11 @@ row_ratios = [0.6, 0.4]
 
 | Key | Type | Default | Runtime effect | Notes |
 | --- | --- | --- | --- | --- |
-| `language` | `Locale` | `English` | selects the application UI language | supported values: `english`, `spanish`; `PANOPTICON_LANG` can override it at runtime |
+| `language` | `Locale` | `English` | persisted locale field; runtime UI is English-only | `english` is stored for new workspaces; legacy `spanish` deserializes then normalizes to English; `PANOPTICON_LANG` cannot override the product language |
 | `initial_layout` | `LayoutType` | `Grid` | active layout at startup | also updated when changing layout at runtime |
-| `refresh_interval_ms` | `u32` | `2000` | frequency of `refresh_windows()` | normalised to `1000`, `2000`, `5000`, or `10000` |
+| `refresh_interval_ms` | `u32` | `2000` | frequency of `refresh_windows()` | normalized to `1000`, `2000`, `5000`, or `10000` |
 | `refresh_performance_mode` | `RefreshPerformanceMode` | `balanced` | high-level refresh preset for global discovery cadence | `realtime`→`1000`, `balanced`→`2000`, `battery-saver`→`5000`, `manual` keeps `refresh_interval_ms` |
-| `minimize_to_tray` | `bool` | `true` | minimise hides the app to tray | affects `WM_SIZE` |
+| `minimize_to_tray` | `bool` | `true` | minimize hides the app to tray | affects `WM_SIZE` |
 | `close_to_tray` | `bool` | `true` | close hides the app to tray | affects `WM_CLOSE` |
 | `preserve_aspect_ratio` | `bool` | `false` | global default for thumbnails | can be overridden per app |
 | `hide_on_select` | `bool` | `true` | hides Panopticon when activating an app | effectively disabled in dock mode |
@@ -153,7 +153,7 @@ row_ratios = [0.6, 0.4]
 | `dock_column_thickness` | `Option<u32>` | `None` | dock thickness for left/right mode | clamped to at least `180` when set |
 | `dock_row_thickness` | `Option<u32>` | `None` | dock thickness for top/bottom mode | clamped to at least `120` when set |
 | `theme_id` | `Option<String>` | `Some("campbell")` | selects a preset from `assets/themes.json` | new profiles default to `campbell`; `None` = classic theme |
-| `background_color_hex` | `String` | `0C0C0C` | base client colour | defaults to Campbell's background for new profiles; classic still uses this as its fallback background |
+| `background_color_hex` | `String` | `0C0C0C` | base client color | defaults to Campbell's background for new profiles; classic still uses this as its fallback background |
 | `theme_color_overrides` | `ThemeColorOverrides` | empty | optional manual overrides for core theme slots | supported keys: `accent_hex`, `surface_hex`, `card_hex`, `text_hex`, `muted_hex`, `border_hex`; blank/invalid values are discarded during normalization |
 | `show_toolbar` | `bool` | `true` | show/hide the status bar | also changes the usable viewport area |
 | `toolbar_position` | `ToolbarPosition` | `bottom` | places the status bar on top or bottom | values: `top`, `bottom`; only matters when `show_toolbar = true` |
@@ -173,7 +173,7 @@ row_ratios = [0.6, 0.4]
 | `layout_customizations` | `Map<String, LayoutCustomization>` | empty | custom ratios per layout | generated when dragging separators |
 | `layout_presets` | `Map<String, LayoutPreset>` | empty | named snapshots of layout mode + custom ratios | saved/applied/deleted from Settings > Advanced |
 | `app_rules` | `Map<String, AppRule>` | empty | persistent per-app rules | key = `app_id` |
-| `tag_styles` | `Map<String, TagStyle>` | empty | manual tag colours | normalised against actually existing tags |
+| `tag_styles` | `Map<String, TagStyle>` | empty | manual tag colors | normalized against actually existing tags |
 
 ## Shortcut bindings
 
@@ -208,17 +208,17 @@ Important notes:
 
 - dashboard bindings are **single keys** or the named special keys `Tab`, `Esc`, `Enter`, and `Space`;
 - `cycle_theme = "T"` moves forward, while pressing `Shift+T` at runtime cycles back to the previous theme;
-- invalid dashboard expressions such as `Ctrl+T` are normalised back to the default binding;
+- invalid dashboard expressions such as `Ctrl+T` are normalized back to the default binding;
 - `global_activate` is optional, accepts `Ctrl` / `Alt` / `Shift` plus a final key such as `P`, `Space`, or `F12`, and clearing it disables the global hotkey;
 - `alt_toggles_toolbar` is a separate compatibility switch for the Win32 `Alt` status-bar toggle and is not part of the general shortcut parser.
 
 ## Language and locale
 
-- `language = "english"` is the persisted default for every new or migrated workspace;
-- `language = "spanish"` switches the full Slint UI, native dialogs, tray tooltip, and runtime labels to Spanish;
-- the optional `PANOPTICON_LANG` environment variable (`en`, `es`, `en-US`, `es-MX`, etc.) takes precedence over the saved value for the current process only.
+- `language = "english"` is the persisted value for every new or migrated workspace;
+- legacy `language = "spanish"` values still deserialize, then normalize to English without corrupting the workspace;
+- `PANOPTICON_LANG` is retained only as a compatibility input and cannot override the English-only product language.
 
-## Theme colour overrides
+## Theme color overrides
 
 Core theme slots can be overridden explicitly under the `[theme_color_overrides]` table.
 
@@ -270,7 +270,7 @@ thumbnail_refresh_interval_ms = 5000
 | `hide_on_select_override` | `Option<bool>` | explicit modern override |
 | `pinned_position` | `Option<usize>` | preferred slot index (0-based) used by runtime pin ordering |
 | `tags` | `Vec<String>` | manual tags for grouping/filtering |
-| `color_hex` | `Option<String>` | fixed card colour |
+| `color_hex` | `Option<String>` | fixed card color |
 | `thumbnail_refresh_mode` | `ThumbnailRefreshMode` | `realtime`, `frozen`, `interval` |
 | `thumbnail_refresh_interval_ms` | `Option<u32>` | used when the mode is `interval` |
 
@@ -286,14 +286,14 @@ color_hex = "D29A5C"
 color_hex = "5CA9FF"
 ```
 
-### Important behaviour
+### Important behavior
 
-- tags are normalised to lowercase;
+- tags are normalized to lowercase;
 - duplicates and extra whitespace are removed;
-- if a tag is no longer used in `app_rules`, its style may disappear after normalisation;
-- when `active_tag_filter` is active, the tag colour is used as the default dashboard accent.
+- if a tag is no longer used in `app_rules`, its style may disappear after normalization;
+- when `active_tag_filter` is active, the tag color is used as the default dashboard accent.
 
-## Layout customisations
+## Layout customizations
 
 Layouts with persistable separators write their ratios under `layout_customizations`.
 
@@ -323,7 +323,7 @@ Notes:
 - `Bento` uses a main column ratio and sidebar ratios.
 - `Columns` uses column ratios.
 - `Row` and `Column` persist per-item ratios on the scrollable axis.
-- `Fibonacci` does not use persistent separator customisation.
+- `Fibonacci` does not use persistent separator customization.
 
 ## Workspaces
 
@@ -332,7 +332,7 @@ Panopticon supports separate per-file workspaces.
 ### How they work
 
 - the app can start with `--workspace <name>`;
-- the CLI also accepts `--workspace=<name>` for the same behaviour;
+- the CLI also accepts `--workspace=<name>` for the same behavior;
 - `--help` prints the available startup flags and `--version` prints the current app version;
 - interactive workspace names must be valid Windows filename stems, so avoid `<>:"/\\|?*` and control characters;
 - the settings window allows saving the current state to another workspace;
@@ -360,7 +360,7 @@ Notes:
 - timestamps are Unix milliseconds (`u64`) updated on save;
 - `schema_version` is reserved for metadata migrations.
 
-## Automatic normalisation
+## Automatic normalization
 
 Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 
@@ -368,7 +368,7 @@ Before entering the runtime, `AppSettings::normalized()` corrects several cases:
 - fixed refresh mode mappings (`realtime`, `balanced`, `battery-saver`) override the explicit interval with their canonical cadence;
 - empty filters;
 - empty or duplicate tags;
-- invalid hex colours;
+- invalid hex colors;
 - floating/dock dimensions lower than the configured safe minimums;
 - unsupported shortcut bindings (including multi-key expressions);
 - workspace names not valid for Windows;
