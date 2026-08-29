@@ -56,9 +56,12 @@ mod tests {
 
     #[test]
     fn effects_flag_locale_dock_and_hotkey_changes_independently() {
-        let previous = AppSettings::default();
+        let previous = AppSettings {
+            language: panopticon::i18n::Locale::Spanish,
+            ..AppSettings::default()
+        };
         let mut next = previous.clone();
-        next.language = panopticon::i18n::Locale::Spanish;
+        next.language = panopticon::i18n::Locale::English;
         next.dock_edge = Some(DockEdge::Left);
         next.shortcuts.global_activate = Some("Ctrl+Alt+K".to_owned());
 

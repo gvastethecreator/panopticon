@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Panopticon is a local Windows control room for organizing and activating live DWM window thumbnails." />
+    <meta name="theme-color" content="#0b0b0b" />
+    <title>Panopticon — One live control room for every open window</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Panopticon home"><span aria-hidden="true">◉</span> Panopticon</a>
+      <nav aria-label="Primary navigation">
+        <a href="#layouts">Layouts</a>
+        <a href="#proof">Proof</a>
+        <a href="https://github.com/gvastethecreator/panopticon">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Windows / Rust / live DWM</p>
+          <h1 id="hero-title">Watch the whole desktop without chasing it.</h1>
+          <p class="lede">Panopticon turns open windows into one live, filterable control room. Scan the grid, switch layouts, group work, and activate the window you need.</p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/gvastethecreator/panopticon/releases/latest">Download latest</a>
+            <a class="button" href="GETTING_STARTED.md">Read the guide</a>
+          </div>
+        </div>
+        <aside class="watch-card" aria-label="Product facts">
+          <div class="eye" aria-hidden="true"><span></span></div>
+          <dl>
+            <div><dt>Layouts</dt><dd>7</dd></div>
+            <div><dt>Data path</dt><dd>Local</dd></div>
+            <div><dt>UI language</dt><dd>English</dd></div>
+          </dl>
+        </aside>
+      </section>
+
+      <section class="proof" id="proof" aria-labelledby="proof-title">
+        <div class="section-heading">
+          <p class="eyebrow">Observed runtime</p>
+          <h2 id="proof-title">The thumbnails are alive.</h2>
+          <p>Panopticon reads real DWM surfaces. These four windows are disposable capture fixtures, filtered from an isolated workspace.</p>
+        </div>
+        <figure class="hero-shot">
+          <img src="assets/screenshots/grid-dashboard.webp" width="1600" height="1000" alt="Panopticon grid with four controlled live terminal thumbnails" />
+          <figcaption><span>Grid / 4 visible</span><span>No screenshots cached by Panopticon</span></figcaption>
+        </figure>
+      </section>
+
+      <section class="layout-index" id="layouts" aria-labelledby="layouts-title">
+        <div>
+          <p class="eyebrow">Change the geometry</p>
+          <h2 id="layouts-title">Seven layouts. One keyboard row.</h2>
+        </div>
+        <ol aria-label="Available layouts">
+          <li><span>1</span>Grid</li>
+          <li><span>2</span>Mosaic</li>
+          <li><span>3</span>Bento</li>
+          <li><span>4</span>Fibonacci</li>
+          <li><span>5</span>Columns</li>
+          <li><span>6</span>Row</li>
+          <li><span>7</span>Column</li>
+        </ol>
+      </section>
+
+      <section class="feature-grid" aria-label="Product capabilities">
+        <article><p class="number">01</p><h2>Filter the noise</h2><p>Limit the dashboard by monitor, application, tag, or group. Hide a window without closing it.</p></article>
+        <article class="accent"><p class="number">02</p><h2>Keep the rules</h2><p>Remember per-app visibility, aspect ratio, color, tags, position, and refresh strategy in local TOML.</p></article>
+        <article><p class="number">03</p><h2>Stay one key away</h2><p>Open the command palette, cycle layouts, refresh, or summon Panopticon with configurable shortcuts.</p></article>
+      </section>
+
+      <section class="split-proof" aria-labelledby="controls-title">
+        <div class="section-heading compact">
+          <p class="eyebrow">The control surface</p>
+          <h2 id="controls-title">Readable settings. Searchable commands.</h2>
+        </div>
+        <div class="shots">
+          <figure><img src="assets/screenshots/settings-english.webp" width="1600" height="1000" alt="Panopticon Behaviour and Display settings in English" /><figcaption>Settings / English-only</figcaption></figure>
+          <figure><img src="assets/screenshots/command-palette.webp" width="1600" height="1000" alt="Panopticon command palette with layout commands" /><figcaption>Command Palette / Keyboard ready</figcaption></figure>
+        </div>
+      </section>
+
+      <section class="local-note" aria-labelledby="local-title">
+        <p class="eyebrow">Local by design</p>
+        <h2 id="local-title">Your windows do not become somebody else's data.</h2>
+        <p>Panopticon uses the Windows compositor, local TOML settings, and bounded diagnostic logs. It has no account, telemetry service, screenshot library, or cloud sync. The only network path is the bounded GitHub release update check.</p>
+        <a href="SECURITY.md">Read the security boundary →</a>
+      </section>
+    </main>
+
+    <footer>
+      <p>Built for Windows by <a href="https://github.com/gvastethecreator">gvastethecreator</a>.</p>
+      <p><a href="https://github.com/sponsors/gvastethecreator">GitHub Sponsors</a> · <a href="https://ko-fi.com/gvaste">Ko-fi</a></p>
+    </footer>
+  </body>
+</html>

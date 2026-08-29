@@ -3699,14 +3699,6 @@ component KeyFieldSettingCard inherits Rectangle {
                     alignment: space-between;
                     vertical-stretch: 1;
 
-                    SelectSettingCard {
-                        icon: @image-url("../../assets/ui-icons/option-settings.svg");
-                        title: Tr.settings-option-language-title;
-                        description: Tr.settings-option-language-description;
-                        options: Tr.language-options;
-                        selected-index <=> root.language-index;
-                    }
-
                     HorizontalLayout {
                         spacing: 12px;
                         FooterButton {

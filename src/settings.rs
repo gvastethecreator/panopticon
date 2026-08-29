@@ -1676,7 +1676,7 @@ impl AppSettings {
         };
 
         Self {
-            language: self.language,
+            language: i18n::Locale::English,
             initial_layout: self.initial_layout,
             refresh_interval_ms,
             refresh_performance_mode: self.refresh_performance_mode,
@@ -2177,6 +2177,16 @@ mod tests {
             .theme_color_overrides
             .accent_hex
             .is_none());
+    }
+
+    #[test]
+    fn legacy_spanish_setting_normalizes_to_english() {
+        let settings = AppSettings {
+            language: crate::i18n::Locale::Spanish,
+            ..AppSettings::default()
+        };
+
+        assert_eq!(settings.normalized().language, crate::i18n::Locale::English);
     }
 
     #[test]

@@ -1,21 +1,15 @@
-//! Internationalization support for Panopticon.
+//! English copy catalog for Panopticon.
 //!
-//! The application ships with English (default) and Spanish translations.
-//! A persisted language preference can be overridden at runtime with the
-//! `PANOPTICON_LANG` environment variable.
-//!
-//! # Locale resolution order
-//!
-//! 1. `PANOPTICON_LANG` environment variable (`en`, `es`).
-//! 2. Persisted application setting.
-//! 3. English.
+//! `Locale::Spanish` remains deserializable so older settings files keep
+//! loading, but every production lookup resolves to English. The historical
+//! Spanish catalog is compiled only for migration-focused tests.
 
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
 // ── Locale type ──────────────────────────────────────────────
 
-/// Supported UI locales.
+/// Persisted UI locale values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum Locale {
@@ -26,13 +20,13 @@ pub enum Locale {
 
 static LOCALE: RwLock<Locale> = RwLock::new(Locale::English);
 
-/// Resolve and store the active UI locale.
+/// Resolve and store the English UI locale.
 pub fn init(preferred: Locale) {
     let locale = set_locale(preferred);
     tracing::info!(?locale, "i18n locale resolved");
 }
 
-/// Update the active locale and return the effective value.
+/// Update the active locale and return the effective English value.
 #[must_use]
 pub fn set_locale(preferred: Locale) -> Locale {
     let locale = resolve_locale(preferred);
@@ -50,13 +44,10 @@ pub fn current() -> Locale {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Translate a key to the active locale, falling back to English.
+/// Translate a key from the English catalog.
 #[must_use]
 pub fn t(key: &str) -> &'static str {
-    match current() {
-        Locale::English => en(key),
-        Locale::Spanish => es(key).unwrap_or_else(|| en(key)),
-    }
+    en(key)
 }
 
 /// Format a translated string with a single argument.
@@ -69,20 +60,14 @@ pub fn t_fmt(key: &str, arg: &str) -> String {
 // ── Locale detection ─────────────────────────────────────────
 
 fn resolve_locale(preferred: Locale) -> Locale {
-    if let Ok(lang) = std::env::var("PANOPTICON_LANG") {
-        return parse_locale_tag(&lang);
-    }
-
-    preferred
+    let _ = preferred;
+    Locale::English
 }
 
+#[cfg(test)]
 fn parse_locale_tag(tag: &str) -> Locale {
-    let lower = tag.to_ascii_lowercase();
-    if lower.starts_with("es") {
-        Locale::Spanish
-    } else {
-        Locale::English
-    }
+    let _ = tag;
+    Locale::English
 }
 
 // ── English translations (default) ──────────────────────────
@@ -269,7 +254,7 @@ fn en(key: &str) -> &'static str {
         }
         "settings.option.language.title" => "Language",
         "settings.option.language.description" => {
-            "Choose the application language. English is the default; Spanish is also available."
+            "Panopticon uses English throughout the application."
         }
         "settings.option.always_on_top.title" => "Always on top",
         "settings.option.always_on_top.description" => {
@@ -926,6 +911,7 @@ fn en(key: &str) -> &'static str {
 
 // ── Spanish translations ─────────────────────────────────────
 
+#[cfg(test)]
 #[allow(
     clippy::too_many_lines,
     clippy::match_same_arms,
@@ -1788,10 +1774,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_locale_tag_spanish() {
-        assert_eq!(parse_locale_tag("es-ES"), Locale::Spanish);
-        assert_eq!(parse_locale_tag("es-MX"), Locale::Spanish);
-        assert_eq!(parse_locale_tag("es"), Locale::Spanish);
+    fn legacy_spanish_tags_resolve_to_english() {
+        assert_eq!(parse_locale_tag("es-ES"), Locale::English);
+        assert_eq!(parse_locale_tag("es-MX"), Locale::English);
+        assert_eq!(parse_locale_tag("es"), Locale::English);
     }
 
     #[test]
@@ -1802,15 +1788,16 @@ mod tests {
     }
 
     #[test]
-    fn set_locale_updates_current_locale() {
-        assert_eq!(set_locale(Locale::Spanish), Locale::Spanish);
-        assert_eq!(current(), Locale::Spanish);
+    fn legacy_spanish_preference_keeps_current_locale_english() {
+        assert_eq!(set_locale(Locale::Spanish), Locale::English);
+        assert_eq!(current(), Locale::English);
+        assert_eq!(t("menu.close_window"), "Close window");
         assert_eq!(set_locale(Locale::English), Locale::English);
         assert_eq!(current(), Locale::English);
     }
 
     #[test]
-    fn critical_settings_and_command_keys_are_complete_in_both_locales() {
+    fn critical_settings_and_command_keys_are_complete_in_english() {
         const CRITICAL_KEYS: &[&str] = &[
             "window.command_palette_title",
             "settings.persistence_status.failed",
@@ -1892,7 +1879,6 @@ mod tests {
 
         for key in CRITICAL_KEYS {
             assert_ne!(en(key), "[?]", "missing English translation: {key}");
-            assert!(es(key).is_some(), "missing Spanish translation: {key}");
         }
     }
 }

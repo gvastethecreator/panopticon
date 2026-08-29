@@ -312,17 +312,13 @@ pub(crate) const fn background_fit_to_index(fit: BackgroundImageFit) -> i32 {
 }
 
 const fn locale_to_index(locale: i18n::Locale) -> i32 {
-    match locale {
-        i18n::Locale::English => 0,
-        i18n::Locale::Spanish => 1,
-    }
+    let _ = locale;
+    0
 }
 
 const fn index_to_locale(index: i32) -> i18n::Locale {
-    match index {
-        1 => i18n::Locale::Spanish,
-        _ => i18n::Locale::English,
-    }
+    let _ = index;
+    i18n::Locale::English
 }
 
 fn index_to_background_fit(index: i32) -> BackgroundImageFit {
