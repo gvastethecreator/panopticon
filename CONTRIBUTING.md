@@ -1,11 +1,10 @@
 # Contributing to Panopticon
 
-Thanks for taking the time to contribute to Panopticon.
+Thanks for taking the time to contribute.
 
 ## Before you start
 
 - Read `README.md`.
-- Review `docs/ARCHITECTURE.md` if you plan to touch Win32, DWM, or persistence.
 - If the change affects settings, also update `docs/CONFIGURATION.md`.
 
 ## Local setup
@@ -21,7 +20,7 @@ cargo test --all-targets --locked
 
 ### Minimum quality
 
-Before opening a PR, run:
+Before you open a PR, run:
 
 ```bash
 cargo fmt -- --check
@@ -42,15 +41,15 @@ Every `unsafe` block must document its invariant with a `// SAFETY:` comment.
 
 If you change a user-visible feature:
 
-- update `README.md`,
-- document the new or changed behavior,
+- update `README.md`;
+- document the new or changed behavior;
 - add tests if the change touches pure logic or persistence.
 
 ### PR style
 
-- keep changes small and coherent;
-- explain the **why**, not just the **what**;
-- avoid mixing unrelated refactors with a feature or fix.
+- Keep changes small and coherent.
+- Explain the **why**, not just the **what**.
+- Avoid mixing unrelated refactors with a feature or fix.
 
 ## Important code areas
 
@@ -62,16 +61,16 @@ If you change a user-visible feature:
 
 ## Useful contribution ideas
 
-- improve the tag editor inside the UI,
-- packaging and installer,
-- fully opt-in telemetry for diagnostics,
-- screenshots or GIFs for documentation,
-- more tests for settings and filter flows.
+- Improve the tag editor inside the UI.
+- Packaging and installer.
+- Fully opt-in telemetry for diagnostics.
+- Screenshots or GIFs for documentation.
+- More tests for settings and filter flows.
 
 ## Bug reports
 
 Use the corresponding issue template and include:
 
-- Windows version,
-- exact reproduction steps,
-- relevant logs from `%TEMP%/panopticon/logs/`.
+- Windows version
+- exact reproduction steps
+- relevant logs from `%TEMP%/panopticon/logs/`

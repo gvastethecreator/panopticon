@@ -22,7 +22,7 @@ GitHub/direct
 
 The Store package must not run the GitHub Releases update checker. The direct build keeps its current bounded update request.
 
-Microsoft Store accepts raw `.msix` packages. Projects with a Visual Studio packaging project should normally prefer `.msixupload`; Panopticon is a Rust/Slint desktop application without a WAP project, so this repository builds and validates a raw x64 `.msix` rather than creating a misleading upload wrapper by hand.
+Microsoft Store accepts raw `.msix` packages. Projects with a Visual Studio packaging project should normally prefer `.msixupload`. Panopticon is a Rust/Slint desktop application without a WAP project, so this repository builds and validates a raw x64 `.msix`.
 
 ## Current reservation status
 
@@ -134,7 +134,7 @@ Panopticon accesses window titles, application/process metadata, monitor geometr
 
 Complete every question. Panopticon does not include publisher-supplied violence, sexual content, gambling, unrestricted browser access, or public user-generated content.
 
-The app can display previews of arbitrary windows already opened by the user. Explain this accurately if the questionnaire asks about user-selected or user-generated content; Panopticon does not provide or upload that source content.
+The app can display previews of arbitrary windows already opened by the user. Explain this accurately if the questionnaire asks about user-selected or user-generated content. Panopticon does not provide or upload that source content.
 
 ### 4. Packages
 
@@ -172,8 +172,6 @@ At least one screenshot is required; prepare at least five:
 Screenshots can expose window titles and source-window contents. Use dedicated synthetic windows and fixtures, never a normal personal desktop.
 
 ### 6. Submission options
-
-Use [`CERTIFICATION-NOTES.md`](CERTIFICATION-NOTES.md).
 
 Panopticon declares `runFullTrust`. Explain the concrete desktop operations:
 
@@ -241,7 +239,7 @@ Release validation must inspect runtime logs or network behavior to prove the St
 | Activation | Selecting a thumbnail activates its source window |
 | Layouts | Grid, Mosaic, Bento, Fibonacci, Columns, Row, and Column remain usable |
 | Filters/grouping/tags | Rules and grouping update the displayed set correctly |
-| Settings | Language, theme, background, shortcuts, and workspaces persist |
+| Settings | Theme, background, shortcuts, and workspaces persist |
 | Tray | Hide/show/exit works and icon recovers after Explorer restart |
 | Global hotkey | Activation hotkey registers and unregisters safely |
 | Appbar/dock | Optional mode positions and unregisters correctly |
@@ -251,7 +249,7 @@ Release validation must inspect runtime logs or network behavior to prove the St
 | Uninstall | App registration, tray, hotkey, and appbar state are removed |
 | Reinstall | No stale shell state prevents startup |
 | Standard user | Normal use requires no elevation |
-| English/Spanish | Both languages remain complete and usable |
+| Product language | English UI remains complete and usable |
 | High DPI/multiple monitors | Layout and previews remain aligned |
 | Sensitive-content review | No private source content appears in release screenshots/evidence |
 
@@ -269,7 +267,7 @@ Confirm every release matches [`../../PRIVACY.md`](../../PRIVACY.md):
 
 ## Direct-channel signing backlog
 
-This PR does not invent a production certificate. Before presenting the Inno Setup installer or portable executables as trusted public binaries:
+This runbook does not invent a production certificate. Before presenting the Inno Setup installer or portable executables as trusted public binaries:
 
 1. obtain an Authenticode signing solution suitable for the publisher;
 2. sign `panopticon.exe` before building the ZIP and installer;
@@ -289,14 +287,13 @@ Store signing and direct Authenticode signing are separate decisions.
 - [ ] Cargo format, Clippy, tests, audit, and release build pass.
 - [ ] Store MSIX built from the submission commit.
 - [ ] Store binary proves GitHub update checks are disabled.
-- [ ] Hash, version, architecture, and source commit are recorded.
+- [ ] Hash, version, architecture, and source commit are recorded locally.
 - [ ] Clean install, launch, DWM, layouts, tray, hotkey, appbar, upgrade, uninstall, and reinstall are evidenced.
 - [ ] Public privacy URL is stable.
 - [ ] English and Spanish listing copy is reviewed.
 - [ ] Screenshots use synthetic non-sensitive windows.
 - [ ] Age rating is complete.
 - [ ] `runFullTrust` explanation is entered.
-- [ ] Certification notes match the exact build.
 - [ ] First release uses an intentional publishing hold.
 
 ## First-submission sequence
@@ -307,12 +304,12 @@ Store signing and direct Authenticode signing are separate decisions.
 4. Run `Test-StoreReadiness.ps1 -RequireReservedIdentity`.
 5. Run the complete Rust CI sequence.
 6. Run `Build-StoreMsix.ps1`.
-7. Copy and complete [`RELEASE-EVIDENCE-TEMPLATE.md`](RELEASE-EVIDENCE-TEMPLATE.md).
+7. Record identity, hash, commit, and qualification notes locally. Do not commit credentials, private Partner Center screenshots, certificate private keys, or source-window contents.
 8. Qualify the MSIX on a clean Windows VM/profile.
 9. Complete all six Partner Center sections.
 10. Upload only the reviewed `.msix`.
 11. Submit with a manual publishing hold.
-12. Review the certification report, final listing, and delivered package before publishing.
+12. Review the certification report, final listing, and delivered package before the listing becomes visible.
 
 ## Non-automatable account steps
 

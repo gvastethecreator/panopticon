@@ -1,20 +1,20 @@
-# Code of Conduct
+# Code of conduct
 
 This project follows a simple policy: respectful, technical, and constructive collaboration.
 
 ## We expect
 
-- professional respect,
-- specific and actionable feedback,
-- good faith when reviewing or reporting issues,
-- openness to technical corrections.
+- professional respect
+- specific and actionable feedback
+- good faith when reviewing or reporting issues
+- openness to technical corrections
 
 ## We do not tolerate
 
-- personal attacks,
-- harassment,
-- discrimination,
-- repeated hostile behavior.
+- personal attacks
+- harassment
+- discrimination
+- repeated hostile behavior
 
 ## Enforcement
 

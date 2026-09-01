@@ -36,7 +36,7 @@ Live previews can display sensitive information already visible in another open 
 - Optional appbar/dock mode
 - Named workspaces and local settings
 - Themes, color overrides, backdrop opacity, and local background images
-- English and Spanish interface
+- English-only interface
 - Keyboard-accessible navigation and command palette
 - Local-first operation without a Panopticon account
 
@@ -47,7 +47,7 @@ Initial Microsoft Store release of Panopticon.
 - Live Windows desktop previews
 - Seven responsive layouts
 - Filters, grouping, tags, and per-app rules
-- Tray, global shortcut, workspaces, themes, and bilingual UI
+- Tray, global shortcut, workspaces, themes, and English UI
 - Microsoft Store-managed package updates
 
 Update this section for each later submission.
@@ -101,7 +101,7 @@ Las previews en vivo pueden mostrar información sensible ya visible en otra apl
 - Modo appbar/dock opcional
 - Workspaces y configuración local
 - Temas, colores, opacidad y fondos locales
-- Interfaz en inglés y español
+- Interfaz en inglés
 - Navegación por teclado y paleta de comandos
 - Funcionamiento local sin cuenta de Panopticon
 
@@ -112,7 +112,7 @@ Primera publicación de Panopticon en Microsoft Store.
 - Previews en vivo del escritorio de Windows
 - Siete layouts responsivos
 - Filtros, agrupación, tags y reglas por aplicación
-- Bandeja, atajo global, workspaces, temas e interfaz bilingüe
+- Bandeja, atajo global, workspaces, temas e interfaz en inglés
 - Actualizaciones administradas por Microsoft Store
 
 ## Screenshot plan

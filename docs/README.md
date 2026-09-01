@@ -1,44 +1,31 @@
-# Panopticon Documentation
+# Panopticon documentation
 
 ![Panopticon preview](assets/panopticon.webp)
 
-This folder is the documentation hub. The root [`README.md`](../README.md) is the short public landing page. Use the map below to open the right file.
+This folder is the documentation hub. The root [`README.md`](../README.md) is the short public landing page.
 
 ## What Panopticon is
 
-Panopticon is a native Windows application that shows your open windows as **live DWM thumbnails** inside a single dashboard. It is designed as a local productivity utility: a control room where you can scan, group, filter, activate, and customize open applications without relying on screenshots, cloud services, or a background server.
+Panopticon is a native Windows application that shows your open windows as **live DWM thumbnails** in a single dashboard. It is a local productivity utility: a control room where you can scan, group, filter, activate, and customize open applications without screenshots, cloud services, or a background server.
 
-At a glance, Panopticon provides:
-
-- live previews powered by the Windows compositor;
-- multiple mathematical layouts for arranging windows;
-- per-application rules for visibility, color, tags, and refresh strategy;
-- tray-first behavior and optional appbar/dock mode;
-- persistent settings and named workspaces;
-- an English-only Slint UI across the dashboard, settings, tray, dialogs, and command palette.
+- Live previews powered by the Windows compositor
+- Multiple mathematical layouts for arranging windows
+- Per-application rules for visibility, color, tags, and refresh strategy
+- Tray-first behavior and optional appbar/dock mode
+- Persistent settings and named workspaces
+- An English-only Slint UI across the dashboard, settings, tray, dialogs, and command palette
 
 ## Choose your path
 
 ### If you want to use the app
 
-Start here:
-
 1. [`GETTING_STARTED.md`](GETTING_STARTED.md)
 2. [`CONFIGURATION.md`](CONFIGURATION.md)
-3. [`UX_DESIGN.md`](UX_DESIGN.md)
 
-### If you want to understand or modify the codebase
+### If you want to contribute or package a Store build
 
-Start here:
-
-1. [`ARCHITECTURE.md`](ARCHITECTURE.md)
-2. [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md)
-3. [`IMPLEMENTATION.md`](IMPLEMENTATION.md)
-4. [`SYSTEM_INTEGRATIONS.md`](SYSTEM_INTEGRATIONS.md)
-
-### If you want the product intent and scope
-
-Read [`PRD.md`](PRD.md).
+- [`../CONTRIBUTING.md`](../CONTRIBUTING.md)
+- [`store/README.md`](store/README.md)
 
 ## Quick overview
 
@@ -94,14 +81,12 @@ The workspace file is read from `%APPDATA%\Panopticon\workspaces\work.toml`.
 
 ## First-run checklist
 
-If you are opening the app for the first time, this is the fastest useful walkthrough:
-
-1. open Panopticon while a few normal applications are already running;
-2. cycle layouts with `Tab` or jump directly with `1` to `7`;
-3. right-click a thumbnail to inspect app/window actions;
-4. hide an app and restore it from the tray;
-5. open settings with `O` to review filters, theme, and workspace options, then click the sidebar mascot to open About/update details;
-6. try `Row` or `Column` and use the wheel or middle-button drag to navigate overflow.
+1. Open Panopticon while a few normal applications are already running.
+2. Cycle layouts with `Tab` or jump directly with `1` to `7`.
+3. Right-click a thumbnail to inspect app/window actions.
+4. Hide an app and restore it from the tray.
+5. Open settings with `O` to review filters, theme, and workspace options, then click the sidebar mascot to open About/update details.
+6. Try `Row` or `Column` and use the wheel or middle-button drag to navigate overflow.
 
 ## Important paths
 
@@ -131,9 +116,9 @@ assets/themes.json
 
 - UI iconography includes assets from [HugeIcons](https://hugeicons.com/).
 
-## Architecture snapshot
+## How it works
 
-Panopticon is intentionally local and relatively direct. The runtime is built around four pillars:
+Panopticon is local and relatively direct. The runtime is built around four pillars:
 
 1. **Win32 enumeration** to discover candidate windows.
 2. **DWM thumbnails** to render live previews efficiently.
@@ -144,24 +129,14 @@ There is no backend, web API, remote persistence, or external service dependency
 
 ## Documentation map
 
-Use this table when you know the question you want answered.
-
 | Document | Read it when you need... |
 | --- | --- |
 | [`GETTING_STARTED.md`](GETTING_STARTED.md) | installation steps, first-run behavior, shortcuts, and common issues |
 | [`CONFIGURATION.md`](CONFIGURATION.md) | all config keys, workspace behavior, tags, and layout persistence |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | a system view of runtime layers, startup flow, and key design decisions |
-| [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | code-level behavior of modules, state, timers, DWM syncing, tray, and dock |
-| [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | where files live, what each folder owns, and which paths are editable |
-| [`SYSTEM_INTEGRATIONS.md`](SYSTEM_INTEGRATIONS.md) | Win32/DWM/Shell/GDI usage, dependencies, and operational constraints |
-| [`UX_DESIGN.md`](UX_DESIGN.md) | user-facing surfaces, interactions, layout mental model, and visual language |
-| [`DEPENDENCIES.md`](DEPENDENCIES.md) | current Cargo versions, changelogs, update value, and locked maintenance commands |
-| [`QUALITY_AUDIT.md`](QUALITY_AUDIT.md) | current static gates, native-runtime limits, and readiness verdict |
-| [`PRD.md`](PRD.md) | product goals, scope, users, constraints, acceptance criteria, future opportunities |
+| [`store/README.md`](store/README.md) | Microsoft Store packaging and Partner Center workflow |
+| [`assets/screenshots/README.md`](assets/screenshots/README.md) | public screenshot provenance |
 
 ## Development essentials
-
-The most relevant local checks are:
 
 ```bash
 cargo check --locked
@@ -174,26 +149,21 @@ cargo doc --no-deps --locked
 
 The root `Justfile` wraps the same commands, including `just ci` for the complete local gate. VS Code users can run the equivalent sequence from [`../.vscode/tasks.json`](../.vscode/tasks.json) with `♻️ CI`.
 
-Current automated coverage is strongest around:
+Current automated coverage is strongest around layout behavior, settings normalization, theme logic, and i18n helpers.
 
-- layout behavior;
-- settings normalization;
-- theme logic;
-- i18n helpers.
-
-Native integrations such as tray behavior, DWM registration, Win32 menus, and window enumeration are more dependent on manual/runtime validation.
+Native integrations such as tray behavior, DWM registration, Win32 menus, and window enumeration depend more on manual or runtime validation.
 
 ## Known boundaries
 
 Panopticon currently assumes:
 
-- **Windows only**;
-- **DWM availability**;
-- **local desktop usage**;
-- **no Linux/macOS support**;
-- **no remote backend or multi-user collaboration model**.
+- **Windows only**
+- **DWM availability**
+- **local desktop usage**
+- **no Linux/macOS support**
+- **no remote backend or multi-user collaboration model**
 
-Dock/appbar mode is also a special runtime mode, so some behaviors intentionally differ from floating-window mode.
+Dock/appbar mode is a special runtime mode, so some behaviors differ from floating-window mode.
 
 ## Related project files
 

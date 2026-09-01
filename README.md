@@ -15,15 +15,15 @@
 
 *Desktop utility for viewing, organizing, and activating your open windows through live thumbnails on Windows 10/11.*
 
-It discovers real top-level windows, renders their live previews, and lets you manage them in a single control room.
+Panopticon discovers real top-level windows, renders their live previews, and lets you manage them in a single control room.
 
 [Project site](https://gvastethecreator.github.io/panopticon/) · [Latest release](https://github.com/gvastethecreator/panopticon/releases/latest) · [Source and issues](https://github.com/gvastethecreator/panopticon)
 
-- 👁️ see many windows at once without constantly alt-tabbing.
-- 👁️ switch between several layout strategies depending on the task.
-- 👁️ keep a persistent visual workspace with filters, grouping, and tags.
-- 👁️ hide the app in the tray and bring it back instantly when needed.
-- 👁️ local-first, with no accounts or telemetry; direct builds use a bounded GitHub release update check, while Store builds rely on Microsoft Store updates.
+- 👁️ See many windows at once without constantly Alt+Tabbing.
+- 👁️ Switch among several layout strategies depending on the task.
+- 👁️ Keep a persistent visual workspace with filters, grouping, and tags.
+- 👁️ Hide the app in the tray and bring it back instantly when needed.
+- 👁️ Local-first, with no accounts or telemetry. Direct builds use a bounded GitHub release update check; Store builds rely on Microsoft Store updates.
 - 👁️ **7 layout modes**: `Grid`, `Mosaic`, `Bento`, `Fibonacci`, `Columns`, `Row`, and `Column`.
 - 👁️ **Per-app rules** for hiding, aspect ratio, color, tags, and thumbnail refresh mode.
 - 👁️ **Grouping and filters** by app, monitor, title, class, and tag.
@@ -32,7 +32,7 @@ It discovers real top-level windows, renders their live previews, and lets you m
 - 👁️ **English-only UI** across the dashboard, settings, tray, dialogs, and command palette.
 
 ---
-> If you want the full guide jump to **[`docs/README.md`](docs/README.md)**.
+> For the full guide, open **[`docs/README.md`](docs/README.md)**.
 
 ## Product tour
 
@@ -46,7 +46,7 @@ The dashboard captures use four controlled Windows Terminal fixtures in an isola
 
 See [capture provenance](docs/assets/screenshots/README.md) for the isolation and privacy boundary.
 
-## 💾 Download
+## Download
 
 - **Latest release:** [github.com/gvastethecreator/panopticon/releases/latest](https://github.com/gvastethecreator/panopticon/releases/latest)
 - **Build from source:** see [Quick start](#quick-start)
@@ -57,17 +57,13 @@ See [capture provenance](docs/assets/screenshots/README.md) for the isolation an
 cargo run --locked
 ```
 
-For an optimized build use `cargo run --release --locked`. VS Code users can run `♻️ CI` from [`.vscode/tasks.json`](.vscode/tasks.json) for the full check sequence.
-
-Dependency policy and reviewed changelogs live in [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md).
-The current readiness and native-runtime limits are tracked in [`docs/project-readiness.md`](docs/project-readiness.md)
-and [`docs/QUALITY_AUDIT.md`](docs/QUALITY_AUDIT.md).
+For an optimized build, use `cargo run --release --locked`. VS Code users can run `♻️ CI` from [`.vscode/tasks.json`](.vscode/tasks.json) for the full check sequence.
 
 ## Microsoft Store preparation
 
-The Store channel has a separate MSIX identity, package builder, update policy, certification notes, listing copy, privacy policy, and release-evidence workflow. See [`docs/store/README.md`](docs/store/README.md).
+The Store channel has a separate MSIX identity, package builder, update policy, listing copy, privacy policy, and qualification workflow. See [`docs/store/README.md`](docs/store/README.md).
 
-The Store package is deliberately blocked until Panopticon is reserved in Partner Center and the exact identity is applied. The direct ZIP/Inno release remains a separate channel and requires publisher-owned Authenticode signing for trusted public distribution.
+The Store package is blocked until Panopticon is reserved in Partner Center and the exact identity is applied. The direct ZIP/Inno release remains a separate channel and requires publisher-owned Authenticode signing for trusted public distribution.
 
 See [`PRIVACY.md`](PRIVACY.md) for the bilingual policy covering window metadata, DWM previews, local storage, logs, and channel-specific network behavior.
 
@@ -78,7 +74,7 @@ See [`PRIVACY.md`](PRIVACY.md) for the bilingual policy covering window metadata
 3. Left-click a thumbnail to activate that window.
 4. Right-click a thumbnail to open per-window actions.
 5. Press `O` to open settings and review theme, filters, and workspaces.
-6. Use the tray icon to hide/show the dashboard without closing it.
+6. Use the tray icon to hide or show the dashboard without closing it.
 
 ### Handy shortcuts
 
@@ -102,8 +98,8 @@ See [`PRIVACY.md`](PRIVACY.md) for the bilingual policy covering window metadata
 | `Esc` | Exit |
 
 ---
-- For deep technical details, check the [docs](docs/README.md) folder.
-- For Microsoft Store publication, use the [Store runbook](docs/store/README.md).
+- For usage and configuration, see the [docs](docs/README.md) folder.
+- For Microsoft Store packaging, use the [Store runbook](docs/store/README.md).
 - For feature requests and suggestions, create an issue or submit a PR.
 - If you like this project, consider giving it a star or becoming a sponsor.
 ---
@@ -111,6 +107,5 @@ See [`PRIVACY.md`](PRIVACY.md) for the bilingual policy covering window metadata
 <h4 align="right">Support the further development of this tool 🤍</h4>
 <p align="right">
   <a href="https://github.com/sponsors/gvastethecreator/"><img src="https://shieldcn.dev/badge/%E2%9D%A4-sponsor%20this%20project-red.svg?animate=pulse" alt="Sponsor this project" /></a>
-  <a href="https://ko-fi.com/gvaste"><img src="https://shieldcn.dev/badge/Ko--fi-support%20development-ff5e5b.svg?logo=kofi&variant=branded" alt="Support development on Ko-fi" /></a>
-  <a href="https://x.com/gvastebb"><img src="https://shieldcn.dev/x/mention/gvastebb.svg?variant=branded" alt="Follow on X" /></a>
+  <a href="https://x.com/gvastebb"><img src="https://shieldcn.dev/x/mention/gvastebb.svg?variant=branded" alt="Follow me on X" /></a>
 </p>

@@ -16,8 +16,6 @@ $cargoPath = Join-Path $repoRoot 'Cargo.toml'
 $privacyPath = Join-Path $repoRoot 'PRIVACY.md'
 $runbookPath = Join-Path $repoRoot 'docs\store\README.md'
 $listingPath = Join-Path $repoRoot 'docs\store\LISTING.md'
-$certificationPath = Join-Path $repoRoot 'docs\store\CERTIFICATION-NOTES.md'
-$evidenceTemplatePath = Join-Path $repoRoot 'docs\store\RELEASE-EVIDENCE-TEMPLATE.md'
 $distributionPath = Join-Path $repoRoot 'src\app\distribution.rs'
 $runtimeSupportPath = Join-Path $repoRoot 'src\app\runtime_support.rs'
 $buildAssetsPath = Join-Path $repoRoot 'scripts\Build-StoreAssets.ps1'
@@ -78,8 +76,6 @@ $requiredFiles = @(
     $privacyPath,
     $runbookPath,
     $listingPath,
-    $certificationPath,
-    $evidenceTemplatePath,
     $distributionPath,
     $runtimeSupportPath,
     $buildAssetsPath,

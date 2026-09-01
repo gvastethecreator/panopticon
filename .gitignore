@@ -23,6 +23,7 @@
 .agents/
 .opencode/
 .local/
+.scratch/
 /.scratch/
 # Private planning documents and abandoned scaffolds inside docs/.
 docs/panopticon_improvement_prd/

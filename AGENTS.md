@@ -1,14 +1,10 @@
-# Panopticon — Agent Context
+# Panopticon agent rules
 
-Project rules for this repository. Host catalogs such as `.github/copilot-instructions.md` must point here.
+Host catalogs such as `.github/copilot-instructions.md` must point here.
 
 ## Tracker
 
-GitHub Issues and Project 9 hold live state. Local mirrors live in `.scratch/panopticon/`. Read `docs/agents/issue-tracker.md` before creating or triaging work. Read `docs/agents/triage-labels.md` for the five canonical labels.
-
-## Domain
-
-Use the glossary in root `CONTEXT.md`. Decisions live in `docs/adr/`. Runtime layers live in `docs/ARCHITECTURE.md`. Load `docs/agents/domain.md` before exploring a new area.
+GitHub Issues and Project 9 hold live state. Local mirrors live in `.scratch/panopticon/`.
 
 ## Stack
 
@@ -37,11 +33,8 @@ Use the glossary in root `CONTEXT.md`. Decisions live in `docs/adr/`. Runtime la
 - Native tray and popup menus: `src/app/tray.rs`, `src/app/window_menu.rs`. Do not rebuild those menus in Slint.
 - Fonts: static Miranda Sans TTF files in `assets/fonts/`. Do not reintroduce variable fonts without a Windows rendering check.
 - Settings schema change: update `docs/CONFIGURATION.md` and shortcut copy in `README.md` and `docs/GETTING_STARTED.md`.
-- OS integration or direct-dependency change: update `docs/SYSTEM_INTEGRATIONS.md`.
 
-## Docs map
+## Docs
 
 - Users: `docs/GETTING_STARTED.md`, `docs/CONFIGURATION.md`
-- Contributors: `docs/ARCHITECTURE.md`, `docs/IMPLEMENTATION.md`, `docs/PROJECT_STRUCTURE.md`
-- Product intent: `docs/PRD.md`
-- Gates: `docs/QUALITY_AUDIT.md`, `docs/project-readiness.md`
+- Store packaging: `docs/store/README.md`

@@ -1,4 +1,4 @@
-# Getting Started
+# Getting started
 
 Compile, run, and complete a first session of Panopticon.
 
@@ -75,11 +75,11 @@ If there are no candidate windows, the UI shows an empty state.
 6. Open `Settings` with `O` and review filters, theme, background options, shortcuts, and workspaces. Click the sidebar mascot to open About and check update status.
 7. Try `T` to toggle between themes.
 8. Press `F1` while the dashboard is focused to open the About window.
-9. If using `Row` or `Column`, scroll with the wheel or middle-button drag.
+9. If you use `Row` or `Column`, scroll with the wheel or middle-button drag.
 
 ## Useful shortcuts
 
-These are the default bindings shipped by Panopticon today. The dashboard/global shortcuts can be edited from the settings window; `F1` remains a built-in shortcut for the About window.
+These are the default bindings shipped by Panopticon today. You can edit the dashboard and global shortcuts from the settings window. `F1` remains a built-in shortcut for the About window.
 
 | Key / gesture | Result |
 | --- | --- |
@@ -103,15 +103,11 @@ These are the default bindings shipped by Panopticon today. The dashboard/global
 | right-click tray | open quick menu |
 | `Esc` | exit |
 
-## Files worth looking at early
+## Related docs
 
-- [`../README.md`](../README.md) -- short public-facing overview.
-- [`README.md`](README.md) -- documentation hub and reading guide.
-- [`PRD.md`](PRD.md) -- updated product objectives.
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) -- architecture and diagrams.
-- [`CONFIGURATION.md`](CONFIGURATION.md) -- all settings keys.
-- [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) -- repository map.
-- [`IMPLEMENTATION.md`](IMPLEMENTATION.md) -- technical details per module.
+- [`../README.md`](../README.md) — short public overview
+- [`README.md`](README.md) — documentation hub
+- [`CONFIGURATION.md`](CONFIGURATION.md) — all settings keys
 
 ## Important paths
 
