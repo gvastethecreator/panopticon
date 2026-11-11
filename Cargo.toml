@@ -23,7 +23,7 @@ toml = "1.1.4"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2.5"
-rfd = "0.17.2"
+rfd = "0.18.0"
 
 [build-dependencies]
 slint-build = "1.17.1"
